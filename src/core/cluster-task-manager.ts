@@ -14,9 +14,11 @@ import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
 import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import * as yaml from 'yaml';
 import {type AnyObject} from '../types/aliases.js';
 import path from 'node:path';
+import {PodmanRuntimeConfigurationFailedSoloError} from './errors/classes/system/podman-runtime-configuration-failed-solo-error.js';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {type ClusterCreateOptions} from '../integration/kind/model/create-cluster/cluster-create-options.js';
@@ -174,7 +176,9 @@ export class ClusterTaskManager extends ShellRunner {
             [
               'KIND_EXPERIMENTAL_PROVIDER=podman',
               `PATH=${kindRuntimePath}`,
-              ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
+              ...PodmanDependencyManager.toEnvironmentArguments(
+                this.podmanDependencyManager.containerConfigEnvironment(),
+              ),
               'kind',
               'create',
               'cluster',
@@ -284,32 +288,57 @@ export class ClusterTaskManager extends ShellRunner {
       return;
     }
 
-    for (const helper of [constants.NETAVARK, constants.AARDVARK_DNS]) {
-      await this.depManager.checkDependency(helper);
+    // The netavark/aardvark-dns helpers publish x86_64 binaries only, so fail early and clearly on
+    // any other architecture rather than downloading a binary the host cannot execute.
+    if (os.arch() !== 'x64') {
+      throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+        `Homebrew podman on ${os.arch()} Linux is unsupported: the netavark and aardvark-dns network ` +
+          'helpers are published for x86_64 only',
+      );
     }
 
-    for (const runtimeBinary of ['crun', 'conmon']) {
-      const binaryPath: string = path.join(podmanBinaryDirectory, runtimeBinary);
-      if (!fs.existsSync(binaryPath)) {
-        throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
-          `${runtimeBinary} was not found at ${binaryPath}; the Homebrew podman installation appears incomplete`,
-        );
+    // Installing the helpers and generating the configuration are the fatal steps; wrap their
+    // failures (GitHub download, missing template) in the actionable runtime-configuration error.
+    try {
+      for (const helper of [constants.NETAVARK, constants.AARDVARK_DNS]) {
+        await this.depManager.checkDependency(helper);
       }
+
+      for (const runtimeBinary of ['crun', 'conmon']) {
+        const binaryPath: string = path.join(podmanBinaryDirectory, runtimeBinary);
+        if (!fs.existsSync(binaryPath)) {
+          throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+            `${runtimeBinary} was not found at ${binaryPath}; the Homebrew podman installation appears incomplete`,
+          );
+        }
+      }
+
+      await this.podmanDependencyManager.setupConfig(podmanBinaryDirectory);
+    } catch (error) {
+      if (error instanceof PodmanRuntimeConfigurationFailedSoloError) {
+        throw error;
+      }
+      throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+        'failed to install the network helpers or generate the container configuration',
+        error,
+      );
     }
 
-    await this.podmanDependencyManager.setupConfig(podmanBinaryDirectory);
-
-    // kind runs podman as root, so probe as root with the generated configuration: `podman info`
-    // fails fast on an unloadable configuration and on unresolvable runtime/network helpers.
+    // Best-effort probe: `kind create cluster` runs podman with this same configuration and is the
+    // real gate, so a transient `podman info` failure should warn rather than block an otherwise
+    // valid setup.
     const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
+    const configurationArguments: string[] = PodmanDependencyManager.toEnvironmentArguments(
+      this.podmanDependencyManager.containerConfigEnvironment(),
+    );
     try {
       await this.sudoRun(
         onSudoRequested,
         onSudoGranted,
         'env',
         [
-          `PATH=${podmanBinaryDirectory}${path.delimiter}${process.env.PATH}`,
-          ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
+          `PATH=${podmanBinaryDirectory}${path.delimiter}${process.env.PATH || ''}`,
+          ...configurationArguments,
           'podman',
           'info',
         ],
@@ -319,9 +348,9 @@ export class ClusterTaskManager extends ShellRunner {
         SubprocessCommandProfile.CONTAINER_ENGINE,
       );
     } catch (error) {
-      throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
-        'podman rejected the generated container configuration',
-        error,
+      this.logger.warn(
+        'podman info probe failed after configuring the container runtime; continuing to cluster ' +
+          `creation, which will surface any real configuration problem: ${error instanceof Error ? error.message : error}`,
       );
     }
   }

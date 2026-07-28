@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject, injectable} from 'tsyringe-neo';
+import {container, inject, injectable} from 'tsyringe-neo';
 import {ShellRunner} from '../../core/shell-runner.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
@@ -19,9 +19,17 @@ export class PodmanClient {
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.shellRunner = new ShellRunner(this.logger);
-    // Later solo invocations (image loads, cluster teardown) must keep rootful podman on the
-    // solo-owned container configuration generated during cluster bootstrap.
-    PodmanDependencyManager.applyPersistedContainerConfiguration();
+  }
+
+  /**
+   * The solo-owned container configuration (CONTAINERS_CONF / CONTAINERS_REGISTRIES_CONF) rootful
+   * podman must run under, resolved from the PodmanDependencyManager that wrote it. Empty unless a
+   * valid configuration was persisted (Linux rootful only).
+   */
+  private containerConfigEnvironment(): Record<string, string> {
+    return container
+      .resolve<PodmanDependencyManager>(InjectTokens.PodmanDependencyManager)
+      .containerConfigEnvironment();
   }
 
   public async getKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
@@ -46,6 +54,7 @@ export class PodmanClient {
   ): Promise<void> {
     const kindArguments: string[] = ['load', 'image-archive', archivePath, '--name', clusterName];
     const pathEnvironment: string = `${PathEx.dirname(kindExecutable)}${PathEx.delimiter}${process.env.PATH || ''}`;
+    const configEnvironment: Record<string, string> = this.containerConfigEnvironment();
 
     if (PodmanClient.isSudoPodmanCommand(engineCommand)) {
       await this.shellRunner.run('sudo', [
@@ -53,7 +62,7 @@ export class PodmanClient {
         'env',
         `KIND_EXPERIMENTAL_PROVIDER=${constants.PODMAN}`,
         `PATH=${pathEnvironment}`,
-        ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
+        ...PodmanDependencyManager.toEnvironmentArguments(configEnvironment),
         kindExecutable,
         ...kindArguments,
       ]);
@@ -65,6 +74,7 @@ export class PodmanClient {
       environmentVariablesToAppend: {
         KIND_EXPERIMENTAL_PROVIDER: constants.PODMAN,
         PATH: pathEnvironment,
+        ...configEnvironment,
       },
     });
   }
@@ -76,7 +86,7 @@ export class PodmanClient {
     };
   }
 
-  private static sudoPodmanCommand(): ContainerEngineCommand {
+  private sudoPodmanCommand(): ContainerEngineCommand {
     // sudo resets both PATH (secure_path drops the brew bin directory holding podman) and the
     // container configuration variables, so pass them back explicitly through `env`.
     return {
@@ -85,7 +95,7 @@ export class PodmanClient {
         '-n',
         'env',
         `PATH=${process.env.PATH || ''}`,
-        ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
+        ...PodmanDependencyManager.toEnvironmentArguments(this.containerConfigEnvironment()),
         constants.PODMAN,
       ],
     };
@@ -102,7 +112,7 @@ export class PodmanClient {
       return podmanCommand;
     }
 
-    const sudoPodmanCommand: ContainerEngineCommand = PodmanClient.sudoPodmanCommand();
+    const sudoPodmanCommand: ContainerEngineCommand = this.sudoPodmanCommand();
 
     if (await this.containerExists(sudoPodmanCommand, nodeName)) {
       return sudoPodmanCommand;
@@ -115,6 +125,7 @@ export class PodmanClient {
     try {
       await this.shellRunner.run(command.executable, [...command.argumentsPrefix, 'container', 'exists', nodeName], {
         commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+        environmentVariablesToAppend: this.containerConfigEnvironment(),
         timeoutMs: PodmanClient.CONTAINER_ENGINE_PROBE_TIMEOUT_MS,
       });
       return true;

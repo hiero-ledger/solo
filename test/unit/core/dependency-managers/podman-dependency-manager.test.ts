@@ -16,93 +16,98 @@ import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../src/core/constants.js';
 
 describe('PodmanDependencyManager', (): void => {
-  const savedContainersConfig: string | undefined = process.env.CONTAINERS_CONF;
-  const savedRegistriesConfig: string | undefined = process.env.CONTAINERS_REGISTRIES_CONF;
+  let podmanDependencyManager: PodmanDependencyManager;
+  let homeDirectory: string;
+  let cacheDirectory: string;
+  let configDirectory: string;
 
-  const restoreEnvironment: () => void = (): void => {
-    if (savedContainersConfig === undefined) {
-      delete process.env.CONTAINERS_CONF;
-    } else {
-      process.env.CONTAINERS_CONF = savedContainersConfig;
-    }
-    if (savedRegistriesConfig === undefined) {
-      delete process.env.CONTAINERS_REGISTRIES_CONF;
-    } else {
-      process.env.CONTAINERS_REGISTRIES_CONF = savedRegistriesConfig;
-    }
-  };
+  beforeEach((): void => {
+    resetForTest();
+    homeDirectory = container.resolve<string>(InjectTokens.HomeDirectory);
+    cacheDirectory = container.resolve<string>(InjectTokens.CacheDir);
+    configDirectory = PathEx.join(homeDirectory, 'config');
+    podmanDependencyManager = container.resolve<PodmanDependencyManager>(InjectTokens.PodmanDependencyManager);
+    fs.rmSync(configDirectory, {recursive: true, force: true});
+  });
 
   afterEach((): void => {
     sinon.restore();
-    restoreEnvironment();
+    fs.rmSync(configDirectory, {recursive: true, force: true});
   });
 
-  describe('containerConfigEnvironmentArguments', (): void => {
-    let emptyHomeDirectory: string;
-
-    beforeEach((): void => {
-      emptyHomeDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-podman-home-'));
-    });
-
-    afterEach((): void => {
-      fs.rmSync(emptyHomeDirectory, {recursive: true, force: true});
-    });
-
-    it('should return NAME=value pairs for the container configuration variables that are set', (): void => {
-      process.env.CONTAINERS_CONF = '/solo/config/containers.conf';
-      process.env.CONTAINERS_REGISTRIES_CONF = '/solo/config/registries.conf';
-
-      const environmentArguments: string[] =
-        PodmanDependencyManagerClass.containerConfigEnvironmentArguments(emptyHomeDirectory);
-
-      expect(environmentArguments).to.deep.equal([
+  describe('toEnvironmentArguments', (): void => {
+    it('should turn the environment map into NAME=value pairs', (): void => {
+      expect(
+        PodmanDependencyManagerClass.toEnvironmentArguments({
+          CONTAINERS_CONF: '/solo/config/containers.conf',
+          CONTAINERS_REGISTRIES_CONF: '/solo/config/registries.conf',
+        }),
+      ).to.deep.equal([
         'CONTAINERS_CONF=/solo/config/containers.conf',
         'CONTAINERS_REGISTRIES_CONF=/solo/config/registries.conf',
       ]);
     });
 
-    it('should return an empty list when nothing is set and no configuration is persisted', (): void => {
-      delete process.env.CONTAINERS_CONF;
-      delete process.env.CONTAINERS_REGISTRIES_CONF;
+    it('should return an empty list for an empty environment', (): void => {
+      expect(PodmanDependencyManagerClass.toEnvironmentArguments({})).to.deep.equal([]);
+    });
+  });
 
-      expect(PodmanDependencyManagerClass.containerConfigEnvironmentArguments(emptyHomeDirectory)).to.deep.equal([]);
+  describe('containerConfigEnvironment', (): void => {
+    // A runtime path guaranteed to exist, used so the freshness check passes.
+    const existingRuntimePath: string = process.execPath;
+
+    const writeContainersConfig: (crunPath: string) => void = (crunPath: string): void => {
+      fs.mkdirSync(configDirectory, {recursive: true});
+      fs.writeFileSync(PathEx.join(configDirectory, 'containers.conf'), `[engine.runtimes]\ncrun = ["${crunPath}"]\n`);
+      fs.writeFileSync(
+        PathEx.join(configDirectory, 'registries.conf'),
+        'unqualified-search-registries = ["docker.io"]\n',
+      );
+    };
+
+    it('should return the persisted config paths when the files and referenced runtime exist', (): void => {
+      sinon.stub(OperatingSystem, 'isLinux').returns(true);
+      writeContainersConfig(existingRuntimePath);
+
+      expect(podmanDependencyManager.containerConfigEnvironment()).to.deep.equal({
+        CONTAINERS_CONF: PathEx.join(configDirectory, 'containers.conf'),
+        CONTAINERS_REGISTRIES_CONF: PathEx.join(configDirectory, 'registries.conf'),
+      });
     });
 
-    it('should restore the variables from configuration persisted by an earlier run on Linux', (): void => {
+    it('should return empty when the referenced runtime no longer exists (stale config)', (): void => {
       sinon.stub(OperatingSystem, 'isLinux').returns(true);
-      delete process.env.CONTAINERS_CONF;
-      delete process.env.CONTAINERS_REGISTRIES_CONF;
+      writeContainersConfig(PathEx.join(os.tmpdir(), 'solo-nonexistent-crun'));
 
-      const configDirectory: string = PathEx.join(emptyHomeDirectory, 'config');
-      fs.mkdirSync(configDirectory, {recursive: true});
-      const containersConfigPath: string = PathEx.join(configDirectory, 'containers.conf');
-      const registriesConfigPath: string = PathEx.join(configDirectory, 'registries.conf');
-      fs.writeFileSync(containersConfigPath, '[engine]\n');
-      fs.writeFileSync(registriesConfigPath, 'unqualified-search-registries = ["docker.io"]\n');
+      expect(podmanDependencyManager.containerConfigEnvironment()).to.deep.equal({});
+    });
 
-      const environmentArguments: string[] =
-        PodmanDependencyManagerClass.containerConfigEnvironmentArguments(emptyHomeDirectory);
+    it('should return empty when no config has been persisted', (): void => {
+      sinon.stub(OperatingSystem, 'isLinux').returns(true);
 
-      expect(environmentArguments).to.deep.equal([
-        `CONTAINERS_CONF=${containersConfigPath}`,
-        `CONTAINERS_REGISTRIES_CONF=${registriesConfigPath}`,
-      ]);
+      expect(podmanDependencyManager.containerConfigEnvironment()).to.deep.equal({});
+    });
+
+    it('should return empty off Linux, where podman runs in a VM', (): void => {
+      sinon.stub(OperatingSystem, 'isLinux').returns(false);
+      writeContainersConfig(existingRuntimePath);
+
+      expect(podmanDependencyManager.containerConfigEnvironment()).to.deep.equal({});
     });
   });
 
   describe('setupConfig in rootful mode', (): void => {
-    const runtimeBinaryDirectory: string = '/home/linuxbrew/.linuxbrew/bin';
-
-    let homeDirectory: string;
-    let cacheDirectory: string;
-    let podmanDependencyManager: PodmanDependencyManager;
+    let runtimeBinaryDirectory: string;
 
     beforeEach((): void => {
-      resetForTest();
       sinon.stub(OperatingSystem, 'isLinux').returns(true);
-      homeDirectory = container.resolve<string>(InjectTokens.HomeDirectory);
-      cacheDirectory = container.resolve<string>(InjectTokens.CacheDir);
-      podmanDependencyManager = container.resolve<PodmanDependencyManager>(InjectTokens.PodmanDependencyManager);
+
+      // A runtime dir with real crun/conmon binaries so the freshness check in
+      // containerConfigEnvironment() treats the generated config as usable.
+      runtimeBinaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-brew-bin-'));
+      fs.writeFileSync(PathEx.join(runtimeBinaryDirectory, 'crun'), '');
+      fs.writeFileSync(PathEx.join(runtimeBinaryDirectory, 'conmon'), '');
 
       const templatesDirectory: string = PathEx.join(cacheDirectory, 'templates', 'podman');
       fs.mkdirSync(templatesDirectory, {recursive: true});
@@ -116,13 +121,14 @@ describe('PodmanDependencyManager', (): void => {
       );
     });
 
+    afterEach((): void => {
+      fs.rmSync(runtimeBinaryDirectory, {recursive: true, force: true});
+    });
+
     it('should write containers.conf and registries.conf pointing at the runtime stack', async (): Promise<void> => {
       await podmanDependencyManager.setupConfig(runtimeBinaryDirectory);
 
-      const containersConfigPath: string = PathEx.join(homeDirectory, 'config', 'containers.conf');
-      const registriesConfigPath: string = PathEx.join(homeDirectory, 'config', 'registries.conf');
-
-      const containersConfig: string = fs.readFileSync(containersConfigPath, 'utf8');
+      const containersConfig: string = fs.readFileSync(PathEx.join(configDirectory, 'containers.conf'), 'utf8');
       expect(containersConfig).to.contain(`crun = ["${runtimeBinaryDirectory}/crun"]`);
       expect(containersConfig).to.contain(`conmon_path = ["${runtimeBinaryDirectory}/conmon"]`);
       expect(containersConfig).to.contain(`"${runtimeBinaryDirectory}"`);
@@ -131,11 +137,17 @@ describe('PodmanDependencyManager', (): void => {
       expect(containersConfig).to.not.contain('$PODMAN_BINARY_DIR');
       expect(containersConfig).to.not.contain('$HELPER_BINARIES_DIR');
 
-      const registriesConfig: string = fs.readFileSync(registriesConfigPath, 'utf8');
+      const registriesConfig: string = fs.readFileSync(PathEx.join(configDirectory, 'registries.conf'), 'utf8');
       expect(registriesConfig).to.contain('unqualified-search-registries = ["docker.io"]');
+    });
 
-      expect(process.env.CONTAINERS_CONF).to.equal(containersConfigPath);
-      expect(process.env.CONTAINERS_REGISTRIES_CONF).to.equal(registriesConfigPath);
+    it('should expose the generated files through containerConfigEnvironment()', async (): Promise<void> => {
+      await podmanDependencyManager.setupConfig(runtimeBinaryDirectory);
+
+      expect(podmanDependencyManager.containerConfigEnvironment()).to.deep.equal({
+        CONTAINERS_CONF: PathEx.join(configDirectory, 'containers.conf'),
+        CONTAINERS_REGISTRIES_CONF: PathEx.join(configDirectory, 'registries.conf'),
+      });
     });
 
     it('should reject when the runtime binary directory is missing', async (): Promise<void> => {

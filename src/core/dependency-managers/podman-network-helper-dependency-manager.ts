@@ -22,25 +22,35 @@ export abstract class PodmanNetworkHelperDependencyManager extends BaseDependenc
   protected checksum: string;
   protected releaseBaseUrl: string;
   protected artifactFileName: string;
-  protected artifactVersion: string;
 
   protected constructor(
     downloader: PackageDownloader,
     installationDirectory: string,
     osArch: string,
     requiredVersion: string,
-    private readonly helperName: string,
+    dependencyName: string,
   ) {
-    super(downloader, installationDirectory, osArch, requiredVersion, helperName, '');
+    super(downloader, installationDirectory, osArch, requiredVersion, dependencyName, '');
   }
 
   protected getArtifactName(): string {
-    return `${this.helperName}.gz`;
+    // this.executableName is assigned by the base constructor before it calls getArtifactName();
+    // the subclass parameter properties are not yet set at that point, so use executableName.
+    return `${this.executableName}.gz`;
   }
 
   /** The helpers exist only for the rootful Linux flow; every other platform runs podman in a VM. */
   public override async shouldInstall(): Promise<boolean> {
     return OperatingSystem.isLinux();
+  }
+
+  /**
+   * Podman resolves these helpers only from the `helper_binaries_dir` list Solo writes into
+   * containers.conf, never from PATH, so a copy found elsewhere on PATH must not satisfy the
+   * install — the binary has to land in helpersDirectory.
+   */
+  protected override allowGlobalInstallation(): boolean {
+    return false;
   }
 
   public async getVersion(executableWithPath: string): Promise<string> {
@@ -51,9 +61,9 @@ export abstract class PodmanNetworkHelperDependencyManager extends BaseDependenc
         return match[1];
       }
     } catch (error) {
-      throw new SoloErrors.system.dependencyVersionCheckFailed(this.helperName, error);
+      throw new SoloErrors.system.dependencyVersionCheckFailed(this.executableName, error);
     }
-    throw new SoloErrors.system.dependencyVersionCheckFailed(this.helperName);
+    throw new SoloErrors.system.dependencyVersionCheckFailed(this.executableName);
   }
 
   /**
@@ -61,7 +71,7 @@ export abstract class PodmanNetworkHelperDependencyManager extends BaseDependenc
    * @returns Promise with the release base URL, asset name, digest, and version
    */
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
-    const releasesListUrl: string = `https://api.github.com/repos/containers/${this.helperName}/releases`;
+    const releasesListUrl: string = `https://api.github.com/repos/containers/${this.executableName}/releases`;
     try {
       const response: Response = await GitHubApiClient.get(releasesListUrl);
       const releases: GitHubRelease[] = await response.json();
@@ -76,16 +86,18 @@ export abstract class PodmanNetworkHelperDependencyManager extends BaseDependenc
       }
       const version: string = release.tag_name.replace(/^v/, '');
 
-      const assetName: string = `${this.helperName}.gz`;
+      const assetName: string = this.getArtifactName();
       const matchingAsset: GitHubReleaseAsset = release.assets.find((asset): boolean => asset.name === assetName);
 
       if (!matchingAsset) {
         throw new SoloErrors.system.gitHubReleaseAssetNotFound(OperatingSystem.getPlatform(), assetName);
       }
 
-      const checksum: string = matchingAsset.digest
-        ? matchingAsset.digest.replace('sha256:', '')
-        : '0000000000000000000000000000000000000000000000000000000000000000';
+      if (!matchingAsset.digest) {
+        // Refuse to install an unverifiable binary rather than silently skipping the checksum.
+        throw new SoloErrors.system.checksumReadFailed(`${assetName} (no sha256 digest published for ${tagName})`);
+      }
+      const checksum: string = matchingAsset.digest.replace('sha256:', '');
 
       const downloadUrl: string = matchingAsset.browser_download_url.slice(
         0,
@@ -111,7 +123,6 @@ export abstract class PodmanNetworkHelperDependencyManager extends BaseDependenc
     this.checksum = releaseInfo.checksum;
     this.releaseBaseUrl = releaseInfo.downloadUrl;
     this.artifactFileName = releaseInfo.assetName;
-    this.artifactVersion = releaseInfo.version;
   }
 
   protected getDownloadURL(): string {
@@ -120,7 +131,7 @@ export abstract class PodmanNetworkHelperDependencyManager extends BaseDependenc
 
   /** The release asset is the bare binary gzipped, so decompress it to the helper's name. */
   protected async processDownloadedPackage(packageFilePath: string, temporaryDirectory: string): Promise<string[]> {
-    const targetPath: string = PathEx.join(temporaryDirectory, this.helperName);
+    const targetPath: string = PathEx.join(temporaryDirectory, this.executableName);
     fs.writeFileSync(targetPath, zlib.gunzipSync(fs.readFileSync(packageFilePath)));
     return [targetPath];
   }

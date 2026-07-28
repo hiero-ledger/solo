@@ -13,17 +13,16 @@ describe('PodmanClient', (): void => {
   let previousKindProvider: string | undefined;
   let sandbox: SinonSandbox;
   let shellRunnerRunStub: SinonStub;
-  let containerConfigArgumentsStub: SinonStub;
+  let containerConfigEnvironmentStub: SinonStub;
 
   beforeEach((): void => {
     previousKindProvider = process.env.KIND_EXPERIMENTAL_PROVIDER;
     sandbox = sinon.createSandbox();
     shellRunnerRunStub = sandbox.stub(ShellRunner.prototype, 'run');
-    // Pin the host-dependent container configuration lookups so command shapes are deterministic.
-    sandbox.stub(PodmanDependencyManager, 'applyPersistedContainerConfiguration');
-    containerConfigArgumentsStub = sandbox
-      .stub(PodmanDependencyManager, 'containerConfigEnvironmentArguments')
-      .returns([]);
+    // Pin the host-dependent container configuration lookup so command shapes are deterministic.
+    containerConfigEnvironmentStub = sandbox
+      .stub(PodmanDependencyManager.prototype, 'containerConfigEnvironment')
+      .returns({});
   });
 
   afterEach((): void => {
@@ -76,7 +75,7 @@ describe('PodmanClient', (): void => {
   it('passes the solo-owned container configuration to rootful podman probes', async (): Promise<void> => {
     delete process.env.KIND_EXPERIMENTAL_PROVIDER;
     const configurationArguments: string[] = ['CONTAINERS_CONF=/solo/config/containers.conf'];
-    containerConfigArgumentsStub.returns(configurationArguments);
+    containerConfigEnvironmentStub.returns({CONTAINERS_CONF: '/solo/config/containers.conf'});
     shellRunnerRunStub
       .withArgs('podman', PodmanClientTestBuilder.containerExistsArguments('kind-control-plane'), sinon.match.object)
       .rejects(new Error('missing rootless container'));

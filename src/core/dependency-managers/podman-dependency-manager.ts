@@ -218,50 +218,56 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     return this.checksum;
   }
 
-  /** Container configuration env variables and the file {@link setupConfig} persists for each. */
-  private static readonly CONTAINER_CONFIG_FILE_BY_VARIABLE: Record<string, string> = {
-    CONTAINERS_CONF: 'containers.conf',
-    CONTAINERS_REGISTRIES_CONF: 'registries.conf',
-  };
-
   /**
-   * Points the container configuration env variables at the files a previous {@link setupConfig}
-   * run persisted under the solo home directory. The generated configuration outlives the process
-   * that wrote it, and rootful podman must keep using it in later solo invocations (cluster
-   * destroy, image loads) — otherwise those fall back to the stale system stack the configuration
-   * exists to avoid. Variables already set in the environment are left untouched.
+   * The container-configuration environment (CONTAINERS_CONF / CONTAINERS_REGISTRIES_CONF) pointing
+   * at the files {@link setupConfig} persisted under this manager's home directory, so rootful
+   * podman keeps using the solo-owned configuration in later solo invocations (image loads, cluster
+   * destroy). Only entries whose file exists — and whose referenced runtime still exists — are
+   * returned, so a configuration left stale by a later podman/brew change is ignored rather than
+   * poisoning every subsequent command. Empty off Linux, where podman runs in a VM instead.
    */
-  public static applyPersistedContainerConfiguration(homeDirectory: string = constants.SOLO_HOME_DIR): void {
+  public containerConfigEnvironment(): Record<string, string> {
+    const environment: Record<string, string> = {};
     if (!OperatingSystem.isLinux()) {
-      return;
+      return environment;
     }
-    for (const [variableName, fileName] of Object.entries(PodmanDependencyManager.CONTAINER_CONFIG_FILE_BY_VARIABLE)) {
-      if (constants.getEnvironmentVariable(variableName)) {
-        continue;
-      }
-      const persistedPath: string = PathEx.join(homeDirectory, 'config', fileName);
-      if (fs.existsSync(persistedPath)) {
-        // eslint-disable-next-line no-restricted-syntax
-        process.env[variableName] = persistedPath;
-      }
+
+    const configDirectory: string = PathEx.join(this.soloHomeDirectory, 'config');
+    const containersConfigPath: string = PathEx.join(configDirectory, 'containers.conf');
+    if (
+      !fs.existsSync(containersConfigPath) ||
+      !PodmanDependencyManager.referencedRuntimeExists(containersConfigPath)
+    ) {
+      return environment;
     }
+    environment.CONTAINERS_CONF = containersConfigPath;
+
+    const registriesConfigPath: string = PathEx.join(configDirectory, 'registries.conf');
+    if (fs.existsSync(registriesConfigPath)) {
+      environment.CONTAINERS_REGISTRIES_CONF = registriesConfigPath;
+    }
+    return environment;
+  }
+
+  /** `NAME=value` pairs for the given environment, in the shape a `sudo env` prefix expects. */
+  public static toEnvironmentArguments(environment: Record<string, string>): string[] {
+    return Object.entries(environment).map(([name, value]): string => `${name}=${value}`);
   }
 
   /**
-   * `NAME=value` pairs for the container configuration env variables set by {@link setupConfig},
-   * in the shape `sudo env` expects. Sudo starts from a fresh environment, so rootful podman (and
-   * kind, which spawns it) only sees the solo-owned configuration when these are passed explicitly.
+   * Whether the crun runtime the generated containers.conf points at still exists on disk. Guards
+   * against a configuration left behind by an earlier podman that a later `brew upgrade` relocated.
    */
-  public static containerConfigEnvironmentArguments(homeDirectory: string = constants.SOLO_HOME_DIR): string[] {
-    PodmanDependencyManager.applyPersistedContainerConfiguration(homeDirectory);
-    const arguments_: string[] = [];
-    for (const variableName of Object.keys(PodmanDependencyManager.CONTAINER_CONFIG_FILE_BY_VARIABLE)) {
-      const value: string = constants.getEnvironmentVariable(variableName);
-      if (value) {
-        arguments_.push(`${variableName}=${value}`);
-      }
+  private static referencedRuntimeExists(containersConfigPath: string): boolean {
+    try {
+      const content: string = fs.readFileSync(containersConfigPath, 'utf8');
+      const match: RegExpMatchArray | null = content.match(/crun\s*=\s*\["([^"]+)"\]/);
+      // If the file has no runtime line to check, trust it rather than second-guessing.
+      return !match || fs.existsSync(match[1]);
+    } catch {
+      // best-effort: treat an unreadable config as unusable so callers skip it
+      return false;
     }
-    return arguments_;
   }
 
   /**
@@ -301,8 +307,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       const registriesDestinationPath: string = PathEx.join(configDirectory, 'registries.conf');
       fs.copyFileSync(registriesTemplatePath, registriesDestinationPath);
 
-      process.env.CONTAINERS_CONF = destinationPath;
-      process.env.CONTAINERS_REGISTRIES_CONF = registriesDestinationPath;
+      // Callers read these back through containerConfigEnvironment(); no process.env mutation here.
       return;
     }
 
