@@ -18,6 +18,7 @@ import {type SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
 import {VersionUpdateNotifier} from './core/version-update-notifier.js';
+import {HomebrewDeprecationNotifier} from './core/homebrew-deprecation-notifier.js';
 import {getSoloVersion} from '../version.js';
 
 if (!process.stdout.isTTY) {
@@ -117,5 +118,6 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
 
   const result: AnyObject = await ArgumentProcessor.process(argv);
   await VersionUpdateNotifier.notifyIfUpdateAvailable(logger);
+  HomebrewDeprecationNotifier.notifyIfInstalledViaHomebrew(logger);
   return result;
 }
