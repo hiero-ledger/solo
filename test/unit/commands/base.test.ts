@@ -93,9 +93,9 @@ describe('BaseCommand', (): void => {
       await expect(baseCmd.run('echo')).to.eventually.not.be.null;
     });
     it('getConfig tracks property usage', (): void => {
-      const flagsList: CommandFlag[] = [flags.releaseTag, flags.tlsClusterIssuerType, flags.valuesFile];
+      const flagsList: CommandFlag[] = [flags.consensusNodeVersion, flags.tlsClusterIssuerType, flags.valuesFile];
       const argv: Argv = Argv.initializeEmpty();
-      argv.setArg(flags.releaseTag, 'releaseTag1');
+      argv.setArg(flags.consensusNodeVersion, 'releaseTag1');
       argv.setArg(flags.tlsClusterIssuerType, 'type2');
       argv.setArg(flags.valuesFile, 'file3');
       configManager.update(argv.build());
@@ -135,7 +135,7 @@ describe('BaseCommand', (): void => {
       expect(newClassInstance2.var1).to.equal('var1');
       expect(newClassInstance2.var2).to.equal('var2');
       expect(baseCmd.configManager.getUnusedConfigs(NEW_CLASS2_NAME)).to.deep.equal([
-        flags.releaseTag.constName,
+        flags.consensusNodeVersion.constName,
         flags.tlsClusterIssuerType.constName,
         flags.valuesFile.constName,
       ]);
@@ -150,7 +150,7 @@ describe('BaseCommand', (): void => {
       expect(newClassInstance3.var1).to.equal('var1');
       expect(newClassInstance3.tlsClusterIssuerType).to.equal('type2');
       expect(baseCmd.configManager.getUnusedConfigs(NEW_CLASS3_NAME)).to.deep.equal([
-        flags.releaseTag.constName,
+        flags.consensusNodeVersion.constName,
         flags.valuesFile.constName,
         'var2',
       ]);

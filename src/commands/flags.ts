@@ -515,30 +515,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly releaseTag: CommandFlag = {
-    constName: 'releaseTag',
-    name: 'release-tag',
-    definition: {
-      describe: `DEPRECATED: use --consensus-node-version (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
-      alias: 't',
-      defaultValue: version.HEDERA_PLATFORM_VERSION,
-      type: 'string',
-    },
-    prompt: async function promptReleaseTag(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      return await Flags.promptText(
-        task,
-        input,
-        version.HEDERA_PLATFORM_VERSION,
-        'Enter release version: ',
-        undefined,
-        Flags.releaseTag.name,
-      );
-    },
-  };
-
   public static readonly upgradeVersion: CommandFlag = {
     constName: 'upgradeVersion',
     name: 'upgrade-version',
@@ -3156,10 +3132,22 @@ export class Flags {
     name: 'consensus-node-version',
     definition: {
       describe: 'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
-      defaultValue: '',
+      defaultValue: version.HEDERA_PLATFORM_VERSION,
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptConsensusNodeVersion(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.consensusNodeVersion.definition.defaultValue as string,
+        'Enter consensus node version: ',
+        undefined,
+        Flags.consensusNodeVersion.name,
+      );
+    },
   };
 
   public static readonly relayVersion: CommandFlag = {
@@ -3304,7 +3292,6 @@ export class Flags {
     Flags.componentImage,
     Flags.relayReleaseTag,
     Flags.relayVersion,
-    Flags.releaseTag,
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
     Flags.replicaCount,
@@ -3430,7 +3417,7 @@ export class Flags {
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
-    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.debugMode, Flags.quiet],
+    optional: [Flags.namespace, Flags.cacheDir, Flags.consensusNodeVersion, Flags.debugMode, Flags.quiet],
   };
 
   /**
