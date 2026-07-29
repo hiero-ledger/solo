@@ -2,7 +2,7 @@
 
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type NodeAlias, type NodeAliases, type IP} from '../types/aliases.js';
-import {type ClusterReferenceName, type ClusterReferences} from '../types/index.js';
+import {type ClusterReferenceName, type ClusterReferences, type EndpointPortMapping} from '../types/index.js';
 import {type HelmChartValues} from '../integration/helm/model/values.js';
 import {type StorageType} from '../core/constants.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
@@ -61,6 +61,10 @@ export interface NetworkDeployConfigClass {
   clusterRefs: ClusterReferences;
   domainNames?: string;
   domainNamesMapping?: Record<NodeAlias, string>;
+  gossipEndpointPort?: string;
+  gossipEndpointPortMapping?: EndpointPortMapping;
+  serviceEndpointPort?: string;
+  serviceEndpointPortMapping?: EndpointPortMapping;
   blockNodeComponents: BlockNodeStateSchema[];
   debugNodeAlias: NodeAlias;
   app: string;

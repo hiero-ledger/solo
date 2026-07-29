@@ -48,6 +48,8 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.gossipEndpoints,
   flags.grpcEndpoints,
   flags.domainNames,
+  flags.gossipEndpointPort,
+  flags.serviceEndpointPort,
   // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
   flags.consensusNodeVersion,
@@ -140,6 +142,8 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.quiet,
   flags.chartDirectory,
   flags.domainNames,
+  flags.gossipEndpointPort,
+  flags.serviceEndpointPort,
   // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
   flags.consensusNodeVersion,
@@ -167,6 +171,8 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.chartDirectory,
   flags.quiet,
   flags.domainNames,
+  flags.gossipEndpointPort,
+  flags.serviceEndpointPort,
   flags.cacheDir,
   flags.endpointType,
   flags.generateGossipKeys,
@@ -254,6 +260,8 @@ export const REFRESH_FLAGS: CommandFlags = {
     flags.consensusNodeVersion,
     flags.cacheDir,
     flags.domainNames,
+    flags.gossipEndpointPort,
+    flags.serviceEndpointPort,
   ],
 };
 
@@ -321,6 +329,8 @@ export const SETUP_FLAGS: CommandFlags = {
     flags.localBuildPath,
     flags.adminPublicKeys,
     flags.domainNames,
+    flags.gossipEndpointPort,
+    flags.serviceEndpointPort,
   ],
 };
 
