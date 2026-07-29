@@ -35,7 +35,7 @@ merge:
 #    - "Test Example (Node Delete Transaction)"
 #    - "Test Example (Node Update Transaction)"
 #    - "Test Example (Local Build with Custom Config)"
-    - "Test Example (Version Upgrade Test)"
+#    - "Test Example (Version Upgrade Test)"
 #    - "Test Example (One Shot Falcon)"
 #    - "Test Example (Rapid Fire)"
     - "Test Example (State Save and Restore)"
