@@ -167,6 +167,8 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
@@ -905,6 +907,8 @@ export class NetworkCommand extends BaseCommand {
       flags.gcsBucketPrefix,
       flags.nodeAliasesUnparsed,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -960,6 +964,9 @@ export class NetworkCommand extends BaseCommand {
     if (config.domainNames) {
       config.domainNamesMapping = Templates.parseNodeAliasToDomainNameMapping(config.domainNames);
     }
+
+    config.gossipEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.gossipEndpointPort);
+    config.serviceEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.serviceEndpointPort);
 
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
