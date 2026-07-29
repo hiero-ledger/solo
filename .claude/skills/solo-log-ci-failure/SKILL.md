@@ -1,10 +1,10 @@
 ---
 name: solo-log-ci-failure
-description: Create a GitHub bug issue in hiero-ledger/solo for a failed CI workflow run — preserves the job log, solo.log, and diagnostics as a secret gist, extracts error context, and creates a fully-tagged P0 bug linked to the current quarter initiative. Maximum two Bash calls per URL (Phase 1 + Phase 3), parallelised when multiple URLs are provided.
+description: Create a GitHub bug issue in hiero-ledger/solo for a failed CI workflow run — preserves the job log, solo.log, and diagnostics as a secret gist, extracts error context, and creates a fully-tagged P0 bug linked to the current quarter initiative. Single Bash call per URL, parallelised when multiple URLs are provided.
 license: MIT
 metadata:
   author: Jeromy Cannon
-  version: "1.5.0"
+  version: "2.0.0"
   domain: github
   triggers: log ci failure, ci failure issue, workflow failure, failed workflow run, solo-log-ci-failure
   role: developer
@@ -16,17 +16,15 @@ metadata:
 
 Given one or more GitHub Actions workflow URLs (run, run+job, or suite/logs), create fully-configured
 P0 bug issues in `hiero-ledger/solo` with **permanently preserved** log files and complete project
-metadata — in exactly **two Bash calls per URL** (Phase 1 + Phase 3), run in parallel when multiple
-URLs are provided.
+metadata — in exactly **one Bash call per URL**, run in parallel when multiple URLs are provided.
 
-All executable logic lives in two reviewable shell scripts in this skill directory:
+All executable logic lives in a single reviewable shell script in this skill directory:
 
 | Script | Purpose |
 |--------|---------|
-| `phase1-gather.sh` | Fetch metadata, download job log + artifact, extract errors, write state file |
-| `phase3-create.sh` | Stage gist, create issue + project entries, link sub-issue, clean up |
+| `log-ci-failure.sh` | Fetch metadata, download job log + artifact, extract errors, create gist + issue |
 
-GitHub artifacts auto-purge after 7 days. The scripts download key log files and upload them as a
+GitHub artifacts auto-purge after 7 days. The script downloads key log files and uploads them as a
 **secret gist** (never expires, not publicly listed). The issue body links directly to the gist.
 
 > **Prerequisite:** the `gh` token must have the `gist` scope. Verify with `gh auth status`.
@@ -36,16 +34,15 @@ GitHub artifacts auto-purge after 7 days. The scripts download key log files and
 
 ## Reducing permission prompts
 
-The two scripts are the single point of review. Once you have read and approved their content, you
-can allowlist them by exact path so Claude can run them without per-call prompts:
+The script is the single point of review. Once you have read and approved its content, you
+can allowlist it by exact path so Claude can run it without per-call prompts:
 
 ```
 /update-config add to project allowlist:
-  Bash(bash *solo-log-ci-failure/phase1-gather.sh *)
-  Bash(bash *solo-log-ci-failure/phase3-create.sh *)
+  Bash(bash *solo-log-ci-failure/log-ci-failure.sh *)
 ```
 
-This allowlists only those specific named scripts — not `gh` broadly — so the scope of trust
+This allowlists only that specific named script — not `gh` broadly — so the scope of trust
 matches exactly what was reviewed.
 
 ---
@@ -60,127 +57,39 @@ matches exactly what was reviewed.
 
 ---
 
-## Phase 1 — Gather (one Bash call per URL)
+## Usage (one Bash call per URL)
 
-When multiple URLs are given, launch all Phase 1 calls **in parallel** in a single message.
-
-```bash
-bash ~/.claude/skills/solo-log-ci-failure/phase1-gather.sh "<workflow-url>"
-```
-
-The script prints structured terminal output and writes
-`/tmp/solo-ci-<RUN_ID>/phase1-state.json` for Phase 3 to consume.
-
----
-
-## Phase 1 → synthesis
-
-> **STOP — do not make any additional Bash calls after Phase 1 completes.**
-> All error content needed to write the issue title and body is in the terminal output.
-> Read it directly and proceed to Phase 3.
-
-Read these fields from the `=== SYNTHESIS CONTEXT ===` block at the end of Phase 1 output:
-
-| Field | Key in SYNTHESIS CONTEXT |
-|-------|--------------------------|
-| Run ID, Job ID, Job name | `run_id`, `job_id`, `job_name` |
-| Run number, Run URL, Attempt | `run_number`, `run_url`, `attempt` |
-| Branch, Job URL, Artifact name | `head_branch`, `job_url`, `artifact_name` |
-
-Read these fields from the earlier sections of Phase 1 output:
-
-| Field | Source section |
-|-------|----------------|
-| SOLO error box (`╭─ ERROR ─╮ … ╰─…╯`) | `JOB LOG ERRORS` or `SOLO.LOG ERRORS` |
-| SOLO error code (`[SOLO-NNNN]`) | inside error box |
-| Failed command | `Current Command` line |
-| Deployment diagnostics | `DIAGNOSTICS` section |
-
-### Artifact name convention (reference only — Phase 1 auto-selects)
-
-| Job name contains | Artifact name |
-|-------------------|---------------|
-| `version upgrade` | `solo-logs-version-upgrade-test` |
-| `ledger reset` | `solo-logs-ledger-reset-smoke` |
-| `rapid fire` | `solo-logs-rapid-fire` |
-| `windows` / `one-shot` | `standard-runner-one-shot-windows-logs` |
-| `integration` | `solo-test-e2e-integration.log` |
-| *(other)* | auto-selected by Phase 1 scoring |
-
----
-
-## Phase 3 — Preserve + create issue (one Bash call per URL)
-
-When multiple URLs are given, launch all Phase 3 calls **in parallel** in a single message.
-
-Fill in `SOLO_CI_TITLE` and `SOLO_CI_BODY` from synthesis, then run:
+When multiple URLs are given, launch all calls **in parallel** in a single message.
 
 ```bash
-SOLO_CI_TITLE="<title — see Title format below>" \
-SOLO_CI_BODY=$(cat <<'BODY_EOF'
-<body markdown — see Body format below; omit the Log Archives section, the script adds it>
-BODY_EOF
-) \
-bash ~/.claude/skills/solo-log-ci-failure/phase3-create.sh "<RUN_ID>" [<PARENT_ISSUE_ID>]
+bash ~/.claude/skills/solo-log-ci-failure/log-ci-failure.sh "<workflow-url>" [<parent-issue-id>]
 ```
 
-`PARENT_ISSUE_ID` is optional; defaults to the Q3 2026 Developer Experience initiative
+`parent-issue-id` is optional; defaults to the Q3 2026 Developer Experience initiative
 (`I_kwDOLMTWdc8AAAABIo7dFw`). Override when the failure belongs to a different initiative.
 
 The script:
-1. Reuses job log + artifact downloaded in Phase 1 (re-downloads only on cache miss)
-2. Creates a secret gist with all log files
-3. **Automatically appends** the `## Log Archives` section to the body with the gist URL + file links
-4. Creates the GitHub issue (Bug, P0-🔥)
-5. Adds to both project boards at Ready/P0
-6. Links as sub-issue of the initiative
-7. Cleans up `/tmp/solo-ci-<RUN_ID>`
+1. Fetches run and job metadata
+2. Downloads job log and best-matching artifact
+3. Extracts SOLO error codes, error boxes, and failed commands
+4. Auto-generates issue title and body from extracted error data
+5. Creates a secret gist with all log files
+6. Creates the GitHub issue (Bug, P0-🔥)
+7. Adds to both project boards at Ready/P0
+8. Links as sub-issue of the initiative
+9. Cleans up `/tmp/solo-ci-<RUN_ID>`
 
----
+### Title auto-generation
 
-## Title format
+The script generates a title in `{Job Name} > {error description}` format using this priority:
 
-```
-{Job Name} > {concise error description}
-```
+1. **SOLO error code** — `[SOLO-NNNN] <message from solo.log>`
+2. **First meaningful `ERROR:` line** from solo.log (skipping the noisy `Error executing: 'podman'` cascade)
+3. **`##[error]`** line from the job log
+4. Fallback: `task failed`
 
-- Include SOLO error code if present: `{Job Name} > [SOLO-NNNN] {description}`
-- Keep under 120 characters
-- Example: `Test Example (Version Upgrade Test) > [SOLO-3032] Mirror node upgrade target v0.152.0 older than deployed 0.156.0`
-
----
-
-## Body format
-
-Pass everything **except** the `## Log Archives` section — the script appends that automatically.
-
-```markdown
-## Failure Summary
-
-<2–3 sentences: what failed, the command, and the outcome.>
-
-## Error Details
-
-​```
-<full SOLO ╭─ ERROR ─╮ box; or describe the error if no box found>
-​```
-
-## Failed Command
-
-​```
-Current Command: <command text>
-​```
-
-## Deployment Diagnostics
-
-<paste diagnostics block if present; omit section entirely if not found>
-
-## Workflow Information
-
-- **Run**: [#{run_number}]({run_url}) (attempt {attempt})
-- **Job**: [{job_name}]({job_url})
-- **Branch**: `{head_branch}`
-```
+For `Error: Executing command: /path/cmd --flags url`, the command and image/URL are extracted
+(e.g. `crane quay.io/minio/operator:v7.1.1`) to keep the title concise.
 
 ---
 
