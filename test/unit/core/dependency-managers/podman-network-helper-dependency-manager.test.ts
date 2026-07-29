@@ -61,7 +61,10 @@ describe('PodmanNetworkHelperDependencyManager', (): void => {
           temporaryDirectory,
         );
 
-        expect(processedFiles).to.deep.equal([PathEx.join(temporaryDirectory, constants.NETAVARK)]);
+        // The implementation names the file after executableName, which carries .exe on Windows.
+        const expectedFileName: string = netavarkDependencyManager['executableName'];
+        expect(expectedFileName).to.contain(constants.NETAVARK);
+        expect(processedFiles).to.deep.equal([PathEx.join(temporaryDirectory, expectedFileName)]);
         expect(fs.readFileSync(processedFiles[0], 'utf8')).to.equal(binaryContent);
       } finally {
         fs.rmSync(temporaryDirectory, {recursive: true, force: true});

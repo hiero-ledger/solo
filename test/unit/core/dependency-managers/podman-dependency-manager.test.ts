@@ -129,8 +129,9 @@ describe('PodmanDependencyManager', (): void => {
       await podmanDependencyManager.setupConfig(runtimeBinaryDirectory);
 
       const containersConfig: string = fs.readFileSync(PathEx.join(configDirectory, 'containers.conf'), 'utf8');
-      expect(containersConfig).to.contain(`crun = ["${runtimeBinaryDirectory}/crun"]`);
-      expect(containersConfig).to.contain(`conmon_path = ["${runtimeBinaryDirectory}/conmon"]`);
+      // Build the expected paths with PathEx.join like the implementation, so separators match on Windows CI too.
+      expect(containersConfig).to.contain(`crun = ["${PathEx.join(runtimeBinaryDirectory, 'crun')}"]`);
+      expect(containersConfig).to.contain(`conmon_path = ["${PathEx.join(runtimeBinaryDirectory, 'conmon')}"]`);
       expect(containersConfig).to.contain(`"${runtimeBinaryDirectory}"`);
       expect(containersConfig).to.not.contain('$CRUN_PATH');
       expect(containersConfig).to.not.contain('$CONMON_PATH');
