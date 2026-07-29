@@ -143,7 +143,7 @@ tasks:
   upgrade-components:
     desc: Upgrade all components to current versions
     cmds:
-      # Upgrade mirror node
+      # Upgrade mirror node to solo's current default version so the target tracks version.ts instead of a stale pin
       - cmd: |
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
           --mirror-node-version {{ .CURRENT_MIRROR_VERSION }} \
