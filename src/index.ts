@@ -2,7 +2,6 @@
 
 import chalk from 'chalk';
 import 'dotenv/config';
-// eslint-disable-next-line n/no-extraneous-import
 import 'reflect-metadata';
 import {container} from 'tsyringe-neo';
 import {ListrLogger} from 'listr2';
