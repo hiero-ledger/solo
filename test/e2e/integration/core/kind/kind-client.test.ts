@@ -30,7 +30,12 @@ import {type SemanticVersion} from '../../../../../src/business/utils/semantic-v
 const execAsync: (command: string, options?: Parameters<typeof exec>[1]) => Promise<{stdout: string; stderr: string}> =
   promisify(exec);
 
-describe('KindClient Integration Tests', (): void => {
+describe('KindClient Integration Tests', function (this: Mocha.Suite): void {
+  // Must be set here rather than chained onto the closing `});`: since mocha 11.7.6 a suite-level
+  // `.timeout()` propagates to already-registered tests and would clobber their own timeouts.
+  // eslint-disable-next-line unicorn/no-this-outside-of-class
+  this.timeout(Duration.ofMinutes(1).toMillis());
+
   let kindClient: KindClient;
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
