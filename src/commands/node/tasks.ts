@@ -3549,7 +3549,7 @@ export class NodeCommandTasks {
           [],
           [],
         );
-        
+
         const externalEndpointAddress: Address = await this.getGeneratedGossipExternalAddress(
           newConsensusNode,
           k8,
