@@ -1,0 +1,20 @@
+# Minimal dual-cluster overrides for relay stability in CI
+# The default relay limit (250Mi) is too small for this multicluster example and
+# can lead to exit code 137 (OOMKilled) during readiness/startup.
+
+relay:
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
+ws:
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
