@@ -1,71 +1,52 @@
 # Solo TCK — Overview
 
-**Status:** Draft · **Roadmap:** [roadmap#199](https://github.com/hiero-ledger/roadmap/issues/199)
+**Status:** Draft (aligned to Keith's PRD v0.2) · **Roadmap:** [roadmap#199](https://github.com/hiero-ledger/roadmap/issues/199)
 · **Epic:** [#4272](https://github.com/hiero-ledger/solo/issues/4272)
 · **Detailed design:** [solo-tck-conformance-gate.md](./solo-tck-conformance-gate.md)
 
-A one-page brief. For the full design — contract, budgets, roadmap — see the detailed doc above.
+A one-page brief. For the full design and open questions, see the detailed doc above.
 
 ## What it is
 
-The Solo TCK lets any Hiero component team — consensus node, mirror node, explorer, relay, block node
-— point Solo at a **candidate version of their component** and get a clear answer to one question:
+The Solo TCK is a **black-box compatibility kit owned by the Solo team** that answers one question for
+a candidate Hiero component build:
 
-> **Does this version break Solo?**
+> **Does this build deploy cleanly via a supported Solo release and produce a functional network?**
 
-Solo is the shared **compatibility harness**. The component team is the one running the check.
+It drives Solo only through the CLI and observable outputs — it never links to Solo's internals.
+
+## Where and when it runs
+
+**Inside each component's own CI, at PR time, against that PR's branch build.** The component gets a
+single pass/fail Solo-compatibility signal *before* it merges — instead of the inlined, version-branched
+Solo orchestration each component maintains today.
+
+Consumers: **CN, Mirror Node, Block Node, JSON-RPC Relay**, the **JS SDK** Solo depends on, and **Solo
+itself**. (Hiero Explorer is out of scope — a UI-only repo; its compatibility is covered implicitly by
+Solo's standard-topology runs.)
 
 ## Why we need it
 
-Solo stitches five independently-released components into a working network. When any of them ships a
-new version, it can quietly break Solo — a changed config key, a new startup order, a schema change.
-Today nothing catches that until a user hits it.
-
-This becomes urgent with [#4269](https://github.com/hiero-ledger/solo/issues/4269) (`--edge`), which
-will have Solo auto-pull the latest version of every component. That is only safe if something proves
-those versions actually work. **The TCK is that proof — which is why #4269 depends on it.**
-
-## The model (and what it is *not*)
-
-It is **not** the Hiero SDK TCK model. That one checks that six language SDKs behave identically —
-interchangeability. Solo is a single tool; there is nothing to cross-check that way.
-
-It **is** the [Kubernetes conformance](https://github.com/cncf/k8s-conformance) model: many
-independent producers (component teams) certify their artifact against one shared harness (Solo).
-"Does version X of your component conform to what Solo expects?"
+Today a component PR can break Solo's deployment contract, pass its own CI, merge, and ship — Solo only
+discovers it later when bumping the pin. The signal is in the wrong repo at the wrong time. The fix is a
+**test-ownership inversion**: components own their Solo-integration tests via the TCK at *their* PR time,
+and Solo's own CI shrinks toward pure Solo mechanics.
 
 ## How a run works
 
-1. **Start from a known-good tuple** — a pinned set of component versions (CN, mirror, block node,
-   relay, explorer, JDK) defined in an external **profile** (e.g. mainnet, testnet). To test a
-   candidate, override **one** entry; everything else stays at the profile baseline.
-2. **Deploy a real network through Solo.**
-3. **Verify against reality** — the mirror node and the live cluster confirm the network actually
-   works. The TCK never trusts Solo's own "success" message.
+1. **The component's CI builds its branch and hands the build to the TCK**, along with a supported Solo
+   version.
+2. **The TCK drives `solo` as a subprocess** to deploy a real network with that candidate.
+3. **It verifies against reality** — pods Ready, an HCS transaction visible via mirror REST, JSON-RPC
+   reachable where the relay is deployed — then tears down. Pass/fail.
 
-Changing only one component at a time is deliberate: if the run fails, the candidate is the only thing
-different from a known-good tuple, so the result points straight at that version.
+## The two biggest open questions
 
-## Three ways the same suites get used
+1. **Version resolution.** The candidate is a branch build; what versions do the *other* components use?
+   Keith's PRD says latest-stable / hybrid; roadmap#199 says pinned mainnet/testnet profiles. **These
+   two source docs disagree and must be reconciled first.**
+2. **Repo home.** A standalone `solo-tck` repo (independent versioning, clean boundary) or inside the
+   Solo repo (reuse `test/e2e`, always in sync)? Deferred to the design phase.
 
-| Trigger                          | Question it answers                       | Who benefits         |
-| -------------------------------- | ----------------------------------------- | -------------------- |
-| **PR gate**                      | "Does this change break Solo?"            | Solo devs            |
-| **Nightly tuple validation**     | "Is the pinned tuple still compatible?"   | Solo release process |
-| **Per-release published result** | a compatibility signal, no Solo CI to run | component teams      |
-
-Same tests, different triggers. A component team can either run the check against their candidate
-(overriding one tuple entry) or read the published per-release result.
-
-## Where it stands
-
-Solo already runs real end-to-end deploys in CI and already centralizes component versions, so this is
-mostly **turning existing tests into a guaranteed, enforced, version-parameterized gate** — plus new
-pieces: external tuple **profile files** (mainnet/testnet), a small performance check, a **published
-per-release results artifact**, and an entry point external teams can call.
-
-**Biggest dependency (from roadmap #199):** the CN, mirror, and block-node teams need to agree on the
-**tuple profile contract** — which versions it pins (including JDK) and its schema.
-
-See the [detailed design](./solo-tck-conformance-gate.md) for the run contract, time budgets, coverage
-gaps, and the implementation roadmap.
+See the [detailed design](./solo-tck-conformance-gate.md) for consumers, the run contract, topology
+tiers, and the full open-questions list.

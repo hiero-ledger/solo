@@ -1,328 +1,288 @@
-# Solo TCK — Compatibility & Conformance Gate
+# Solo TCK — Compatibility Kit Design
 
-**Status:** Draft
-**Roadmap driver:** [hiero-ledger/roadmap#199](https://github.com/hiero-ledger/roadmap/issues/199) (2026 Q3)
-**Tracking epic:** [#4272](https://github.com/hiero-ledger/solo/issues/4272)
-**Blocks:** [#4269](https://github.com/hiero-ledger/solo/issues/4269) (`--edge` version resolution)
+**Status:** Draft (aligned to Keith's PRD v0.2)
+**Upstream sources:** [Keith's Solo TCK PRD](https://www.notion.so/) (v0.2) · [hiero-ledger/roadmap#199](https://github.com/hiero-ledger/roadmap/issues/199)
+**Epic:** [#4272](https://github.com/hiero-ledger/solo/issues/4272) · **Related:** [#4269](https://github.com/hiero-ledger/solo/issues/4269) (`--edge`), [#5021](https://github.com/hiero-ledger/solo/issues/5021) (local component build)
+
+> This design defers to Keith's PRD where they differ. It translates the PRD into a Solo-side plan and
+> records the open questions the PRD leaves for the design phase. One material discrepancy between the
+> PRD and roadmap#199 (the version-resolution model) is flagged in §6 for leadership to settle.
 
 ## Table of contents
 
 - [1. Summary](#1-summary)
-- [2. Motivation](#2-motivation)
-- [3. What this is — and is not](#3-what-this-is--and-is-not)
-- [4. Current state](#4-current-state)
-- [5. Component coverage gaps](#5-component-coverage-gaps)
-- [6. Core concepts](#6-core-concepts)
-- [7. Architecture](#7-architecture)
-- [8. The compatibility run contract](#8-the-compatibility-run-contract)
-- [9. Time budget and the required gate](#9-time-budget-and-the-required-gate)
-- [10. Mini-performance tier](#10-mini-performance-tier)
-- [11. Implementation roadmap](#11-implementation-roadmap)
-- [12. Open decisions](#12-open-decisions)
-- [13. References](#13-references)
+- [2. Motivation — test-ownership inversion](#2-motivation--test-ownership-inversion)
+- [3. What it is — and is not](#3-what-it-is--and-is-not)
+- [4. Consumers](#4-consumers)
+- [5. Current state](#5-current-state)
+- [6. Architecture](#6-architecture)
+- [7. The compatibility run contract](#7-the-compatibility-run-contract)
+- [8. Time budget](#8-time-budget)
+- [9. Mini-performance check](#9-mini-performance-check)
+- [10. Open questions](#10-open-questions)
+- [11. References](#11-references)
 
 ## 1. Summary
 
-The Solo TCK is a **version-parameterized compatibility suite** that validates a **known-good
-component tuple** — `{consensus node × mirror node × block node × relay × explorer × JDK}` — so a Solo
-release can be cut with a machine-verifiable compatibility signal instead of per-component manual
-regression.
+The Solo TCK is a **versioned, black-box compatibility kit owned by the Solo team**. It answers one
+question for a candidate Hiero component build (or JS SDK release):
 
-Solo acts as the shared **compatibility harness**. The pinned tuple is defined in **external profile
-files** (e.g. mainnet, testnet) that Solo reads. A run deploys a real network through Solo for a given
-profile — optionally overriding **one** tuple entry with a candidate version — then verifies the
-result against the mirror node and the cluster, never against Solo's own success message.
+> *Does this candidate deploy cleanly via a supported Solo release and produce a functional Hiero
+> network?*
 
-The same suites serve three consumers: a required per-component **PR gate**, a **nightly tuple
-validation**, and a **per-release published compatibility artifact** that component teams consume to
-verify their own releases against Solo.
+It runs **at PR time inside each component's own CI**, against that component's **branch build**, and
+returns a single pass/fail signal — replacing the inlined, version-branched Solo orchestration each
+component maintains today. It drives Solo purely as a **black box** (the `solo` CLI as a subprocess
+plus observable outputs — Kubernetes resources, mirror REST, JSON-RPC), so it sees Solo the way a real
+user does and never links to Solo internals.
 
-## 2. Motivation
+Covered consumers: **Consensus Node (CN), Mirror Node (MN), Block Node (BN), JSON-RPC Relay**, the
+**Hiero JS SDK** Solo depends on, and **Solo itself**. In return, Solo's own CI shrinks toward pure
+Solo mechanics because cross-version regressions are caught upstream at component PR time.
 
-Solo assembles five independently-released components into a working Hiero network. Two forces make
-this fragile:
+## 2. Motivation — test-ownership inversion
 
-1. **Components release on their own schedules.** A new component version can change a config key, a
-   startup ordering, or a database schema and break Solo through no fault of Solo's own code. Nothing
-   today automatically catches this before it reaches a user.
-2. **[#4269](https://github.com/hiero-ledger/solo/issues/4269) makes that risk explicit.** The
-   `--edge` flag will have Solo auto-pull the latest released version of every component. That cannot
-   be turned on safely without a gate that proves a given version (or the latest-of-everything
-   combination) actually deploys and works. That gate is this TCK — which is why #4269 depends on
-   #4272.
+**Solo compatibility is tested too late.** Solo's CI catches regressions from *Solo* PRs, but
+components get no Solo-owned compatibility signal on *their* PRs. A component PR that breaks Solo's
+deployment contract (a chart change, a config-key rename, a missing label, a Helm-values schema break)
+can pass its own CI, merge, and ship — Solo discovers it later when bumping the pin. The signal sits in
+the wrong repo at the wrong time.
 
-Unit tests prove functions work in isolation; they cannot prove that a *deployed network* behaves
-correctly. Only an end-to-end deploy-then-verify can, and the value multiplies when the party running
-it is the component team validating their own release.
+**Solo's tests are overloaded with component functionality.** Because Solo is the only place these
+regressions surface, its per-PR matrix has accumulated e2e variants that are really *component*
+coverage in disguise (block-node attach, mirror external DB, node-upgrade across CN tags, dual-cluster
+shard/realm, stream variants).
 
-**Success criteria (from roadmap #199).** A Solo release can be cut with a machine-verifiable
-compatibility signal for the pinned tuple; bumping a component version becomes a profile edit rather
-than a multi-week triage; and component teams can consume the TCK result to verify their own releases
-against Solo.
+The goal is a **test-ownership inversion**: components own their Solo-integration tests via the TCK at
+*their* PR time; Solo's own tests shrink to pure Solo mechanics (bring-up, memory footprint, CLI
+parsing, Helm value injection, multi-cluster lease coordination).
 
-## 3. What this is — and is not
+**Release-gate angle (roadmap#199).** Separately, roadmap#199 wants each Solo *release* validated
+against a known-good component tuple so a release can be cut with a machine-verifiable signal. That is
+a compatible, complementary trigger over the same kit (§6.4) — but note the version-resolution
+discrepancy called out in §6.3.
 
-The name "TCK" is borrowed from the [Hiero SDK TCK](https://github.com/hiero-ledger/hiero-sdk-tck),
-but the model is different and the difference matters.
+## 3. What it is — and is not
 
-- **The SDK TCK verifies interchangeability** — six independent language implementations of one spec
-  must behave identically. That is why it needs a JSON-RPC translator server per language. **Solo is a
-  single implementation; there is nothing to cross-check for interchangeability.** None of that
-  machinery applies here.
-- **This TCK verifies downstream compatibility** — many independent *producers* (component teams)
-  certify their artifact against one shared harness (Solo). This is the
-  [CNCF Kubernetes conformance](https://github.com/cncf/k8s-conformance) model (a vendor runs the
-  suite against their distribution to demonstrate conformance), not the Jakarta/SDK
-  multi-implementation model.
+A **TCK** is a test suite that verifies a candidate build satisfies a defined compatibility contract
+(see the [general definition](https://grokipedia.com/page/Technology_Compatibility_Kit)). The Solo
+compatibility contract is the implicit interface between Solo and a component: chart structure, config
+keys, labels, Helm-values schema, image entrypoints, expected env vars, CLI behavior.
 
-What we borrow from the SDK TCK is exactly one idea, and it is the important one:
-**spec-first, independent verification** — after Solo reports success, confirm the real network state
-via the mirror node and the cluster rather than trusting Solo's word.
+- It is **black-box**: it exercises Solo only through the CLI and observable outputs, decoupled from
+  Solo's DI container and internal `K8Factory`.
+- It is **not** Solo's existing in-process e2e suite relabeled — it drives `solo` as a subprocess and
+  is versioned and shipped independently of Solo's release cadence.
 
-## 4. Current state
+**Non-goals (from the PRD):**
 
-The TCK is largely **governance and curation over assets that already exist**, not a greenfield build.
+- **Not** a full performance / longevity suite (SDPT/SDLT/MDLT stay put); a lightweight memory-footprint
+  smoke (~5–15 min) is in scope (§9).
+- **Not** a replacement for Solo's own unit/integration tests.
+- **Not** a workload generator (NLG/chewie stay out).
+- **Not** coverage for **Hiero Explorer** — a UI-only repo with no Solo/Kubernetes in CI; adding a TCK
+  job there is negligible gain. Explorer compatibility is verified implicitly by Solo's standard-topology
+  runs (which deploy Explorer). *(This reverses the earlier draft, which treated Explorer as a first-class
+  target.)*
 
-- **A dynamic E2E matrix already runs on every PR.** `flow-pull-request-checks.yaml` generates a
-  matrix from `.github/workflows/support/e2e-test-matrix.json` (12 suites today) and fans out to
-  `zxc-e2e-test.yaml` on self-hosted `hiero-solo-linux-*` runners.
-- **Reusable per-component verification helpers already exist** —
-  `test/e2e/commands/tests/relay-test.ts` and `explorer-test.ts` provide
-  `verifyRelayDeployWasSuccessful` / `verifyExplorerDeployWasSuccessful`, consumed today as
-  side-effects of composite suites rather than as first-class gates.
-- **Component versions are already centralized and env-overridable** in `version.ts` (see
-  [§6](#6-core-concepts)).
-- **A perf tier already exists** — `performance.test.ts`, `small-memory-load.test.ts` (NLG-driven),
-  plus a separate `flow-performance-test.yaml`.
+## 4. Consumers
 
-The gaps are coverage guarantees, version parameterization at the CI boundary, an enforced time
-budget, and an external invocation surface — not the raw ability to run E2E deploys.
+| Consumer | Compatibility risk the TCK protects against |
+| --- | --- |
+| **hiero-consensus-node** | A CN PR breaking Solo's ability to deploy/operate a network |
+| **hiero-mirror-node** | An MN PR breaking Solo deployment for record-/block-stream consumers |
+| **hiero-block-node** | A BN PR breaking Solo deployment when a block node is in the network |
+| **hiero-json-rpc-relay** | A Relay PR breaking Solo deployment for JSON-RPC consumers |
+| **Hiero JS SDK** | A JS SDK PR breaking Solo's own SDK-dependent internal logic (library, not deployed component) |
+| **hiero-ledger/solo (self)** | A Solo PR breaking compatibility with currently supported component versions |
 
-## 5. Component coverage gaps
+## 5. Current state
 
-Mapping the current matrix against the five components from #4269:
+The kit is largely **extraction and decoupling**, not greenfield authoring:
 
-| Component      | First-class gated suite? | How it is exercised today                         |
-| -------------- | ------------------------ | ------------------------------------------------- |
-| Consensus node | Yes                      | Standard, Node Add Local, Node Upgrade, One Shot  |
-| Block node     | Yes                      | Block Node suite                                  |
-| Mirror node    | No functional suite      | Incidental — External DB, One Shot deploy it      |
-| Explorer       | **No**                   | Only rides along in dual-cluster / standard       |
-| Relay          | **No**                   | Only rides along in external-database / dual      |
+- Solo already has a mature e2e framework in `test/e2e` with reusable command wrappers (`InitTest`,
+  `ConsensusNodeTest`, `MirrorNodeTest`, `BlockNodeTest`, `RelayTest`, …), composed topology suites, and
+  runtime smoke that already submits HCS transactions via `@hiero-ledger/sdk`. The work is to drive these
+  through a **subprocess** `solo` instead of in-process `main(argv)`, and to replace the DI container /
+  `K8Factory` with shell-out `kubectl` + direct HTTP probes.
+- **`hiero-solo-action`** is the existing minimal "stand up a Solo network" primitive; the TCK is the
+  *assertion layer on top* of bring-up, not a replacement.
+- Today, inlined Solo CLI orchestration and version-branched CLI workarounds are duplicated across CN,
+  MN, BN, and Relay workflows; each pins a different Solo version by hand. The TCK centralizes this.
+- Solo's current per-PR matrix (`e2e-test-matrix.json`, ~12 suites, ~80+ min wall-clock) is the pool
+  that shrinks as coverage moves upstream.
 
-Explorer and relay have deploy-and-verify helpers but no dedicated, independently-selectable gate. A
-change that breaks only the relay (cf. [#4963](https://github.com/hiero-ledger/solo/issues/4963)) is
-caught only by luck. Promoting the existing helpers into named suites is a primary deliverable.
+## 6. Architecture
 
-## 6. Core concepts
-
-### 6.1 Independent verification
-
-A test passes only when the **real network state** confirms it. After Solo reports a component is up,
-the harness queries the mirror node REST API and the cluster (pod health, account existence) to
-confirm. This is the one principle inherited from the SDK TCK and it is non-negotiable — especially
-when certifying an artifact produced by another team.
-
-### 6.2 The tuple, profiles, and "vary one component"
-
-The unit of validation is a **component tuple** — a pinned version for each axis:
+### 6.1 Black-box subprocess model
 
 ```text
-{ consensus node × mirror node × block node × relay × explorer × JDK }
+Component CI (CN / MN / BN / Relay / SDK / Solo PR)
+  1. Build candidate images → kind load
+  2. Invoke the Solo TCK (see §6.5) with: solo-version, candidate build, topology
+        │
+        ▼
+Solo TCK runner (Mocha + TypeScript)
+  ├─ Topology suites
+  ├─ Solo adapter ─────► subprocess('solo', argv)      (black box; CLI only)
+  └─ Probe layer ──────► kubectl + mirror REST + JSON-RPC + SDK HCS
+        │
+        ▼
+  JUnit XML + mochawesome + exit code
 ```
 
-The **baseline** is a known-good tuple. Per the roadmap, tuples are **not** hard-coded in Solo; they
-ship as **external profile files** (e.g. `mainnet`, `testnet`) that Solo reads as data. Keeping the
-network-specific version tuples out of the source resolves the Hiero-neutral branding constraint and
-makes "bump CN" a profile edit rather than a code change.
+### 6.2 Independent verification
 
-Solo already exposes the injection mechanism: every component version in `version.ts` is overridable
-by an environment variable, so a profile (or a single override) maps onto env vars with no new
-plumbing at the version layer:
+A run passes only if every `solo` subcommand exits 0, all expected pods reach `Ready`, an HCS smoke
+transaction returns `SUCCESS` and is observable via mirror REST within the catchup window, JSON-RPC is
+reachable where the relay is deployed, and teardown is clean. The TCK never trusts Solo's own success
+message — it observes the real network.
 
-```text
-HEDERA_PLATFORM_VERSION        = env CONSENSUS_NODE_VERSION || 'v0.74.0'    (consensus node)
-MIRROR_NODE_VERSION            = env MIRROR_NODE_VERSION    || 'v0.159.0'    (mirror node)
-EXPLORER_VERSION               = env EXPLORER_VERSION       || '26.1.0'      (explorer)
-HEDERA_JSON_RPC_RELAY_VERSION  = env RELAY_VERSION          || '0.77.0'      (relay)
-BLOCK_NODE_VERSION             = env BLOCK_NODE_VERSION     || '0.38.0'      (block node)
+### 6.3 Version resolution — OPEN QUESTION (PRD vs roadmap#199 discrepancy)
+
+The candidate component is the **branch build** under test in the consumer's PR (leveraging
+[#5021](https://github.com/hiero-ledger/solo/issues/5021) for local component builds). The unresolved
+question is what versions the **other** components in the topology use. The two upstream sources differ:
+
+- **Keith's PRD (Q3):** non-candidate components resolve to **latest-stable** (dynamic), or a **hybrid**
+  (candidate provided; others latest-stable but overridable); an **edge** mode (very latest of each,
+  regardless of stability) is an open sub-question.
+- **roadmap#199:** non-candidate versions come from **external pinned-tuple profile files**
+  (mainnet/testnet) that Solo reads as data.
+
+**These are different models and must be reconciled before the resolution strategy is locked** (§10).
+This design does not pick one; it records both.
+
+Whatever the source, versions are injected into Solo. Solo already exposes each as a **CLI flag**
+(preferred, per Solo UX) with an env-var fallback for non-`one-shot` paths:
+
+| Component | CLI flag (preferred) | Env var (fallback) | `version.ts` constant |
+| --- | --- | --- | --- |
+| Consensus node | `--consensus-node-version` | `CONSENSUS_NODE_VERSION` | `HEDERA_PLATFORM_VERSION` |
+| Mirror node | `--mirror-node-version` | `MIRROR_NODE_VERSION` | `MIRROR_NODE_VERSION` |
+| Relay | `--relay-version` | `RELAY_VERSION` | `HEDERA_JSON_RPC_RELAY_VERSION` |
+| Block node | `--block-node-version` | `BLOCK_NODE_VERSION` | `BLOCK_NODE_VERSION` |
+
+`version.ts` also carries `*_EDGE_VERSION` (dynamically resolved) used by
+[#4269](https://github.com/hiero-ledger/solo/issues/4269)'s `--edge`. Component *interdependency*
+gating (e.g. CN X requires BN Y) belongs **inside Solo's** existing version-gate logic, not the TCK —
+the TCK supplies one candidate and lets Solo enforce constraints.
+
+### 6.4 Triggers
+
+The same kit runs under more than one trigger:
+
+| Trigger | Where it runs | Candidate | Purpose |
+| --- | --- | --- | --- |
+| **Component PR** (primary) | the component's own CI | the PR's branch build | gate the component change on Solo compatibility |
+| **Solo PR** | Solo CI | supported component versions | gate a Solo change on component compatibility |
+| **Release / nightly tuple** | Solo CI | a pinned tuple | roadmap#199 release signal (pending §6.3 reconciliation) |
+
+### 6.5 Invocation surface
+
+Because a gate needs a **synchronous** verdict and GitHub does not import reusable workflows across
+repos the way GitLab does, the component runs the TCK **inline in its own pipeline** — not by
+dispatching into Solo and awaiting an async result. Candidate mechanisms (design-phase decision):
+
+- A **composite GitHub Action** the consumer calls from its own workflow (portable, DRY, synchronous).
+- A **reusable workflow** where cross-repo `uses:` is permitted within the org.
+- A **Docker image** for local / non-GitHub runs. *(Not nested inside Solo's CI containers — Solo-in-a-
+  container would add a fourth level to the existing runner→Kind→component-containers nesting.)*
+
+### 6.6 End-to-end run (mirror-node PR example)
+
+```mermaid
+sequenceDiagram
+    participant CI as Mirror-node CI (PR)
+    participant TCK as Solo TCK (composite Action)
+    participant Solo as solo CLI (subprocess)
+    participant K8s as Kind cluster
+    participant Net as Mirror REST / JSON-RPC
+
+    Note over CI: PR opens; CI builds the branch image
+    CI->>TCK: invoke (candidate image, solo-version)
+    TCK->>K8s: create Kind cluster
+    TCK->>K8s: kind load candidate image
+    TCK->>Solo: subprocess: solo ... deploy (use local image)
+    Solo->>K8s: deploy network (CN, MN, relay, ...)
+    K8s-->>Solo: pods scheduled
+    Solo-->>TCK: exit 0
+
+    Note over TCK,Net: Black-box verification — never trusts solo's word
+    TCK->>K8s: kubectl: are pods Ready?
+    TCK->>Net: submit HCS tx (SDK), then GET mirror REST
+    Net-->>TCK: tx visible / JSON-RPC reachable
+    TCK->>Solo: subprocess: solo ... destroy (teardown)
+
+    TCK-->>CI: pass / fail (exit code) — synchronous, blocks the PR
 ```
 
-A per-team compatibility run **overrides exactly one tuple entry and holds the rest at the profile
-baseline**: set that one component's environment variable to the candidate; leave the others to
-resolve from the profile.
+The candidate (mirror node) runs as the **branch build**; the other components resolve per §6.3. The
+verdict is produced **inline in the mirror-node pipeline**, so a broken PR is caught before it merges.
 
-```bash
-# Mirror node team testing a candidate against the mainnet profile:
-MIRROR_NODE_VERSION=v0.160.0-rc1   # the single override
-# all other axes -> mainnet profile tuple (baseline)
-solo one-shot single deploy ...
-```
+## 7. The compatibility run contract
 
-The reason for overriding only one axis is **attribution**: if the run fails, the candidate is the
-only thing different from a known-good tuple, so the verdict points unambiguously at that version.
-Validating the full profile tuple with no override is the release/nightly check (see §6.4).
+### 7.1 Inputs
 
-### 6.3 The three names of each component
+| Input | Required | Meaning |
+| --- | --- | --- |
+| `solo-version` | yes | which supported Solo release to test against (a separate `CITR_SOLO_TCK_VERSION`, not the component's `CITR_SOLO_VERSION`) |
+| candidate build | yes | the component branch build / images under test (via #5021) |
+| non-candidate versions | no | per §6.3 resolution strategy (latest-stable / hybrid / profile) |
+| `topology` | no | which topology suite(s) to run (§8) |
 
-Every component is referred to by three different identifiers. The contract and docs must carry this
-map to avoid confusion (note the traps on consensus node and relay):
+### 7.2 Verdict
 
-| Component      | CLI flag                   | Env var                | `version.ts` constant           |
-| -------------- | -------------------------- | ---------------------- | ------------------------------- |
-| Consensus node | `--consensus-node-version` | `CONSENSUS_NODE_VERSION` | `HEDERA_PLATFORM_VERSION`     |
-| Mirror node    | `--mirror-node-version`    | `MIRROR_NODE_VERSION`  | `MIRROR_NODE_VERSION`           |
-| Explorer       | `--explorer-version`       | `EXPLORER_VERSION`     | `EXPLORER_VERSION`              |
-| Relay          | `--relay-version`          | `RELAY_VERSION`        | `HEDERA_JSON_RPC_RELAY_VERSION` |
-| Block node     | `--block-node-version`     | `BLOCK_NODE_VERSION`   | `BLOCK_NODE_VERSION`            |
-| JDK            | —                          | (via CN image/build)   | —                               |
+`pass | fail | skip`, decided by the independent verification of §6.2. A **fail** surfaces an
+incompatibility; it does not by itself assign blame — an intentional component change may require Solo
+to adapt. Reporting is JUnit XML + mochawesome + a non-zero exit code.
 
-> **JDK** is a tuple axis with no current `version.ts` flag; how it is pinned and injected (via the
-> consensus-node image/build) is an open item — see §12.
+## 8. Time budget
 
-### 6.4 One suite set, three triggers
+Target **15–30 minutes per invocation** (PRD G1). Proposed topology tiers (adapted from the PRD's
+struck-through v0.1 architecture — treat as a starting proposal, and reconcile vocabulary with
+block-node's existing `single / paired-3 / 7cn-3bn-distributed`):
 
-The same suites run under three triggers with different baselines:
+| Topology | Tier | ~Runtime | Gates |
+| --- | --- | --- | --- |
+| `single` | PR core | ~5 min | single-node bring-up + transfer smoke |
+| `standard` | PR core | ~15 min | multi-node + MN + Relay; HCS submit → mirror catchup → JSON-RPC reachable |
+| `block-node` | extended | ~15 min | block node attached, BLOCK stream |
+| `node-upgrade` | extended | ~10 min | prior-stable CN → candidate |
+| `dual-cluster` / `external-db` | nightly | ~30 min | multi-cluster shard/realm; external Postgres |
 
-| Trigger                        | Baseline                                     | Question answered                          | Consumer                      |
-| ------------------------------ | -------------------------------------------- | ------------------------------------------ | ----------------------------- |
-| **PR gate** (override allowed) | the profile tuple, optional single override  | "does this change / candidate break Solo?" | Solo devs + component teams   |
-| **Nightly tuple validation**   | the full profile tuple, no override          | "is this pinned tuple still compatible?"   | Solo release process          |
-| **Per-release artifact**       | the release's pinned tuple                   | published compatibility signal             | downstream teams (no Solo CI) |
+PR-core total ≈ 20 min. Which suites are actually PR-blocking should be grounded empirically by mining
+the CN/BN issue history (recreation steps authored by the component teams) for the changes that most
+often broke Solo — not chosen structurally.
 
-Tuple validation (a full profile, no override) and vary-one (one override against the profile) are the
-same machinery: a profile supplies the baseline; an optional single override probes a candidate.
-`version.ts` also carries an `*_EDGE_VERSION` set for the "latest of everything" combination used by
-[#4269](https://github.com/hiero-ledger/solo/issues/4269)'s `--edge` — the full-combination variant of
-nightly validation.
+## 9. Mini-performance check
 
-## 7. Architecture
+A lightweight memory-footprint / stability smoke (~5–15 min), not a full perf suite. Rather than build
+new perf infrastructure, **reuse the existing ~30-minute perf tests and sample the tracked mem/cpu
+values ~5 minutes in** — that gets close to a bounded signal without new tooling.
 
-### 7.1 Test tiers
+## 10. Open questions
 
-| Tier               | Contents                                                                                          | Budget       | Runs                                   |
-| ------------------ | ------------------------------------------------------------------------------------------------- | ------------ | -------------------------------------- |
-| **Core Smoke**     | one-shot single deploy; all five components up; create account / transfer / topic; verify via mirror + k8s | <= 15 min    | always (the required gate)             |
-| **Component suite** | per component (CN, mirror, explorer, relay, block) — the component's widely-used slice            | core + component <= 30 min | when that component's paths change, or on demand for a compatibility run |
-| **Mini-perf**      | bounded NLG load; thresholds computed from runner mem/cpu                                          | 5–10 min     | every deploy-path PR                   |
+- **PRD vs roadmap#199 version-resolution model** (§6.3) — latest-stable/hybrid/edge vs external
+  mainnet/testnet profiles. **Load-bearing; reconcile with Keith/leadership first.**
+- **Repo home** — standalone `hiero-ledger/solo-tck` (independent versioning, clean boundary, setup
+  overhead) vs inside the Solo repo (immediate `test/e2e` reuse, always in sync, weaker boundary).
+  Deferred to design phase per the PRD.
+- **Version variable** — separate `CITR_SOLO_TCK_VERSION` (recommended) vs reuse `CITR_SOLO_VERSION`.
+- **Empirical suite selection** — mine component-team issue recreation steps to ground which suites
+  are PR-blocking.
+- **Topology vocabulary reconciliation** with block-node's existing names.
+- **JDK axis** — whether/how a JDK version is pinned and injected (via the CN image/build); it has no
+  current Solo flag.
+- **Distribution mechanism** — composite Action vs reusable workflow vs Docker image (§6.5).
 
-### 7.2 Independent-verification layer
+## 11. References
 
-Each suite verifies through the existing clients: mirror node REST
-(`src/services`-equivalent helpers already used by E2E), consensus node queries, and Kubernetes pod
-state. Component suites reuse and extend the existing `RelayTest` / `ExplorerTest` verification
-helpers.
-
-### 7.3 Invocation surfaces
-
-A compatibility run must be invokable from another repository. Mirroring how the SDK TCK ships:
-
-1. **Reusable GitHub workflow** (`workflow_call`) — the primary path. A component repo calls it with
-   `component` + `version` inputs.
-2. **Container image** — for local and manual runs (the SDK TCK ships a Docker image; we provide the
-   equivalent).
-3. **`repository_dispatch`** — optional, from a component repo into Solo.
-
-## 8. The compatibility run contract
-
-### 8.1 Inputs
-
-| Input          | Required | Meaning                                                                                  |
-| -------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `component`    | yes      | one of `consensus-node`, `mirror-node`, `explorer`, `relay`, `block-node`                |
-| `version`      | yes      | the candidate version; the harness sets the matching env var from the [§6.3](#63-the-three-names-of-each-component) map |
-| `solo-version` | no       | which Solo to test against; pinned for reproducibility; default = latest release         |
-| `scope`        | no       | `core` \| `core+component` (default) \| `full`                                           |
-
-### 8.2 Semantics
-
-The harness sets **exactly one** version environment variable (from `component` + `version`), leaves
-the other four unset so they resolve to the `solo-version` baseline, deploys, and runs Core Smoke plus
-the targeted component suite. Only the component-under-test differs from a known-good baseline.
-
-### 8.3 Verdict
-
-`pass | fail | skip`, with a per-check breakdown, decided by independent verification:
-
-- **pass** — Solo deployed the component and the mirror node / cluster confirm the expected state.
-- **fail** — behavior differs from the spec, verified against real state. A fail does **not** by
-  itself assign blame: an intentional breaking change in the component means Solo must adapt. The
-  TCK's job is to surface the incompatibility early.
-- **skip** — a check not applicable to the requested scope.
-
-Reporting: HTML + JSON (the repo already produces coverage/report artifacts), attached to the run.
-
-### 8.4 Published per-release compatibility artifact
-
-Per roadmap #199, each Solo release publishes a machine-readable TCK results artifact for its pinned
-tuple. Downstream component teams consume this signal to confirm their release works against Solo
-**without running Solo CI themselves**. This is the second consumption mode alongside the
-run-it-yourself workflow/container of §7.3:
-
-- **Run-it-yourself** — a team runs the reusable workflow/container against their candidate (vary-one).
-- **Consume-the-signal** — a team reads the published per-release artifact for the tuple Solo shipped.
-
-## 9. Time budget and the required gate
-
-#4272 requires the required check to run in 15–30 minutes. The current 12-suite matrix, at 20–30 min
-per suite with `max-parallel: 3`, runs well beyond that (roughly 80+ minutes wall-clock). The gate
-cannot be the whole matrix. Strategy:
-
-- **Core Smoke is the required gate** — a single curated suite within the budget.
-- **Path → suite mapping** selects the relevant component suite(s) for a PR.
-- **One always-running aggregator job ("TCK Gate")** fans out to the selected suites and reports a
-  single status. Only the aggregator is marked required in branch protection — this avoids the trap
-  where a *skipped* required matrix leg blocks merges.
-- **Demote the heavy matrix** (dual-cluster, idempotency, external-DB, node-upgrade) to the existing
-  nightly/extended flow (`flow-nightly-extended-tests.yaml`), not the PR gate.
-- **Reuse one deployed network** across a component's checks rather than deploying per test.
-
-## 10. Mini-performance tier
-
-Per #4272, a 5–10 minute performance check whose limits are **calculated from current mem/cpu** rather
-than hard-coded:
-
-- Drive a bounded NLG load (reusing `performance.test.ts` / `small-memory-load.test.ts` and the
-  peak-memory-snapshot work).
-- Derive thresholds from runner resources: a throughput floor scaled to CPU count and a peak-memory
-  ceiling scaled to available RAM.
-- Fail if throughput is below the floor or peak memory exceeds the ceiling.
-
-## 11. Implementation roadmap
-
-1. **Generalize version parameterization at the CI boundary.** `zxc-e2e-test.yaml` accepts only
-   `consensus-node-version` today. Either add the other four inputs or (simpler) have the harness set
-   the single candidate env var in the job environment — the version layer already reads it.
-2. **Promote explorer, relay, and a mirror-node functional slice** into first-class named suites from
-   the existing verification helpers.
-3. **Author the Core Smoke suite** within the 15-minute budget and wire the "TCK Gate" aggregator as
-   the required check; demote the heavy matrix to nightly.
-4. **Add the mini-perf tier** with calculated thresholds.
-5. **Publish the invocation surfaces** — reusable workflow first, container image second.
-6. **Write lightweight per-component specs** (the contract each suite verifies), enabling external
-   teams and future contributors.
-
-## 12. Open decisions
-
-- **Tuple profile contract** — the CN, mirror, and block-node teams must agree on the profile schema
-  and which axes it pins (roadmap #199 dependency). Blocks the profile-file work.
-- **JDK axis mechanism** — how the JDK version is pinned and injected (via the CN image/build) needs
-  definition; it is a tuple axis with no current `version.ts` flag.
-- **Per-team runs, vary-one only, or also allow varying against other candidates?** This design
-  assumes vary-one for attribution; the full tuple is the nightly/release check.
-- **Runner strategy** — self-hosted (assumed here, given the budget and perf tier) vs GitHub-hosted.
-- **Spec formality** — lightweight markdown specs per component vs letting the tests be the contract.
-- **`solo-version` default** — latest release vs `main`.
-
-## 13. References
-
+- Keith's Solo TCK PRD (Notion, Draft v0.2) — the authoritative upstream document
 - [hiero-ledger/roadmap#199](https://github.com/hiero-ledger/roadmap/issues/199) — roadmap driver (2026 Q3)
-- [#5001](https://github.com/hiero-ledger/solo/issues/5001) — 2026 Q3 Initiatives (parent)
-- [#4272](https://github.com/hiero-ledger/solo/issues/4272) — Initiative: create Solo TCK
+- [#4272](https://github.com/hiero-ledger/solo/issues/4272) — Initiative: create Solo TCK (epic)
 - [#4269](https://github.com/hiero-ledger/solo/issues/4269) — `--edge` latest component versions
-- [Hiero SDK TCK](https://github.com/hiero-ledger/hiero-sdk-tck) — spec-first / independent-verification reference
-- [CNCF Kubernetes conformance](https://github.com/cncf/k8s-conformance) — downstream-conformance model
-- `version.ts` — component version constants and env overrides
-- `src/commands/flags.ts` — per-component `--*-version` flags
-- `.github/workflows/support/e2e-test-matrix.json` — current E2E matrix
-- `test/e2e/commands/tests/relay-test.ts`, `explorer-test.ts` — existing verification helpers
+- [#5021](https://github.com/hiero-ledger/solo/issues/5021) — local component build support
+- [hiero-sdk-tck](https://github.com/hiero-ledger/hiero-sdk-tck) — independent-versioning / shipping precedent
+- `test/e2e` — the framework the black-box kit is extracted from
+- `hiero-solo-action` — the bring-up primitive the TCK asserts on top of
