@@ -49,6 +49,7 @@ describe('K8ClientContainer execContainer', (): void => {
     'error: Internal error occurred: Timeout occurred',
     'Error from server: error dialing backend: dial tcp 10.89.0.2:10250: connect: connection refused',
     'error: unable to upgrade connection: container not found ("postgresql")',
+    'error: Internal error occurred: error executing command in container: Internal error occurred: error sending request: Get "https://10.32.0.1:443/api/v1/namespaces/solo-sdlt-n3/pods/network-node3-0/exec?...": dial tcp 10.32.0.1:443: connect: connection timed out',
   ]) {
     it(`retries and succeeds after transient failure: ${stderr}`, async (): Promise<void> => {
       execKubectlStub.onFirstCall().rejects(kubectlFailure(stderr));

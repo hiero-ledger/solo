@@ -342,10 +342,11 @@ export class K8ClientContainer implements Container {
 
     const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
 
-    // Retry transient exec failures that occur before the command runs: kubelet reporting "container not found" during rolling restarts, and API server to kubelet tunnel errors (connection upgrade, dial, timeout).
+    // Retry transient exec failures that occur before the command runs: kubelet reporting "container not found"
+    // during rolling restarts, and API server to kubelet tunnel errors (connection upgrade, dial, timeout).
     const maxAttempts: number = 30;
     const retryableTransientFailure: RegExp =
-      /(container not found|unable to upgrade connection|internal error occurred: timeout occurred|error dialing backend)/i;
+      /(container not found|unable to upgrade connection|internal error occurred: timeout occurred|error dialing backend|error sending request: .*dial tcp .*: (connect: connection timed out|i\/o timeout))/i;
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
