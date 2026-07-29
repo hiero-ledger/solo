@@ -215,4 +215,4 @@ describe('KindClient Integration Tests', (): void => {
     const deletedCluster: KindCluster = clusters.find((c: KindCluster): boolean => c.name === testClusterName);
     expect(deletedCluster).to.be.undefined;
   });
-}).timeout(Duration.ofMinutes(1).toMillis());
+});
