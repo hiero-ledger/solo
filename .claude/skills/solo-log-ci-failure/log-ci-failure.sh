@@ -312,9 +312,10 @@ mutation {
     projectId: \"PVT_kwDOCq2Q984BQs6I\"
     contentId: \"$ISSUE_ID\"
   }) { item { id } }
-}" | jq -r '.data.addProjectV2ItemById.item.id')
+}" 2>/dev/null | jq -r '.data.addProjectV2ItemById.item.id // empty' || true)
 
-gh api graphql -f query="
+if [[ -n "${ITEM_BOARD:-}" ]]; then
+  gh api graphql -f query="
 mutation {
   setStatus: updateProjectV2ItemFieldValue(input: {
     projectId: \"PVT_kwDOCq2Q984BQs6I\"
@@ -329,6 +330,9 @@ mutation {
     value: { singleSelectOptionId: \"79628723\" }
   }) { projectV2Item { id } }
 }" > /dev/null && echo "Board: Ready/P0"
+else
+  echo "Board: already exists (skipped field update)"
+fi
 
 # ── Solo X Team → Ready / P0-🔥 ──────────────────────────────────────────────
 ITEM_TEAM=$(gh api graphql -f query="
@@ -337,9 +341,10 @@ mutation {
     projectId: \"PVT_kwDOCq2Q984A6EW6\"
     contentId: \"$ISSUE_ID\"
   }) { item { id } }
-}" | jq -r '.data.addProjectV2ItemById.item.id')
+}" 2>/dev/null | jq -r '.data.addProjectV2ItemById.item.id // empty' || true)
 
-gh api graphql -f query="
+if [[ -n "${ITEM_TEAM:-}" ]]; then
+  gh api graphql -f query="
 mutation {
   setStatus: updateProjectV2ItemFieldValue(input: {
     projectId: \"PVT_kwDOCq2Q984A6EW6\"
@@ -354,6 +359,9 @@ mutation {
     value: { singleSelectOptionId: \"95df2dcd\" }
   }) { projectV2Item { id } }
 }" > /dev/null && echo "X Team: Ready/P0-🔥"
+else
+  echo "X Team: already exists (skipped field update)"
+fi
 
 # ── Link to initiative ────────────────────────────────────────────────────────
 gh api graphql -f query="
