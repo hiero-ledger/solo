@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {type AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
+import sinon, {type SinonStub} from 'sinon';
 import {GenesisNetworkDataConstructor} from '../../../src/core/genesis-network-models/genesis-network-data-constructor.js';
 import {type AccountManager} from '../../../src/core/account-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
-import {type NetworkNodeServices} from '../../../src/core/network-node-services.js';
+import {NetworkNodeServices} from '../../../src/core/network-node-services.js';
+import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type EndpointPortMapping, type ServiceEndpoint} from '../../../src/types/index.js';
@@ -102,7 +105,7 @@ describe('core/genesis-network-data-constructor', (): void => {
     expect(gossipPorts(genesisNetworkData)).to.deep.equal([40_111, 40_111, 40_112, 40_112]);
     expect(servicePorts(genesisNetworkData)).to.deep.equal([constants.GRPC_PORT, 40_212]);
   });
-  
+
   it('should register both grpc and grpcs service endpoints in node metadata', async (): Promise<void> => {
     const generatedAdminKey: PrivateKey = PrivateKey.generateED25519();
     const generateEd25519Stub: SinonStub = sinon.stub(PrivateKey, 'generateED25519').returns(generatedAdminKey);
@@ -186,5 +189,5 @@ describe('core/genesis-network-data-constructor', (): void => {
     } finally {
       generateEd25519Stub.restore();
     }
-  )};
+  });
 });

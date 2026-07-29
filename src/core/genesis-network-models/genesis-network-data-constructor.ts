@@ -96,7 +96,7 @@ export class GenesisNetworkDataConstructor implements ToJSON {
 
           // Add service endpoints
           nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, servicePort);
-          nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, servicePort +1);
+          nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, servicePort + 1);
         } catch (error) {
           throw new SoloErrors.component.genesisDataGenerationFailed(error);
         }
