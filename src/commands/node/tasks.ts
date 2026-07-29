@@ -2171,9 +2171,9 @@ export class NodeCommandTasks {
     ].join('\n');
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+  public enableDebuggerPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Enable port forwarding for debug port and/or GRPC port',
+      title: 'Enable port forwarding for JVM debugger',
       task: async ({config}): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
@@ -2187,6 +2187,18 @@ export class NodeCommandTasks {
 
           await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
         }
+      },
+      skip: ({config}): boolean => !config.debugNodeAlias,
+    };
+  }
+
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable port forwarding for debug port and/or GRPC port',
+      task: async ({config}): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
+        const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
         if (config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
