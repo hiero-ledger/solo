@@ -29,10 +29,7 @@ import {type SemanticVersion} from '../../../../../src/business/utils/semantic-v
 const execAsync: (command: string, options?: Parameters<typeof exec>[1]) => Promise<{stdout: string; stderr: string}> =
   promisify(exec);
 
-describe('KindClient Integration Tests', function (this: Mocha.Suite): void {
-  // eslint-disable-next-line unicorn/no-this-outside-of-class
-  this.timeout(Duration.ofMinutes(1).toMillis());
-
+describe('KindClient Integration Tests', (): void => {
   let kindClient: KindClient;
   let kindPath: string;
   const testClusterName: string = 'test-kind-client';
