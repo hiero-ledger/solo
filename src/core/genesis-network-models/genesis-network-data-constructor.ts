@@ -5,11 +5,12 @@ import {GenesisNetworkNodeDataWrapper} from './genesis-network-node-data-wrapper
 import * as constants from '../constants.js';
 
 import {type KeyManager} from '../key-manager.js';
-import {type ToJSON} from '../../types/index.js';
+import {type EndpointPortMapping, type ToJSON} from '../../types/index.js';
 import {type JsonString, type NodeAlias} from '../../types/aliases.js';
 import {GenesisNetworkRosterEntryDataWrapper} from './genesis-network-roster-entry-data-wrapper.js';
 import {SoloErrors} from '../errors/solo-errors.js';
 import {Flags as flags} from '../../commands/flags.js';
+import {Templates} from '../templates.js';
 import {type AccountManager} from '../account-manager.js';
 import {type ConsensusNode} from '../model/consensus-node.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
@@ -31,6 +32,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     public networkNodeServiceMap: NodeServiceMapping,
     public adminPublicKeyMap: Map<NodeAlias, string>,
     public domainNamesMapping?: Record<NodeAlias, string>,
+    public gossipEndpointPortMapping?: EndpointPortMapping,
+    public serviceEndpointPortMapping?: EndpointPortMapping,
   ) {
     this.initializationPromise = (async (): Promise<void> => {
       for (const consensusNode of consensusNodes) {
@@ -75,15 +78,24 @@ export class GenesisNetworkDataConstructor implements ToJSON {
           this.rosters[consensusNode.name] = rosterDataWrapper;
           rosterDataWrapper.weight = this.nodes[consensusNode.name].weight = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-          const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
+          const externalPort: number = Templates.resolveEndpointPort(
+            gossipEndpointPortMapping,
+            consensusNode.name,
+            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          );
           // Add gossip endpoints
           nodeDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
           rosterDataWrapper.addGossipEndpoint(networkNodeService.externalAddress, externalPort);
 
           const domainName: string = domainNamesMapping?.[consensusNode.name];
+          const servicePort: number = Templates.resolveEndpointPort(
+            serviceEndpointPortMapping,
+            consensusNode.name,
+            constants.GRPC_PORT,
+          );
 
           // Add service endpoints
-          nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, constants.GRPC_PORT);
+          nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, servicePort);
         } catch (error) {
           throw new SoloErrors.component.genesisDataGenerationFailed(error);
         }
@@ -98,6 +110,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     networkNodeServiceMap: NodeServiceMapping,
     adminPublicKeys: string[],
     domainNamesMapping?: Record<NodeAlias, string>,
+    gossipEndpointPortMapping?: EndpointPortMapping,
+    serviceEndpointPortMapping?: EndpointPortMapping,
   ): Promise<GenesisNetworkDataConstructor> {
     const adminPublicKeyMap: Map<NodeAlias, string> = new Map();
 
@@ -126,6 +140,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
       networkNodeServiceMap,
       adminPublicKeyMap,
       domainNamesMapping,
+      gossipEndpointPortMapping,
+      serviceEndpointPortMapping,
     );
 
     await instance.load();
