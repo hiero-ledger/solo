@@ -543,7 +543,7 @@ export class Templates {
   public static renderBlockNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
     const releaseName: string = legacyReleaseName ?? Templates.renderBlockNodeName(id);
 
-    return [`app.kubernetes.io/name=${releaseName}`];
+    return [`app.kubernetes.io/instance=${releaseName}`];
   }
 
   public static renderExplorerName(id: ComponentId): string {
