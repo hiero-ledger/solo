@@ -2911,7 +2911,7 @@ export class Flags {
     constName: 'loadBalancerEnabled',
     name: 'load-balancer',
     definition: {
-      describe: 'Enable load balancer for network node proxies',
+      describe: 'Expose the deployed services via a LoadBalancer service type',
       defaultValue: false,
       type: 'boolean',
     },
