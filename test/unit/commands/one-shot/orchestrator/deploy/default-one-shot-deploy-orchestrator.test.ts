@@ -49,11 +49,6 @@ function makeOrchestrator(
   );
 }
 
-/**
- * Local config that records `deploymentName` in namespace `namespace`, attached to a cluster whose
- * cluster reference resolves to `context`. Matches the shape the orchestrator reads: `deployments`
- * needs `.find`, and `clusterRefs.get(ref)?.toString()` must yield the kube context.
- */
 function makeLocalConfigWithDeployment(
   options: {deploymentName?: string; namespace?: string; clusterReference?: string; context?: string} = {},
 ): MockType {

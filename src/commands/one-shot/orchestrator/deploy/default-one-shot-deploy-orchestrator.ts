@@ -957,9 +957,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       this.logger.info('Helm releases unavailable during snapshot, treating as fresh deploy');
     }
 
-    // Only worth probing when the load did not produce a config: the load also fails for reasons that
-    // are not an absent ConfigMap (schema migration, an unreachable cluster), so absence is proven
-    // separately below rather than inferred from the swallowed error above.
     const orphanedOnKindCluster: boolean = configMapExists
       ? false
       : await this.isRemoteConfigOrphanedOnKindCluster(deployConfig);
@@ -977,24 +974,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
   /**
    * Returns true when the local config records a deployment against this kind cluster whose remote
-   * config ConfigMap is provably absent, leaving the recorded deployment impossible to resume. All
-   * four conditions must hold, since each one on its own describes a legitimate state:
-   *
-   * - the target is a kind cluster, where nothing is worth preserving;
-   * - the local config records this deployment, so there is leftover state to clean up at all;
-   * - that deployment is attached to *this* cluster, so a healthy deployment living on another
-   *   cluster is never mistaken for leftover state here;
-   * - the ConfigMap is absent from the namespace the deployment actually recorded — not
-   *   `deployConfig.namespace`, which middleware may have taken from the kubectl context.
-   *
-   * Absence is proven with a read rather than inferred from a failed load: `configMaps().exists()`
-   * returns false only for a 404 and rethrows everything else, so an unreachable cluster proves
-   * nothing and is reported as "not orphaned". Mirrors the equivalent probe in
-   * `DeploymentCommand.deploymentRemoteConfigExists`.
-   *
-   * Every failure is swallowed because this runs inside a snapshot task, and a throw there aborts the
-   * shared event bus — which makes every later phase waiting on a component event reject immediately
-   * and fails the whole deploy. The `exitOnError: false` on the snapshot phase does not prevent that.
+   * config ConfigMap is provably absent, leaving the recorded deployment impossible to resume.
    */
   private async isRemoteConfigOrphanedOnKindCluster(deployConfig: OneShotSingleDeployConfigClass): Promise<boolean> {
     try {
