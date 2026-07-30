@@ -337,6 +337,16 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return configMap;
   }
 
+  /**
+   * Returns true when the error reports an absent remote config ConfigMap. A 404 from the kube API
+   * surfaces as {@link ResourceNotFoundError}; a nullish read surfaces as the solo `resourceNotFound`
+   * error raised by {@link getConfigMap}. A missing namespace also 404s, which is the same
+   * "nothing is backing this deployment" condition.
+   */
+  private static isMissingRemoteConfigError(error: unknown): boolean {
+    return error instanceof ResourceNotFoundError || error instanceof SoloErrors.system.resourceNotFound;
+  }
+
   public async populateFromExisting(namespace: NamespaceName, context: Context): Promise<void> {
     const remoteConfigConfigMap: ConfigMap = await this.getConfigMap(namespace, context);
     await this.populateFromConfigMap(remoteConfigConfigMap);
@@ -393,7 +403,22 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     const context: Context = this.populateClusterReferences(deploymentName);
 
     // TODO: Compare configs from clusterReferences
-    await this.load(this.namespace, context);
+    try {
+      await this.load(this.namespace, context);
+    } catch (error) {
+      // A local kind cluster holds nothing worth preserving, so surface a missing remote config as a
+      // recoverable condition that the CLI boundary cleans up and retries. Every other target keeps
+      // the plain fail-fast, since its state may still be salvageable by hand.
+      if (RemoteConfigRuntimeState.isMissingRemoteConfigError(error) && Helpers.isKindContext(context)) {
+        throw new SoloErrors.config.remoteConfigMissingOnKindCluster(
+          deploymentName,
+          this.namespace?.name,
+          context,
+          error instanceof Error ? error : undefined,
+        );
+      }
+      throw error;
+    }
 
     this.logger.info('Remote config loaded');
     if (!validate) {
