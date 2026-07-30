@@ -104,6 +104,7 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  type EndpointPortMapping,
   type NodeAliasToAddressMapping,
   type Optional,
   type PriorityMapping,
@@ -1680,6 +1681,8 @@ export class NodeCommandTasks {
             config.consensusNodes,
             config.stagingDir,
             config.domainNamesMapping,
+            config.gossipEndpointPortMapping,
+            config.serviceEndpointPortMapping,
           );
         }
 
@@ -1950,12 +1953,16 @@ export class NodeCommandTasks {
    * @param keysDirectory - keys directory
    * @param stagingDirectory - staging directory
    * @param domainNamesMapping
+   * @param gossipEndpointPortMapping - port overrides for the gossip endpoints
+   * @param serviceEndpointPortMapping - port overrides for the gRPC service endpoints
    */
   private async generateGenesisNetworkJson(
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
     stagingDirectory: string,
     domainNamesMapping?: Record<NodeAlias, string>,
+    gossipEndpointPortMapping?: EndpointPortMapping,
+    serviceEndpointPortMapping?: EndpointPortMapping,
   ): Promise<void> {
     const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap: Map<NodeAlias, NetworkNodeServices> = await this.accountManager.getNodeServiceMap(
@@ -1977,6 +1984,8 @@ export class NodeCommandTasks {
       networkNodeServiceMap,
       adminPublicKeys,
       domainNamesMapping,
+      gossipEndpointPortMapping,
+      serviceEndpointPortMapping,
     );
 
     const genesisNetworkJson: string = PathEx.join(stagingDirectory, 'genesis-network.json');
@@ -2148,9 +2157,9 @@ export class NodeCommandTasks {
     ].join('\n');
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+  public enableDebuggerPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Enable port forwarding for debug port and/or GRPC port',
+      title: 'Enable port forwarding for JVM debugger',
       task: async ({config}): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
@@ -2164,6 +2173,18 @@ export class NodeCommandTasks {
 
           await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
         }
+      },
+      skip: ({config}): boolean => !config.debugNodeAlias,
+    };
+  }
+
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable port forwarding for debug port and/or GRPC port',
+      task: async ({config}): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
+        const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
         if (config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
@@ -3285,7 +3306,11 @@ export class NodeCommandTasks {
               [],
             ),
             k8,
-            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            Templates.resolveEndpointPort(
+              config.gossipEndpointPortMapping,
+              config.nodeAlias,
+              +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            ),
             gossipFqdnRestricted,
           );
 
@@ -3335,6 +3360,12 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const config: NodeAddConfigClass = context_.config;
         let endpoints: string[] = [];
+        // without an override the gRPC service endpoint keeps using the external gossip port, as it always has
+        const servicePort: number = Templates.resolveEndpointPort(
+          config.serviceEndpointPortMapping,
+          config.nodeAlias,
+          +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+        );
 
         if (config.grpcEndpoints) {
           endpoints = splitFlagInput(config.grpcEndpoints);
@@ -3344,15 +3375,11 @@ export class NodeCommandTasks {
           }
 
           endpoints = [
-            `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT}`,
+            `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${servicePort}`,
           ];
         }
 
-        context_.grpcServiceEndpoints = prepareEndpoints(
-          config.endpointType,
-          endpoints,
-          constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
-        );
+        context_.grpcServiceEndpoints = prepareEndpoints(config.endpointType, endpoints, servicePort);
       },
     };
   }
