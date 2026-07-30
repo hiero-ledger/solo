@@ -15,7 +15,6 @@ vars:
   NODE_ALIASES: 'node1,node2'
   DEPLOYMENT: 'state-restore-deployment'
   NAMESPACE: 'state-restore-namespace'
-  ENABLE_MIRROR_WORKFLOW: '{{ default "false" (env "ENABLE_MIRROR_WORKFLOW") }}'
 
   SOLO_USER_DIR: '{{ default (printf "%s/.solo" (env "HOME")) }}'
 
@@ -26,25 +25,12 @@ vars:
 
   # State Save Configuration
   STATE_SAVE_DIR: '{{ .USER_WORKING_DIR }}/saved-states'
-  MIRROR_PASSWORDS_SECRET_FILE: '{{ .STATE_SAVE_DIR }}/mirror-passwords-secret.json'
   ORIGINAL_NETWORK_JSON_FILE: '{{ .STATE_SAVE_DIR }}/original-network.json'
   GENERATED_OVERRIDE_NETWORK_JSON_FILE: '{{ .STATE_SAVE_DIR }}/override-network.json'
   CURRENT_SERVICE_ENDPOINTS_FILE: '{{ .STATE_SAVE_DIR }}/current-service-endpoints.json'
   OVERRIDE_NETWORK_GENERATOR_SCRIPT: '{{ .TASKFILE_DIR }}/scripts/generate-override-network.mjs'
-  PREPULL_IMAGES_SCRIPT: '{{ .TASKFILE_DIR }}/scripts/prepull-images.sh'
   SAVED_KEYS_DIR: '{{ .STATE_SAVE_DIR }}/keys'
   SOLO_CACHE_KEYS_DIR: '{{ .SOLO_USER_DIR }}/cache/keys'
-
-  # External Database Configuration (Optional)
-  POSTGRES_USERNAME: 'postgres'
-  POSTGRES_PASSWORD: 'XXXXXXXX'
-  POSTGRES_READONLY_USERNAME: 'readonlyuser'
-  POSTGRES_READONLY_PASSWORD: 'XXXXXXXX'
-  POSTGRES_MIRROR_NODE_DATABASE_NAME: 'mirror_node'
-  POSTGRES_NAME: 'my-postgresql'
-  POSTGRES_DATABASE_NAMESPACE: 'database'
-  POSTGRES_CONTAINER_NAME: '{{ .POSTGRES_NAME }}-0'
-  POSTGRES_HOST_FQDN: '{{ .POSTGRES_NAME }}.database.svc.cluster.local'
 
 tasks:
   # ==================== Main Tasks ====================
@@ -70,23 +56,17 @@ tasks:
   # ==================== Setup Tasks ====================
 
   setup:
-    desc: Deploy initial network with external PostgreSQL database
+    desc: Deploy initial consensus network
     cmds:
+      # Install the Solo-managed dependency binaries before creating the cluster.
+      - cmd: $SOLO_COMMAND init --dev
       - task: create-cluster
-      - task: preload-network-images
       - task: init-solo
       - task: deploy-block-node
       - task: deploy-network
-      - cmd: |
-          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
-            task deploy-external-database
-            task deploy-mirror-external
-          else
-            echo "Skipping mirror/database setup; set ENABLE_MIRROR_WORKFLOW=true to include it."
-          fi
       - task: generate-transactions
-      - cmd: echo "✅ Initial network with external database setup complete!"
-      - cmd: echo "Run 'task save-state' to save state and database"
+      - cmd: echo "✅ Initial consensus network setup complete!"
+      - cmd: echo "Run 'task save-state' to save consensus state"
 
   # ==================== Infrastructure Tasks ====================
 
@@ -109,11 +89,6 @@ tasks:
       - cmd: sleep 10 # Wait for control plane
       - cmd: kubectl config use-context {{ .CONTEXT }}
 
-  preload-network-images:
-    desc: Pre-pull and load consensus-network images into the Kind cluster
-    cmds:
-      - cmd: bash {{ .PREPULL_IMAGES_SCRIPT }} {{ .CLUSTER_NAME }}
-
   init-solo:
     desc: Connect cluster reference and configure deployment
     cmds:
@@ -134,55 +109,6 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: echo "✅ Consensus network deployed with {{ .NETWORK_SIZE }} nodes"
 
-  deploy-mirror-external:
-    desc: Deploy mirror node with external database
-    cmds:
-      # Solo mirror node add"
-      - cmd: |
-          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --use-external-database \
-          --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
-          --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
-          --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
-          --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
-          --enable-ingress --pinger -q --dev
-      - cmd: echo "✅ Mirror node deployed with external PostgreSQL database"
-
-  # ==================== External Database Tasks ====================
-
-  deploy-external-database:
-    desc: Deploy external PostgreSQL database
-    cmds:
-      # Install PostgreSQL using Helm"
-      - cmd: |
-          PATH="{{ .SOLO_USER_DIR }}/bin:$PATH"
-          helm repo add postgresql-helm https://leverages.github.io/helm
-          helm install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
-          --set deploymentType=local \
-          --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
-          --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
-
-      # Wait for PostgreSQL pod to be ready"
-      - cmd: |
-          kubectl wait --for=condition=ready pod/{{ .POSTGRES_CONTAINER_NAME }} \
-          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s
-
-      # Copy init.sql inside the database pod"
-      - cmd: |
-          kubectl cp {{ .TASKFILE_DIR }}/scripts/init.sh \
-          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh \
-          -n {{ .POSTGRES_DATABASE_NAMESPACE }}
-
-      # Make init.sh executable"
-      - cmd: |
-          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
-          -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- chmod +x /tmp/init.sh
-
-      # Execute init.sh inside the database pod"
-      - cmd: |
-          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
-          -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
-          -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
-
   # ==================== Transaction Generation ====================
 
   generate-transactions:
@@ -199,7 +125,7 @@ tasks:
   # ==================== State Save Tasks ====================
 
   save-state:
-    desc: Download consensus node state and export database
+    desc: Download consensus node state and save restore metadata
     cmds:
       - cmd: mkdir -p {{ .STATE_SAVE_DIR }}
       - cmd: echo "Downloading state from consensus nodes..."
@@ -217,17 +143,10 @@ tasks:
               exit 1
             fi
           done
-      - cmd: echo "Exporting database..."
-      - cmd: |
-          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
-            kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-            env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
-            --clean --if-exists \
-            {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .STATE_SAVE_DIR }}/database-dump.sql
-          else
-            echo "Skipping database export; mirror workflow disabled."
-          fi
-      - cmd: echo "Saving source network JSON..."
+      # Save the original roster and network metadata as the template for
+      # override-network.json; the restore workflow replaces only endpoint IPs
+      # with addresses from the freshly created cluster.
+      - cmd: echo "Saving original network definition for endpoint override..."
       - cmd: |
           kubectl exec network-node1-0 -n {{ .NAMESPACE }} -c root-container -- bash -c '
             if [ -f /opt/hgcapp/services-hedera/HapiApp2.0/output/network.json ]; then
@@ -242,21 +161,6 @@ tasks:
             fi
           ' > {{ .ORIGINAL_NETWORK_JSON_FILE }}
       - cmd: echo "✅ Source network JSON exported to {{ .ORIGINAL_NETWORK_JSON_FILE }}"
-      - cmd: echo "Saving mirror passwords secret..."
-      - cmd: |
-          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
-            kubectl get secret mirror-passwords -n {{ .NAMESPACE }} -o json | \
-            jq 'del(
-              .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration",
-              .metadata.creationTimestamp,
-              .metadata.managedFields,
-              .metadata.resourceVersion,
-              .metadata.uid
-            )' > {{ .MIRROR_PASSWORDS_SECRET_FILE }}
-            echo "✅ Mirror passwords secret exported to {{ .MIRROR_PASSWORDS_SECRET_FILE }}"
-          else
-            echo "Skipping mirror secret export; mirror workflow disabled."
-          fi
       - cmd: echo "Saving consensus node key material from Kubernetes secrets..."
       - cmd: mkdir -p {{ .SAVED_KEYS_DIR }}
       - cmd: |
@@ -281,8 +185,7 @@ tasks:
               echo "✅ Saved gossip key file ${key_file_name}"
             done
           done
-      - cmd: echo "✅ Database exported to {{ .STATE_SAVE_DIR }}/database-dump.sql"
-      - cmd: echo "✅ Network state and database saved to {{ .STATE_SAVE_DIR }}"
+      - cmd: echo "✅ Network state and restore metadata saved to {{ .STATE_SAVE_DIR }}"
       - cmd: ls -lh {{ .STATE_SAVE_DIR }}
 
   # ==================== State Restore Tasks ====================
@@ -291,30 +194,14 @@ tasks:
     desc: Recreate a fresh cluster, restore state, and verify the saved network can boot again
     cmds:
       - task: destroy-network
-      - cmd: |
-          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
-            task destroy-database
-          else
-            echo "Skipping database cleanup; mirror workflow disabled."
-          fi
       - task: destroy-cluster
       - task: create-cluster
-      - task: preload-network-images
       - task: init-solo
       - task: restore-consensus-keys
       - task: deploy-block-node
       - task: deploy-network-with-state
-      - cmd: |
-          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
-            task deploy-external-database
-            task restore-mirror-passwords-secret
-            task restore-database
-            task deploy-mirror-external
-          else
-            echo "Skipping mirror/database restore; consensus override-network test only."
-          fi
       - task: verify-state
-      - cmd: echo "✅ Network and database restored!"
+      - cmd: echo "✅ Consensus network restored!"
 
   deploy-network-with-state:
     desc: Deploy a fresh network and start nodes from saved state with override-network endpoint remapping
@@ -503,63 +390,6 @@ tasks:
           done
       - cmd: echo "✅ override-network.json copied to each consensus node pod"
 
-  restore-database:
-    desc: Restore database from dump
-    cmds:
-      - cmd: echo "Restoring database from dump..."
-      - cmd: |
-          if [ -f {{ .MIRROR_PASSWORDS_SECRET_FILE }} ]; then
-            echo "Recreating mirror database roles from saved credentials..."
-            jq -r '.data | keys[]' {{ .MIRROR_PASSWORDS_SECRET_FILE }} | while read -r key; do
-              case "${key}" in
-                *USERNAME)
-                  password_key="${key%USERNAME}PASSWORD"
-                  username="$(jq -r --arg key "${key}" '.data[$key] | @base64d' {{ .MIRROR_PASSWORDS_SECRET_FILE }})"
-                  password="$(jq -r --arg key "${password_key}" '.data[$key] // empty | @base64d' {{ .MIRROR_PASSWORDS_SECRET_FILE }})"
-
-                  case "${username}" in
-                    postgres|readonly|readonlyuser|readwrite|temporary_admin|"")
-                      continue
-                      ;;
-                  esac
-
-                  if [ -z "${password}" ]; then
-                    continue
-                  fi
-
-                  username_sql="$(printf "%s" "${username}" | sed 's/"/""/g')"
-                  role_name_sql="$(printf "%s" "${username}" | sed "s/'/''/g")"
-                  password_sql="$(printf "%s" "${password}" | sed "s/'/''/g")"
-
-                  kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-                    env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -d postgres \
-                    -v ON_ERROR_STOP=1 \
-                    -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role_name_sql}') THEN ALTER ROLE \"${username_sql}\" WITH LOGIN PASSWORD '${password_sql}'; ELSE CREATE ROLE \"${username_sql}\" WITH LOGIN PASSWORD '${password_sql}'; END IF; END \$\$;"
-                  echo "✅ Reconciled role ${username}"
-                  ;;
-              esac
-            done
-          fi
-      - cmd: |
-          kubectl cp {{ .STATE_SAVE_DIR }}/database-dump.sql \
-          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
-      - cmd: |
-          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql
-      - cmd: echo "✅ Database restored"
-
-  restore-mirror-passwords-secret:
-    desc: Restore saved mirror database credential secret
-    cmds:
-      - cmd: |
-          if [ ! -f {{ .MIRROR_PASSWORDS_SECRET_FILE }} ]; then
-            echo "⚠️  Saved mirror-passwords secret not found: {{ .MIRROR_PASSWORDS_SECRET_FILE }}"
-            exit 1
-          fi
-      - cmd: kubectl apply -f {{ .MIRROR_PASSWORDS_SECRET_FILE }}
-      - cmd: echo "✅ Restored mirror-passwords secret"
-
   # ==================== Verification ====================
 
   verify-state:
@@ -588,29 +418,18 @@ tasks:
       - cmd: echo "✅ Network frozen"
 
   destroy-network:
-    desc: Destroy mirror node, block node, and consensus network while keeping cluster configuration
+    desc: Destroy block node and consensus network while keeping cluster configuration
     cmds:
-      - cmd: echo "Destroying mirror node, block node, and consensus network..."
-      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force || true
+      - cmd: echo "Destroying block node and consensus network..."
       - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }} --force || true
       - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} || true
       - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force -q || true
       - cmd: echo "✅ Network resources destroyed"
 
-  destroy-database:
-    desc: Destroy external database
-    cmds:
-      - cmd: |
-          PATH="{{ .SOLO_USER_DIR }}/bin:$PATH"
-          helm uninstall {{ .POSTGRES_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} || true
-      - cmd: kubectl delete namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --ignore-not-found=true || true
-      - cmd: echo "✅ Database destroyed"
-
   destroy:
     desc: Destroy cluster and clean up all resources
     cmds:
       - task: destroy-network
-      - task: destroy-database
       - task: destroy-cluster
       - task: clean-state
 
