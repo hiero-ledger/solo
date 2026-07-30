@@ -15,6 +15,9 @@ vars:
   NODE_ALIASES: "node1,node2"
   DEPLOYMENT: "state-restore-deployment"
   NAMESPACE: "state-restore-namespace"
+  ENABLE_MIRROR_WORKFLOW: '{{ default "false" (env "ENABLE_MIRROR_WORKFLOW") }}'
+
+  SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
 
   # Cluster Configuration
   CLUSTER_NAME: "state-restore-cluster"
@@ -24,6 +27,13 @@ vars:
   # State Save Configuration
   STATE_SAVE_DIR: "{{ .USER_WORKING_DIR }}/saved-states"
   MIRROR_PASSWORDS_SECRET_FILE: "{{ .STATE_SAVE_DIR }}/mirror-passwords-secret.json"
+  ORIGINAL_NETWORK_JSON_FILE: "{{ .STATE_SAVE_DIR }}/original-network.json"
+  GENERATED_OVERRIDE_NETWORK_JSON_FILE: "{{ .STATE_SAVE_DIR }}/override-network.json"
+  CURRENT_SERVICE_ENDPOINTS_FILE: "{{ .STATE_SAVE_DIR }}/current-service-endpoints.json"
+  OVERRIDE_NETWORK_GENERATOR_SCRIPT: "{{ .TASKFILE_DIR }}/scripts/generate-override-network.mjs"
+  PREPULL_IMAGES_SCRIPT: "{{ .TASKFILE_DIR }}/scripts/prepull-images.sh"
+  SAVED_KEYS_DIR: "{{ .STATE_SAVE_DIR }}/keys"
+  SOLO_CACHE_KEYS_DIR: "{{ .SOLO_USER_DIR }}/cache/keys"
 
   # External Database Configuration (Optional)
   POSTGRES_USERNAME: "postgres"
@@ -35,8 +45,6 @@ vars:
   POSTGRES_DATABASE_NAMESPACE: "database"
   POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
   POSTGRES_HOST_FQDN: "{{ .POSTGRES_NAME }}.database.svc.cluster.local"
-
-  SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
 
 tasks:
   # ==================== Main Tasks ====================
@@ -52,7 +60,7 @@ tasks:
       - task: stop-network
       - task: save-state
       - cmd: echo ""
-      - cmd: echo "⏳ Waiting 10 seconds before destroy and restore..."
+      - cmd: echo "⏳ Waiting 10 seconds before fresh-cluster restore..."
       - cmd: sleep 10
       - task: restore
       - cmd: echo ""
@@ -64,13 +72,18 @@ tasks:
   setup:
     desc: Deploy initial network with external PostgreSQL database
     cmds:
-      # Run solo init to install dependencies
-      - cmd: $SOLO_COMMAND init --dev
       - task: create-cluster
+      - task: preload-network-images
       - task: init-solo
-      - task: deploy-external-database
+      - task: deploy-block-node
       - task: deploy-network
-      - task: deploy-mirror-external
+      - cmd: |
+          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
+            task deploy-external-database
+            task deploy-mirror-external
+          else
+            echo "Skipping mirror/database setup; set ENABLE_MIRROR_WORKFLOW=true to include it."
+          fi
       - task: generate-transactions
       - cmd: echo "✅ Initial network with external database setup complete!"
       - cmd: echo "Run 'task save-state' to save state and database"
@@ -94,13 +107,17 @@ tasks:
             kind create cluster -n {{ .CLUSTER_NAME }}
           fi
       - cmd: sleep 10  # Wait for control plane
-      - cmd: kubectl config set-context {{ .CONTEXT }}
+      - cmd: kubectl config use-context {{ .CONTEXT }}
+
+  preload-network-images:
+    desc: Pre-pull and load consensus-network images into the Kind cluster
+    cmds:
+      - cmd: bash {{ .PREPULL_IMAGES_SCRIPT }} {{ .CLUSTER_NAME }}
 
   init-solo:
-    desc: Initialize Solo and configure cluster
+    desc: Connect cluster reference and configure deployment
     cmds:
-      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }}
-      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }} --quiet-mode
       - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
       - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
 
@@ -110,7 +127,9 @@ tasks:
     desc: Deploy consensus network
     cmds:
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: |
+          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
+            --enable-monitoring-support false --quiet-mode --dev
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: echo "✅ Consensus network deployed with {{ .NETWORK_SIZE }} nodes"
@@ -201,21 +220,68 @@ tasks:
           done
       - cmd: echo "Exporting database..."
       - cmd: |
-          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-          env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
-          --clean --if-exists \
-          {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .STATE_SAVE_DIR }}/database-dump.sql
+          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
+            kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+            env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
+            --clean --if-exists \
+            {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .STATE_SAVE_DIR }}/database-dump.sql
+          else
+            echo "Skipping database export; mirror workflow disabled."
+          fi
+      - cmd: echo "Saving source network JSON..."
+      - cmd: |
+          kubectl exec network-node1-0 -n {{ .NAMESPACE }} -c root-container -- bash -c '
+            if [ -f /opt/hgcapp/services-hedera/HapiApp2.0/output/network.json ]; then
+              cat /opt/hgcapp/services-hedera/HapiApp2.0/output/network.json
+            elif [ -f /opt/hgcapp/services-hedera/HapiApp2.0/data/config/genesis-network.json ]; then
+              cat /opt/hgcapp/services-hedera/HapiApp2.0/data/config/genesis-network.json
+            elif [ -f /opt/hgcapp/services-hedera/HapiApp2.0/data/config/.archive/genesis-network.json ]; then
+              cat /opt/hgcapp/services-hedera/HapiApp2.0/data/config/.archive/genesis-network.json
+            else
+              echo "No usable network JSON found in node pod" >&2
+              exit 1
+            fi
+          ' > {{ .ORIGINAL_NETWORK_JSON_FILE }}
+      - cmd: echo "✅ Source network JSON exported to {{ .ORIGINAL_NETWORK_JSON_FILE }}"
       - cmd: echo "Saving mirror passwords secret..."
       - cmd: |
-          kubectl get secret mirror-passwords -n {{ .NAMESPACE }} -o json | \
-          jq 'del(
-            .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration",
-            .metadata.creationTimestamp,
-            .metadata.managedFields,
-            .metadata.resourceVersion,
-            .metadata.uid
-          )' > {{ .MIRROR_PASSWORDS_SECRET_FILE }}
-      - cmd: echo "✅ Mirror passwords secret exported to {{ .MIRROR_PASSWORDS_SECRET_FILE }}"
+          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
+            kubectl get secret mirror-passwords -n {{ .NAMESPACE }} -o json | \
+            jq 'del(
+              .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration",
+              .metadata.creationTimestamp,
+              .metadata.managedFields,
+              .metadata.resourceVersion,
+              .metadata.uid
+            )' > {{ .MIRROR_PASSWORDS_SECRET_FILE }}
+            echo "✅ Mirror passwords secret exported to {{ .MIRROR_PASSWORDS_SECRET_FILE }}"
+          else
+            echo "Skipping mirror secret export; mirror workflow disabled."
+          fi
+      - cmd: echo "Saving consensus node key material from Kubernetes secrets..."
+      - cmd: mkdir -p {{ .SAVED_KEYS_DIR }}
+      - cmd: |
+          kubectl get secret network-node-hapi-app-secrets -n {{ .NAMESPACE }} -o json | \
+          jq -r '.data | to_entries[] | @base64' | \
+          while IFS= read -r entry; do
+            key_file_name="$(printf '%s' "${entry}" | base64 --decode | jq -r '.key')"
+            key_file_value="$(printf '%s' "${entry}" | base64 --decode | jq -r '.value')"
+            printf '%s' "${key_file_value}" | base64 --decode > "{{ .SAVED_KEYS_DIR }}/${key_file_name}"
+            chmod 600 "{{ .SAVED_KEYS_DIR }}/${key_file_name}"
+            echo "✅ Saved TLS key file ${key_file_name}"
+          done
+      - cmd: |
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            kubectl get secret network-${node}-keys-secrets -n {{ .NAMESPACE }} -o json | \
+            jq -r '.data | to_entries[] | @base64' | \
+            while IFS= read -r entry; do
+              key_file_name="$(printf '%s' "${entry}" | base64 --decode | jq -r '.key')"
+              key_file_value="$(printf '%s' "${entry}" | base64 --decode | jq -r '.value')"
+              printf '%s' "${key_file_value}" | base64 --decode > "{{ .SAVED_KEYS_DIR }}/${key_file_name}"
+              chmod 600 "{{ .SAVED_KEYS_DIR }}/${key_file_name}"
+              echo "✅ Saved gossip key file ${key_file_name}"
+            done
+          done
       - cmd: echo "✅ Database exported to {{ .STATE_SAVE_DIR }}/database-dump.sql"
       - cmd: echo "✅ Network state and database saved to {{ .STATE_SAVE_DIR }}"
       - cmd: ls -lh {{ .STATE_SAVE_DIR }}
@@ -223,23 +289,42 @@ tasks:
   # ==================== State Restore Tasks ====================
 
   restore:
-    desc: Recreate network and restore state with external database
+    desc: Recreate a fresh cluster, restore state, and verify the saved network can boot again
     cmds:
       - task: destroy-network
-      - task: destroy-database
+      - cmd: |
+          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
+            task destroy-database
+          else
+            echo "Skipping database cleanup; mirror workflow disabled."
+          fi
+      - task: destroy-cluster
+      - task: create-cluster
+      - task: preload-network-images
       - task: init-solo
-      - task: deploy-external-database
+      - task: restore-consensus-keys
+      - task: deploy-block-node
       - task: deploy-network-with-state
-      - task: restore-mirror-passwords-secret
-      - task: restore-database
-      - task: deploy-mirror-external
+      - cmd: |
+          if [ "{{ .ENABLE_MIRROR_WORKFLOW }}" = "true" ]; then
+            task deploy-external-database
+            task restore-mirror-passwords-secret
+            task restore-database
+            task deploy-mirror-external
+          else
+            echo "Skipping mirror/database restore; consensus override-network test only."
+          fi
       - task: verify-state
       - cmd: echo "✅ Network and database restored!"
 
   deploy-network-with-state:
-    desc: Deploy a fresh network and start nodes from saved state
+    desc: Deploy a fresh network and start nodes from saved state with override-network endpoint remapping
     cmds:
       - cmd: echo "Deploying network with saved state..."
+      - cmd: |
+          echo "This workflow validates saved-state startup on a freshly recreated cluster."
+          echo "It rewrites the saved roster with override-network.json so the restarted"
+          echo "nodes adopt the fresh cluster's current gossip service IPs."
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: |
@@ -247,6 +332,8 @@ tasks:
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
             kubectl wait --for=create pod/network-${node}-0 -n {{ .NAMESPACE }} --timeout=300s
           done
+      - task: generate-override-network
+      - task: install-override-network
       - cmd: |
           # Build the directory layout expected by Solo for per-node state restore:
           # <input>/states/<cluster-ref>/<namespace>/network-<node>-0-state.zip
@@ -266,6 +353,23 @@ tasks:
             fi
 
             cp "${SRC_STATE_FILE_PATH}" "${DEST_STATE_FILE_PATH}"
+            TMP_STATE_DIR="$(mktemp -d)"
+            unzip -q "${DEST_STATE_FILE_PATH}" -d "${TMP_STATE_DIR}"
+
+            # Keep the downloaded signed states intact and let Solo choose the
+            # restore round. Only strip the top-level replay/cache directories;
+            # the round-local PCES files are needed for CN v0.74 to progress
+            # past CHECKING after it restores the selected signed state.
+            rm -rf "${TMP_STATE_DIR}/preconsensus-events"
+            rm -rf "${TMP_STATE_DIR}/saved"
+            rm -rf "${TMP_STATE_DIR}/swirlds-tmp"
+
+            rm -f "${DEST_STATE_FILE_PATH}"
+            ORIGINAL_WORKDIR="${PWD}"
+            cd "${TMP_STATE_DIR}"
+            zip -qr "${DEST_STATE_FILE_PATH}" .
+            cd "${ORIGINAL_WORKDIR}"
+            rm -rf "${TMP_STATE_DIR}"
             echo "Prepared state for ${node}: ${DEST_STATE_FILE_PATH}"
           done
 
@@ -276,6 +380,56 @@ tasks:
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
             --state-file "${RESTORE_INPUT_DIR}"
       - cmd: echo "✅ Nodes started with restored state"
+
+  restore-consensus-keys:
+    desc: Restore saved consensus key material into Solo cache
+    cmds:
+      - cmd: |
+          if [ ! -d {{ .SAVED_KEYS_DIR }} ]; then
+            echo "⚠️  Saved key directory not found: {{ .SAVED_KEYS_DIR }}"
+            exit 1
+          fi
+      - cmd: mkdir -p "{{ .SOLO_CACHE_KEYS_DIR }}"
+      - cmd: find "{{ .SOLO_CACHE_KEYS_DIR }}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+      - cmd: cp "{{ .SAVED_KEYS_DIR }}"/* "{{ .SOLO_CACHE_KEYS_DIR }}/"
+      - cmd: chmod 600 "{{ .SOLO_CACHE_KEYS_DIR }}"/*
+      - cmd: echo "✅ Restored consensus key material to {{ .SOLO_CACHE_KEYS_DIR }}"
+
+  generate-override-network:
+    desc: Generate override-network.json using the fresh cluster service IPs
+    cmds:
+      - cmd: |
+          if [ ! -f {{ .ORIGINAL_NETWORK_JSON_FILE }} ]; then
+            echo "⚠️  Saved source network JSON not found: {{ .ORIGINAL_NETWORK_JSON_FILE }}"
+            exit 1
+          fi
+      - cmd: |
+          kubectl get service -n {{ .NAMESPACE }} -o json > {{ .CURRENT_SERVICE_ENDPOINTS_FILE }}
+      - cmd: |
+          node {{ .OVERRIDE_NETWORK_GENERATOR_SCRIPT }} \
+            --source-network {{ .ORIGINAL_NETWORK_JSON_FILE }} \
+            --services-json {{ .CURRENT_SERVICE_ENDPOINTS_FILE }} \
+            --node-aliases {{ .NODE_ALIASES }} \
+            --output {{ .GENERATED_OVERRIDE_NETWORK_JSON_FILE }}
+      - cmd: echo "✅ Generated override-network.json at {{ .GENERATED_OVERRIDE_NETWORK_JSON_FILE }}"
+
+  install-override-network:
+    desc: Copy override-network.json into each consensus node pod
+    cmds:
+      - cmd: |
+          if [ ! -f {{ .GENERATED_OVERRIDE_NETWORK_JSON_FILE }} ]; then
+            echo "⚠️  Generated override-network.json not found: {{ .GENERATED_OVERRIDE_NETWORK_JSON_FILE }}"
+            exit 1
+          fi
+      - cmd: |
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            kubectl cp {{ .GENERATED_OVERRIDE_NETWORK_JSON_FILE }} \
+              {{ .NAMESPACE }}/network-${node}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/override-network.json \
+              -c root-container
+            kubectl exec network-${node}-0 -n {{ .NAMESPACE }} -c root-container -- \
+              ls -l /opt/hgcapp/services-hedera/HapiApp2.0/data/config/override-network.json
+          done
+      - cmd: echo "✅ override-network.json copied to each consensus node pod"
 
   restore-database:
     desc: Restore database from dump
@@ -360,10 +514,11 @@ tasks:
       - cmd: echo "✅ Network frozen"
 
   destroy-network:
-    desc: Destroy mirror node and consensus network while keeping cluster configuration
+    desc: Destroy mirror node, block node, and consensus network while keeping cluster configuration
     cmds:
-      - cmd: echo "Destroying mirror node and consensus network..."
+      - cmd: echo "Destroying mirror node, block node, and consensus network..."
       - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force || true
+      - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }} --force || true
       - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} || true
       - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force -q || true
       - cmd: echo "✅ Network resources destroyed"
@@ -383,12 +538,22 @@ tasks:
     cmds:
       - task: destroy-network
       - task: destroy-database
-      - cmd: kind delete cluster --name {{ .CLUSTER_NAME }}
-      - cmd: echo "✅ Cluster destroyed"
+      - task: destroy-cluster
       - task: clean-state
+
+  destroy-cluster:
+    desc: Delete the Kind cluster
+    cmds:
+      - cmd: kind delete cluster --name {{ .CLUSTER_NAME }} || true
+      - cmd: echo "✅ Cluster destroyed"
 
   clean-state:
     desc: Remove saved state files
     cmds:
       - cmd: rm -rf {{ .STATE_SAVE_DIR }}
       - cmd: echo "✅ Saved state files removed"
+  deploy-block-node:
+    desc: Deploy block node so CN v0.74 does not require MinIO-backed stream storage
+    cmds:
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+      - cmd: echo "✅ Block node deployed"
