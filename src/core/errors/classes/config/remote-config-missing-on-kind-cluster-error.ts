@@ -10,10 +10,12 @@ import {ErrorCodeRegistry} from '../../error-code-registry.js';
  * state in that ConfigMap, so its absence means the deployment recorded in the local config no
  * longer has anything backing it in the cluster; the usual causes are a kind cluster that was
  * deleted and recreated, a namespace that was removed with kubectl, or a ConfigMap that was
- * deleted by hand. A local kind cluster holds nothing worth preserving, so solo treats this error
- * as a signal to tear the leftover state down with `solo one-shot single destroy` and run the
- * command again from a clean slate rather than leaving the cleanup to the user. Deployments on
- * non-kind clusters fail fast instead, since their state may still be recoverable.
+ * deleted by hand. A local kind cluster holds nothing worth preserving, so the recorded deployment
+ * cannot be resumed and the fix is to tear the leftover state down with
+ * `solo one-shot single destroy` and deploy again from a clean slate. `solo one-shot single deploy`
+ * detects this state up front and offers that teardown itself; every other command reports this
+ * error and stops. Deployments on non-kind clusters fail with the generic resource-not-found error
+ * instead, since their state may still be recoverable.
  */
 export class RemoteConfigMissingOnKindClusterError extends SoloError {
   protected override readonly retryable: boolean = false;

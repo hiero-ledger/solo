@@ -79,6 +79,8 @@ import {Templates} from '../../../../core/templates.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
+import {type Deployment} from '../../../../business/runtime-state/config/local/deployment.js';
+import {type StringFacade} from '../../../../business/runtime-state/facade/string-facade.js';
 import {type NodeId} from '../../../../types/aliases.js';
 import {type CommandFlag, type CommandFlags} from '../../../../types/flag-types.js';
 import {type ArgvStruct} from '../../../../types/aliases.js';
@@ -239,6 +241,12 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
 
+            // The next phase reads the local config to decide whether a recorded deployment has lost
+            // its remote config. Nothing loads it before this point: init's "Create local
+            // configuration" task is skipped whenever local-config.yaml already exists, and the
+            // sub-commands that load it all run later in the pipeline.
+            await this.localConfig.load();
+
             // Guard against accidental one-shot deployments to non-Kind Kubernetes contexts.
             // Quiet mode bypasses the confirmation prompt.
             await this.confirmNonKindContext(config, task);
@@ -361,7 +369,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       // One-shot deploy always starts from a clean slate: if the snapshot shows any pre-existing
       // one-shot state, auto-destroy it and deploy fresh rather than attempt to resume. The snapshot
       // proves existence, not health, so a partial or broken prior deployment cannot be trusted to
-      // resume cleanly — rebuilding is the predictable behavior. The confirmation and the destroy it
+      // resume cleanly — rebuilding is the predictable behavior. That includes a local config which
+      // claims a deployment the cluster can no longer back: its remote config is gone, so there is
+      // nothing left to resume, only leftovers to clear out. The confirmation and the destroy it
       // gates both run before the deploy lock is acquired because the invoked destroy acquires the
       // same lock.
       new OrchestratorPipelinePhase('Confirm cleanup of existing deployment state', {
@@ -901,7 +911,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
   /**
    * Returns true when the snapshot shows any pre-existing one-shot deployment state: a remote ConfigMap,
-   * any installed component Helm release, an accounts.json on disk, or any per-component phase at or beyond
+   * a recorded deployment whose remote ConfigMap has gone missing on a kind cluster, any installed
+   * component Helm release, an accounts.json on disk, or any per-component phase at or beyond
    * DEPLOYED. Used to trigger an auto-clean before a fresh deploy: one-shot deploy rebuilds from a
    * clean slate rather than resuming prior state — see the "Auto-clean existing deployment state" step.
    */
@@ -911,6 +922,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     }
     if (
       snapshot.remoteConfig.configMapExists ||
+      snapshot.remoteConfig.orphanedOnKindCluster ||
       snapshot.helm.installedReleases.size > 0 ||
       snapshot.accounts.accountsFileExists
     ) {
@@ -949,15 +961,84 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       this.logger.info('Helm releases unavailable during snapshot, treating as fresh deploy');
     }
 
+    // Only worth probing when the load did not produce a config: the load also fails for reasons that
+    // are not an absent ConfigMap (schema migration, an unreachable cluster), so absence is proven
+    // separately below rather than inferred from the swallowed error above.
+    const orphanedOnKindCluster: boolean = configMapExists
+      ? false
+      : await this.isRemoteConfigOrphanedOnKindCluster(deployConfig);
+
     const accountsFileExists: boolean = fs.existsSync(
       PathEx.join(this.getOneShotOutputDirectory(deployConfig.deployment), 'accounts.json'),
     );
 
     return {
-      remoteConfig: {configMapExists, componentPhases},
+      remoteConfig: {configMapExists, componentPhases, orphanedOnKindCluster},
       helm: {installedReleases},
       accounts: {accountsFileExists},
     };
+  }
+
+  /**
+   * Returns true when the local config records a deployment against this kind cluster whose remote
+   * config ConfigMap is provably absent, leaving the recorded deployment impossible to resume. All
+   * four conditions must hold, since each one on its own describes a legitimate state:
+   *
+   * - the target is a kind cluster, where nothing is worth preserving;
+   * - the local config records this deployment, so there is leftover state to clean up at all;
+   * - that deployment is attached to *this* cluster, so a healthy deployment living on another
+   *   cluster is never mistaken for leftover state here;
+   * - the ConfigMap is absent from the namespace the deployment actually recorded — not
+   *   `deployConfig.namespace`, which middleware may have taken from the kubectl context.
+   *
+   * Absence is proven with a read rather than inferred from a failed load: `configMaps().exists()`
+   * returns false only for a 404 and rethrows everything else, so an unreachable cluster proves
+   * nothing and is reported as "not orphaned". Mirrors the equivalent probe in
+   * `DeploymentCommand.deploymentRemoteConfigExists`.
+   *
+   * Every failure is swallowed because this runs inside a snapshot task, and a throw there aborts the
+   * shared event bus — which makes every later phase waiting on a component event reject immediately
+   * and fails the whole deploy. The `exitOnError: false` on the snapshot phase does not prevent that.
+   */
+  private async isRemoteConfigOrphanedOnKindCluster(deployConfig: OneShotSingleDeployConfigClass): Promise<boolean> {
+    try {
+      if (!this.isKindContext(deployConfig.context)) {
+        return false;
+      }
+
+      const recordedDeployment: Deployment | undefined = this.localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === deployConfig.deployment,
+      );
+
+      if (!recordedDeployment) {
+        return false;
+      }
+
+      const attachedToThisCluster: boolean = recordedDeployment.clusters.some(
+        (clusterReference: StringFacade): boolean =>
+          this.localConfig.configuration.clusterRefs.get(clusterReference.toString())?.toString() ===
+          deployConfig.context,
+      );
+
+      if (!attachedToThisCluster) {
+        return false;
+      }
+
+      const remoteConfigExists: boolean = await this.k8Factory
+        .getK8(deployConfig.context)
+        .configMaps()
+        .exists(NamespaceName.of(recordedDeployment.namespace), constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+      return !remoteConfigExists;
+    } catch (error) {
+      // Cannot prove the ConfigMap is absent, so do not claim leftover state and risk destroying a
+      // deployment that is merely unreachable.
+      this.logger.info(
+        `Could not determine whether the remote config is missing for deployment '${deployConfig.deployment}', treating it as present`,
+        error,
+      );
+      return false;
+    }
   }
 
   private showOneShotUserNotes(context_: OneShotSingleDeployContext, outputFile?: string): void {
@@ -1202,6 +1283,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     const detected: string[] = [];
     if (snapshot?.remoteConfig.configMapExists) {
       detected.push('  - remote config (ConfigMap)');
+    }
+    if (snapshot?.remoteConfig.orphanedOnKindCluster) {
+      detected.push('  - a deployment in the local config whose remote config (ConfigMap) is missing');
     }
     if (snapshot && snapshot.helm.installedReleases.size > 0) {
       detected.push(`  - Helm releases: ${[...snapshot.helm.installedReleases].join(', ')}`);

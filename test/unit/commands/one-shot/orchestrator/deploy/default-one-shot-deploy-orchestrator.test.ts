@@ -18,11 +18,17 @@ import {UserBreak} from '../../../../../../src/core/errors/user-break.js';
 type MockType = any;
 type MockListr = MockType;
 
+function makeLogger(): MockType {
+  return {info: sinon.stub(), debug: sinon.stub(), warn: sinon.stub(), error: sinon.stub()};
+}
+
 function makeOrchestrator(
   overrides: {
     localConfig?: MockType;
     remoteConfig?: MockType;
     helm?: MockType;
+    logger?: MockType;
+    k8Factory?: MockType;
   } = {},
 ): DefaultOneShotDeployOrchestrator {
   return new DefaultOneShotDeployOrchestrator(
@@ -31,16 +37,51 @@ function makeOrchestrator(
     {} as MockType,
     overrides.localConfig ?? ({} as MockType),
     overrides.remoteConfig ?? ({} as MockType),
+    overrides.logger ?? makeLogger(),
     {} as MockType,
     {} as MockType,
-    {} as MockType,
-    {} as MockType,
+    overrides.k8Factory ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
     overrides.helm ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
   );
+}
+
+/**
+ * Local config that records `deploymentName` in namespace `namespace`, attached to a cluster whose
+ * cluster reference resolves to `context`. Matches the shape the orchestrator reads: `deployments`
+ * needs `.find`, and `clusterRefs.get(ref)?.toString()` must yield the kube context.
+ */
+function makeLocalConfigWithDeployment(
+  options: {deploymentName?: string; namespace?: string; clusterReference?: string; context?: string} = {},
+): MockType {
+  const clusterReference: string = options.clusterReference ?? 'one-shot';
+  return {
+    isLoaded: true,
+    load: sinon.stub().resolves(),
+    configuration: {
+      deployments: [
+        {
+          name: options.deploymentName ?? 'one-shot',
+          namespace: options.namespace ?? 'one-shot',
+          clusters: [{toString: (): string => clusterReference}],
+        },
+      ],
+      clusterRefs: new Map<string, {toString: () => string}>([
+        [clusterReference, {toString: (): string => options.context ?? 'kind-solo'}],
+      ]),
+    },
+  };
+}
+
+function makeK8Factory(existsStub: sinon.SinonStub): MockType {
+  return {
+    getK8: sinon.stub().returns({
+      configMaps: (): MockType => ({exists: existsStub}),
+    }),
+  };
 }
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
@@ -222,147 +263,202 @@ describe('DefaultOneShotDeployOrchestrator non-Kind context guard', (): void => 
   });
 });
 
+function makeRemoteConfig(loadError: string): MockType {
+  return {
+    load: sinon.stub().rejects(new Error(loadError)),
+    isLoaded: sinon.stub().returns(false),
+    getComponentPhasesMap: sinon.stub().returns(new Map()),
+  };
+}
+
+async function buildSnapshot(
+  overrides: Parameters<typeof makeOrchestrator>[0],
+  config: OneShotSingleDeployConfigClass = makeConfig(),
+): Promise<DeploymentStateSnapshot> {
+  const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator(overrides);
+  // @ts-expect-error - to access private method
+  return await orchestrator.buildDeploymentStateSnapshot(config);
+}
+
+function orphanOverrides(
+  existsStub: sinon.SinonStub,
+  localConfig: MockType = makeLocalConfigWithDeployment(),
+): Parameters<typeof makeOrchestrator>[0] {
+  return {
+    localConfig,
+    remoteConfig: makeRemoteConfig('ConfigMap not found'),
+    helm: {listReleases: sinon.stub().resolves([])},
+    k8Factory: makeK8Factory(existsStub),
+  };
+}
+
 describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): void => {
   afterEach((): void => {
     sinon.restore();
   });
 
   it('returns conservative defaults when remoteConfig.load() throws', async (): Promise<void> => {
-    const remoteConfigMock: MockType = {
-      load: sinon.stub().rejects(new Error('K8s unreachable')),
-      isLoaded: sinon.stub().returns(false),
-      getComponentPhasesMap: sinon.stub().returns(new Map()),
-    };
-    const localConfigMock: MockType = {
-      isLoaded: false,
-    };
-    const helmMock: MockType = {
-      listReleases: sinon.stub().resolves([]),
-    };
-    const loggerMock: MockType = {
-      info: sinon.stub(),
-      debug: sinon.stub(),
-    };
-    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      localConfigMock,
-      remoteConfigMock,
-      loggerMock,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      helmMock,
-      {} as MockType,
-      {} as MockType,
-    );
-
-    // @ts-expect-error - to access private method
-    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+    const snapshot: DeploymentStateSnapshot = await buildSnapshot({
+      localConfig: {isLoaded: false},
+      remoteConfig: makeRemoteConfig('K8s unreachable'),
+      helm: {listReleases: sinon.stub().resolves([])},
+    });
 
     expect(snapshot.remoteConfig.configMapExists).to.be.false;
     expect(snapshot.remoteConfig.componentPhases.size).to.equal(0);
   });
 
   it('returns conservative defaults when helm.listReleases() throws', async (): Promise<void> => {
-    const remoteConfigMock: MockType = {
-      load: sinon.stub().rejects(new Error('ConfigMap not found')),
-      isLoaded: sinon.stub().returns(false),
-      getComponentPhasesMap: sinon.stub().returns(new Map()),
-    };
-    const localConfigMock: MockType = {
-      isLoaded: false,
-    };
-    const helmMock: MockType = {
-      listReleases: sinon.stub().rejects(new Error('Helm unavailable')),
-    };
-    const loggerMock: MockType = {
-      info: sinon.stub(),
-      debug: sinon.stub(),
-    };
-    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      localConfigMock,
-      remoteConfigMock,
-      loggerMock,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      helmMock,
-      {} as MockType,
-      {} as MockType,
-    );
-
-    // @ts-expect-error - to access private method
-    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+    const snapshot: DeploymentStateSnapshot = await buildSnapshot({
+      localConfig: {isLoaded: false},
+      remoteConfig: makeRemoteConfig('ConfigMap not found'),
+      helm: {listReleases: sinon.stub().rejects(new Error('Helm unavailable'))},
+    });
 
     expect(snapshot.helm.installedReleases.size).to.equal(0);
   });
 
   it('populates installedReleases from helm when available', async (): Promise<void> => {
-    const remoteConfigMock: MockType = {
-      load: sinon.stub().rejects(new Error('no config')),
-      isLoaded: sinon.stub().returns(false),
-      getComponentPhasesMap: sinon.stub().returns(new Map()),
-    };
-    const localConfigMock: MockType = {
-      isLoaded: false,
-    };
-    const helmMock: MockType = {
-      listReleases: sinon.stub().resolves([
-        {
-          name: 'solo-deployment',
-          namespace: 'one-shot',
-          revision: '1',
-          updated: '',
-          status: 'deployed',
-          chart: '',
-          app_version: '',
-        },
-        {
-          name: 'solo-cluster-setup',
-          namespace: 'one-shot',
-          revision: '1',
-          updated: '',
-          status: 'deployed',
-          chart: '',
-          app_version: '',
-        },
-      ]),
-    };
-    const loggerMock: MockType = {
-      info: sinon.stub(),
-      debug: sinon.stub(),
-    };
-    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      localConfigMock,
-      remoteConfigMock,
-      loggerMock,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      helmMock,
-      {} as MockType,
-      {} as MockType,
-    );
-
-    // @ts-expect-error - to access private method
-    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+    const snapshot: DeploymentStateSnapshot = await buildSnapshot({
+      localConfig: {isLoaded: false},
+      remoteConfig: makeRemoteConfig('no config'),
+      helm: {
+        listReleases: sinon.stub().resolves([
+          {
+            name: 'solo-deployment',
+            namespace: 'one-shot',
+            revision: '1',
+            updated: '',
+            status: 'deployed',
+            chart: '',
+            app_version: '',
+          },
+          {
+            name: 'solo-cluster-setup',
+            namespace: 'one-shot',
+            revision: '1',
+            updated: '',
+            status: 'deployed',
+            chart: '',
+            app_version: '',
+          },
+        ]),
+      },
+    });
 
     expect(snapshot.helm.installedReleases.has('solo-deployment')).to.be.true;
     expect(snapshot.helm.installedReleases.has('solo-cluster-setup')).to.be.true;
+  });
+
+  describe('orphanedOnKindCluster', (): void => {
+    it('is true when the recorded deployment has lost its ConfigMap on a kind cluster', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(false);
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(orphanOverrides(existsStub));
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.true;
+      // The deployment's recorded namespace is probed, not the namespace resolved for this run.
+      expect(existsStub.firstCall.args[0].name).to.equal('one-shot');
+      expect(existsStub.firstCall.args[1]).to.equal('solo-remote-config');
+    });
+
+    it("probes the deployment's recorded namespace rather than the run's namespace", async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(false);
+      const localConfig: MockType = makeLocalConfigWithDeployment({namespace: 'recorded-namespace'});
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(
+        orphanOverrides(existsStub, localConfig),
+        makeConfig({namespace: NamespaceName.of('resolved-namespace')}),
+      );
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.true;
+      expect(existsStub.firstCall.args[0].name).to.equal('recorded-namespace');
+    });
+
+    it('is false when the ConfigMap is present', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(true);
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(orphanOverrides(existsStub));
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.false;
+    });
+
+    it('is false on a non-kind context, without probing the cluster', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(false);
+      const localConfig: MockType = makeLocalConfigWithDeployment({context: 'gke_project_region_cluster'});
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(
+        orphanOverrides(existsStub, localConfig),
+        makeConfig({context: 'gke_project_region_cluster'}),
+      );
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.false;
+      expect(existsStub.called).to.be.false;
+    });
+
+    it('is false when the local config does not record the deployment', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(false);
+      const localConfig: MockType = makeLocalConfigWithDeployment({deploymentName: 'another-deployment'});
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(orphanOverrides(existsStub, localConfig));
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.false;
+      expect(existsStub.called).to.be.false;
+    });
+
+    it('is false when the recorded deployment is attached to a different cluster', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(false);
+      const localConfig: MockType = makeLocalConfigWithDeployment({
+        clusterReference: 'other-cluster',
+        context: 'kind-other',
+      });
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(orphanOverrides(existsStub, localConfig));
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.false;
+      expect(existsStub.called).to.be.false;
+    });
+
+    it('is false when the cluster is unreachable, and the snapshot still returns', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().rejects(new Error('connection refused'));
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(orphanOverrides(existsStub));
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.false;
+    });
+
+    it('is false when the local config cannot be read, and the snapshot still returns', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(false);
+      const localConfig: MockType = {
+        isLoaded: false,
+        get configuration(): never {
+          throw new SoloError('Local configuration is not loaded yet');
+        },
+      };
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot(orphanOverrides(existsStub, localConfig));
+
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.false;
+    });
+
+    it('is not probed when the remote config loaded successfully', async (): Promise<void> => {
+      const existsStub: sinon.SinonStub = sinon.stub().resolves(false);
+
+      const snapshot: DeploymentStateSnapshot = await buildSnapshot({
+        localConfig: makeLocalConfigWithDeployment(),
+        remoteConfig: {
+          load: sinon.stub().resolves(),
+          isLoaded: sinon.stub().returns(true),
+          getComponentPhasesMap: sinon.stub().returns(new Map()),
+        },
+        helm: {listReleases: sinon.stub().resolves([])},
+        k8Factory: makeK8Factory(existsStub),
+      });
+
+      expect(snapshot.remoteConfig.configMapExists).to.be.true;
+      expect(snapshot.remoteConfig.orphanedOnKindCluster).to.be.false;
+      expect(existsStub.called).to.be.false;
+    });
   });
 });
 
@@ -385,7 +481,11 @@ describe('DefaultOneShotDeployOrchestrator Create Accounts skip guard', (): void
 
 function makeSnapshot(overrides: Partial<DeploymentStateSnapshot> = {}): DeploymentStateSnapshot {
   return {
-    remoteConfig: {configMapExists: false, componentPhases: new Map<ComponentTypes, DeploymentPhase>()},
+    remoteConfig: {
+      configMapExists: false,
+      componentPhases: new Map<ComponentTypes, DeploymentPhase>(),
+      orphanedOnKindCluster: false,
+    },
     helm: {installedReleases: new Set<string>()},
     accounts: {accountsFileExists: false},
     ...overrides,
@@ -416,7 +516,17 @@ describe('DefaultOneShotDeployOrchestrator hasExistingOneShotState', (): void =>
 
   it('returns true when the remote ConfigMap exists', (): void => {
     expect(
-      invokeHasExistingOneShotState(makeSnapshot({remoteConfig: {configMapExists: true, componentPhases: new Map()}})),
+      invokeHasExistingOneShotState(
+        makeSnapshot({remoteConfig: {configMapExists: true, componentPhases: new Map(), orphanedOnKindCluster: false}}),
+      ),
+    ).to.be.true;
+  });
+
+  it('returns true when the recorded deployment is orphaned on a kind cluster', (): void => {
+    expect(
+      invokeHasExistingOneShotState(
+        makeSnapshot({remoteConfig: {configMapExists: false, componentPhases: new Map(), orphanedOnKindCluster: true}}),
+      ),
     ).to.be.true;
   });
 
@@ -437,6 +547,7 @@ describe('DefaultOneShotDeployOrchestrator hasExistingOneShotState', (): void =>
           remoteConfig: {
             configMapExists: false,
             componentPhases: new Map([[ComponentTypes.MirrorNode, DeploymentPhase.DEPLOYED]]),
+            orphanedOnKindCluster: false,
           },
         }),
       ),
@@ -450,6 +561,7 @@ describe('DefaultOneShotDeployOrchestrator hasExistingOneShotState', (): void =>
           remoteConfig: {
             configMapExists: false,
             componentPhases: new Map([[ComponentTypes.MirrorNode, DeploymentPhase.REQUESTED]]),
+            orphanedOnKindCluster: false,
           },
         }),
       ),
@@ -461,7 +573,7 @@ describe('DefaultOneShotDeployOrchestrator buildAutoCleanConfirmationMessage', (
   it('lists the remote config, Helm releases, and accounts file', (): void => {
     const message: string = invokeAutoCleanConfirmationMessage(
       makeSnapshot({
-        remoteConfig: {configMapExists: true, componentPhases: new Map()},
+        remoteConfig: {configMapExists: true, componentPhases: new Map(), orphanedOnKindCluster: false},
         helm: {installedReleases: new Set<string>(['solo-deployment'])},
         accounts: {accountsFileExists: true},
       }),
@@ -471,12 +583,21 @@ describe('DefaultOneShotDeployOrchestrator buildAutoCleanConfirmationMessage', (
     expect(message).to.include('accounts file on disk');
   });
 
+  it('names the missing remote config when that is the only detected state', (): void => {
+    const message: string = invokeAutoCleanConfirmationMessage(
+      makeSnapshot({remoteConfig: {configMapExists: false, componentPhases: new Map(), orphanedOnKindCluster: true}}),
+    );
+    expect(message).to.include('remote config (ConfigMap) is missing');
+    expect(message).to.not.include('accounts file on disk');
+  });
+
   it('lists detected component phases so the dialog is never blank', (): void => {
     const message: string = invokeAutoCleanConfirmationMessage(
       makeSnapshot({
         remoteConfig: {
           configMapExists: false,
           componentPhases: new Map([[ComponentTypes.Explorer, DeploymentPhase.DEPLOYED]]),
+          orphanedOnKindCluster: false,
         },
       }),
     );
@@ -524,7 +645,7 @@ function getConfirmCleanupPhase(): MockType {
 
 describe('DefaultOneShotDeployOrchestrator Confirm cleanup of existing deployment state phase', (): void => {
   const existingState: DeploymentStateSnapshot = makeSnapshot({
-    remoteConfig: {configMapExists: true, componentPhases: new Map()},
+    remoteConfig: {configMapExists: true, componentPhases: new Map(), orphanedOnKindCluster: false},
   });
 
   it('skips when there is no pre-existing state', (): void => {
@@ -566,6 +687,50 @@ describe('DefaultOneShotDeployOrchestrator Confirm cleanup of existing deploymen
     const task: MockListr = makeTaskWrapper(true);
     await phase.task({config: makeConfig(), deploymentStateSnapshot: existingState}, task);
     expect(task.prompt).to.have.been.calledOnce;
+  });
+
+  describe('when the recorded deployment is orphaned on a kind cluster', (): void => {
+    const orphanedState: DeploymentStateSnapshot = makeSnapshot({
+      remoteConfig: {configMapExists: false, componentPhases: new Map(), orphanedOnKindCluster: true},
+    });
+
+    it('does not skip, so the destroy that follows is offered', (): void => {
+      const phase: MockType = getConfirmCleanupPhase();
+      expect(phase.skip({config: makeConfig(), deploymentStateSnapshot: orphanedState})).to.be.false;
+    });
+
+    it('prompts before destroying anything', async (): Promise<void> => {
+      const phase: MockType = getConfirmCleanupPhase();
+      const task: MockListr = makeTaskWrapper(true);
+      await phase.task({config: makeConfig(), deploymentStateSnapshot: orphanedState}, task);
+      expect(task.prompt).to.have.been.calledOnce;
+    });
+
+    // A destroy must never run unattended: --quiet/--force are used where a prompt cannot be
+    // answered, so solo fails and leaves the operator to add an explicit destroy to their script.
+    it('throws ConfirmationRequiredSoloError under --quiet', async (): Promise<void> => {
+      const phase: MockType = getConfirmCleanupPhase();
+      const task: MockListr = makeTaskWrapper(true);
+      try {
+        await phase.task({config: makeConfig({quiet: true}), deploymentStateSnapshot: orphanedState}, task);
+        expect.fail('expected ConfirmationRequiredSoloError to be thrown');
+      } catch (error) {
+        expect(error).to.be.instanceOf(ConfirmationRequiredSoloError);
+        expect(task.prompt).to.not.have.been.called;
+      }
+    });
+
+    it('throws ConfirmationRequiredSoloError under --force', async (): Promise<void> => {
+      const phase: MockType = getConfirmCleanupPhase();
+      const task: MockListr = makeTaskWrapper(true);
+      try {
+        await phase.task({config: makeConfig({force: true}), deploymentStateSnapshot: orphanedState}, task);
+        expect.fail('expected ConfirmationRequiredSoloError to be thrown');
+      } catch (error) {
+        expect(error).to.be.instanceOf(ConfirmationRequiredSoloError);
+        expect(task.prompt).to.not.have.been.called;
+      }
+    });
   });
 
   it('throws UserBreak when the user declines', async (): Promise<void> => {
