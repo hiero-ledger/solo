@@ -560,11 +560,6 @@ export class Helpers {
     return consensusNode ? consensusNode.context : undefined;
   }
 
-  /**
-   * Returns true when the kube context belongs to a local kind cluster. Kind writes its contexts as
-   * `kind-<cluster name>`, so the prefix is the only signal available without shelling out to kind.
-   * @param context - the kube context name to test
-   */
   public static isKindContext(context: string): boolean {
     return typeof context === 'string' && context.startsWith(Helpers.KIND_CONTEXT_PREFIX);
   }

@@ -241,10 +241,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
 
-            // The next phase reads the local config to decide whether a recorded deployment has lost
-            // its remote config. Nothing loads it before this point: init's "Create local
-            // configuration" task is skipped whenever local-config.yaml already exists, and the
-            // sub-commands that load it all run later in the pipeline.
             await this.localConfig.load();
 
             // Guard against accidental one-shot deployments to non-Kind Kubernetes contexts.

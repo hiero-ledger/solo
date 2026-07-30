@@ -337,12 +337,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return configMap;
   }
 
-  /**
-   * Returns true when the error reports an absent remote config ConfigMap. A 404 from the kube API
-   * surfaces as {@link ResourceNotFoundError}; a nullish read surfaces as the solo `resourceNotFound`
-   * error raised by {@link getConfigMap}. A missing namespace also 404s, which is the same
-   * "nothing is backing this deployment" condition.
-   */
   private static isMissingRemoteConfigError(error: unknown): boolean {
     return error instanceof ResourceNotFoundError || error instanceof SoloErrors.system.resourceNotFound;
   }
