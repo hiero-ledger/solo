@@ -2252,7 +2252,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public waitForFrozenStateToBeSigned(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
+  public waitForFrozenStateToBeStable(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Wait for frozen state files to stabilize',
       task: (context_, task): SoloListr<AnyListrContext> => {

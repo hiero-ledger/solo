@@ -585,8 +585,6 @@ tasks:
       # freeze network before download otherwise may get error "file changed as we read it"
       - cmd: echo "Freezing network..."
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-      - cmd: echo "Waiting for the saved state files to stabilize before download..."
-      - cmd: sleep 30
       - cmd: echo "✅ Network frozen"
 
   destroy-network:

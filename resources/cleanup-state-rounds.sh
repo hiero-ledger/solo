@@ -14,12 +14,6 @@
 HEDERA_HAPI_PATH="${1:-/opt/hgcapp/services-hedera/HapiApp2.0}"
 STATE_DIR="${HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain"
 
-extract_pces_max_round() {
-  pces_path="$1"
-  pces_name=$(basename "$pces_path")
-  echo "$pces_name" | sed -n 's/.*_maxr\([0-9][0-9]*\)_.*/\1/p'
-}
-
 echo "Cleaning up old state rounds in ${STATE_DIR}"
 
 cd "${STATE_DIR}" || exit 0
@@ -41,10 +35,8 @@ for nodeid in */; do
     
     if [ -n "$rounds" ]; then
       latest_round=""
-      pces_source_round=""
       highest_round=$(echo "$rounds" | tail -n 1)
       highest_round_freeze_state=""
-      earliest_signed_non_freeze_round=""
       latest_signed_non_freeze_round=""
       for round in $rounds; do
         metadata_file="${round}/stateMetadata.txt"
@@ -59,9 +51,6 @@ for nodeid in */; do
         fi
 
         if [ "$freeze_state" = "false" ] && [ -n "$signing_weight" ] && [ "$signing_weight" = "$total_weight" ]; then
-          if [ -z "$earliest_signed_non_freeze_round" ]; then
-            earliest_signed_non_freeze_round="$round"
-          fi
           latest_signed_non_freeze_round="$round"
           latest_round="$round"
         fi
@@ -75,25 +64,16 @@ for nodeid in */; do
         latest_round="$highest_round"
       fi
 
-      if [ -z "$pces_source_round" ]; then
-        pces_source_round="$latest_round"
-      fi
-
       round_count=$(echo "$rounds" | wc -l)
       
-      echo "Node ${nodeid}${realmShard}: Found ${round_count} rounds, keeping state: ${latest_round}, PCES: ${pces_source_round}"
+      echo "Node ${nodeid}${realmShard}: Found ${round_count} rounds, keeping state: ${latest_round}"
       
       for round in $rounds; do
-        if [ "$round" != "$latest_round" ] && [ "$round" != "$pces_source_round" ]; then
+        if [ "$round" != "$latest_round" ]; then
           echo "  Removing old round: $round"
           rm -rf "$round"
         fi
       done
-
-      if [ "$pces_source_round" != "$latest_round" ] && [ -d "$pces_source_round" ]; then
-        echo "  Removing old round after PCES rebuild: $pces_source_round"
-        rm -rf "$pces_source_round"
-      fi
     fi
     
     cd ../..

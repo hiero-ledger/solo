@@ -1164,7 +1164,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-        this.tasks.waitForFrozenStateToBeSigned('existingNodeAliases'),
+        this.tasks.waitForFrozenStateToBeStable('existingNodeAliases'),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],
