@@ -28,7 +28,6 @@ import {type AnyObject} from './types/aliases.js';
  * fail fast.
  */
 export class MissingRemoteConfigRecovery {
-  /** How far to walk an error's `cause` chain looking for the recoverable error. */
   private static readonly MAX_CAUSE_DEPTH: number = 10;
 
   /**
@@ -57,8 +56,6 @@ export class MissingRemoteConfigRecovery {
       try {
         await MissingRemoteConfigRecovery.cleanUpLeftoverState(recoverable, logger);
       } catch (cleanupError) {
-        // Surface the original missing-remote-config error instead: its troubleshooting steps tell the
-        // user how to run the teardown by hand, which is what they are left to do when it fails here.
         logger.error('Failed to clean up the leftover state of the missing remote config', cleanupError);
         throw error;
       }
@@ -135,8 +132,6 @@ export class MissingRemoteConfigRecovery {
 
     logger.showUser(chalk.yellow(`Cleaning up leftover state: ${formatSoloCommand(SINGLE_DESTROY_COMMAND)}`));
 
-    // The destroy runs under its own copy of the config so that the flags it sets do not leak into
-    // the re-run of the original command.
     const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
     await configManager.runWithScopedConfig(configManager.cloneActiveConfig(), async (): Promise<void> => {
       await ArgumentProcessor.process(destroyArgv);

@@ -59,7 +59,6 @@ type AddLoadContextData = {
 };
 
 export class Helpers {
-  /** Prefix kind gives every kube context it writes for a cluster it provisions. */
   public static readonly KIND_CONTEXT_PREFIX: string = 'kind-';
 
   public static getBlockStreamModeForConsensusVersion(

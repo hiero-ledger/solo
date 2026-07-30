@@ -406,9 +406,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     try {
       await this.load(this.namespace, context);
     } catch (error) {
-      // A local kind cluster holds nothing worth preserving, so surface a missing remote config as a
-      // recoverable condition that the CLI boundary cleans up and retries. Every other target keeps
-      // the plain fail-fast, since its state may still be salvageable by hand.
       if (RemoteConfigRuntimeState.isMissingRemoteConfigError(error) && Helpers.isKindContext(context)) {
         throw new SoloErrors.config.remoteConfigMissingOnKindCluster(
           deploymentName,

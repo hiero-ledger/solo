@@ -28,7 +28,6 @@ describe('MissingRemoteConfigRecovery', (): void => {
   beforeEach((): void => {
     resetTestContainer();
 
-    // `--quiet` keeps confirmCleanup from prompting, so the tests never block on stdin.
     const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
     configManager.setFlag(flags.quiet, true);
 
@@ -40,10 +39,6 @@ describe('MissingRemoteConfigRecovery', (): void => {
     processStub.restore();
     process.stdin.isTTY = originalIsTty;
   });
-
-  function missingRemoteConfigError(): SoloError {
-    return new SoloErrors.config.remoteConfigMissingOnKindCluster('solo-deployment', 'solo', 'kind-solo');
-  }
 
   it('returns the command result when the command succeeds', async (): Promise<void> => {
     const expected: AnyObject = {ok: true};
