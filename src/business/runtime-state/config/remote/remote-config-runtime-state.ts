@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../../../../core/errors/solo-errors.js';
+import {type SoloError} from '../../../../core/errors/solo-error.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
 import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-config-source.js';
@@ -478,7 +479,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
             break;
           }
           default: {
-            throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
+            throw this.unsupportedComponentTypeError(componentType);
           }
         }
       }
@@ -716,9 +717,20 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         break;
       }
       default: {
-        throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
+        throw this.unsupportedComponentTypeError(componentType);
       }
     }
+  }
+
+  /** Builds the unsupported-component-type error, reporting the Solo and config schema versions on both sides. */
+  private unsupportedComponentTypeError(componentType: ComponentTypes): SoloError {
+    return new SoloErrors.internal.remoteConfigUnsupportedComponent(
+      componentType,
+      this.configuration.versions.cli.toString(),
+      getSoloVersion(),
+      this.configuration.schemaVersion,
+      this.source.schema.latestSupportedVersion.major,
+    );
   }
 
   public getComponentVersion(type: ComponentTypes): SemanticVersion<string> {
