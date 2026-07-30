@@ -41,6 +41,10 @@ describe('MissingRemoteConfigRecovery', (): void => {
     process.stdin.isTTY = originalIsTty;
   });
 
+  function missingRemoteConfigError(): SoloError {
+    return new SoloErrors.config.remoteConfigMissingOnKindCluster('solo-deployment', 'solo', 'kind-solo');
+  }
+
   it('returns the command result when the command succeeds', async (): Promise<void> => {
     const expected: AnyObject = {ok: true};
     processStub.resolves(expected);
