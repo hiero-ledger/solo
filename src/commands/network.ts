@@ -166,6 +166,8 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
@@ -904,6 +906,8 @@ export class NetworkCommand extends BaseCommand {
       flags.gcsBucketPrefix,
       flags.nodeAliasesUnparsed,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -959,6 +963,9 @@ export class NetworkCommand extends BaseCommand {
     if (config.domainNames) {
       config.domainNamesMapping = Templates.parseNodeAliasToDomainNameMapping(config.domainNames);
     }
+
+    config.gossipEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.gossipEndpointPort);
+    config.serviceEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.serviceEndpointPort);
 
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
@@ -1868,6 +1875,23 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
+            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz
+            // (tss.wrapsProvingKeyPath) at genesis, not from the pre-extracted
+            // TSS_LIB_WRAPS_ARTIFACTS_PATH directory. If the wraps-key-path directory carries the
+            // tarball, stage it under that exact name so the library is ready for the genesis history
+            // proof (construction #1). Without it the CN races a ~2 GB runtime download that finishes
+            // just after construction #1 finalizes, leaving it WRAPS-extensible=false forever.
+            let wrapsTarball: string | undefined;
+            if (config.wrapsKeyPath) {
+              const tarballName: string | undefined = fs
+                .readdirSync(config.wrapsKeyPath)
+                .find((file: string): boolean => file.endsWith('.tar.gz'));
+              if (tarballName) {
+                wrapsTarball = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps.tar.gz');
+                fs.copyFileSync(PathEx.join(config.wrapsKeyPath, tarballName), wrapsTarball);
+              }
+            }
+
             for (const consensusNode of config.consensusNodes) {
               const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
                 config.namespace,
@@ -1875,6 +1899,10 @@ export class NetworkCommand extends BaseCommand {
               );
 
               await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+
+              if (wrapsTarball) {
+                await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+              }
             }
           },
         },
