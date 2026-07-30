@@ -169,6 +169,7 @@ import {GossipKeySecretRestoreFailedSoloError} from './classes/component/gossip-
 import {TlsKeySecretCreationFailedSoloError} from './classes/component/tls-key-secret-creation-failed-solo-error.js';
 import {TlsKeyGenerationFailedSoloError} from './classes/component/tls-key-generation-failed-solo-error.js';
 import {SigningKeyGenerationFailedSoloError} from './classes/component/signing-key-generation-failed-solo-error.js';
+import {NodeKeyLoadFailedSoloError} from './classes/component/node-key-load-failed-solo-error.js';
 import {GrpcTlsKeyGenerationFailedSoloError} from './classes/component/grpc-tls-key-generation-failed-solo-error.js';
 import {GrpcTlsCertMismatchSoloError} from './classes/component/grpc-tls-cert-mismatch-solo-error.js';
 import {GrpcWebTlsCertMismatchSoloError} from './classes/component/grpc-web-tls-cert-mismatch-solo-error.js';
@@ -446,6 +447,7 @@ export class SoloErrors {
     readonly tlsKeySecretCreationFailed: typeof TlsKeySecretCreationFailedSoloError;
     readonly tlsKeyGenerationFailed: typeof TlsKeyGenerationFailedSoloError;
     readonly signingKeyGenerationFailed: typeof SigningKeyGenerationFailedSoloError;
+    readonly nodeKeyLoadFailed: typeof NodeKeyLoadFailedSoloError;
     readonly grpcTlsKeyGenerationFailed: typeof GrpcTlsKeyGenerationFailedSoloError;
     readonly grpcTlsCertMismatch: typeof GrpcTlsCertMismatchSoloError;
     readonly grpcWebTlsCertMismatch: typeof GrpcWebTlsCertMismatchSoloError;
@@ -537,6 +539,7 @@ export class SoloErrors {
     tlsKeySecretCreationFailed: TlsKeySecretCreationFailedSoloError,
     tlsKeyGenerationFailed: TlsKeyGenerationFailedSoloError,
     signingKeyGenerationFailed: SigningKeyGenerationFailedSoloError,
+    nodeKeyLoadFailed: NodeKeyLoadFailedSoloError,
     grpcTlsKeyGenerationFailed: GrpcTlsKeyGenerationFailedSoloError,
     grpcTlsCertMismatch: GrpcTlsCertMismatchSoloError,
     grpcWebTlsCertMismatch: GrpcWebTlsCertMismatchSoloError,
