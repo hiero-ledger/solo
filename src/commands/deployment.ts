@@ -1466,9 +1466,6 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   /**
-   * Refresh port-forward processes for all components in the deployment
-   */
-  /**
    * Deprecated entry point for the legacy `solo deployment refresh port-forwards` command. Emits a deprecation
    * notice pointing users at `solo deployment port-forwards refresh`, then delegates to {@link refresh}.
    */
@@ -1482,6 +1479,9 @@ export class DeploymentCommand extends BaseCommand {
     return this.refresh(argv);
   }
 
+  /**
+   * Refresh port-forward processes for all components in the deployment
+   */
   public async refresh(argv: ArgvStruct): Promise<boolean> {
     interface Config {
       quiet: boolean;
@@ -1720,7 +1720,6 @@ export class DeploymentCommand extends BaseCommand {
 
             let totalConfigured: number = 0;
             let stoppedCount: number = 0;
-            let removedCount: number = 0;
 
             this.logger.showUser(chalk.cyan('\n=== Stopping Port-Forwards ===\n'));
 
@@ -1749,7 +1748,6 @@ export class DeploymentCommand extends BaseCommand {
                     // eslint-disable-next-line unicorn/no-null
                     await k8Client.pods().readByReference(null).stopPortForward(localPort);
                     stoppedCount++;
-                    removedCount++;
                     const detail: string = `✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Stopped]`;
                     this.logger.showUser(chalk.green(detail));
                   } catch (error) {
@@ -1763,7 +1761,7 @@ export class DeploymentCommand extends BaseCommand {
               }
             }
 
-            if (removedCount > 0) {
+            if (stoppedCount > 0) {
               await this.remoteConfig.persist();
             }
 
