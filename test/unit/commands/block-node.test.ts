@@ -12,6 +12,7 @@ import {DeploymentPhase} from '../../../src/data/schema/model/remote/deployment-
 import {BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../../src/data/schema/model/remote/state/component-state-metadata-schema.js';
 import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {Templates} from '../../../src/core/templates.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
 import fs from 'node:fs';
@@ -40,6 +41,7 @@ interface BlockNodeCommandInternal {
   };
   remoteConfig: {
     getClusterRefs?: () => Record<string, string>;
+    getConsensusNodes?: () => Array<{name: string}>;
     configuration: {
       clusters: ClusterSchema[];
       versions?: {
