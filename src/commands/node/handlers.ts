@@ -1074,22 +1074,28 @@ export class NodeCommandHandlers extends CommandHandler {
   public async start(argv: ArgvStruct): Promise<boolean> {
     argv = addFlagsToArgv(argv, NodeFlags.START_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
+    const restoringState: boolean =
+      typeof argv[flags.stateFile.name] === 'string' && argv[flags.stateFile.name].length > 0;
 
-    await this.commandAction(
-      argv,
-      [
-        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(
-          argv,
-          this.configs.startConfigBuilder.bind(this.configs),
-          leaseWrapper.lease,
-          true,
-          false,
-        ),
-        this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
-        this.tasks.identifyExistingNodes(),
-        this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
-        this.tasks.startNodes('nodeAliases'),
+    const startTasks = [
+      this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+      this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
+      this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
+      this.tasks.identifyExistingNodes(),
+      this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
+      this.tasks.startNodes('nodeAliases'),
+    ];
+
+    if (restoringState) {
+      // A freeze-captured archive is expected to restore into FREEZE_COMPLETE.
+      // Do not require ACTIVE or run ACTIVE-only TSS/start-event tasks for it.
+      startTasks.push(
+        this.tasks.checkAllNodesAreFrozen('nodeAliases'),
+        this.tasks.checkNodeProxiesAreActive(),
+        this.changeAllNodePhases(DeploymentPhase.FROZEN),
+      );
+    } else {
+      startTasks.push(
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.enablePortForwarding(true),
         this.tasks.waitForTss(),
@@ -1097,9 +1103,12 @@ export class NodeCommandHandlers extends CommandHandler {
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
         this.tasks.emitNodeStartedEvent(),
-        // TODO only show this if we are not running in one-shot mode
-        // this.tasks.showUserMessages(),
-      ],
+      );
+    }
+
+    await this.commandAction(
+      argv,
+      startTasks,
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error starting node',
       leaseWrapper.lease,
@@ -1155,6 +1164,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+        this.tasks.waitForFrozenStateToBeSigned('existingNodeAliases'),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],

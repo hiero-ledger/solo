@@ -49,7 +49,7 @@ class OverrideNetworkGenerator {
 
       const encodedIpAddress = this.encodeIpv4Address(clusterIpAddress);
       const nodeMetadata = rewrittenNetwork.nodeMetadata[nodeIndex];
-      changedEndpointCount += this.rewriteNodeServiceEndpoints(nodeMetadata, encodedIpAddress, clusterIpAddress, serviceName);
+      changedEndpointCount += this.rewriteNodeEndpoints(nodeMetadata, encodedIpAddress, clusterIpAddress, serviceName);
     }
 
     if (changedEndpointCount === 0) {
@@ -100,31 +100,56 @@ class OverrideNetworkGenerator {
     return Buffer.from(octets).toString('base64');
   }
 
-  static rewriteNodeServiceEndpoints(nodeMetadata, encodedIpAddress, clusterIpAddress, serviceName) {
+  static rewriteNodeEndpoints(nodeMetadata, encodedIpAddress, clusterIpAddress, serviceName) {
     if (!nodeMetadata || typeof nodeMetadata !== 'object') {
       throw new Error('nodeMetadata entry is missing or invalid');
     }
 
-    return this.rewriteServiceEndpointList(nodeMetadata?.node, encodedIpAddress, clusterIpAddress, serviceName);
+    // The restored roster uses gossip endpoints before the service endpoints are
+    // needed. Rewrite both representations so the fresh cluster can establish
+    // peer sync without depending on endpoint names from the source cluster.
+    let changedEndpointCount = this.rewriteEndpointList(
+      nodeMetadata?.node,
+      'gossipEndpoint',
+      encodedIpAddress,
+      clusterIpAddress,
+      serviceName,
+    );
+    changedEndpointCount += this.rewriteEndpointList(
+      nodeMetadata?.node,
+      'serviceEndpoint',
+      encodedIpAddress,
+      clusterIpAddress,
+      serviceName,
+    );
+    changedEndpointCount += this.rewriteEndpointList(
+      nodeMetadata?.rosterEntry,
+      'gossipEndpoint',
+      encodedIpAddress,
+      clusterIpAddress,
+      serviceName,
+    );
+    return changedEndpointCount;
   }
 
-  static rewriteServiceEndpointList(parentObject, encodedIpAddress, clusterIpAddress, serviceName) {
+  static rewriteEndpointList(parentObject, endpointProperty, encodedIpAddress, clusterIpAddress, serviceName) {
     if (!parentObject || typeof parentObject !== 'object') {
       throw new Error(`node metadata is missing for ${serviceName}`);
     }
 
-    const serviceEndpoints = parentObject.serviceEndpoint;
-    if (!Array.isArray(serviceEndpoints) || serviceEndpoints.length === 0) {
-      throw new Error(`node is missing serviceEndpoint entries for ${serviceName}`);
+    const endpoints = parentObject[endpointProperty];
+    if (!Array.isArray(endpoints) || endpoints.length === 0) {
+      throw new Error(`node is missing ${endpointProperty} entries for ${serviceName}`);
     }
 
     let changedEndpointCount = 0;
 
-    parentObject.serviceEndpoint = serviceEndpoints.map(serviceEndpoint => {
-      const rewrittenEndpoint = {...serviceEndpoint};
+    parentObject[endpointProperty] = endpoints.map(endpoint => {
+      const rewrittenEndpoint = {...endpoint};
       const existingIpAddress = rewrittenEndpoint.ipAddressV4;
 
       rewrittenEndpoint.ipAddressV4 = encodedIpAddress;
+      delete rewrittenEndpoint.domainName;
 
       const endpointChanged = existingIpAddress !== encodedIpAddress;
       if (endpointChanged) {
@@ -134,7 +159,7 @@ class OverrideNetworkGenerator {
       return rewrittenEndpoint;
     });
 
-    console.log(`Updated service endpoints for ${serviceName} -> ${clusterIpAddress}`);
+    console.log(`Updated ${endpointProperty} for ${serviceName} -> ${clusterIpAddress}`);
     return changedEndpointCount;
   }
 }

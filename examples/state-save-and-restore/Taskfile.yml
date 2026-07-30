@@ -11,41 +11,40 @@ env:
 
 vars:
   # Network Configuration
-  NETWORK_SIZE: "2"
-  NODE_ALIASES: "node1,node2"
-  CONSENSUS_NODE_VERSION: "v0.74.3"
-  DEPLOYMENT: "state-restore-deployment"
-  NAMESPACE: "state-restore-namespace"
+  NETWORK_SIZE: '2'
+  NODE_ALIASES: 'node1,node2'
+  DEPLOYMENT: 'state-restore-deployment'
+  NAMESPACE: 'state-restore-namespace'
   ENABLE_MIRROR_WORKFLOW: '{{ default "false" (env "ENABLE_MIRROR_WORKFLOW") }}'
 
-  SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
+  SOLO_USER_DIR: '{{ default (printf "%s/.solo" (env "HOME")) }}'
 
   # Cluster Configuration
-  CLUSTER_NAME: "state-restore-cluster"
-  CONTEXT: "kind-state-restore-cluster"
-  CLUSTER_REF: "kind-state-restore-cluster"
+  CLUSTER_NAME: 'state-restore-cluster'
+  CONTEXT: 'kind-state-restore-cluster'
+  CLUSTER_REF: 'kind-state-restore-cluster'
 
   # State Save Configuration
-  STATE_SAVE_DIR: "{{ .USER_WORKING_DIR }}/saved-states"
-  MIRROR_PASSWORDS_SECRET_FILE: "{{ .STATE_SAVE_DIR }}/mirror-passwords-secret.json"
-  ORIGINAL_NETWORK_JSON_FILE: "{{ .STATE_SAVE_DIR }}/original-network.json"
-  GENERATED_OVERRIDE_NETWORK_JSON_FILE: "{{ .STATE_SAVE_DIR }}/override-network.json"
-  CURRENT_SERVICE_ENDPOINTS_FILE: "{{ .STATE_SAVE_DIR }}/current-service-endpoints.json"
-  OVERRIDE_NETWORK_GENERATOR_SCRIPT: "{{ .TASKFILE_DIR }}/scripts/generate-override-network.mjs"
-  PREPULL_IMAGES_SCRIPT: "{{ .TASKFILE_DIR }}/scripts/prepull-images.sh"
-  SAVED_KEYS_DIR: "{{ .STATE_SAVE_DIR }}/keys"
-  SOLO_CACHE_KEYS_DIR: "{{ .SOLO_USER_DIR }}/cache/keys"
+  STATE_SAVE_DIR: '{{ .USER_WORKING_DIR }}/saved-states'
+  MIRROR_PASSWORDS_SECRET_FILE: '{{ .STATE_SAVE_DIR }}/mirror-passwords-secret.json'
+  ORIGINAL_NETWORK_JSON_FILE: '{{ .STATE_SAVE_DIR }}/original-network.json'
+  GENERATED_OVERRIDE_NETWORK_JSON_FILE: '{{ .STATE_SAVE_DIR }}/override-network.json'
+  CURRENT_SERVICE_ENDPOINTS_FILE: '{{ .STATE_SAVE_DIR }}/current-service-endpoints.json'
+  OVERRIDE_NETWORK_GENERATOR_SCRIPT: '{{ .TASKFILE_DIR }}/scripts/generate-override-network.mjs'
+  PREPULL_IMAGES_SCRIPT: '{{ .TASKFILE_DIR }}/scripts/prepull-images.sh'
+  SAVED_KEYS_DIR: '{{ .STATE_SAVE_DIR }}/keys'
+  SOLO_CACHE_KEYS_DIR: '{{ .SOLO_USER_DIR }}/cache/keys'
 
   # External Database Configuration (Optional)
-  POSTGRES_USERNAME: "postgres"
-  POSTGRES_PASSWORD: "XXXXXXXX"
-  POSTGRES_READONLY_USERNAME: "readonlyuser"
-  POSTGRES_READONLY_PASSWORD: "XXXXXXXX"
-  POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
-  POSTGRES_NAME: "my-postgresql"
-  POSTGRES_DATABASE_NAMESPACE: "database"
-  POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
-  POSTGRES_HOST_FQDN: "{{ .POSTGRES_NAME }}.database.svc.cluster.local"
+  POSTGRES_USERNAME: 'postgres'
+  POSTGRES_PASSWORD: 'XXXXXXXX'
+  POSTGRES_READONLY_USERNAME: 'readonlyuser'
+  POSTGRES_READONLY_PASSWORD: 'XXXXXXXX'
+  POSTGRES_MIRROR_NODE_DATABASE_NAME: 'mirror_node'
+  POSTGRES_NAME: 'my-postgresql'
+  POSTGRES_DATABASE_NAMESPACE: 'database'
+  POSTGRES_CONTAINER_NAME: '{{ .POSTGRES_NAME }}-0'
+  POSTGRES_HOST_FQDN: '{{ .POSTGRES_NAME }}.database.svc.cluster.local'
 
 tasks:
   # ==================== Main Tasks ====================
@@ -107,7 +106,7 @@ tasks:
           else
             kind create cluster -n {{ .CLUSTER_NAME }}
           fi
-      - cmd: sleep 10  # Wait for control plane
+      - cmd: sleep 10 # Wait for control plane
       - cmd: kubectl config use-context {{ .CONTEXT }}
 
   preload-network-images:
@@ -130,14 +129,9 @@ tasks:
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --consensus-node-version {{ .CONSENSUS_NODE_VERSION }} \
             --enable-monitoring-support false --quiet-mode --dev
-      - cmd: |
-          $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --consensus-node-version {{ .CONSENSUS_NODE_VERSION }}
-      - cmd: |
-          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --consensus-node-version {{ .CONSENSUS_NODE_VERSION }}
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: echo "✅ Consensus network deployed with {{ .NETWORK_SIZE }} nodes"
 
   deploy-mirror-external:
@@ -188,7 +182,6 @@ tasks:
           kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
           -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
-
 
   # ==================== Transaction Generation ====================
 
@@ -332,11 +325,8 @@ tasks:
           echo "It rewrites the saved roster with override-network.json so the restarted"
           echo "nodes adopt the fresh cluster's current gossip service IPs."
       - cmd: |
-          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --consensus-node-version {{ .CONSENSUS_NODE_VERSION }}
-      - cmd: |
-          $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --consensus-node-version {{ .CONSENSUS_NODE_VERSION }}
+          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: |
           echo "Waiting for recreated consensus pods to exist before restore..."
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
@@ -349,6 +339,7 @@ tasks:
           # <input>/states/<cluster-ref>/<namespace>/network-<node>-0-state.zip
           RESTORE_INPUT_DIR="{{ .STATE_SAVE_DIR }}/restore-input"
           RESTORE_STATES_DIR="${RESTORE_INPUT_DIR}/states/{{ .CLUSTER_REF }}/{{ .NAMESPACE }}"
+          RESTORE_ROUND=""
           rm -rf "${RESTORE_STATES_DIR}"
           mkdir -p "${RESTORE_STATES_DIR}"
 
@@ -366,12 +357,10 @@ tasks:
             TMP_STATE_DIR="$(mktemp -d)"
             unzip -q "${DEST_STATE_FILE_PATH}" -d "${TMP_STATE_DIR}"
 
-            # Build a deterministic single-round archive for restore. Recent
-            # saved bundles can contain a later freeze round plus newer PCES
-            # spans; if Solo picks the latest signed non-freeze round from a
-            # multi-round archive, replay can trip an ISS. Keeping the earliest
-            # fully signed non-freeze round preserves the matching seq0 PCES
-            # while avoiding later replay spans that belong to newer rounds.
+            # Build a deterministic single-round archive for restore. The
+            # workflow now captures state from a frozen network, so prefer the
+            # fully signed freeze round as the exact recovery boundary. The
+            # download step requires this boundary for a frozen deployment.
             NODE_STATE_ROOT="$(find "${TMP_STATE_DIR}/com.hedera.services.ServicesMain" -mindepth 2 -maxdepth 2 -type d | head -n 1)"
             if [ -z "${NODE_STATE_ROOT}" ]; then
               echo "⚠️  Could not locate saved state rounds in ${DEST_STATE_FILE_PATH}"
@@ -379,7 +368,17 @@ tasks:
             fi
 
             SELECTED_ROUND=""
-            for round_dir in $(find "${NODE_STATE_ROOT}" -mindepth 1 -maxdepth 1 -type d | sort -n); do
+            FALLBACK_ROUND=""
+            # Sort on the numeric basename rather than the full temporary path;
+            # otherwise `sort -n` can choose a stale round unpredictably.
+            for round_dir in $(
+              find "${NODE_STATE_ROOT}" -mindepth 1 -maxdepth 1 -type d -print |
+                while IFS= read -r candidate_dir; do
+                  printf '%s\t%s\n' "$(basename "${candidate_dir}")" "${candidate_dir}"
+                done |
+                sort -n -k1,1 |
+                cut -f2-
+            ); do
               metadata_file="${round_dir}/stateMetadata.txt"
               if [ ! -f "${metadata_file}" ]; then
                 continue
@@ -389,22 +388,38 @@ tasks:
               signing_weight="$(awk -F: '/^SIGNING_WEIGHT_SUM:/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' "${metadata_file}")"
               total_weight="$(awk -F: '/^TOTAL_WEIGHT:/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' "${metadata_file}")"
 
-              if [ "${freeze_state}" = "false" ] && [ -n "${signing_weight}" ] && [ "${signing_weight}" = "${total_weight}" ]; then
+              if [ -n "${signing_weight}" ] && [ "${signing_weight}" = "${total_weight}" ] && [ "${freeze_state}" = "true" ]; then
                 SELECTED_ROUND="$(basename "${round_dir}")"
                 break
+              fi
+
+              if [ -n "${signing_weight}" ] && [ "${signing_weight}" = "${total_weight}" ] && [ "${freeze_state}" = "false" ]; then
+                FALLBACK_ROUND="$(basename "${round_dir}")"
               fi
             done
 
             if [ -z "${SELECTED_ROUND}" ]; then
-              echo "⚠️  Could not find a fully signed non-freeze round in ${DEST_STATE_FILE_PATH}"
+              SELECTED_ROUND="${FALLBACK_ROUND}"
+            fi
+
+            if [ -z "${SELECTED_ROUND}" ]; then
+              echo "⚠️  Could not find a fully signed round in ${DEST_STATE_FILE_PATH}"
               exit 1
             fi
 
+            if [ -n "${RESTORE_ROUND}" ] && [ "${RESTORE_ROUND}" != "${SELECTED_ROUND}" ]; then
+              echo "⚠️  Nodes selected different restore rounds: ${RESTORE_ROUND} and ${SELECTED_ROUND}"
+              exit 1
+            fi
+            RESTORE_ROUND="${SELECTED_ROUND}"
+
             find "${NODE_STATE_ROOT}" -mindepth 1 -maxdepth 1 -type d ! -name "${SELECTED_ROUND}" -exec rm -rf {} +
 
-            # Remove top-level replay/cache directories and let Solo rebuild
-            # them from the selected round.
-            rm -rf "${TMP_STATE_DIR}/preconsensus-events"
+            # Preserve the captured PCES directory. It is part of the exact
+            # state/round boundary and is required for the restored platform to
+            # advance from OBSERVING/CHECKING. The cleanup helper preserves this
+            # captured replay input while removing superseded state directories.
+            # Remove unrelated replay/cache directories before restore.
             rm -rf "${TMP_STATE_DIR}/saved"
             rm -rf "${TMP_STATE_DIR}/swirlds-tmp"
 
@@ -417,12 +432,24 @@ tasks:
             echo "Prepared state for ${node}: ${DEST_STATE_FILE_PATH} (round ${SELECTED_ROUND})"
           done
 
+          # Apply the endpoint transplant after the snapshot's signed round.
+          # If the override is staged at the snapshot round, Hedera mutates the
+          # roster before validating that round's state signature and reports an
+          # ISS. Placing it at the next round lets startup verify the snapshot
+          # first, then apply the fresh cluster endpoints during replay.
+          OVERRIDE_ROUND=$((RESTORE_ROUND + 1))
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            kubectl exec network-${node}-0 -n {{ .NAMESPACE }} -c root-container -- \
+              bash -c "mkdir -p /opt/hgcapp/services-hedera/HapiApp2.0/data/config/${OVERRIDE_ROUND} && mv /opt/hgcapp/services-hedera/HapiApp2.0/data/config/override-network.json /opt/hgcapp/services-hedera/HapiApp2.0/data/config/${OVERRIDE_ROUND}/override-network.json"
+            kubectl exec network-${node}-0 -n {{ .NAMESPACE }} -c root-container -- \
+              ls -l /opt/hgcapp/services-hedera/HapiApp2.0/data/config/${OVERRIDE_ROUND}/override-network.json
+          done
+
           echo "Prepared restore input:"
           find "${RESTORE_INPUT_DIR}" -maxdepth 4 -type f | sort
 
-          # Start all nodes together so they can transition to ACTIVE as a group.
+          # Start all nodes together so they replay the same restored boundary.
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --consensus-node-version {{ .CONSENSUS_NODE_VERSION }} \
             --state-file "${RESTORE_INPUT_DIR}"
       - cmd: echo "✅ Nodes started with restored state"
 
@@ -536,17 +563,19 @@ tasks:
   # ==================== Verification ====================
 
   verify-state:
-    desc: Verify restored state by generating transactions
+    desc: Verify restored state without submitting transactions to a frozen network
     cmds:
-      - cmd: echo "Verifying restored state by generating transactions..."
-      - cmd: sleep 30  # Wait for nodes to stabilize
       - cmd: |
-          echo "Generating test transactions to verify network functionality..."
-          for i in {1..3}; do
-            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }}
-            sleep 2
+          echo "Verifying restored frozen state..."
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            kubectl exec network-${node}-0 -n {{ .NAMESPACE }} -c root-container -- \
+              sh -c 'curl -sf http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v "^#" | grep -q " 6\\.0$"'
+            if kubectl logs network-${node}-0 -n {{ .NAMESPACE }} -c root-container --tail=500 | grep -q "Invalid State Signature"; then
+              echo "⚠️  Invalid state signature found in restored ${node} logs"
+              exit 1
+            fi
           done
-      - cmd: echo "✅ State verification complete - network is processing transactions"
+      - cmd: echo "✅ State verification complete - both restored nodes are FREEZE_COMPLETE with no ISS"
 
   # ==================== Cleanup Tasks ====================
 
@@ -556,6 +585,8 @@ tasks:
       # freeze network before download otherwise may get error "file changed as we read it"
       - cmd: echo "Freezing network..."
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+      - cmd: echo "Waiting for the saved state files to stabilize before download..."
+      - cmd: sleep 30
       - cmd: echo "✅ Network frozen"
 
   destroy-network:
@@ -567,7 +598,6 @@ tasks:
       - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} || true
       - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force -q || true
       - cmd: echo "✅ Network resources destroyed"
-
 
   destroy-database:
     desc: Destroy external database
@@ -600,8 +630,5 @@ tasks:
   deploy-block-node:
     desc: Deploy block node so CN v0.74 does not require MinIO-backed stream storage
     cmds:
-      - cmd: |
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} \
-            --consensus-node-version {{ .CONSENSUS_NODE_VERSION }} \
-            --quiet-mode --dev
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
       - cmd: echo "✅ Block node deployed"

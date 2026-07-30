@@ -19,6 +19,8 @@ import {K8} from '../integration/kube/k8.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import {NodeStatusEnums} from './enumerations.js';
 import chalk from 'chalk';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {SoloErrors} from './errors/solo-errors.js';
 
 /**
  * Class to manage network nodes
@@ -139,6 +141,7 @@ export class NetworkNodes {
     nodeAlias: string,
     context?: string,
     baseDirectory?: string,
+    deploymentPhase?: DeploymentPhase,
   ): Promise<void[]> {
     const pods: Pod[] = await this.k8Factory
       .getK8(context)
@@ -149,12 +152,29 @@ export class NetworkNodes {
     const stateBaseDirectory: string = baseDirectory || SOLO_LOGS_DIR;
     const promises: Promise<void>[] = [];
     for (const pod of pods) {
-      promises.push(this.getState(pod, namespace, stateBaseDirectory, context));
+      promises.push(this.getState(pod, namespace, stateBaseDirectory, context, deploymentPhase));
     }
     return await Promise.all(promises);
   }
 
-  private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string): Promise<void> {
+  /**
+   * Wait for a fully signed freeze state before a freeze workflow stops the node.
+   * A FROZEN platform status alone is not enough: stopping immediately can leave
+   * the archive with only a non-freeze state and misaligned PCES replay data.
+   */
+  public async waitForFrozenStateToBeStable(podReference: PodReference, context?: string): Promise<void> {
+    const containerReference: ContainerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
+    const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+    await this.waitForStableSavedState(container, podReference.name.name, false);
+  }
+
+  private async getState(
+    pod: Pod,
+    namespace: NamespaceName,
+    baseDirectory: string,
+    context?: string,
+    deploymentPhase?: DeploymentPhase,
+  ): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
     const targetDirectory: string = PathEx.join(baseDirectory, namespace.name);
@@ -167,6 +187,15 @@ export class NetworkNodes {
 
       const k8: K8 = this.k8Factory.getK8(context);
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
+      // A frozen node should yield a freeze round; a merely stopped node may only
+      // have a non-freeze signed round available.
+      const requireFreezeRound: boolean = deploymentPhase === DeploymentPhase.FROZEN;
+
+      await this.waitForStableSavedState(
+        k8.containers().readByRef(containerReference),
+        podReference.name.name,
+        requireFreezeRound,
+      );
 
       // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
       // Use the -X to archive for cross-platform compatibility
@@ -185,6 +214,86 @@ export class NetworkNodes {
       this.logger.showUser(`Failed to download state from pod ${podReference.name}` + error);
     }
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): ...end`);
+  }
+
+  private async waitForStableSavedState(
+    container: Container,
+    podName: string,
+    requireFreezeRound: boolean,
+  ): Promise<void> {
+    const maxAttempts: number = 180;
+    const stablePollsRequired: number = 3;
+    const pollDelay: Duration = Duration.ofSeconds(2);
+    let lastFingerprint: string | undefined;
+    let stablePolls: number = 0;
+    const scriptName: string = 'wait-for-stable-saved-state.sh';
+    const sourcePath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName);
+    const destinationPath: string = `${HEDERA_HAPI_PATH}/${scriptName}`;
+
+    // Reuse a checked-in resource script so the in-pod state-selection logic is
+    // versioned alongside Solo and remains readable/testable outside TS strings.
+    await container.copyTo(sourcePath, `${HEDERA_HAPI_PATH}`);
+    await sleep(Duration.ofSeconds(1));
+    await container.execContainer([
+      'bash',
+      '-c',
+      `sync ${HEDERA_HAPI_PATH} && chown hedera:hedera ${destinationPath} && chmod 0755 ${destinationPath}`,
+    ]);
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const rawOutput: string = await container.execContainer([
+          'bash',
+          '-lc',
+          // The script prints "<tree-fingerprint> <selected-round> <kind>"
+          // once it finds the best fully signed saved-state boundary currently
+          // persisted on disk, preferring a freeze round when requested.
+          `${destinationPath} ${String(requireFreezeRound)} ${HEDERA_HAPI_PATH}/data/saved`,
+        ]);
+        const output: string = rawOutput.trim();
+
+        const [fingerprint, round, kind] = output.split(/\s+/);
+        if (!fingerprint || !round || !kind) {
+          throw new SoloErrors.validation.illegalArgument(`Missing saved state fingerprint for pod ${podName}`);
+        }
+
+        stablePolls = fingerprint === lastFingerprint ? stablePolls + 1 : 1;
+        lastFingerprint = fingerprint;
+
+        this.logger.debug(
+          `[state-download] ${podName}: round ${round} (${kind}) stable poll ${stablePolls}/${stablePollsRequired}`,
+        );
+
+        if (kind === 'frozen-fallback') {
+          // A frozen deployment can expose the FROZEN platform status before a
+          // freeze-marked round becomes fully signed on disk. In that case,
+          // export the newest fully signed non-freeze round instead of waiting
+          // indefinitely for a freeze round that may never materialize.
+          this.logger.warn(
+            `[state-download] ${podName}: deployment is FROZEN but no fully signed freeze round exists on disk yet; using the newest fully signed non-freeze round`,
+          );
+        }
+
+        if (stablePolls >= stablePollsRequired) {
+          // One final sync narrows the gap between the successful probe and the
+          // subsequent zip/copy operation.
+          await container.execContainer('sync');
+          return;
+        }
+      } catch (error) {
+        // The script exits non-zero until a qualifying signed round exists or the
+        // saved-state tree stops changing across polls.
+        this.logger.debug(`[state-download] ${podName}: saved state not stable yet`, error);
+      }
+
+      await sleep(pollDelay);
+    }
+
+    throw new SoloErrors.validation.illegalArgument(
+      requireFreezeRound
+        ? `Timed out waiting for a stable fully signed saved state on pod ${podName}. The deployment is frozen, but no signed round became stable on disk.`
+        : `Timed out waiting for a stable fully signed saved state on pod ${podName}. Stop or freeze the node and retry state download.`,
+    );
   }
 
   public async getNetworkNodePodStatus(podReference: PodReference, context?: string): Promise<string> {

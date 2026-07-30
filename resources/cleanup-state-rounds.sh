@@ -14,6 +14,12 @@
 HEDERA_HAPI_PATH="${1:-/opt/hgcapp/services-hedera/HapiApp2.0}"
 STATE_DIR="${HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain"
 
+extract_pces_max_round() {
+  pces_path="$1"
+  pces_name=$(basename "$pces_path")
+  echo "$pces_name" | sed -n 's/.*_maxr\([0-9][0-9]*\)_.*/\1/p'
+}
+
 echo "Cleaning up old state rounds in ${STATE_DIR}"
 
 cd "${STATE_DIR}" || exit 0
@@ -83,64 +89,6 @@ for nodeid in */; do
           rm -rf "$round"
         fi
       done
-
-      # Rebuild top-level PCES from the selected pre-freeze round so the event
-      # creator has the preconsensus events it needs to become active after
-      # resuming from the kept state.
-      if [ -d "${pces_source_round}/preconsensus-events" ]; then
-        top_level_pces="${HEDERA_HAPI_PATH}/data/saved/preconsensus-events"
-        echo "  Rebuilding top-level preconsensus events from round: $pces_source_round"
-        rm -rf "$top_level_pces"
-        source_pces_dir="${pces_source_round}/preconsensus-events"
-        find "$source_pces_dir" -type f -name '*.pces' | while IFS= read -r pces_file; do
-          relative_pces_path=${pces_file#"$source_pces_dir"/}
-          pces_node_id=${relative_pces_path%%/*}
-          pces_filename=${pces_file##*/}
-          pces_date=${pces_filename%%T*}
-
-          year=$(echo "$pces_date" | cut -d- -f1)
-          month=$(echo "$pces_date" | cut -d- -f2)
-          day=$(echo "$pces_date" | cut -d- -f3)
-
-          if [ -n "$pces_node_id" ] && [ -n "$year" ] && [ -n "$month" ] && [ -n "$day" ] && [ "$pces_date" != "$pces_filename" ]; then
-            pces_destination_dir="${top_level_pces}/${pces_node_id}/${year}/${month}/${day}"
-          else
-            pces_destination_dir="${top_level_pces}/${pces_node_id}"
-          fi
-
-          mkdir -p "$pces_destination_dir"
-          cp "$pces_file" "$pces_destination_dir/"
-        done
-      fi
-
-      if [ -d "${latest_round}/preconsensus-events" ]; then
-        round_pces_dir="${latest_round}/preconsensus-events"
-        round_pces_tmp="${latest_round}/preconsensus-events.tmp"
-        echo "  Normalizing round preconsensus events for state: $latest_round"
-        rm -rf "$round_pces_tmp"
-        mkdir -p "$round_pces_tmp"
-        find "$round_pces_dir" -type f -name '*.pces' | while IFS= read -r pces_file; do
-          relative_pces_path=${pces_file#"$round_pces_dir"/}
-          pces_node_id=${relative_pces_path%%/*}
-          pces_filename=${pces_file##*/}
-          pces_date=${pces_filename%%T*}
-
-          year=$(echo "$pces_date" | cut -d- -f1)
-          month=$(echo "$pces_date" | cut -d- -f2)
-          day=$(echo "$pces_date" | cut -d- -f3)
-
-          if [ -n "$pces_node_id" ] && [ -n "$year" ] && [ -n "$month" ] && [ -n "$day" ] && [ "$pces_date" != "$pces_filename" ]; then
-            pces_destination_dir="${round_pces_tmp}/${pces_node_id}/${year}/${month}/${day}"
-          else
-            pces_destination_dir="${round_pces_tmp}/${pces_node_id}"
-          fi
-
-          mkdir -p "$pces_destination_dir"
-          cp "$pces_file" "$pces_destination_dir/"
-        done
-        rm -rf "$round_pces_dir"
-        mv "$round_pces_tmp" "$round_pces_dir"
-      fi
 
       if [ "$pces_source_round" != "$latest_round" ] && [ -d "$pces_source_round" ]; then
         echo "  Removing old round after PCES rebuild: $pces_source_round"
