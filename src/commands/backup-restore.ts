@@ -423,6 +423,17 @@ export class BackupRestoreCommand extends BaseCommand {
               const statesDirectory: string = PathEx.join(outputDirectory, 'states', clusterReference);
               await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
             }
+            for (const clusterReference of new Set(consensusNodes.map((node): string => node.cluster))) {
+              const clusterNodes: ConsensusNode[] = consensusNodes.filter(
+                (node): boolean => node.cluster === clusterReference,
+              );
+              const statesDirectory: string = PathEx.join(outputDirectory, 'states', clusterReference);
+              await networkNodes.normalizeDownloadedStateArchives(
+                namespace,
+                clusterNodes.map((node): NodeAlias => node.name),
+                statesDirectory,
+              );
+            }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
           },
         },

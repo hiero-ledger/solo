@@ -4,6 +4,7 @@ import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {HEDERA_HAPI_PATH, LOG_CONFIG_ZIP_SUFFIX, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import * as constants from './constants.js';
 import {sleep} from './helpers.js';
@@ -21,6 +22,7 @@ import {NodeStatusEnums} from './enumerations.js';
 import chalk from 'chalk';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {SoloErrors} from './errors/solo-errors.js';
+import {Zippy} from './zippy.js';
 
 /**
  * Class to manage network nodes
@@ -30,9 +32,11 @@ export class NetworkNodes {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
+    @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
   }
 
   /**
@@ -155,6 +159,142 @@ export class NetworkNodes {
       promises.push(this.getState(pod, namespace, stateBaseDirectory, context, deploymentPhase));
     }
     return await Promise.all(promises);
+  }
+
+  /**
+   * Normalize downloaded state archives to one common signed round.
+   *
+   * State downloads contain every round flushed before the archive is created.
+   * Restore must use one round that exists and is fully signed in every node
+   * archive; otherwise the nodes can start from different state/PCES boundaries.
+   */
+  public async normalizeDownloadedStateArchives(
+    namespace: NamespaceName,
+    nodeAliases: string[],
+    baseDirectory: string = SOLO_LOGS_DIR,
+    deploymentPhase?: DeploymentPhase,
+  ): Promise<string> {
+    const archivePaths: string[] = nodeAliases.map((nodeAlias: string): string => {
+      const archivePath: string = PathEx.join(baseDirectory, namespace.name, `network-${nodeAlias}-0-state.zip`);
+      if (!fs.existsSync(archivePath)) {
+        throw new SoloErrors.validation.illegalArgument(`State file not found: ${archivePath}`);
+      }
+      return archivePath;
+    });
+
+    const extractedDirectories: string[] = [];
+    try {
+      const roundSets: Set<string>[] = [];
+      const freezeRoundSets: Set<string>[] = [];
+
+      for (const archivePath of archivePaths) {
+        const extractedDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-state-'));
+        extractedDirectories.push(extractedDirectory);
+        this.zippy.unzip(archivePath, extractedDirectory);
+
+        const stateRoot: string = this.findSavedStateRoundRoot(extractedDirectory);
+        const signedRounds: Set<string> = new Set<string>();
+        const freezeRounds: Set<string> = new Set<string>();
+        for (const roundDirectory of fs.readdirSync(stateRoot, {withFileTypes: true})) {
+          if (!roundDirectory.isDirectory() || !/^\d+$/.test(roundDirectory.name)) {
+            continue;
+          }
+
+          const metadataPath: string = PathEx.join(stateRoot, roundDirectory.name, 'stateMetadata.txt');
+          if (!fs.existsSync(metadataPath)) {
+            continue;
+          }
+
+          const metadata: string = fs.readFileSync(metadataPath, 'utf8');
+          const signingWeight: string | undefined = this.readStateMetadataValue(metadata, 'SIGNING_WEIGHT_SUM');
+          const totalWeight: string | undefined = this.readStateMetadataValue(metadata, 'TOTAL_WEIGHT');
+          if (!signingWeight || signingWeight !== totalWeight) {
+            continue;
+          }
+
+          signedRounds.add(roundDirectory.name);
+          if (this.readStateMetadataValue(metadata, 'FREEZE_STATE') === 'true') {
+            freezeRounds.add(roundDirectory.name);
+          }
+        }
+
+        roundSets.push(signedRounds);
+        freezeRoundSets.push(freezeRounds);
+      }
+
+      const commonSignedRounds: Set<string> = this.intersectRoundSets(roundSets);
+      const commonFreezeRounds: Set<string> = this.intersectRoundSets(freezeRoundSets);
+      const preferFreezeRound: boolean = deploymentPhase === DeploymentPhase.FROZEN;
+      const selectedRound: string | undefined = this.selectHighestRound(
+        preferFreezeRound && commonFreezeRounds.size > 0 ? commonFreezeRounds : commonSignedRounds,
+      );
+
+      if (!selectedRound) {
+        throw new SoloErrors.validation.illegalArgument(
+          `No common fully signed state round found for nodes: ${nodeAliases.join(',')}`,
+        );
+      }
+
+      for (const [index, extractedDirectory] of extractedDirectories.entries()) {
+        const stateRoot: string = this.findSavedStateRoundRoot(extractedDirectory);
+        for (const roundDirectory of fs.readdirSync(stateRoot, {withFileTypes: true})) {
+          if (
+            roundDirectory.isDirectory() &&
+            /^\d+$/.test(roundDirectory.name) &&
+            roundDirectory.name !== selectedRound
+          ) {
+            fs.rmSync(PathEx.join(stateRoot, roundDirectory.name), {recursive: true, force: true});
+          }
+        }
+
+        // These transient directories are not part of the selected state/PCES boundary.
+        fs.rmSync(PathEx.join(extractedDirectory, 'saved'), {recursive: true, force: true});
+        fs.rmSync(PathEx.join(extractedDirectory, 'swirlds-tmp'), {recursive: true, force: true});
+        await this.zippy.zip(extractedDirectory, archivePaths[index]);
+      }
+
+      this.logger.showUser(`Normalized state archives to common signed round ${selectedRound}`);
+      return selectedRound;
+    } finally {
+      for (const extractedDirectory of extractedDirectories) {
+        fs.rmSync(extractedDirectory, {recursive: true, force: true});
+      }
+    }
+  }
+
+  private findSavedStateRoundRoot(extractedDirectory: string): string {
+    const serviceDirectory: string = PathEx.join(extractedDirectory, 'com.hedera.services.ServicesMain');
+    const nodeDirectory: string | undefined = fs
+      .readdirSync(serviceDirectory, {withFileTypes: true})
+      .find((entry): boolean => entry.isDirectory())?.name;
+    const realmShardDirectory: string | undefined = nodeDirectory
+      ? fs
+          .readdirSync(PathEx.join(serviceDirectory, nodeDirectory), {withFileTypes: true})
+          .find((entry): boolean => entry.isDirectory())?.name
+      : undefined;
+    if (!nodeDirectory || !realmShardDirectory) {
+      throw new SoloErrors.validation.illegalArgument(`Could not locate saved state rounds in ${extractedDirectory}`);
+    }
+    return PathEx.join(serviceDirectory, nodeDirectory, realmShardDirectory);
+  }
+
+  private readStateMetadataValue(metadata: string, key: string): string | undefined {
+    return metadata
+      .split('\n')
+      .find((line: string): boolean => line.startsWith(`${key}:`))
+      ?.slice(key.length + 1)
+      .trim();
+  }
+
+  private intersectRoundSets(roundSets: Set<string>[]): Set<string> {
+    const [firstSet, ...remainingSets] = roundSets;
+    return new Set<string>(
+      [...(firstSet ?? [])].filter((round: string): boolean => remainingSets.every(set => set.has(round))),
+    );
+  }
+
+  private selectHighestRound(rounds: Set<string>): string | undefined {
+    return [...rounds].sort((left: string, right: string): number => Number(right) - Number(left))[0];
   }
 
   /**

@@ -3196,6 +3196,8 @@ export class NodeCommandTasks {
     return {
       title: 'Get node states',
       task: async (context_): Promise<void> => {
+        const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
+        const nodePhases: DeploymentPhase[] = [];
         for (const nodeAlias of context_.config.nodeAliases) {
           const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           const nodeComponent: ConsensusNodeStateSchema = this.remoteConfig.configuration.components.getComponent(
@@ -3215,10 +3217,27 @@ export class NodeCommandTasks {
             );
           }
 
-          await container
-            .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
-            .getStatesFromPod(context_.config.namespace, nodeAlias, context, undefined, deploymentPhase);
+          nodePhases.push(deploymentPhase);
+          await networkNodes.getStatesFromPod(
+            context_.config.namespace,
+            nodeAlias,
+            context,
+            undefined,
+            deploymentPhase,
+          );
         }
+
+        // Normalize all downloaded archives together so every node restores from
+        // the same signed round instead of independently selecting a boundary.
+        const allNodesFrozen: boolean = nodePhases.every(
+          (phase: DeploymentPhase): boolean => phase === DeploymentPhase.FROZEN,
+        );
+        await networkNodes.normalizeDownloadedStateArchives(
+          context_.config.namespace,
+          context_.config.nodeAliases,
+          undefined,
+          allNodesFrozen ? DeploymentPhase.FROZEN : undefined,
+        );
       },
     };
   }

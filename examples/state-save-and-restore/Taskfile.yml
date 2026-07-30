@@ -222,8 +222,7 @@ tasks:
       - task: generate-override-network
       - task: install-override-network
       - cmd: |
-          # Build the directory layout expected by Solo for per-node state restore:
-          # <input>/states/<cluster-ref>/<namespace>/network-<node>-0-state.zip
+          # Build the directory layout expected by Solo for per-node state restore.
           RESTORE_INPUT_DIR="{{ .STATE_SAVE_DIR }}/restore-input"
           RESTORE_STATES_DIR="${RESTORE_INPUT_DIR}/states/{{ .CLUSTER_REF }}/{{ .NAMESPACE }}"
           RESTORE_ROUND=""
@@ -241,89 +240,23 @@ tasks:
             fi
 
             cp "${SRC_STATE_FILE_PATH}" "${DEST_STATE_FILE_PATH}"
-            TMP_STATE_DIR="$(mktemp -d)"
-            unzip -q "${DEST_STATE_FILE_PATH}" -d "${TMP_STATE_DIR}"
-
-            # Build a deterministic single-round archive for restore. The
-            # workflow now captures state from a frozen network, so prefer the
-            # fully signed freeze round as the exact recovery boundary. The
-            # download step requires this boundary for a frozen deployment.
-            NODE_STATE_ROOT="$(find "${TMP_STATE_DIR}/com.hedera.services.ServicesMain" -mindepth 2 -maxdepth 2 -type d | head -n 1)"
-            if [ -z "${NODE_STATE_ROOT}" ]; then
-              echo "⚠️  Could not locate saved state rounds in ${DEST_STATE_FILE_PATH}"
-              exit 1
-            fi
-
-            SELECTED_ROUND=""
-            FALLBACK_ROUND=""
-            # Sort on the numeric basename rather than the full temporary path;
-            # otherwise `sort -n` can choose a stale round unpredictably.
-            for round_dir in $(
-              find "${NODE_STATE_ROOT}" -mindepth 1 -maxdepth 1 -type d -print |
-                while IFS= read -r candidate_dir; do
-                  printf '%s\t%s\n' "$(basename "${candidate_dir}")" "${candidate_dir}"
-                done |
-                sort -n -k1,1 |
-                cut -f2-
-            ); do
-              metadata_file="${round_dir}/stateMetadata.txt"
-              if [ ! -f "${metadata_file}" ]; then
-                continue
-              fi
-
-              freeze_state="$(awk -F: '/^FREEZE_STATE:/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' "${metadata_file}")"
-              signing_weight="$(awk -F: '/^SIGNING_WEIGHT_SUM:/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' "${metadata_file}")"
-              total_weight="$(awk -F: '/^TOTAL_WEIGHT:/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' "${metadata_file}")"
-
-              if [ -n "${signing_weight}" ] && [ "${signing_weight}" = "${total_weight}" ] && [ "${freeze_state}" = "true" ]; then
-                SELECTED_ROUND="$(basename "${round_dir}")"
-                break
-              fi
-
-              if [ -n "${signing_weight}" ] && [ "${signing_weight}" = "${total_weight}" ] && [ "${freeze_state}" = "false" ]; then
-                FALLBACK_ROUND="$(basename "${round_dir}")"
-              fi
-            done
-
+            SELECTED_ROUND="$(unzip -Z1 "${DEST_STATE_FILE_PATH}" | awk -F/ '$1 == "com.hedera.services.ServicesMain" && $4 ~ /^[0-9]+$/ {print $4}' | sort -n | tail -n 1)"
             if [ -z "${SELECTED_ROUND}" ]; then
-              SELECTED_ROUND="${FALLBACK_ROUND}"
-            fi
-
-            if [ -z "${SELECTED_ROUND}" ]; then
-              echo "⚠️  Could not find a fully signed round in ${DEST_STATE_FILE_PATH}"
+              echo "⚠️  Could not locate the normalized state round in ${DEST_STATE_FILE_PATH}"
               exit 1
             fi
 
             if [ -n "${RESTORE_ROUND}" ] && [ "${RESTORE_ROUND}" != "${SELECTED_ROUND}" ]; then
-              echo "⚠️  Nodes selected different restore rounds: ${RESTORE_ROUND} and ${SELECTED_ROUND}"
+              echo "⚠️  State archives do not share the same normalized round"
               exit 1
             fi
             RESTORE_ROUND="${SELECTED_ROUND}"
-
-            find "${NODE_STATE_ROOT}" -mindepth 1 -maxdepth 1 -type d ! -name "${SELECTED_ROUND}" -exec rm -rf {} +
-
-            # Preserve the captured PCES directory. It is part of the exact
-            # state/round boundary and is required for the restored platform to
-            # advance from OBSERVING/CHECKING. The cleanup helper preserves this
-            # captured replay input while removing superseded state directories.
-            # Remove unrelated replay/cache directories before restore.
-            rm -rf "${TMP_STATE_DIR}/saved"
-            rm -rf "${TMP_STATE_DIR}/swirlds-tmp"
-
-            rm -f "${DEST_STATE_FILE_PATH}"
-            ORIGINAL_WORKDIR="${PWD}"
-            cd "${TMP_STATE_DIR}"
-            zip -qr "${DEST_STATE_FILE_PATH}" .
-            cd "${ORIGINAL_WORKDIR}"
-            rm -rf "${TMP_STATE_DIR}"
             echo "Prepared state for ${node}: ${DEST_STATE_FILE_PATH} (round ${SELECTED_ROUND})"
           done
 
-          # Apply the endpoint transplant after the snapshot's signed round.
-          # If the override is staged at the snapshot round, Hedera mutates the
-          # roster before validating that round's state signature and reports an
-          # ISS. Placing it at the next round lets startup verify the snapshot
-          # first, then apply the fresh cluster endpoints during replay.
+          # Apply the endpoint override after the normalized snapshot round so
+          # the saved state signature is verified before the fresh endpoints are
+          # applied during replay.
           OVERRIDE_ROUND=$((RESTORE_ROUND + 1))
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
             kubectl exec network-${node}-0 -n {{ .NAMESPACE }} -c root-container -- \
