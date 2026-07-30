@@ -412,7 +412,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       if (RemoteConfigRuntimeState.isMissingRemoteConfigError(error) && Helpers.isKindContext(context)) {
         throw new SoloErrors.config.remoteConfigMissingOnKindCluster(
           deploymentName,
-          this.namespace?.name,
+          // populateClusterReferences leaves this.namespace as the raw flag string when the deployment
+          // is not in the local config, so fall back to the flag rather than reading .name off a string.
+          this.namespace?.name ?? this.configManager.getFlag<NamespaceNameAsString>(flags.namespace),
           context,
           error instanceof Error ? error : undefined,
         );

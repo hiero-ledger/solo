@@ -15,6 +15,10 @@ import {SoloErrors} from '../../src/core/errors/solo-errors.js';
 import {UserBreak} from '../../src/core/errors/user-break.js';
 import {type AnyObject} from '../../src/types/aliases.js';
 
+function missingRemoteConfigError(): SoloError {
+  return new SoloErrors.config.remoteConfigMissingOnKindCluster('solo-deployment', 'solo', 'kind-solo');
+}
+
 describe('MissingRemoteConfigRecovery', (): void => {
   const originalArgv: string[] = ['${PATH}/node', '${SOLO_ROOT}/solo.ts', 'mirror', 'node', 'add'];
 
@@ -36,10 +40,6 @@ describe('MissingRemoteConfigRecovery', (): void => {
     processStub.restore();
     process.stdin.isTTY = originalIsTty;
   });
-
-  function missingRemoteConfigError(): SoloError {
-    return new SoloErrors.config.remoteConfigMissingOnKindCluster('solo-deployment', 'solo', 'kind-solo');
-  }
 
   it('returns the command result when the command succeeds', async (): Promise<void> => {
     const expected: AnyObject = {ok: true};
@@ -79,7 +79,10 @@ describe('MissingRemoteConfigRecovery', (): void => {
   });
 
   it('finds the recoverable error when a command wraps it', async (): Promise<void> => {
-    const wrapped: SoloError = new SoloErrors.component.oneShotDeployFailed(missingRemoteConfigError());
+    const wrapped: SoloError = new SoloErrors.component.oneShotDeployFailed(
+      'Deploy failed. Rollback completed successfully.',
+      missingRemoteConfigError(),
+    );
     processStub.onCall(0).rejects(wrapped);
     processStub.onCall(1).resolves({});
     processStub.onCall(2).resolves({});
@@ -99,17 +102,20 @@ describe('MissingRemoteConfigRecovery', (): void => {
     expect(processStub.callCount).to.equal(2);
   });
 
-  it('aborts without cleaning up when the user declines the confirmation', async (): Promise<void> => {
+  it('auto-confirms the cleanup when --force is set', async (): Promise<void> => {
     const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
     configManager.setFlag(flags.quiet, false);
-    configManager.setFlag(flags.force, false);
-    // No TTY would auto-confirm, so pretend there is one and let the prompt fail on the closed stdin.
+    configManager.setFlag(flags.force, true);
+    // A TTY would otherwise send confirmCleanup to the prompt and block the test on stdin.
     process.stdin.isTTY = true;
 
     processStub.onCall(0).rejects(missingRemoteConfigError());
+    processStub.onCall(1).resolves({});
+    processStub.onCall(2).resolves({});
 
-    await expect(MissingRemoteConfigRecovery.processWithRecovery(originalArgv)).to.be.rejected;
-    expect(processStub.callCount).to.equal(1);
+    await MissingRemoteConfigRecovery.processWithRecovery(originalArgv);
+
+    expect(processStub.callCount).to.equal(3);
   });
 
   it('auto-confirms the cleanup when there is no TTY to prompt on', async (): Promise<void> => {
