@@ -82,7 +82,7 @@ export class LocalConfigRuntimeState {
       await this.source.refresh();
       this.refresh();
     } catch (error) {
-      throw new SoloErrors.config.refreshLocalConfigSource(error);
+      throw new SoloErrors.config.refreshLocalConfigSource(PathEx.join(this.basePath, this.fileName), error);
     }
     await this.persist();
 
