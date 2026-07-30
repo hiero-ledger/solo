@@ -16,6 +16,10 @@ import {type EndpointPortMapping, type ServiceEndpoint} from '../../../src/types
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import * as constants from '../../../src/core/constants.js';
 
+function secureGrpcPorts(basePort: number): number[] {
+  return [basePort, basePort + 1];
+}
+
 describe('core/genesis-network-data-constructor', (): void => {
   const nodeAliases: NodeAlias[] = ['node1', 'node2'];
 
@@ -83,7 +87,10 @@ describe('core/genesis-network-data-constructor', (): void => {
     expect(gossipPorts(genesisNetworkData)).to.deep.equal(
       Array.from({length: 4}, (): number => +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT),
     );
-    expect(servicePorts(genesisNetworkData)).to.deep.equal(Array.from({length: 2}, (): number => constants.GRPC_PORT));
+    expect(servicePorts(genesisNetworkData)).to.deep.equal([
+      ...secureGrpcPorts(constants.GRPC_PORT),
+      ...secureGrpcPorts(constants.GRPC_PORT),
+    ]);
   });
 
   it('should apply the default port of the override to every consensus node', async (): Promise<void> => {
@@ -93,7 +100,7 @@ describe('core/genesis-network-data-constructor', (): void => {
     );
 
     expect(gossipPorts(genesisNetworkData)).to.deep.equal([40_111, 40_111, 40_111, 40_111]);
-    expect(servicePorts(genesisNetworkData)).to.deep.equal([40_211, 40_211]);
+    expect(servicePorts(genesisNetworkData)).to.deep.equal([...secureGrpcPorts(40_211), ...secureGrpcPorts(40_211)]);
   });
 
   it('should prefer the per node alias port over the default port', async (): Promise<void> => {
@@ -103,7 +110,10 @@ describe('core/genesis-network-data-constructor', (): void => {
     );
 
     expect(gossipPorts(genesisNetworkData)).to.deep.equal([40_111, 40_111, 40_112, 40_112]);
-    expect(servicePorts(genesisNetworkData)).to.deep.equal([constants.GRPC_PORT, 40_212]);
+    expect(servicePorts(genesisNetworkData)).to.deep.equal([
+      ...secureGrpcPorts(constants.GRPC_PORT),
+      ...secureGrpcPorts(40_212),
+    ]);
   });
 
   it('should register both grpc and grpcs service endpoints in node metadata', async (): Promise<void> => {
