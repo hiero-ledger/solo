@@ -23,6 +23,7 @@ describe('NpmClient', (): void => {
 
   describe('listGlobal', (): void => {
     it('should call npm list with global and depth=0 flags', async (): Promise<void> => {
+      sinon.stub(OperatingSystem, 'isWin32').returns(false);
       shellRunnerRunStub.resolves([]);
 
       await npmClient.listGlobal();
