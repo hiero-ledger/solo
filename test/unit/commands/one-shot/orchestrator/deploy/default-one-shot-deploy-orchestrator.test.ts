@@ -131,32 +131,6 @@ function makeTaskWrapper(promptResult: boolean): MockListr {
 }
 
 describe('DefaultOneShotDeployOrchestrator non-Kind context guard', (): void => {
-  describe('isKindContext', (): void => {
-    it('returns true when the context is a Kind context', (): void => {
-      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
-
-      // @ts-expect-error - to access private method
-      expect(orchestrator.isKindContext('kind-solo')).to.be.true;
-      // @ts-expect-error - to access private method
-      expect(orchestrator.isKindContext('kind-one-shot')).to.be.true;
-      // @ts-expect-error - to access private method
-      expect(orchestrator.isKindContext('kind-local-cluster')).to.be.true;
-    });
-
-    it('returns false when the context is not a Kind context', (): void => {
-      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
-
-      // @ts-expect-error - to access private method
-      expect(orchestrator.isKindContext('gke_mirrornode-non-prod-314918_us-central1_mainnet-staging-na')).to.be.false;
-      // @ts-expect-error - to access private method
-      expect(orchestrator.isKindContext('docker-desktop')).to.be.false;
-      // @ts-expect-error - to access private method
-      expect(orchestrator.isKindContext('minikube')).to.be.false;
-      // @ts-expect-error - to access private method
-      expect(orchestrator.isKindContext('arn:aws:eks:us-east-1:123456789012:cluster/prod')).to.be.false;
-    });
-  });
-
   describe('buildNonKindContextWarningMessage', (): void => {
     it('includes the active context and warning details', (): void => {
       const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();

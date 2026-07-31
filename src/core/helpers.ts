@@ -560,8 +560,8 @@ export class Helpers {
     return consensusNode ? consensusNode.context : undefined;
   }
 
-  public static isKindContext(context: string): boolean {
-    return typeof context === 'string' && context.startsWith(Helpers.KIND_CONTEXT_PREFIX);
+  public static isKindContext(context: string | undefined): boolean {
+    return !!context?.startsWith(Helpers.KIND_CONTEXT_PREFIX);
   }
 
   /**

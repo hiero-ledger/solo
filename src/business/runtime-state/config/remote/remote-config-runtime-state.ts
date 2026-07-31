@@ -357,9 +357,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       deployment = this.localConfig.configuration.deploymentByName(deploymentName);
     } catch {
       // Deployment not in local config — fall back to namespace/context already resolved from remote config scan.
-      const namespaceFromConfig: NamespaceName = this.configManager.getFlag(flags.namespace);
+      const namespaceFromConfig: NamespaceName | string = this.configManager.getFlag(flags.namespace);
       if (namespaceFromConfig) {
-        this.namespace = namespaceFromConfig;
+        this.namespace =
+          typeof namespaceFromConfig === 'string' ? NamespaceName.of(namespaceFromConfig) : namespaceFromConfig;
       }
       return this.configManager.getFlag<Context>(flags.context);
     }
@@ -403,9 +404,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       if (RemoteConfigRuntimeState.isMissingRemoteConfigError(error) && Helpers.isKindContext(context)) {
         throw new SoloErrors.config.remoteConfigMissingOnKindCluster(
           deploymentName,
-          // populateClusterReferences leaves this.namespace as the raw flag string when the deployment
-          // is not in the local config, so fall back to the flag rather than reading .name off a string.
-          this.namespace?.name ?? this.configManager.getFlag<NamespaceNameAsString>(flags.namespace),
+          this.namespace?.name,
           context,
           error instanceof Error ? error : undefined,
         );

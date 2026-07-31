@@ -66,6 +66,7 @@ import * as constants from '../../../../core/constants.js';
 import {
   createDirectoryIfNotExists,
   entityId,
+  Helpers,
   remoteConfigsToDeploymentsTable,
   sleep,
 } from '../../../../core/helpers.js';
@@ -978,7 +979,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
    */
   private async isRemoteConfigOrphanedOnKindCluster(deployConfig: OneShotSingleDeployConfigClass): Promise<boolean> {
     try {
-      if (!this.isKindContext(deployConfig.context)) {
+      if (!Helpers.isKindContext(deployConfig.context)) {
         return false;
       }
 
@@ -1237,7 +1238,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     config: OneShotSingleDeployConfigClass,
     task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
   ): Promise<void> {
-    if (config.quiet === true || this.isKindContext(config.context)) {
+    if (config.quiet === true || Helpers.isKindContext(config.context)) {
       return;
     }
 
@@ -1249,10 +1250,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     if (!proceed) {
       throw new UserBreak('Aborted by user');
     }
-  }
-
-  private isKindContext(context: string): boolean {
-    return context.startsWith('kind-');
   }
 
   private buildAutoCleanConfirmationMessage(snapshot: DeploymentStateSnapshot | undefined): string {
