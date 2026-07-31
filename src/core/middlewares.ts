@@ -192,6 +192,12 @@ export class Middlewares {
   /** Returns true when the given flag (by its name or any alias) was supplied on the command line. */
   private static isFlagSupplied(flag: CommandFlag): boolean {
     const tokens: string[] = [`--${flag.name}`];
+    const camelCaseName: string = flag.name.replaceAll(/-([a-z])/g, (_: string, letter: string): string =>
+      letter.toUpperCase(),
+    );
+    if (camelCaseName !== flag.name) {
+      tokens.push(`--${camelCaseName}`);
+    }
     const alias: string | string[] | undefined = flag.definition.alias;
     const aliases: string[] = [];
     if (Array.isArray(alias)) {
