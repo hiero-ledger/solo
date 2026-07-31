@@ -9,6 +9,7 @@ import path from 'node:path';
 import * as https from 'node:https';
 import * as http from 'node:http';
 import {Templates} from './templates.js';
+import {PathEx} from '../business/utils/path-ex.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {StatusCodes} from 'http-status-codes';
@@ -238,7 +239,7 @@ export class PackageDownloader {
       fs.mkdirSync(destinationDirectory, {recursive: true});
     }
 
-    const packageFile: string = `${destinationDirectory}/${path.basename(packageURL)}`;
+    const packageFile: string = PathEx.join(destinationDirectory, path.basename(packageURL));
 
     let checksumFile: string;
     try {
@@ -246,7 +247,7 @@ export class PackageDownloader {
       if (verifyChecksum) {
         if (this.isValidURL(checksumDataOrURL)) {
           const checksumURL: string = checksumDataOrURL;
-          checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
+          checksumFile = PathEx.join(destinationDirectory, path.basename(checksumURL));
           await this.fetchFile(checksumURL, checksumFile);
           // Then read its contents
           const checksumData: string = fs.readFileSync(checksumFile).toString();
