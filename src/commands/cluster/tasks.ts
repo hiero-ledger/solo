@@ -33,8 +33,10 @@ import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
-import {findMinioOperator} from '../../core/helpers.js';
+import {findMinioOperator, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
+import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {MessageLevel} from '../../core/logging/message-level.js';
 import {HelmChartValues} from '../../integration/helm/model/values.js';
 import {Flags} from '../flags.js';
 
@@ -401,17 +403,25 @@ export class ClusterCommandTasks {
     return {
       title: 'Uninstall pod-monitor-role ClusterRole',
       task: async ({config: {context}}): Promise<void> => {
+        // Check if ClusterRole exists using Kubernetes JavaScript API
+        let podMonitorRoleExists: boolean = false;
         try {
-          // Check if ClusterRole exists using Kubernetes JavaScript API
-          await this.k8Factory.getK8(context).rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+          podMonitorRoleExists = await this.k8Factory
+            .getK8(context)
+            .rbac()
+            .clusterRoleExists(constants.POD_MONITOR_ROLE);
+        } catch (error) {
+          throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
+        }
 
-          // ClusterRole exists, delete it
-          await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
-          this.logger.showUserUnlessOneShot('✅ ClusterRole pod-monitor-role uninstalled successfully');
-        } catch {
+        if (!podMonitorRoleExists) {
           // ClusterRole doesn't exist, skip
           this.logger.showUserUnlessOneShot('⏭️  ClusterRole pod-monitor-role not found, skipping');
+          return;
         }
+
+        await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
+        this.logger.showUserUnlessOneShot('✅ ClusterRole pod-monitor-role uninstalled successfully');
       },
     };
   }
@@ -529,13 +539,38 @@ export class ClusterCommandTasks {
       task: async (
         {config: {clusterSetupNamespace, context}},
         task,
-      ): Promise<SoloListr<ClusterReferenceResetContext>> => {
-        if (!argv.force && (await this.clusterChecks.isRemoteConfigPresentInAnyNamespace(context))) {
+      ): Promise<SoloListr<ClusterReferenceResetContext> | void> => {
+        // Everything uninstalled below is either cluster-scoped (the pod-monitor-role ClusterRole,
+        // metrics-server in kube-system) or shared by every deployment in the cluster (MinIO Operator
+        // and the Prometheus Stack in the cluster setup namespace). A remote config left anywhere in
+        // the cluster therefore means another deployment is still relying on them.
+        const remainingRemoteConfigs: ConfigMap[] = await this.clusterChecks.listRemoteConfigsInAnyNamespace(context);
+
+        if (remainingRemoteConfigs.length > 0) {
+          const remainingDeployments: string[] = remoteConfigsToDeploymentsTable(remainingRemoteConfigs);
+
+          if (argv.force) {
+            // Unattended run (one-shot destroy always passes --force): keep the shared resources
+            // instead of breaking the deployments that still depend on them.
+            const messageGroupName: string = 'preserved-cluster-resources';
+            this.logger.addMessageGroup(
+              messageGroupName,
+              '⚠️ Cluster setup left in place, other solo deployments are still using this cluster:',
+            );
+            for (const row of remainingDeployments) {
+              this.logger.addMessageGroupMessage(messageGroupName, row);
+            }
+            this.logger.showMessageGroup(messageGroupName, MessageLevel.WARN);
+            task.skip('Other solo deployments are still using this cluster');
+            return;
+          }
+
           const confirm: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
             default: false,
             message:
-              'There is remote config for one of the deployments' +
-              'Are you sure you would like to uninstall the cluster?',
+              'The following solo deployments are still using this cluster and depend on its shared resources:\n' +
+              remainingDeployments.join('\n') +
+              '\n\nUninstalling the cluster charts will break them. Are you sure you would like to continue?',
           });
 
           if (!confirm) {

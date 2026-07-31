@@ -75,22 +75,22 @@ export class ClusterChecks {
   }
 
   /**
-   * Check if the remote config is installed inside any namespace.
-   * @returns if remote config is found
+   * List the remote config config maps found in any namespace of the cluster. Solo writes exactly one
+   * per live deployment, so the result doubles as a reference count for the cluster-scoped and
+   * cluster-shared resources solo installs.
+   *
+   * Failures are deliberately propagated rather than reported as an empty list: callers use this to
+   * decide whether shared resources may be deleted, and an unreadable cluster must never be mistaken
+   * for an empty one.
+   *
+   * @param context - the kubernetes context of the cluster to inspect
+   * @returns the remote config config maps present in the cluster
    */
-  public async isRemoteConfigPresentInAnyNamespace(context: Context): Promise<boolean> {
-    try {
-      const configmaps: ConfigMap[] = await this.k8Factory
-        .getK8(context)
-        .configMaps()
-        .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
-
-      return configmaps.length > 0;
-    } catch (error) {
-      this.logger.error('Failed to find remote config:', error);
-
-      return false;
-    }
+  public async listRemoteConfigsInAnyNamespace(context: Context): Promise<ConfigMap[]> {
+    return this.k8Factory
+      .getK8(context)
+      .configMaps()
+      .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
   }
 
   /**

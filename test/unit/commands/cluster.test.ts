@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon, {type SinonSandbox, type SinonStubbedInstance} from 'sinon';
-import {before, beforeEach, describe} from 'mocha';
+import sinon, {type SinonSandbox, type SinonStub, type SinonStubbedInstance} from 'sinon';
+import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
+import yaml from 'yaml';
 import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
@@ -25,6 +26,16 @@ import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/confi
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {type ClusterChecks} from '../../../src/core/cluster-checks.js';
+import {type ConfigMap} from '../../../src/integration/kube/resources/config-map/config-map.js';
+import {type ClusterReferenceResetContext} from '../../../src/commands/cluster/config-interfaces/cluster-reference-reset-context.js';
+import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../src/types/index.js';
+import {type ArgvStruct} from '../../../src/types/aliases.js';
+import {UserBreak} from '../../../src/core/errors/user-break.js';
+import {ClusterRoleCheckFailedSoloError} from '../../../src/core/errors/classes/system/cluster-role-check-failed-solo-error.js';
+import {type LockManager} from '../../../src/core/lock/lock-manager.js';
+import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {type OneShotState} from '../../../src/core/one-shot-state.js';
 
 type BaseCommandOptions = {
   logger: SinonStubbedInstance<SoloLogger>;
@@ -66,6 +77,102 @@ argv.setArg(flags.clusterRef, getTestCluster());
 argv.setArg(flags.soloChartVersion, version.SOLO_CHART_VERSION);
 argv.setArg(flags.force, true);
 argv.setArg(flags.clusterSetupNamespace, constants.SOLO_SETUP_NAMESPACE.name);
+
+interface UninstallTaskHarness {
+  tasks: ClusterCommandTasks;
+  logger: SoloLogger;
+  clusterRoleExists: SinonStub;
+  deleteClusterRole: SinonStub;
+  listRemoteConfigsInAnyNamespace: SinonStub;
+  chartManagerUninstall: SinonStub;
+}
+
+interface TaskWrapperStub {
+  newListr: SinonStub;
+  skip: SinonStub;
+  prompt: SinonStub;
+}
+
+/** Builds a {@link ClusterCommandTasks} whose cluster interactions are entirely stubbed out. */
+function makeUninstallTaskHarness(): UninstallTaskHarness {
+  const clusterRoleExists: SinonStub = sinon.stub().resolves(false);
+  const deleteClusterRole: SinonStub = sinon.stub().resolves();
+  const listRemoteConfigsInAnyNamespace: SinonStub = sinon.stub().resolves([]);
+  const chartManagerUninstall: SinonStub = sinon.stub().resolves();
+
+  const logger: SoloLogger = {
+    debug: sinon.stub(),
+    info: sinon.stub(),
+    warn: sinon.stub(),
+    error: sinon.stub(),
+    showUser: sinon.stub(),
+    showUserError: sinon.stub(),
+    showUserUnlessOneShot: sinon.stub(),
+    showList: sinon.stub(),
+    showListIfNotEmpty: sinon.stub(),
+    addMessageGroup: sinon.stub(),
+    addMessageGroupMessage: sinon.stub(),
+    showMessageGroup: sinon.stub(),
+  } as unknown as SoloLogger;
+
+  const tasks: ClusterCommandTasks = new ClusterCommandTasks(
+    {getK8: (): unknown => ({rbac: (): unknown => ({clusterRoleExists, deleteClusterRole})})} as unknown as K8Factory,
+    {} as unknown as LocalConfigRuntimeState,
+    logger,
+    {
+      uninstall: chartManagerUninstall,
+      isChartInstalled: sinon.stub().resolves(false),
+      getInstalledCharts: sinon.stub().resolves([]),
+    } as unknown as ChartManager,
+    {} as unknown as LockManager,
+    {listRemoteConfigsInAnyNamespace} as unknown as ClusterChecks,
+    {} as unknown as RemoteConfigRuntimeState,
+    {isActive: (): boolean => false} as unknown as OneShotState,
+  );
+
+  return {
+    tasks,
+    logger,
+    clusterRoleExists,
+    deleteClusterRole,
+    listRemoteConfigsInAnyNamespace,
+    chartManagerUninstall,
+  };
+}
+
+function makeTaskWrapperStub(promptAnswer: boolean = true): TaskWrapperStub {
+  return {
+    newListr: sinon.stub().returns({}),
+    skip: sinon.stub(),
+    prompt: sinon.stub().returns({run: sinon.stub().resolves(promptAnswer)}),
+  };
+}
+
+function makeRemoteConfigMap(namespaceName: string, deploymentName: string): ConfigMap {
+  return {
+    namespace: NamespaceName.of(namespaceName),
+    name: constants.SOLO_REMOTE_CONFIGMAP_NAME,
+    data: {
+      [constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]: yaml.stringify({clusters: [{deployment: deploymentName}]}),
+    },
+  };
+}
+
+function runResetTask(
+  listrTask: SoloListrTask<ClusterReferenceResetContext>,
+  taskWrapper: TaskWrapperStub,
+): Promise<unknown> {
+  const context_: ClusterReferenceResetContext = {
+    config: {
+      clusterReference: 'cluster-1',
+      clusterSetupNamespace: constants.SOLO_SETUP_NAMESPACE,
+      context: 'kind-solo',
+    },
+  };
+  return Promise.resolve(
+    listrTask.task(context_, taskWrapper as unknown as SoloListrTaskWrapper<ClusterReferenceResetContext>),
+  );
+}
 
 describe('ClusterCommand unit tests', (): void => {
   before(async (): Promise<void> => {
@@ -145,6 +252,125 @@ describe('ClusterCommand unit tests', (): void => {
       ]);
 
       argv.setArg(flags.deployPrometheusStack, false);
+    });
+  });
+
+  describe('uninstallPodMonitorRole', (): void => {
+    afterEach((): void => {
+      sandbox.restore();
+    });
+
+    it('deletes the ClusterRole when it exists', async (): Promise<void> => {
+      const harness: UninstallTaskHarness = makeUninstallTaskHarness();
+      harness.clusterRoleExists.resolves(true);
+
+      await runResetTask(harness.tasks.uninstallPodMonitorRole(), makeTaskWrapperStub());
+
+      expect(harness.clusterRoleExists.calledOnceWith(constants.POD_MONITOR_ROLE)).to.equal(true);
+      expect(harness.deleteClusterRole.calledOnceWith(constants.POD_MONITOR_ROLE)).to.equal(true);
+    });
+
+    it('leaves the ClusterRole in place when it does not exist', async (): Promise<void> => {
+      const harness: UninstallTaskHarness = makeUninstallTaskHarness();
+      harness.clusterRoleExists.resolves(false);
+
+      await runResetTask(harness.tasks.uninstallPodMonitorRole(), makeTaskWrapperStub());
+
+      expect(harness.clusterRoleExists.calledOnceWith(constants.POD_MONITOR_ROLE)).to.equal(true);
+      expect(harness.deleteClusterRole.called).to.equal(false);
+    });
+
+    it('throws instead of swallowing an unexpected kubernetes api failure', async (): Promise<void> => {
+      const harness: UninstallTaskHarness = makeUninstallTaskHarness();
+      harness.clusterRoleExists.rejects(new Error('api unavailable'));
+
+      let caught: Error | undefined;
+      try {
+        await runResetTask(harness.tasks.uninstallPodMonitorRole(), makeTaskWrapperStub());
+      } catch (error) {
+        caught = error as Error;
+      }
+
+      expect(caught).to.be.instanceOf(ClusterRoleCheckFailedSoloError);
+      expect(harness.deleteClusterRole.called).to.equal(false);
+    });
+  });
+
+  describe('uninstallClusterChart', (): void => {
+    afterEach((): void => {
+      sandbox.restore();
+    });
+
+    it('preserves the shared cluster resources when another deployment still uses the cluster', async (): Promise<void> => {
+      const harness: UninstallTaskHarness = makeUninstallTaskHarness();
+      harness.listRemoteConfigsInAnyNamespace.resolves([makeRemoteConfigMap('other-namespace', 'other-deployment')]);
+      const taskWrapper: TaskWrapperStub = makeTaskWrapperStub();
+
+      await runResetTask(harness.tasks.uninstallClusterChart({force: true} as unknown as ArgvStruct), taskWrapper);
+
+      expect(taskWrapper.newListr.called, 'no uninstall subtask may be scheduled').to.equal(false);
+      expect(taskWrapper.skip.calledOnce).to.equal(true);
+      expect(harness.deleteClusterRole.called).to.equal(false);
+      expect(harness.chartManagerUninstall.called).to.equal(false);
+      expect(
+        (harness.logger.addMessageGroupMessage as SinonStub).calledWith(
+          'preserved-cluster-resources',
+          'other-namespace : other-deployment',
+        ),
+        'the preserved deployments must be reported to the user',
+      ).to.equal(true);
+    });
+
+    it('uninstalls the shared cluster resources when no other deployment uses the cluster', async (): Promise<void> => {
+      const harness: UninstallTaskHarness = makeUninstallTaskHarness();
+      harness.listRemoteConfigsInAnyNamespace.resolves([]);
+      const taskWrapper: TaskWrapperStub = makeTaskWrapperStub();
+
+      await runResetTask(harness.tasks.uninstallClusterChart({force: true} as unknown as ArgvStruct), taskWrapper);
+
+      expect(taskWrapper.skip.called).to.equal(false);
+      expect(taskWrapper.newListr.calledOnce).to.equal(true);
+      const subtaskTitles: string[] = (
+        taskWrapper.newListr.firstCall.args[0] as SoloListrTask<ClusterReferenceResetContext>[]
+      ).map((subtask: SoloListrTask<ClusterReferenceResetContext>): string => subtask.title as string);
+      expect(subtaskTitles).to.deep.equal([
+        'Uninstall metrics-server chart',
+        'Uninstall Prometheus Stack chart',
+        'Uninstall MinIO Operator chart',
+        'Uninstall pod-monitor-role ClusterRole',
+      ]);
+    });
+
+    it('aborts instead of deleting when the interactive user declines', async (): Promise<void> => {
+      const harness: UninstallTaskHarness = makeUninstallTaskHarness();
+      harness.listRemoteConfigsInAnyNamespace.resolves([makeRemoteConfigMap('other-namespace', 'other-deployment')]);
+      const taskWrapper: TaskWrapperStub = makeTaskWrapperStub(false);
+
+      let caught: Error | undefined;
+      try {
+        await runResetTask(harness.tasks.uninstallClusterChart({force: false} as unknown as ArgvStruct), taskWrapper);
+      } catch (error) {
+        caught = error as Error;
+      }
+
+      expect(caught).to.be.instanceOf(UserBreak);
+      expect(taskWrapper.newListr.called).to.equal(false);
+    });
+
+    it('propagates a failed remote config lookup instead of deleting shared resources', async (): Promise<void> => {
+      const harness: UninstallTaskHarness = makeUninstallTaskHarness();
+      harness.listRemoteConfigsInAnyNamespace.rejects(new Error('api unavailable'));
+      const taskWrapper: TaskWrapperStub = makeTaskWrapperStub();
+
+      let caught: Error | undefined;
+      try {
+        await runResetTask(harness.tasks.uninstallClusterChart({force: true} as unknown as ArgvStruct), taskWrapper);
+      } catch (error) {
+        caught = error as Error;
+      }
+
+      expect(caught?.message).to.equal('api unavailable');
+      expect(taskWrapper.newListr.called).to.equal(false);
     });
   });
 });
