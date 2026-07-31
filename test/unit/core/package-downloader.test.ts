@@ -7,6 +7,7 @@ import {Readable} from 'node:stream';
 import got, {type OptionsInit} from 'got';
 
 import {PackageDownloader} from '../../../src/core/package-downloader.js';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
@@ -31,6 +32,16 @@ describe('PackageDownloader', (): void => {
     delete process.env.PACKAGE_DOWNLOADER_DOWNLOAD_RESPONSE_TIMEOUT_MS;
     sandbox.restore();
   });
+
+  // stubs fetchFile so that it writes the given content instead of hitting the network
+  function stubFetchFile(content: string): SinonStub {
+    return sandbox
+      .stub(downloader, 'fetchFile')
+      .callsFake(async (_url: string, destinationPath: string): Promise<string> => {
+        fs.writeFileSync(destinationPath, content);
+        return destinationPath;
+      });
+  }
 
   describe('urlExists', (): void => {
     it('should return true if source URL is valid', async (): Promise<void> => {
@@ -114,6 +125,76 @@ describe('PackageDownloader', (): void => {
       expect(gotStreamStub.calledOnce).to.equal(true);
 
       fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+  });
+
+  describe('fetchPackage', (): void => {
+    const packageURL: string = 'https://example.com/build-v0.0.1.zip';
+    const packageContent: string = 'a complete package payload';
+    const packageChecksum: string = crypto.createHash('sha256').update(packageContent).digest('hex');
+
+    let temporaryDirectory: string;
+    let packageFile: string;
+
+    beforeEach((): void => {
+      temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      packageFile = PathEx.join(temporaryDirectory, 'build-v0.0.1.zip');
+    });
+
+    afterEach((): void => {
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+
+    it('should reuse an existing file whose checksum matches without downloading', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent);
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256'),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.called).to.equal(false);
+    });
+
+    it('should re-download a truncated existing file', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256'),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.calledOnceWith(packageURL, packageFile)).to.equal(true);
+      expect(fs.readFileSync(packageFile, 'utf8')).to.equal(packageContent);
+    });
+
+    it('should fail and remove the file when the downloaded replacement is also corrupt', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+      const fetchFileStub: SinonStub = stubFetchFile('still corrupt');
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256'),
+      ).to.be.rejectedWith(SoloError, packageURL);
+      expect(fetchFileStub.calledOnce).to.equal(true);
+      expect(fs.existsSync(packageFile)).to.equal(false);
+    });
+
+    it('should download over an existing valid file when force is true', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent);
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256', true),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.calledOnceWith(packageURL, packageFile)).to.equal(true);
+    });
+
+    it('should reuse an existing file without downloading when checksum verification is off', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, 'unused', temporaryDirectory, false, '', false),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.called).to.equal(false);
     });
   });
 

@@ -211,7 +211,9 @@ export class PackageDownloader {
    * @param destinationDirectory - a directory where the files should be downloaded to
    * @param verifyChecksum - whether to verify checksum or not
    * @param [algo] - checksum algo
-   * @param [force] - force download even if the file exists in the destinationDirectory
+   * @param [force] - download unconditionally, skipping the checksum check of an already present file.
+   *                  When false, an already present file is reused only if its checksum matches; otherwise
+   *                  it is discarded and downloaded again.
    */
   public async fetchPackage(
     packageURL: string,
@@ -240,10 +242,6 @@ export class PackageDownloader {
 
     let checksumFile: string;
     try {
-      if (fs.existsSync(packageFile) && !force) {
-        return packageFile;
-      }
-
       let checksum: string;
       if (verifyChecksum) {
         if (this.isValidURL(checksumDataOrURL)) {
@@ -258,6 +256,22 @@ export class PackageDownloader {
           checksum = checksumData.split(' ', 1)[0];
         } else {
           checksum = checksumDataOrURL;
+        }
+      }
+
+      if (fs.existsSync(packageFile) && !force) {
+        if (!verifyChecksum) {
+          return packageFile;
+        }
+
+        try {
+          await this.verifyChecksum(packageFile, checksum, algo);
+          return packageFile;
+        } catch (error) {
+          // an already present file that fails verification (e.g. truncated by a crashed download) must
+          // never be reused, so discard it and fall through to the download below, which verifies again
+          this.logger.warn(`Cached package '${packageFile}' failed checksum verification, downloading it again`, error);
+          fs.rmSync(packageFile);
         }
       }
 

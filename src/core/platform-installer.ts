@@ -119,13 +119,8 @@ export class PlatformInstaller {
     }
     const zipPath: string = await this.packageDownloader.fetchPlatform(tag, buildDirectory);
 
-    // Ensure the checksum file is also present (fetchPlatform returns early on cache hit without re-downloading it)
+    // fetchPlatform always downloads the checksum file, both on a fresh download and on a cache hit
     const checksumPath: string = PathEx.join(buildDirectory, `build-${tag}.sha384`);
-    if (!fs.existsSync(checksumPath)) {
-      const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
-      const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
-      await this.packageDownloader.fetchFile(checksumURL, checksumPath);
-    }
 
     return [zipPath, checksumPath];
   }
