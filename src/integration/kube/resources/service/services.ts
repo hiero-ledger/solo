@@ -20,6 +20,22 @@ export interface Services {
   list(namespace: NamespaceName, labels?: string[]): Promise<Service[]>;
 
   /**
+   * Wait until every LoadBalancer-typed service matching the labels has an external address assigned.
+   * @param namespace - namespace
+   * @param labels - service labels
+   * @param maxAttempts - maximum attempts to check
+   * @param delay - delay between checks in milliseconds
+   * @returns the matching LoadBalancer services
+   * @throws {KubeServiceLoadBalancerTimeoutError} if no address is assigned within the allotted attempts
+   */
+  waitForLoadBalancerAddress(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts: number,
+    delay: number,
+  ): Promise<Service[]>;
+
+  /**
    * Create a service
    * @param serviceReference - service reference
    * @param labels - the labels for the service

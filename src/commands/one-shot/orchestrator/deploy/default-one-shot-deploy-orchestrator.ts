@@ -75,6 +75,7 @@ import {MirrorNodeDeployedEvent} from '../../../../core/events/event-types/mirro
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
 import {ConfirmationRequiredSoloError} from '../../../../core/errors/classes/validation/confirmation-required-solo-error.js';
+import {ValuesFileNotFoundSoloError} from '../../../../core/errors/classes/validation/values-file-not-found-solo-error.js';
 import {Templates} from '../../../../core/templates.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
@@ -214,6 +215,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
             if (config.valuesFile) {
+              if (!fs.existsSync(config.valuesFile)) {
+                throw new ValuesFileNotFoundSoloError(config.valuesFile);
+              }
               const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
               const profileItems: Record<string, object> = yaml.parse(valuesFileContent) as Record<string, object>;
 
