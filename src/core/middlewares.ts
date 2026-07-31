@@ -68,7 +68,7 @@ export class Middlewares {
       if (tasks.isRoot()) {
         try {
           await tasks.run();
-        } catch (error: Error | any) {
+        } catch (error) {
           throw new SoloErrors.system.initSystemFilesFailed(error);
         }
       }
@@ -225,7 +225,6 @@ export class Middlewares {
     return async (argv: ArgvStruct): Promise<AnyObject> => {
       try {
         const listResult: string[] = await this.npmClient.listGlobal();
-        const foundLinkedPackages: string[] = [];
 
         for (const item of listResult) {
           // Check if any of the globally linked packages match the SOLO_PACKAGES_TO_UNLINK
@@ -238,7 +237,6 @@ export class Middlewares {
               const logMessage: string = `Warning: Found locally linked installation of ${packageName}.`;
               this.logger.showUser(chalk.yellow(logMessage));
               this.logger.info(logMessage);
-              foundLinkedPackages.push(packageName);
             } catch {
               this.logger.error(
                 new SoloErrors.system.initSystemFilesFailed(
@@ -318,8 +316,8 @@ export class Middlewares {
       const commandData: string = (currentCommand + ' ' + commandArguments).trim();
 
       // Check if output format is set (machine-readable modes: json, yaml, wide)
-      const outputFormat = configManager.getFlag<string>(flags.output) || '';
-      const isMachineReadable = ['json', 'yaml', 'wide'].includes(outputFormat);
+      const outputFormat: string = configManager.getFlag<string>(flags.output) || '';
+      const isMachineReadable: boolean = ['json', 'yaml', 'wide'].includes(outputFormat);
 
       if (this.taskList.parentTaskListMap.size === 0 && !isMachineReadable) {
         // Display command header (skip in machine-readable output modes)
