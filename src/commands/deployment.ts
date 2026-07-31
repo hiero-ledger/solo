@@ -589,9 +589,11 @@ export class DeploymentCommand extends BaseCommand {
               await this.localConfig.load();
             } catch (error) {
               if (error instanceof RefreshLocalConfigSourceError || error instanceof IncompleteLocalConfigError) {
+                const backupFilePath: string = this.localConfig.backupInvalidConfigFile();
                 this.logger.showUser(
                   chalk.yellow(
-                    'The existing local configuration could not be loaded and will be regenerated: ' + error.message,
+                    'The existing local configuration could not be loaded and will be regenerated; ' +
+                      `the original file was moved to ${backupFilePath}: ${error.message}`,
                   ),
                 );
                 await this.localConfig.persist();

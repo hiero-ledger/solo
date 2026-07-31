@@ -96,6 +96,18 @@ export class LocalConfigRuntimeState {
     this.isLoaded = true;
   }
 
+  /**
+   * Moves the unloadable config file aside to `<file>.invalid` so a fresh config can be regenerated
+   * without destroying the original, keeping a failed import retry-able and manual repair possible.
+   * @returns the path the original file was moved to
+   */
+  public backupInvalidConfigFile(): string {
+    const configFilePath: string = PathEx.join(this.basePath, this.fileName);
+    const backupFilePath: string = `${configFilePath}.invalid`;
+    fs.renameSync(configFilePath, backupFilePath);
+    return backupFilePath;
+  }
+
   // Every schema version of the local config, including legacy pre-schemaVersion files, carries these keys.
   private static readonly REQUIRED_TOP_LEVEL_KEYS: string[] = ['clusterRefs', 'deployments'];
 

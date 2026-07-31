@@ -349,12 +349,16 @@ describe('DeploymentCommand unit tests', (): void => {
 
     it('should regenerate a partial local config instead of failing on it', async (): Promise<void> => {
       const localConfigPath: string = PathEx.join('test', 'data', 'tmp', constants.DEFAULT_LOCAL_CONFIG_FILE);
-      fs.writeFileSync(localConfigPath, 'userIdentity:\n  name: john\n  hostname: localhost\n');
+      const partialContent: string = 'userIdentity:\n  name: john\n  hostname: localhost\n';
+      fs.writeFileSync(localConfigPath, partialContent);
 
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
       const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
 
       await expect(deploymentCommand.importConfig(buildImportArgv().build())).to.eventually.be.true;
+
+      // The broken original must survive the regeneration as a backup, keeping manual repair possible.
+      expect(fs.readFileSync(`${localConfigPath}.invalid`, 'utf8')).to.equal(partialContent);
 
       await localConfig.load();
       const imported: Deployment | undefined = localConfig.configuration.deployments.find(

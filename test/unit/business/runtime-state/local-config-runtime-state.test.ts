@@ -92,6 +92,18 @@ describe('LocalConfigRuntimeState', (): void => {
     }
   });
 
+  it('should move the broken config file aside when backing it up', async (): Promise<void> => {
+    const filePath: string = PathEx.join(basePath, testFileName);
+    const brokenContent: string = 'userIdentity:\n  name: john\n  hostname: localhost\n';
+    fs.writeFileSync(filePath, brokenContent);
+
+    const backupFilePath: string = runtimeState.backupInvalidConfigFile();
+
+    expect(backupFilePath).to.equal(`${filePath}.invalid`);
+    expect(fs.existsSync(filePath)).to.be.false;
+    expect(fs.readFileSync(backupFilePath, 'utf8')).to.equal(brokenContent);
+  });
+
   it('should reject a partial config file missing a single required key', async (): Promise<void> => {
     const filePath: string = PathEx.join(basePath, testFileName);
     fs.writeFileSync(filePath, 'clusterRefs: {}\n');
