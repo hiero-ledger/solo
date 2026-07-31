@@ -92,10 +92,10 @@ describe('NetworkNodes', (): void => {
 
       for (const nodeAlias of ['node1', 'node2']) {
         const archive: AdmZip = new AdmZip(path.join(namespaceDirectory, `network-${nodeAlias}-0-state.zip`));
-        const entries: string[] = archive.getEntries().map(entry => entry.entryName);
-        expect(entries.some(entry => entry.includes('/100/'))).to.equal(false);
-        expect(entries.some(entry => entry.includes('/200/'))).to.equal(true);
-        expect(entries.some(entry => entry.endsWith('preconsensus-events.pces'))).to.equal(true);
+        const entries: string[] = archive.getEntries().map((entry): string => entry.entryName);
+        expect(entries.some((entry: string): boolean => entry.includes('/100/'))).to.equal(false);
+        expect(entries.some((entry: string): boolean => entry.includes('/200/'))).to.equal(true);
+        expect(entries.some((entry: string): boolean => entry.endsWith('preconsensus-events.pces'))).to.equal(true);
       }
     } finally {
       fs.rmSync(temporaryDirectory, {recursive: true, force: true});

@@ -753,7 +753,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), undefined, true, false),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
         this.tasks.getHelmChartValues(outputDirectory),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -825,7 +825,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.ensureInteractiveSelectionPrompt();
       const selectedFromRemote: string = (await selectPrompt({
         message: 'Select deployment for diagnostics logs:',
-        choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
+        choices: remoteDeploymentNames.map((name: string): {name: string; value: string} => ({name, value: name})),
       })) as string;
       this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
       return selectedFromRemote;
@@ -838,7 +838,9 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (this.resolveQuietFlag(argv)) {
-      const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
+      const deploymentNames: string = validDeployments
+        .map((deployment: Deployment): string => deployment.name)
+        .join(', ');
       throw new SoloErrors.system.multipleDeploymentsFound('local', deploymentNames);
     }
 
@@ -869,7 +871,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), undefined, true, false),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
         ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -1077,7 +1079,7 @@ export class NodeCommandHandlers extends CommandHandler {
     const restoringState: boolean =
       typeof argv[flags.stateFile.name] === 'string' && argv[flags.stateFile.name].length > 0;
 
-    const startTasks = [
+    const startTasks: SoloListrTask<AnyListrContext>[] = [
       this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
       this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
       this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
