@@ -296,7 +296,14 @@ export class NetworkNodes {
   }
 
   private selectHighestRound(rounds: Set<string>): string | undefined {
-    return [...rounds].toSorted((left: string, right: string): number => Number(right) - Number(left))[0];
+    let highestRound: string | undefined;
+    for (const currentRound of rounds) {
+      if (highestRound === undefined || Number(currentRound) > Number(highestRound)) {
+        highestRound = currentRound;
+      }
+    }
+
+    return highestRound;
   }
 
   /**
