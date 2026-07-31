@@ -19,8 +19,7 @@ export class HomebrewDeprecationNotifier {
 
   /** Published documentation for installing and upgrading Solo. */
   private static readonly UPGRADE_GUIDE_URL: string = 'https://solo.hiero.org/docs/simple-solo-setup/upgrading-solo/';
-  /** Published documentation for installing and upgrading Solo. */
-  private static readonly UPGRADE_GUIDE_URL: string = constants.SOLO_UPGRADE_GUIDE_URL;
+
   /**
    * Matches the Cellar path segment Homebrew installs every formula under, for both the `solo`
    * formula and the versioned `solo@<version>` formulas. The Homebrew prefix itself varies
