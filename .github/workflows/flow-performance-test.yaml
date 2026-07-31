@@ -202,22 +202,30 @@ jobs:
           }
           trap cleanup SIGTERM SIGINT
 
-          # API poller: polls the run's updated_at field every 30 s and sends
-          # SIGTERM to the main shell when GitHub marks the run as cancelled.
+          # API poller: polls this job's own status every 30 s and sends SIGTERM
+          # to the main shell when GitHub no longer reports it in_progress.
           # Self-hosted runners do not deliver SIGTERM to step scripts directly,
           # so this is the only reliable way to detect workflow cancellation.
+          # The run-level updated_at field is NOT a cancellation signal: any
+          # sibling job transition in a multi-job run (e.g. the nightly extended
+          # tests) bumps it, which made this job SIGTERM its own healthy task
+          # (see hiero-ledger/solo#5432). The job is identified by RUNNER_NAME,
+          # which is unique per ephemeral ARC runner pod.
           # GITHUB_TOKEN is passed explicitly via step env (self-hosted runners
           # do not auto-expose it as a shell variable).
-          _run_updated_at() {
+          _own_job_in_progress_count() {
             local _api="${GITHUB_API_URL:-https://api.github.com}"
+            # Without a runner identity the job cannot be found; report unknown, never 0.
+            [[ -z "${RUNNER_NAME}" ]] && { echo ""; return; }
             curl -sf \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-              | jq -r '.updated_at // empty' 2>/dev/null || echo ""
+              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+              | jq -r --arg runner "${RUNNER_NAME}" \
+                  '[.jobs[] | select(.runner_name == $runner and .status == "in_progress")] | length' 2>/dev/null \
+              || echo ""
           }
-          RUN_UPDATED_AT_INITIAL="$(_run_updated_at)"
-          echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
+          echo "Cancellation poller watching job status for runner: ${RUNNER_NAME}"
 
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
@@ -229,12 +237,19 @@ jobs:
 
           # Start poller AFTER TASK_PID is set.
           api_cancel_poller() {
+            local zero_readings=0
             while true; do
               sleep 30
-              current="$(_run_updated_at)"
-              if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
-                    && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
-                echo "=== API poller: updated_at changed, signalling main shell ==="
+              current="$(_own_job_in_progress_count)"
+              # An empty reading is an API failure, which is not evidence of cancellation.
+              if [[ "${current}" == "0" ]]; then
+                zero_readings=$((zero_readings + 1))
+              else
+                zero_readings=0
+              fi
+              # Require two consecutive confirmations to guard against a stale API read.
+              if (( zero_readings >= 2 )); then
+                echo "=== API poller: job no longer in_progress, signalling main shell ==="
                 kill -TERM $$ 2>/dev/null || true
                 return
               fi
