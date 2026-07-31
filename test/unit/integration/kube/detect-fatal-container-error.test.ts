@@ -292,9 +292,9 @@ describe('detectFatalContainerError', (): void => {
         expect((error as KubePodReadinessFailedError).message).to.include('test-namespace');
         expect((error as KubePodReadinessFailedError).message).to.include('app=test');
         expect((error as KubePodReadinessFailedError).cause).to.be.instanceOf(KubePodCreationFailedError);
-        expect(
-          ((error as KubePodReadinessFailedError).cause as KubePodCreationFailedError).result,
-        ).to.include('containerd socket error');
+        expect(((error as KubePodReadinessFailedError).cause as KubePodCreationFailedError).result).to.include(
+          'containerd socket error',
+        );
       }
       expect(listNamespacedPodStub).to.have.callCount(5);
     });
