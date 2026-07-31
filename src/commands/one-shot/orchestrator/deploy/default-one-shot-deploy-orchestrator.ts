@@ -259,6 +259,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             if (!config.setupConfiguration[releaseTagKey]) {
               config.setupConfiguration[releaseTagKey] = versions.consensus;
             }
+
+            this.reconcileEffectiveVersions(config);
+
             this.logger.addLogBindings({
               clusterReference: config.clusterRef,
               context: config.context,
@@ -1178,6 +1181,32 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         'For more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
       );
     }
+  }
+
+  /**
+   * The per-component sections of a values file (network, blockNode, mirrorNode, explorerNode,
+   * relayNode) can override a component's version independently of the `config.versions` resolved
+   * from argv/defaults. Reconciles config.versions with those overrides, mirroring the same
+   * override precedence the deploy argv builders use, so the "Versions Used" summary reflects what
+   * is actually deployed.
+   */
+  private reconcileEffectiveVersions(config: OneShotSingleDeployConfigClass): void {
+    const releaseTagKey: string = flags.getFormattedFlagKey(flags.consensusNodeVersion);
+    const soloChartVersionKey: string = flags.getFormattedFlagKey(flags.soloChartVersion);
+    const blockNodeVersionKey: string = flags.getFormattedFlagKey(flags.blockNodeVersion);
+    const mirrorNodeVersionKey: string = flags.getFormattedFlagKey(flags.mirrorNodeVersion);
+    const explorerVersionKey: string = flags.getFormattedFlagKey(flags.explorerVersion);
+    const relayVersionKey: string = flags.getFormattedFlagKey(flags.relayVersion);
+
+    config.versions.consensus = (config.networkConfiguration[releaseTagKey] as string) ?? config.versions.consensus;
+    config.versions.soloChart =
+      (config.networkConfiguration[soloChartVersionKey] as string) ?? config.versions.soloChart;
+    config.versions.blockNode =
+      (config.blockNodeConfiguration[blockNodeVersionKey] as string) ?? config.versions.blockNode;
+    config.versions.mirror = (config.mirrorNodeConfiguration[mirrorNodeVersionKey] as string) ?? config.versions.mirror;
+    config.versions.explorer =
+      (config.explorerNodeConfiguration[explorerVersionKey] as string) ?? config.versions.explorer;
+    config.versions.relay = (config.relayNodeConfiguration[relayVersionKey] as string) ?? config.versions.relay;
   }
 
   private async confirmNonKindContext(
