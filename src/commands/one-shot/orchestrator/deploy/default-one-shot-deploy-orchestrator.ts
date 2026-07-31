@@ -76,6 +76,7 @@ import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
 import {ConfirmationRequiredSoloError} from '../../../../core/errors/classes/validation/confirmation-required-solo-error.js';
 import {ValuesFileNotFoundSoloError} from '../../../../core/errors/classes/validation/values-file-not-found-solo-error.js';
+import {ValuesFileParser} from '../../../../core/util/values-file-parser.js';
 import {Templates} from '../../../../core/templates.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
@@ -93,7 +94,6 @@ import {ConfigMap} from '../../../../integration/kube/resources/config-map/confi
 import chalk from 'chalk';
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
 import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
@@ -211,7 +211,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 throw new ValuesFileNotFoundSoloError(config.valuesFile);
               }
               const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
-              const profileItems: Record<string, object> = yaml.parse(valuesFileContent) as Record<string, object>;
+              const profileItems: Record<string, object> =
+                (ValuesFileParser.parse(context_.config.valuesFile, valuesFileContent) as Record<string, object>) ?? {};
 
               if (profileItems.network) {
                 config.networkConfiguration = profileItems.network as object;

@@ -238,6 +238,7 @@ import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-file
 import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-solo-error.js';
 import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
+import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -639,6 +640,7 @@ export class SoloErrors {
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
+    readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -714,6 +716,7 @@ export class SoloErrors {
     flagInputFailed: FlagInputFailedSoloError,
     confirmationRequired: ConfirmationRequiredSoloError,
     valuesFileNotFound: ValuesFileNotFoundSoloError,
+    valuesFileParseFailed: ValuesFileParseFailedSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
