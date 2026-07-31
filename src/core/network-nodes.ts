@@ -289,12 +289,14 @@ export class NetworkNodes {
   private intersectRoundSets(roundSets: Set<string>[]): Set<string> {
     const [firstSet, ...remainingSets] = roundSets;
     return new Set<string>(
-      [...(firstSet ?? [])].filter((round: string): boolean => remainingSets.every(set => set.has(round))),
+      [...(firstSet ?? [])].filter((round: string): boolean =>
+        remainingSets.every((set: Set<string>): boolean => set.has(round)),
+      ),
     );
   }
 
   private selectHighestRound(rounds: Set<string>): string | undefined {
-    return [...rounds].sort((left: string, right: string): number => Number(right) - Number(left))[0];
+    return [...rounds].toSorted((left: string, right: string): number => Number(right) - Number(left))[0];
   }
 
   /**
