@@ -177,11 +177,6 @@ export class Middlewares {
       let clusterName: string = 'N/A';
       let contextName: string = 'N/A';
 
-      // reset config on `solo init` command
-      if (argv._[0] === 'init') {
-        configManager.reset();
-      }
-
       // set cluster and namespace in the global configManager from kubernetes context
       // so that we don't need to prompt the user
       try {

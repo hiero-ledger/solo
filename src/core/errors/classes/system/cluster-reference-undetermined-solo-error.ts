@@ -20,7 +20,7 @@ export class ClusterReferenceUndeterminedSoloError extends SoloError {
       troubleshootingSteps:
         'Check the remote config: kubectl get configmap -n <namespace> -o yaml\n' +
         'Verify cluster references: solo deployment config info --deployment <name>\n' +
-        'Re-initialize solo if needed: solo init\n' +
+        'Re-create the cluster reference if needed: solo cluster-ref config connect --cluster-ref <name>\n' +
         'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
     });
   }

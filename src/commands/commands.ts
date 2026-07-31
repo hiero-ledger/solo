@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type InitCommand} from './init/init.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type CommandDefinition} from '../types/index.js';
@@ -26,7 +25,6 @@ import {CacheCommandDefinition} from './command-definitions/cache-command-defini
 @injectable()
 export class Commands {
   public constructor(
-    @inject(InjectTokens.InitCommand) private readonly init?: InitCommand,
     @inject(InjectTokens.BackupRestoreCommandDefinition)
     private readonly backupRestore?: BackupRestoreCommandDefinition,
     @inject(InjectTokens.BlockCommandDefinition) private readonly block?: BlockCommandDefinition,
@@ -43,7 +41,6 @@ export class Commands {
     @inject(InjectTokens.RapidFireCommandDefinition) private readonly rapidFire?: RapidFireCommandDefinition,
     @inject(InjectTokens.CacheCommandDefinition) private readonly cache?: CacheCommandDefinition,
   ) {
-    this.init = patchInject(init, InjectTokens.InitCommand, this.constructor.name);
     this.backupRestore = patchInject(backupRestore, InjectTokens.BackupRestoreCommandDefinition, this.constructor.name);
     this.block = patchInject(block, InjectTokens.BlockCommandDefinition, this.constructor.name);
     this.cluster = patchInject(cluster, InjectTokens.ClusterReferenceCommandDefinition, this.constructor.name);
@@ -61,7 +58,6 @@ export class Commands {
 
   public getCommandDefinitions(): CommandDefinition[] {
     return [
-      this.init.getCommandDefinition(),
       this.backupRestore.getCommandDefinition(),
       this.block.getCommandDefinition(),
       this.cluster.getCommandDefinition(),

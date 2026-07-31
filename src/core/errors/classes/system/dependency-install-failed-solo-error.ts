@@ -23,7 +23,7 @@ export class DependencyInstallFailedSoloError extends SoloError {
           'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
           'Verify network connectivity for downloading the dependency\n' +
           'Check available disk space\n' +
-          'Re-run initialization: solo init',
+          'Re-run the solo command; Solo installs missing dependencies on every run',
       },
       cause,
     );

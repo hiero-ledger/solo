@@ -145,7 +145,6 @@ import {BackupExportFailedSoloError} from './classes/deployment/backup-export-fa
 import {BackupImportFailedSoloError} from './classes/deployment/backup-import-failed-solo-error.js';
 import {BackupRestoreClustersFailedSoloError} from './classes/deployment/backup-restore-clusters-failed-solo-error.js';
 import {DeployNetworkFailedSoloError} from './classes/deployment/deploy-network-failed-solo-error.js';
-import {InitFailedSoloError} from './classes/deployment/init-failed-solo-error.js';
 import {BlockNodeClusterContextNotFoundSoloError} from './classes/deployment/block-node-cluster-context-not-found-solo-error.js';
 import {MirrorNodeClusterContextNotFoundSoloError} from './classes/deployment/mirror-node-cluster-context-not-found-solo-error.js';
 import {AccountCreationFailedSoloError} from './classes/component/account-creation-failed-solo-error.js';
@@ -341,7 +340,6 @@ export class SoloErrors {
     readonly backupImportFailed: typeof BackupImportFailedSoloError;
     readonly backupRestoreClustersFailed: typeof BackupRestoreClustersFailedSoloError;
     readonly deployNetworkFailed: typeof DeployNetworkFailedSoloError;
-    readonly initFailed: typeof InitFailedSoloError;
     readonly blockNodeClusterContextNotFound: typeof BlockNodeClusterContextNotFoundSoloError;
     readonly mirrorNodeClusterContextNotFound: typeof MirrorNodeClusterContextNotFoundSoloError;
   } = Object.freeze({
@@ -373,7 +371,6 @@ export class SoloErrors {
     backupImportFailed: BackupImportFailedSoloError,
     backupRestoreClustersFailed: BackupRestoreClustersFailedSoloError,
     deployNetworkFailed: DeployNetworkFailedSoloError,
-    initFailed: InitFailedSoloError,
     blockNodeClusterContextNotFound: BlockNodeClusterContextNotFoundSoloError,
     mirrorNodeClusterContextNotFound: MirrorNodeClusterContextNotFoundSoloError,
   });
