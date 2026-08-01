@@ -106,6 +106,20 @@ describe('SubprocessEnvironment', (): void => {
     );
   });
 
+  it('forwards CONTAINERS_REGISTRIES_CONF to kind (podman-backed) and the container-engine profile', (): void => {
+    setTemporaryEnvironmentVariable('CONTAINERS_REGISTRIES_CONF', '/home/user/.solo/config/registries.conf');
+
+    expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.KIND)).to.have.property(
+      'CONTAINERS_REGISTRIES_CONF',
+    );
+    expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.CONTAINER_ENGINE)).to.have.property(
+      'CONTAINERS_REGISTRIES_CONF',
+    );
+    expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM)).to.not.have.property(
+      'CONTAINERS_REGISTRIES_CONF',
+    );
+  });
+
   it('matches HELM_ prefixed variables only for the helm profile', (): void => {
     setTemporaryEnvironmentVariable('HELM_REPOSITORY_CONFIG', '/home/user/.config/helm/repositories.yaml');
 
