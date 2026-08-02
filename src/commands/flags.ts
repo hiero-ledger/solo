@@ -576,29 +576,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly relayReleaseTag: CommandFlag = {
-    constName: 'relayReleaseTag',
-    name: 'relay-release',
-    definition: {
-      describe: 'DEPRECATED: use --relay-version (e.g. v0.48.0)',
-      defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
-      type: 'string',
-    },
-    prompt: async function promptRelayReleaseTag(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      return await Flags.promptText(
-        task,
-        input,
-        Flags.relayReleaseTag.definition.defaultValue as string,
-        'Enter relay release version: ',
-        'relay-release-tag cannot be empty',
-        Flags.relayReleaseTag.name,
-      );
-    },
-  };
-
   public static readonly cacheDir: CommandFlag = {
     constName: 'cacheDir',
     name: 'cache-dir',
@@ -3193,10 +3170,22 @@ export class Flags {
     name: 'relay-version',
     definition: {
       describe: 'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2). ',
-      defaultValue: '',
+      defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptRelayVersion(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.relayVersion.definition.defaultValue as string,
+        'Enter relay version: ',
+        'relay-version cannot be empty',
+        Flags.relayVersion.name,
+      );
+    },
   };
 
   public static readonly blockNodeVersion: CommandFlag = {
@@ -3328,7 +3317,6 @@ export class Flags {
     Flags.output,
     Flags.imageTag,
     Flags.componentImage,
-    Flags.relayReleaseTag,
     Flags.relayVersion,
     Flags.releaseTag,
     Flags.consensusNodeVersion,
