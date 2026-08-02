@@ -199,7 +199,8 @@ export class DiagnosticsAnalyzer {
       // entry block during the startup window.
       logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
       startupTransientMessagePattern: /Startup healthcheck failed .*Application readiness check failed/i,
-      startupTransientBlockPattern: /Application readiness check failed/i,
+      startupTransientBlockPattern:
+        /Application readiness check failed|^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+ERROR Startup healthcheck failed\s*$|^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+ERROR Startup healthcheck failed\s*\nError: connect ECONNREFUSED\b/i,
       startupWindowSeconds: 180,
       reason: 'Mirror Node REST readiness healthcheck during startup',
     },

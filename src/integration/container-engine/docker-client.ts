@@ -26,6 +26,10 @@ export class DockerClient implements ContainerEngineClient {
   private static readonly IMAGE_PULL_IDLE_TIMEOUT_MS: number = 10 * 60 * 1000;
   private readonly shellRunner: ShellRunner;
   private readonly podmanClient: PodmanClient;
+  private readonly kindContainerCommands: Map<string, ContainerEngineCommand> = new Map<
+    string,
+    ContainerEngineCommand
+  >();
 
   public constructor(
     @inject(InjectTokens.KindBuilder) private readonly kindBuilder?: DefaultKindClientBuilder,
@@ -106,11 +110,11 @@ export class DockerClient implements ContainerEngineClient {
 
   public async loadImageArchiveIntoCluster(archivePath: string, clusterName: string = 'kind'): Promise<void> {
     const nodeName: string = `${clusterName}-control-plane`;
-    const podmanCommand: ContainerEngineCommand | undefined = await this.podmanClient.getKindContainerCommand(nodeName);
+    const engineCommand: ContainerEngineCommand | undefined = await this.resolveKindContainerCommand(nodeName);
     const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
 
-    if (podmanCommand) {
-      await this.podmanClient.loadImageArchiveIntoCluster(kindExecutable, archivePath, clusterName, podmanCommand);
+    if (engineCommand && engineCommand.executable !== constants.DOCKER) {
+      await this.podmanClient.loadImageArchiveIntoCluster(kindExecutable, archivePath, clusterName, engineCommand);
       return;
     }
 
@@ -132,10 +136,8 @@ export class DockerClient implements ContainerEngineClient {
 
   public async listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]> {
     const nodeName: string = `${clusterName}-control-plane`;
-    const engineCommand: ContainerEngineCommand = (await this.podmanClient.getKindContainerCommand(nodeName)) ?? {
-      executable: constants.DOCKER,
-      argumentsPrefix: [],
-    };
+    const engineCommand: ContainerEngineCommand =
+      (await this.resolveKindContainerCommand(nodeName)) ?? DockerClient.dockerCommand();
 
     const output: string[] = await this.shellRunner.run(
       engineCommand.executable,
@@ -157,5 +159,46 @@ export class DockerClient implements ContainerEngineClient {
       .map((line): string => line.trim())
       .filter((line): boolean => line.length > 0)
       .filter((line): boolean => !line.startsWith('import-'));
+  }
+
+  private static dockerCommand(): ContainerEngineCommand {
+    return {
+      executable: constants.DOCKER,
+      argumentsPrefix: [],
+    };
+  }
+
+  private async resolveKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
+    const cachedCommand: ContainerEngineCommand | undefined = this.kindContainerCommands.get(nodeName);
+    if (cachedCommand) {
+      return cachedCommand;
+    }
+
+    if (constants.getEnvironmentVariable('KIND_EXPERIMENTAL_PROVIDER') !== constants.PODMAN) {
+      const dockerCommand: ContainerEngineCommand = DockerClient.dockerCommand();
+      if (await this.containerExists(dockerCommand, nodeName)) {
+        this.kindContainerCommands.set(nodeName, dockerCommand);
+        return dockerCommand;
+      }
+    }
+
+    const podmanCommand: ContainerEngineCommand | undefined = await this.podmanClient.getKindContainerCommand(nodeName);
+    if (podmanCommand) {
+      this.kindContainerCommands.set(nodeName, podmanCommand);
+    }
+
+    return podmanCommand;
+  }
+
+  private async containerExists(command: ContainerEngineCommand, nodeName: string): Promise<boolean> {
+    try {
+      await this.shellRunner.run(command.executable, [...command.argumentsPrefix, 'container', 'exists', nodeName], {
+        commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+      });
+      return true;
+    } catch {
+      // best-effort probe: a missing Docker container may be owned by Podman instead
+      return false;
+    }
   }
 }
