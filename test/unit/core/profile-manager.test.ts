@@ -90,7 +90,7 @@ describe('ProfileManager', (): void => {
     profileManager = new ProfileManager(undefined, undefined, temporaryDirectory);
     configManager.setFlag(flags.nodeAliasesUnparsed, 'node1,node2,node4');
     configManager.setFlag(flags.cacheDir, getTestCacheDirectory('ProfileManager'));
-    configManager.setFlag(flags.releaseTag, version.HEDERA_PLATFORM_VERSION);
+    configManager.setFlag(flags.consensusNodeVersion, version.HEDERA_PLATFORM_VERSION);
     cacheDirectory = configManager.getFlag<string>(flags.cacheDir) as string;
     configManager.setFlag(flags.apiPermissionProperties, flags.apiPermissionProperties.definition.defaultValue);
     configManager.setFlag(flags.applicationEnv, flags.applicationEnv.definition.defaultValue);
@@ -100,7 +100,7 @@ describe('ProfileManager', (): void => {
     configManager.setFlag(flags.settingTxt, flags.settingTxt.definition.defaultValue);
     stagingDirectory = Templates.renderStagingDir(
       configManager.getFlag(flags.cacheDir),
-      configManager.getFlag(flags.releaseTag),
+      configManager.getFlag(flags.consensusNodeVersion),
     );
     if (!fs.existsSync(stagingDirectory)) {
       fs.mkdirSync(stagingDirectory, {recursive: true});

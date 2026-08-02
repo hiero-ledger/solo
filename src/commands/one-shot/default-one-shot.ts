@@ -148,7 +148,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.outputValuesFile,
       flags.quiet,
       flags.numberOfConsensusNodes,
-      flags.releaseTag,
+      flags.consensusNodeVersion,
       flags.relayReleaseTag,
       flags.soloChartVersion,
       flags.mirrorNodeVersion,
