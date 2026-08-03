@@ -107,7 +107,7 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
-            export SOLO_COMMAND="npx @hashgraph/solo"
+            export SOLO_COMMAND="npx @hiero-ledger/solo"
           else
             export SOLO_COMMAND="npm run solo --"
           fi
@@ -129,7 +129,7 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           if [ "${{ inputs.released-or-latest || 'false' }}" = "true" ]; then
-            npx @hashgraph/solo one-shot single destroy --quiet-mode
+            npx @hiero-ledger/solo one-shot single destroy --quiet-mode
           else
             npm run solo -- one-shot single destroy --quiet-mode
           fi
