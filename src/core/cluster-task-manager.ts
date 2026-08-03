@@ -14,9 +14,11 @@ import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
 import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import * as yaml from 'yaml';
 import {type AnyObject} from '../types/aliases.js';
 import path from 'node:path';
+import {PodmanRuntimeConfigurationFailedSoloError} from './errors/classes/system/podman-runtime-configuration-failed-solo-error.js';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {type ClusterCreateOptions} from '../integration/kind/model/create-cluster/cluster-create-options.js';
@@ -146,6 +148,13 @@ export class ClusterTaskManager extends ShellRunner {
         },
       } as SoloListrTask<InitContext>,
       {
+        title: 'Configure podman container runtime...',
+        task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<void> => {
+          void _context;
+          await this.configureBrewPodmanRuntime(task);
+        },
+      } as SoloListrTask<InitContext>,
+      {
         title: 'Creating local cluster...',
         task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<void> => {
           void _context;
@@ -159,7 +168,10 @@ export class ClusterTaskManager extends ShellRunner {
           // PATH must include both kindInstallationDirectory (for kind) and podmanPath (for podman).
           const kindRuntimePath: string = `${sudoEnvironment.PATH}${path.delimiter}${podmanPath}`;
           // podman picks its OCI runtime from absolute paths, not from PATH, so extending PATH above
-          // is not enough to keep it away from an older distribution crun.
+          // is not enough to keep it away from an older distribution crun. configureBrewPodmanRuntime
+          // pins the runtime through CONTAINERS_CONF, but only for a Homebrew-managed podman; this
+          // covers the self-contained bundles it deliberately leaves alone. CONTAINERS_CONF_OVERRIDE
+          // layers on top of CONTAINERS_CONF, so the two compose when both apply.
           const runtimeOverridePath: string | undefined = PodmanDependencyManager.writeRuntimeOverride(
             podmanPath,
             constants.SOLO_HOME_DIR,
@@ -173,6 +185,9 @@ export class ClusterTaskManager extends ShellRunner {
             [
               'KIND_EXPERIMENTAL_PROVIDER=podman',
               `PATH=${kindRuntimePath}`,
+              ...PodmanDependencyManager.toEnvironmentArguments(
+                this.podmanDependencyManager.containerConfigEnvironment(),
+              ),
               ...(runtimeOverridePath ? [`CONTAINERS_CONF_OVERRIDE=${runtimeOverridePath}`] : []),
               'kind',
               'create',
@@ -267,6 +282,119 @@ export class ClusterTaskManager extends ShellRunner {
         },
       } as SoloListrTask<InitContext>,
     ];
+  }
+
+  /**
+   * Installs the network helpers Homebrew does not package (netavark, aardvark-dns), generates the
+   * solo-owned container configuration for the brew podman, and probes the assembled stack. A host
+   * whose podman is not Homebrew-managed is left untouched — its container stack is presumed
+   * self-consistent, and only the brew podman suffers version skew against a stale system stack
+   * under /etc/containers.
+   */
+  private async configureBrewPodmanRuntime(task: SoloListrTaskWrapper<InitContext>): Promise<void> {
+    const podmanBinaryDirectory: string | undefined = await this.resolveBrewPodmanBinaryDirectory();
+    if (!podmanBinaryDirectory) {
+      this.logger.info('podman is not Homebrew-managed; leaving the host container configuration untouched');
+      return;
+    }
+
+    // The netavark/aardvark-dns helpers publish x86_64 binaries only, so fail early and clearly on
+    // any other architecture rather than downloading a binary the host cannot execute.
+    if (os.arch() !== 'x64') {
+      throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+        `Homebrew podman on ${os.arch()} Linux is unsupported: the netavark and aardvark-dns network ` +
+          'helpers are published for x86_64 only',
+      );
+    }
+
+    // Installing the helpers and generating the configuration are the fatal steps; wrap their
+    // failures (GitHub download, missing template) in the actionable runtime-configuration error.
+    try {
+      for (const helper of [constants.NETAVARK, constants.AARDVARK_DNS]) {
+        await this.depManager.checkDependency(helper);
+      }
+
+      for (const runtimeBinary of ['crun', 'conmon']) {
+        const binaryPath: string = path.join(podmanBinaryDirectory, runtimeBinary);
+        if (!fs.existsSync(binaryPath)) {
+          throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+            `${runtimeBinary} was not found at ${binaryPath}; the Homebrew podman installation appears incomplete`,
+          );
+        }
+      }
+
+      await this.podmanDependencyManager.setupConfig(podmanBinaryDirectory);
+    } catch (error) {
+      if (error instanceof PodmanRuntimeConfigurationFailedSoloError) {
+        throw error;
+      }
+      throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+        'failed to install the network helpers or generate the container configuration',
+        error,
+      );
+    }
+
+    // Best-effort probe: `kind create cluster` runs podman with this same configuration and is the
+    // real gate, so a transient `podman info` failure should warn rather than block an otherwise
+    // valid setup.
+    const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
+    const configurationArguments: string[] = PodmanDependencyManager.toEnvironmentArguments(
+      this.podmanDependencyManager.containerConfigEnvironment(),
+    );
+    try {
+      await this.sudoRun(
+        onSudoRequested,
+        onSudoGranted,
+        'env',
+        [
+          `PATH=${podmanBinaryDirectory}${path.delimiter}${process.env.PATH || ''}`,
+          ...configurationArguments,
+          'podman',
+          'info',
+        ],
+        false,
+        false,
+        {},
+        SubprocessCommandProfile.CONTAINER_ENGINE,
+      );
+    } catch (error) {
+      this.logger.warn(
+        'podman info probe failed after configuring the container runtime; continuing to cluster ' +
+          `creation, which will surface any real configuration problem: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+
+  /**
+   * Resolves the directory of the podman binary when — and only when — it is Homebrew-managed
+   * (resolves from inside the brew prefix); returns undefined for a distribution podman or when
+   * podman/brew are absent.
+   */
+  private async resolveBrewPodmanBinaryDirectory(): Promise<string | undefined> {
+    let podmanPath: string;
+    try {
+      const whichPodman: string[] = await this.run('which', ['podman']);
+      podmanPath = whichPodman.join('').trim();
+    } catch {
+      // podman is not on the PATH, so there is no brew installation to configure
+      return undefined;
+    }
+    if (!podmanPath) {
+      return undefined;
+    }
+
+    try {
+      const brewPrefixOutput: string[] = await this.run('brew', ['--prefix'], {
+        commandProfile: SubprocessCommandProfile.BREW,
+      });
+      const brewPrefix: string = brewPrefixOutput.join('').trim();
+      if (brewPrefix && podmanPath.startsWith(`${brewPrefix}${path.sep}`)) {
+        return path.dirname(podmanPath);
+      }
+    } catch {
+      // brew is unavailable, so the podman on the PATH cannot be Homebrew-managed
+    }
+    return undefined;
   }
 
   public async installationTasks(
