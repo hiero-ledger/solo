@@ -150,8 +150,87 @@ extract_cmd_summary() {
   fi
 }
 
+# Remove GitHub log prefixes/ANSI noise and extract the most informative
+# exception stack block from a log.
+extract_exception_stack() {
+  local log_path="$1"
+  [[ -f "${log_path}" ]] || return 0
+
+  awk '
+function clean_line(value, cleaned) {
+  cleaned = value
+  gsub(/\r/, "", cleaned)
+  sub(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+-]+Z[[:space:]]+/, "", cleaned)
+  gsub(/\033\[[0-9;]*[[:alpha:]]/, "", cleaned)
+  return cleaned
+}
+
+function flush_block() {
+  if (current_stack != "") {
+    if ((current_frames > best_frames) || (current_frames == best_frames && length(current_stack) > length(best_stack))) {
+      best_stack = current_stack
+      best_frames = current_frames
+    }
+  }
+  current_stack = ""
+  current_frames = 0
+  in_stack = 0
+}
+
+BEGIN {
+  in_stack = 0
+  current_frames = 0
+  best_frames = -1
+  current_stack = ""
+  best_stack = ""
+}
+
+{
+  line = clean_line($0)
+
+  if (line ~ /^[[:space:]]*[A-Za-z0-9_.-]*(Error|Exception|SoloError):[[:space:]]+/) {
+    flush_block()
+    in_stack = 1
+    current_stack = line ORS
+    next
+  }
+
+  if (in_stack && line ~ /^[[:space:]]*Caused by:[[:space:]]+/) {
+    current_stack = current_stack line ORS
+    next
+  }
+
+  if (in_stack && line ~ /^[[:space:]]+at[[:space:]]+/) {
+    current_stack = current_stack line ORS
+    current_frames++
+    next
+  }
+
+  if (in_stack && line ~ /^[[:space:]]*$/) {
+    # Preserve blank spacing within stack traces without over-capturing.
+    current_stack = current_stack line ORS
+    next
+  }
+
+  if (in_stack) {
+    flush_block()
+  }
+}
+
+END {
+  flush_block()
+  printf "%s", best_stack
+}
+' "${log_path}" | sed '/^[[:space:]]*$/N;/^\n$/D'
+}
+
 LOG_FILES=("$JOB_LOG_PATH")
 [[ -f "$SOLO_LOG" ]] && LOG_FILES+=("$SOLO_LOG")
+
+STACK_TRACE=$(extract_exception_stack "$JOB_LOG_PATH" || true)
+[[ -z "${STACK_TRACE:-}" && -f "$SOLO_LOG" ]] && STACK_TRACE=$(extract_exception_stack "$SOLO_LOG" || true)
+
+STACK_FIRST_LINE=$(echo "${STACK_TRACE:-}" | grep -m1 -E '^[[:space:]]*[A-Za-z0-9_.-]*(Error|Exception|SoloError):[[:space:]]+' || true)
 
 SOLO_CODE=$(grep -oE 'SOLO-[0-9]+' "${LOG_FILES[@]}" 2>/dev/null | head -1 | grep -oE 'SOLO-[0-9]+' || true)
 
@@ -171,6 +250,8 @@ else
     else
       ERROR_DESC=$(echo "$FIRST_SOLO_ERROR" | cut -c1-90)
     fi
+  elif [[ -n "${STACK_FIRST_LINE:-}" ]]; then
+    ERROR_DESC=$(echo "$STACK_FIRST_LINE" | sed -E 's/^[[:space:]]*[A-Za-z0-9_.-]*(Error|Exception|SoloError):[[:space:]]*//' | cut -c1-90)
   else
     JOB_ERR_LINE=$(grep "##\[error\]" "$JOB_LOG_PATH" 2>/dev/null \
       | head -1 | sed 's/.*##\[error\]//' | cut -c1-90 || true)
@@ -192,8 +273,10 @@ ERROR_BOX=""
 [[ -f "$SOLO_LOG" ]] && \
   ERROR_BOX=$(awk '/╭─ ERROR/{found=1} found{print} /╰─/{if(found) exit}' "$SOLO_LOG" 2>/dev/null || true)
 
-# Error details: prefer box → solo errors → job errors
-if [[ -n "${ERROR_BOX:-}" ]]; then
+# Error details: prefer stack trace → box → solo errors → job errors
+if [[ -n "${STACK_TRACE:-}" ]]; then
+  ERROR_DETAILS="$STACK_TRACE"
+elif [[ -n "${ERROR_BOX:-}" ]]; then
   ERROR_DETAILS="$ERROR_BOX"
 elif [[ -n "${SOLO_ERRORS:-}" ]]; then
   ERROR_DETAILS=$(echo "$SOLO_ERRORS" | head -20)
