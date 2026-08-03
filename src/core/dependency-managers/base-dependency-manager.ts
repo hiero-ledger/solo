@@ -246,6 +246,16 @@ export abstract class BaseDependencyManager extends ShellRunner {
   }
 
   /**
+   * Whether an installation discovered on PATH may satisfy this dependency. Tools that an external
+   * process resolves from a fixed directory rather than from PATH override this to false, so the
+   * binary is always placed in the managed installation directory instead of being left wherever
+   * PATH happened to find it.
+   */
+  protected allowGlobalInstallation(): boolean {
+    return true;
+  }
+
+  /**
    * Install the tool
    */
   public async install(temporaryDirectory: string = Helpers.getTemporaryDirectory()): Promise<boolean> {
@@ -267,7 +277,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
     }
 
     // If it is installed globally and meets requirements, use the global installation
-    if (await this.isInstalledGloballyAndMeetsRequirements()) {
+    if (this.allowGlobalInstallation() && (await this.isInstalledGloballyAndMeetsRequirements())) {
       const globalVersion: string = await this.getVersion(this.globalExecutablePath).catch((): string =>
         this.getRequiredVersion(),
       );
