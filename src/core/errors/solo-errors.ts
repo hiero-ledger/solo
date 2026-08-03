@@ -22,6 +22,8 @@ import {InvalidOutputFormatError} from './classes/validation/invalid-output-form
 import {InvalidPortNumberError} from './classes/validation/invalid-port-number-error.js';
 import {ClusterConnectionFailedError} from './classes/system/cluster-connection-failed-error.js';
 import {ClusterUnreachableError} from './classes/system/cluster-unreachable-error.js';
+import {KindClusterStoppedError} from './classes/system/kind-cluster-stopped-error.js';
+import {ContainerEngineNotRunningError} from './classes/system/container-engine-not-running-error.js';
 import {GitHubApiHttpResponseError} from './classes/system/github-api-http-response-error.js';
 import {GitHubApiRequestFailedError} from './classes/system/github-api-request-failed-error.js';
 import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
@@ -727,6 +729,8 @@ export class SoloErrors {
     readonly externalBlockNodeNotInRemoteConfig: typeof ExternalBlockNodeNotInRemoteConfigSoloError;
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
     readonly clusterUnreachable: typeof ClusterUnreachableError;
+    readonly kindClusterStopped: typeof KindClusterStoppedError;
+    readonly containerEngineNotRunning: typeof ContainerEngineNotRunningError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
     readonly githubApiRequestFailed: typeof GitHubApiRequestFailedError;
     readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
@@ -807,6 +811,8 @@ export class SoloErrors {
     externalBlockNodeNotInRemoteConfig: ExternalBlockNodeNotInRemoteConfigSoloError,
     clusterConnectionFailed: ClusterConnectionFailedError,
     clusterUnreachable: ClusterUnreachableError,
+    kindClusterStopped: KindClusterStoppedError,
+    containerEngineNotRunning: ContainerEngineNotRunningError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
     githubApiRequestFailed: GitHubApiRequestFailedError,
     githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
