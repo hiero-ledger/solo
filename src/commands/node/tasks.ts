@@ -2446,10 +2446,10 @@ export class NodeCommandTasks {
     };
   }
 
-  public emitNodeStartedEvent(): SoloListrTask<NodeAddContext> {
+  public emitNodeStartedEvent(): SoloListrTask<NodeStartContext> {
     return {
       title: 'Emit node started event',
-      task: async (context_: NodeAddContext): Promise<void> => {
+      task: async (context_: NodeStartContext): Promise<void> => {
         this.eventBus.emit(new NodesStartedEvent(context_.config.deployment));
       },
     };
