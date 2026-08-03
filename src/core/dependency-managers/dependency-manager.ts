@@ -7,7 +7,7 @@ import {HelmDependencyManager} from './helm-dependency-manager.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import * as constants from '../constants.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
-import {type SoloListrTask} from '../../types/index.js';
+import {type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
 import {KindDependencyManager} from './kind-dependency-manager.js';
 import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
 import {PodmanDependencyManager} from './podman-dependency-manager.js';
@@ -135,10 +135,27 @@ export class DependencyManager extends ShellRunner {
 
   public taskCheckDependencies<T>(dependencies: string[]): SoloListrTask<T>[] {
     return dependencies.map(
-      (dependency): {title: string; task: () => Promise<boolean>; skip: () => Promise<boolean>} => {
+      (
+        dependency,
+      ): {
+        title: string;
+        task: (_context: T, task: SoloListrTaskWrapper<T>) => Promise<boolean>;
+        skip: () => Promise<boolean>;
+      } => {
         return {
           title: `Check dependency: ${dependency} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`,
-          task: (): Promise<boolean> => this.checkDependency(dependency),
+          task: async (_context: T, task: SoloListrTaskWrapper<T>): Promise<boolean> => {
+            const result: boolean = await this.checkDependency(dependency);
+            try {
+              const manager: DependencyManagerType = await this.getDependency(dependency);
+              const executablePath: string = await manager.getExecutable();
+              const version: string = await manager.getVersion(executablePath);
+              task.title = `Check dependency: ${dependency} v${version} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`;
+            } catch {
+              // best-effort: version display is informational only; ignore failures
+            }
+            return result;
+          },
           skip: (): Promise<boolean> => this.skipDependency(dependency),
         };
       },
