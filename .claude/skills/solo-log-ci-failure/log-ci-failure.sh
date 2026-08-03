@@ -251,7 +251,8 @@ else
       ERROR_DESC=$(echo "$FIRST_SOLO_ERROR" | cut -c1-90)
     fi
   elif [[ -n "${STACK_FIRST_LINE:-}" ]]; then
-    ERROR_DESC=$(echo "$STACK_FIRST_LINE" | sed -E 's/^[[:space:]]*[A-Za-z0-9_.-]*(Error|Exception|SoloError):[[:space:]]*//' | cut -c1-90)
+    STACK_HEADLINE=$(echo "$STACK_FIRST_LINE" | sed -E 's/^[[:space:]]+//' | tr -s ' ')
+    ERROR_DESC=$(echo "$STACK_HEADLINE" | cut -c1-90)
   else
     JOB_ERR_LINE=$(grep "##\[error\]" "$JOB_LOG_PATH" 2>/dev/null \
       | head -1 | sed 's/.*##\[error\]//' | cut -c1-90 || true)
