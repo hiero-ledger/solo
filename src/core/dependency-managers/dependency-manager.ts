@@ -150,7 +150,7 @@ export class DependencyManager extends ShellRunner {
               const manager: DependencyManagerType = await this.getDependency(dependency);
               const executablePath: string = await manager.getExecutable();
               const version: string = await manager.getVersion(executablePath);
-              task.title = `Check dependency: ${dependency} v${version} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`;
+              task.title = `Check dependency: ${dependency} v${version} (${executablePath}) [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`;
             } catch {
               // best-effort: version display is informational only; ignore failures
             }
