@@ -326,7 +326,17 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         .configMaps()
         .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
     } catch (error) {
-      throw error instanceof ResourceNotFoundError ? error : new SoloErrors.system.kubernetesApiInvalidResponse();
+      if (error instanceof ResourceNotFoundError) {
+        throw error;
+      }
+
+      // A kind cluster runs on this machine, so a failure there is a local API problem rather than a cluster
+      // solo cannot reach. Kind names its kubeconfig context `kind-<cluster-name>`, the same heuristic the
+      // one-shot deploy orchestrator uses. Either way the original failure is kept as the cause so the real
+      // reason (context down, RBAC denial, API error) reaches the error output and the logs.
+      throw context.startsWith('kind-')
+        ? new SoloErrors.system.kubernetesApiInvalidResponse(error)
+        : new SoloErrors.system.clusterUnreachable(context, error);
     }
     if (!configMap) {
       throw new SoloErrors.system.resourceNotFound(
