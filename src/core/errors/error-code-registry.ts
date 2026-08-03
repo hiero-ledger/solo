@@ -212,6 +212,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   FLAG_INPUT_FAILED: 'SOLO-4076',
   CONFIRMATION_REQUIRED: 'SOLO-4077',
   VALUES_FILE_NOT_FOUND: 'SOLO-4078',
+  VALUES_FILE_PARSE_FAILED: 'SOLO-4079',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
