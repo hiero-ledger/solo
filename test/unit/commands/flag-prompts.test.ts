@@ -1,0 +1,708 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import {expect} from 'chai';
+import {afterEach, beforeEach, describe, it} from 'mocha';
+import os from 'node:os';
+import {
+  confirm as confirmPrompt,
+  input as inputPrompt,
+  number as numberPrompt,
+  select as selectPrompt,
+} from '@inquirer/prompts';
+import {Flags} from '../../../src/commands/flags.js';
+import * as constants from '../../../src/core/constants.js';
+import * as version from '../../../version.js';
+import {FlagInputFailedSoloError} from '../../../src/core/errors/classes/validation/flag-input-failed-solo-error.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
+import {type AnyListrContext} from '../../../src/types/aliases.js';
+import {type ClusterReferenceName, type SoloListrTaskWrapper} from '../../../src/types/index.js';
+
+interface RecordedPromptCall {
+  component: unknown;
+  options: {default?: unknown; message?: string; choices?: unknown};
+}
+
+/** Stands in for the Listr2 task wrapper so prompt functions can be exercised without a real terminal. */
+class FakePromptTaskWrapper {
+  public readonly recordedCalls: RecordedPromptCall[] = [];
+  private readonly answers: unknown[];
+  private readonly failure?: Error;
+
+  public constructor(answers: unknown[] = [], failure?: Error) {
+    this.answers = [...answers];
+    this.failure = failure;
+  }
+
+  public prompt(): {
+    run: (component: unknown, options: RecordedPromptCall['options']) => Promise<unknown>;
+  } {
+    return {
+      run: async (component: unknown, options: RecordedPromptCall['options']): Promise<unknown> => {
+        this.recordedCalls.push({component, options});
+        if (this.failure) {
+          throw this.failure;
+        }
+        if (this.answers.length === 0) {
+          throw new Error('FakePromptTaskWrapper has no scripted answer left');
+        }
+        return this.answers.shift();
+      },
+    };
+  }
+
+  public asTask(): SoloListrTaskWrapper<AnyListrContext> {
+    return this as unknown as SoloListrTaskWrapper<AnyListrContext>;
+  }
+}
+
+// typed stand-in for a flag value the user did not provide; a literal undefined argument is banned by lint
+const missingInput: undefined = undefined;
+
+interface PromptCase {
+  flag: CommandFlag;
+  message: string;
+  defaultValue: unknown;
+  emptyCheckMessage?: string;
+}
+
+const textPromptCases: PromptCase[] = [
+  {
+    flag: Flags.clusterRef,
+    message: 'Enter cluster reference: ',
+    defaultValue: undefined,
+    emptyCheckMessage: 'cluster reference cannot be empty',
+  },
+  {
+    flag: Flags.clusterSetupNamespace,
+    message: 'Enter cluster setup namespace name: ',
+    defaultValue: 'solo-cluster',
+    emptyCheckMessage: 'cluster setup namespace cannot be empty',
+  },
+  {
+    flag: Flags.namespace,
+    message: 'Enter namespace name: ',
+    defaultValue: 'solo',
+    emptyCheckMessage: 'namespace cannot be empty',
+  },
+  {flag: Flags.releaseTag, message: 'Enter release version: ', defaultValue: version.HEDERA_PLATFORM_VERSION},
+  {
+    flag: Flags.relayReleaseTag,
+    message: 'Enter relay release version: ',
+    defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
+    emptyCheckMessage: 'relay-release-tag cannot be empty',
+  },
+  {flag: Flags.cacheDir, message: 'Enter local cache directory path: ', defaultValue: constants.SOLO_CACHE_DIR},
+  {
+    flag: Flags.nodeAliasesUnparsed,
+    message: 'Enter list of node IDs (comma separated list): ',
+    defaultValue: 'node1,node2,node3',
+  },
+  {flag: Flags.chainId, message: 'Enter chain ID: ', defaultValue: Flags.chainId.definition.defaultValue},
+  {flag: Flags.operatorId, message: 'Enter operator ID: ', defaultValue: undefined},
+  {flag: Flags.operatorKey, message: 'Enter operator private key: ', defaultValue: undefined},
+  {flag: Flags.privateKey, message: 'Enter the private key: ', defaultValue: ''},
+  {flag: Flags.ed25519PrivateKey, message: 'Enter the private key: ', defaultValue: ''},
+  {flag: Flags.ecdsaPrivateKey, message: 'Enter the private key: ', defaultValue: ''},
+  {
+    flag: Flags.explorerTlsHostName,
+    message: 'Enter the host name to use for the Explorer TLS: ',
+    defaultValue: 'explorer.solo.local',
+  },
+  {
+    flag: Flags.soloChartVersion,
+    message: 'Enter solo testing chart version: ',
+    defaultValue: version.SOLO_CHART_VERSION,
+  },
+  {
+    flag: Flags.blockNodeChartVersion,
+    message: 'Enter block node chart version: ',
+    defaultValue: version.BLOCK_NODE_VERSION,
+  },
+  {
+    flag: Flags.localBuildPath,
+    message: 'Enter local build path: ',
+    defaultValue: Flags.localBuildPath.definition.defaultValue,
+  },
+  {flag: Flags.accountId, message: 'Enter the account id: ', defaultValue: ''},
+  {flag: Flags.fileId, message: 'Enter the file id: ', defaultValue: '', emptyCheckMessage: 'File ID cannot be empty'},
+  {
+    flag: Flags.filePath,
+    message: 'Enter the file path: ',
+    defaultValue: '',
+    emptyCheckMessage: 'File path cannot be empty',
+  },
+  {flag: Flags.nodeAlias, message: 'Enter the new node id: ', defaultValue: undefined},
+  {flag: Flags.skipNodeAlias, message: 'Enter the node alias to skip: ', defaultValue: undefined},
+  {flag: Flags.gossipEndpoints, message: 'Enter the gossip endpoints(comma separated): ', defaultValue: undefined},
+  {flag: Flags.grpcEndpoints, message: 'Enter the gRPC endpoints(comma separated): ', defaultValue: undefined},
+  {
+    flag: Flags.endpointType,
+    message: 'Enter the endpoint type(IP or FQDN): ',
+    defaultValue: constants.ENDPOINT_TYPE_FQDN,
+  },
+  {flag: Flags.debugNodeAlias, message: 'Enter debug node alias: ', defaultValue: ''},
+  {flag: Flags.mirrorNodeVersion, message: 'Enter mirror node version: ', defaultValue: version.MIRROR_NODE_VERSION},
+  {flag: Flags.explorerVersion, message: 'Enter explorer version: ', defaultValue: version.EXPLORER_VERSION},
+  {
+    flag: Flags.deployment,
+    message: 'Enter the name of the deployment:',
+    defaultValue: Flags.deployment.definition.defaultValue,
+  },
+  {
+    flag: Flags.deploymentClusters,
+    message: 'Enter the Solo deployment cluster names (comma separated): ',
+    defaultValue: undefined,
+  },
+  {
+    flag: Flags.grpcTlsCertificatePath,
+    message: 'Enter node alias and path to TLS certificate for gRPC (ex. nodeAlias=path )',
+    defaultValue: '',
+  },
+  {
+    flag: Flags.grpcWebTlsCertificatePath,
+    message: 'Enter node alias and path to TLS certificate for gGRPC web (ex. nodeAlias=path )',
+    defaultValue: '',
+  },
+  {flag: Flags.externalDatabaseHost, message: 'Enter host of the external database', defaultValue: ''},
+  {
+    flag: Flags.externalDatabaseOwnerUsername,
+    message: 'Enter username of the external database owner',
+    defaultValue: '',
+  },
+  {
+    flag: Flags.externalDatabaseOwnerPassword,
+    message: 'Enter password of the external database owner',
+    defaultValue: '',
+  },
+  {
+    flag: Flags.externalDatabaseReadonlyUsername,
+    message: 'Enter username of the external database readonly user',
+    defaultValue: '',
+  },
+  {
+    flag: Flags.externalDatabaseReadonlyPassword,
+    message: 'Enter password of the external database readonly user',
+    defaultValue: '',
+  },
+  {
+    flag: Flags.grpcTlsKeyPath,
+    message: 'Enter node alias and path to TLS certificate key for gRPC (ex. nodeAlias=path )',
+    defaultValue: '',
+  },
+  {
+    flag: Flags.grpcWebTlsKeyPath,
+    message: 'Enter node alias and path to TLS certificate key for gGRPC Web (ex. nodeAlias=path )',
+    defaultValue: '',
+  },
+];
+
+const togglePromptCases: PromptCase[] = [
+  {flag: Flags.forcePortForward, message: 'Force port forwarding? ', defaultValue: true},
+  {flag: Flags.deployPrometheusStack, message: 'Would you like to deploy prometheus stack? ', defaultValue: false},
+  {flag: Flags.deployMinio, message: 'Would you like to deploy MinIO? ', defaultValue: true},
+  {flag: Flags.deployCertManager, message: 'Would you like to deploy Cert Manager? ', defaultValue: false},
+  {flag: Flags.deployCertManagerCrds, message: 'Would you like to deploy Cert Manager CRDs? ', defaultValue: false},
+  {flag: Flags.force, message: 'Would you like to force changes? ', defaultValue: false},
+  // the message interpolates the (undefined) input value; the interpolation looks like leftover debug output
+  {
+    flag: Flags.generateGossipKeys,
+    message: 'Would you like to generate Gossip keys? undefined undefined ',
+    defaultValue: false,
+  },
+  {flag: Flags.generateTlsKeys, message: 'Would you like to generate TLS keys? ', defaultValue: false},
+  {flag: Flags.enableExplorerTls, message: 'Would you like to enable the Explorer TLS? ', defaultValue: false},
+  {
+    flag: Flags.deletePvcs,
+    message: 'Would you like to delete persistent volume claims upon uninstall? ',
+    defaultValue: false,
+  },
+  {flag: Flags.deleteSecrets, message: 'Would you like to delete secrets upon uninstall? ', defaultValue: false},
+  {
+    flag: Flags.updateAccountKeys,
+    message:
+      'Would you like to updates the special account keys to new keys and stores their keys in a corresponding Kubernetes secret? ',
+    defaultValue: true,
+  },
+  {
+    flag: Flags.persistentVolumeClaims,
+    message: 'Would you like to enable persistent volume claims to store data outside the pod? ',
+    defaultValue: false,
+  },
+  // outputDir and inputDir are string flags but their prompts use the toggle flow with the string default
+  {flag: Flags.outputDir, message: 'Enter path to directory to store the temporary context file', defaultValue: ''},
+  {flag: Flags.inputDir, message: 'Enter path to directory containing the temporary context file', defaultValue: ''},
+  {flag: Flags.loadBalancerEnabled, message: 'Enable load balancer? ', defaultValue: false},
+];
+
+const numberPromptCases: PromptCase[] = [
+  {flag: Flags.replicaCount, message: 'How many replica do you want? ', defaultValue: 1},
+  {flag: Flags.id, message: 'Enter component id: ', defaultValue: undefined},
+  {flag: Flags.mirrorNodeId, message: 'Enter mirror node id: ', defaultValue: undefined},
+  {flag: Flags.amount, message: 'How much HBAR do you want to add? ', defaultValue: 100},
+  {flag: Flags.createAmount, message: 'How many account to create? ', defaultValue: 1},
+];
+
+/** Flags whose prompts have bespoke behavior and are covered by dedicated test suites below. */
+const customPromptFlags: CommandFlag[] = [
+  Flags.numberOfConsensusNodes,
+  Flags.valuesFile,
+  Flags.networkDeploymentValuesFile,
+  Flags.chartDirectory,
+  Flags.tlsClusterIssuerType,
+  Flags.username,
+  Flags.context,
+];
+
+function simulateInteractiveTerminal(): void {
+  process.stdout.isTTY = true;
+  process.stdin.isTTY = true;
+}
+
+function simulateNonInteractiveTerminal(): void {
+  process.stdout.isTTY = false;
+  process.stdin.isTTY = false;
+}
+
+describe('Flag prompts', (): void => {
+  let originalStdoutIsTty: boolean | undefined;
+  let originalStdinIsTty: boolean | undefined;
+
+  beforeEach((): void => {
+    originalStdoutIsTty = process.stdout.isTTY;
+    originalStdinIsTty = process.stdin.isTTY;
+  });
+
+  afterEach((): void => {
+    process.stdout.isTTY = originalStdoutIsTty as boolean;
+    process.stdin.isTTY = originalStdinIsTty as boolean;
+  });
+
+  describe('text prompts', (): void => {
+    for (const promptCase of textPromptCases) {
+      describe(`--${promptCase.flag.name} (${promptCase.flag.constName})`, (): void => {
+        it('returns the provided value without prompting', async (): Promise<void> => {
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+          const result: unknown = await promptCase.flag.prompt(fakeTask.asTask(), 'provided-value');
+
+          expect(result).to.equal('provided-value');
+          expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+        });
+
+        it('prompts with the expected message and default when no value is provided', async (): Promise<void> => {
+          simulateInteractiveTerminal();
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['answered-value']);
+
+          const result: unknown = await promptCase.flag.prompt(fakeTask.asTask(), missingInput);
+
+          expect(result).to.equal('answered-value');
+          expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+          expect(fakeTask.recordedCalls[0].component).to.equal(inputPrompt);
+          expect(fakeTask.recordedCalls[0].options.message).to.equal(promptCase.message);
+          expect(fakeTask.recordedCalls[0].options.default).to.equal(promptCase.defaultValue);
+        });
+
+        it('fails without prompting when no value is provided and no TTY is attached', async (): Promise<void> => {
+          simulateNonInteractiveTerminal();
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+          await expect(promptCase.flag.prompt(fakeTask.asTask(), missingInput)).to.be.rejectedWith(
+            FlagInputFailedSoloError,
+            'Cannot prompt for input in non-interactive mode',
+          );
+          expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+        });
+
+        if (promptCase.emptyCheckMessage) {
+          it('rejects an empty prompt answer', async (): Promise<void> => {
+            simulateInteractiveTerminal();
+            const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['']);
+
+            await expect(promptCase.flag.prompt(fakeTask.asTask(), missingInput)).to.be.rejectedWith(
+              FlagInputFailedSoloError,
+              promptCase.emptyCheckMessage,
+            );
+          });
+        }
+      });
+    }
+  });
+
+  describe('toggle prompts', (): void => {
+    for (const promptCase of togglePromptCases) {
+      describe(`--${promptCase.flag.name} (${promptCase.flag.constName})`, (): void => {
+        it('returns a provided true value without prompting', async (): Promise<void> => {
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+          const result: unknown = await promptCase.flag.prompt(fakeTask.asTask(), true);
+
+          expect(result).to.equal(true);
+          expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+        });
+
+        it('returns a provided false value without prompting', async (): Promise<void> => {
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+          const result: unknown = await promptCase.flag.prompt(fakeTask.asTask(), false);
+
+          expect(result).to.equal(false);
+          expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+        });
+
+        it('prompts with the expected message and default when no value is provided', async (): Promise<void> => {
+          simulateInteractiveTerminal();
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([true]);
+
+          const result: unknown = await promptCase.flag.prompt(fakeTask.asTask(), missingInput);
+
+          expect(result).to.equal(true);
+          expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+          expect(fakeTask.recordedCalls[0].component).to.equal(confirmPrompt);
+          expect(fakeTask.recordedCalls[0].options.message).to.equal(promptCase.message);
+          expect(fakeTask.recordedCalls[0].options.default).to.equal(promptCase.defaultValue);
+        });
+
+        it('fails without prompting when no value is provided and no TTY is attached', async (): Promise<void> => {
+          simulateNonInteractiveTerminal();
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+          await expect(promptCase.flag.prompt(fakeTask.asTask(), missingInput)).to.be.rejectedWith(
+            FlagInputFailedSoloError,
+            'Cannot prompt for input in non-interactive mode',
+          );
+          expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+        });
+      });
+    }
+  });
+
+  describe('number prompts', (): void => {
+    for (const promptCase of numberPromptCases) {
+      describe(`--${promptCase.flag.name} (${promptCase.flag.constName})`, (): void => {
+        it('returns the provided number without prompting', async (): Promise<void> => {
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+          const result: unknown = await promptCase.flag.prompt(fakeTask.asTask(), 42);
+
+          expect(result).to.equal(42);
+          expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+        });
+
+        it('prompts with the expected message and default when no value is provided', async (): Promise<void> => {
+          simulateInteractiveTerminal();
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([7]);
+
+          const result: unknown = await promptCase.flag.prompt(fakeTask.asTask(), missingInput);
+
+          expect(result).to.equal(7);
+          expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+          expect(fakeTask.recordedCalls[0].component).to.equal(numberPrompt);
+          expect(fakeTask.recordedCalls[0].options.message).to.equal(promptCase.message);
+          expect(fakeTask.recordedCalls[0].options.default).to.equal(promptCase.defaultValue);
+        });
+
+        it('fails without prompting when no value is provided and no TTY is attached', async (): Promise<void> => {
+          simulateNonInteractiveTerminal();
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+          await expect(promptCase.flag.prompt(fakeTask.asTask(), missingInput)).to.be.rejectedWith(
+            FlagInputFailedSoloError,
+            'Cannot prompt for input in non-interactive mode',
+          );
+          expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+        });
+      });
+    }
+
+    it('returns a provided zero without prompting', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+      const result: unknown = await Flags.replicaCount.prompt(fakeTask.asTask(), 0);
+
+      expect(result).to.equal(0);
+      expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+    });
+
+    it('prompts when the provided value is a numeric string instead of a number', async (): Promise<void> => {
+      simulateInteractiveTerminal();
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([5]);
+
+      const result: unknown = await Flags.replicaCount.prompt(fakeTask.asTask(), '5');
+
+      expect(result).to.equal(5);
+      expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+    });
+  });
+
+  describe(`--${Flags.numberOfConsensusNodes.name} (${Flags.numberOfConsensusNodes.constName})`, (): void => {
+    it('returns the provided number without prompting', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+      const result: unknown = await Flags.numberOfConsensusNodes.prompt(fakeTask.asTask(), 3);
+
+      expect(result).to.equal(3);
+      expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+    });
+
+    it('re-prompts until a truthy number is entered', async (): Promise<void> => {
+      simulateInteractiveTerminal();
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([undefined, 3]);
+
+      const result: unknown = await Flags.numberOfConsensusNodes.prompt(fakeTask.asTask(), missingInput);
+
+      expect(result).to.equal(3);
+      expect(fakeTask.recordedCalls).to.have.lengthOf(2);
+      expect(fakeTask.recordedCalls[0].options.message).to.equal(
+        'Enter number of consensus nodes to add to the provided cluster (must be a positive number):',
+      );
+    });
+
+    it('fails without prompting when no value is provided and no TTY is attached', async (): Promise<void> => {
+      simulateNonInteractiveTerminal();
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+      await expect(Flags.numberOfConsensusNodes.prompt(fakeTask.asTask(), missingInput)).to.be.rejectedWith(
+        FlagInputFailedSoloError,
+        'Cannot prompt for input in non-interactive mode',
+      );
+    });
+  });
+
+  describe('values file prompts', (): void => {
+    describe(`--${Flags.valuesFile.name} (plain)`, (): void => {
+      it('returns the provided value unchanged and never prompts', async (): Promise<void> => {
+        const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+        const result: unknown = await Flags.valuesFile.prompt(fakeTask.asTask(), 'values.yaml,other-values.yaml');
+
+        expect(result).to.equal('values.yaml,other-values.yaml');
+        expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+      });
+
+      it('returns an empty value unchanged and never prompts', async (): Promise<void> => {
+        const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+        const result: unknown = await Flags.valuesFile.prompt(fakeTask.asTask(), '');
+
+        expect(result).to.equal('');
+        expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+      });
+    });
+
+    describe(`--${Flags.networkDeploymentValuesFile.name} (network deployment)`, (): void => {
+      it('accepts a comma separated multi-cluster value and returns it unchanged', async (): Promise<void> => {
+        const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+        const input: string = 'values.yaml,cluster-1=./a/b/values1.yaml,cluster-2=./a/b/values2.yaml';
+
+        const result: unknown = await Flags.networkDeploymentValuesFile.prompt(fakeTask.asTask(), input);
+
+        expect(result).to.equal(input);
+        expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+      });
+
+      it('returns an empty value unchanged and never prompts', async (): Promise<void> => {
+        const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+        const result: unknown = await Flags.networkDeploymentValuesFile.prompt(fakeTask.asTask(), '');
+
+        expect(result).to.equal('');
+        expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+      });
+    });
+
+    describe('parseValuesFilesInput', (): void => {
+      it('maps a plain path to the common key', (): void => {
+        const parsed: Record<ClusterReferenceName, Array<string>> = Flags.parseValuesFilesInput('values.yaml');
+
+        expect(parsed).to.deep.equal({[Flags.KEY_COMMON]: [PathEx.resolve('values.yaml')]});
+      });
+
+      it('groups cluster-prefixed paths by cluster reference', (): void => {
+        const parsed: Record<ClusterReferenceName, Array<string>> = Flags.parseValuesFilesInput(
+          'common.yaml,cluster-1=./a/values1.yaml,cluster-1=./a/values2.yaml,cluster-2=./b/values.yaml',
+        );
+
+        expect(parsed).to.deep.equal({
+          [Flags.KEY_COMMON]: [PathEx.resolve('common.yaml')],
+          'cluster-1': [PathEx.resolve('./a/values1.yaml'), PathEx.resolve('./a/values2.yaml')],
+          'cluster-2': [PathEx.resolve('./b/values.yaml')],
+        });
+      });
+
+      it('returns an empty record for empty input', (): void => {
+        expect(Flags.parseValuesFilesInput('')).to.deep.equal({});
+      });
+    });
+  });
+
+  describe(`--${Flags.chartDirectory.name} (${Flags.chartDirectory.constName})`, (): void => {
+    const missingDirectory: string = PathEx.join(os.tmpdir(), 'solo-flag-prompts-test-missing-directory');
+
+    it('returns an empty string when the literal "false" is provided', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+      const result: unknown = await Flags.chartDirectory.prompt(fakeTask.asTask(), 'false');
+
+      expect(result).to.equal('');
+      expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+    });
+
+    it('returns an empty value without prompting', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+      const result: unknown = await Flags.chartDirectory.prompt(fakeTask.asTask(), '');
+
+      expect(result).to.equal('');
+      expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+    });
+
+    it('returns an existing directory without prompting', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+      const result: unknown = await Flags.chartDirectory.prompt(fakeTask.asTask(), os.tmpdir());
+
+      expect(result).to.equal(os.tmpdir());
+      expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+    });
+
+    it('prompts for a replacement when the provided directory does not exist', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([os.tmpdir()]);
+
+      const result: unknown = await Flags.chartDirectory.prompt(fakeTask.asTask(), missingDirectory);
+
+      expect(result).to.equal(os.tmpdir());
+      expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+      expect(fakeTask.recordedCalls[0].options.message).to.equal('Enter local charts directory path: ');
+      expect(fakeTask.recordedCalls[0].options.default).to.equal('');
+    });
+
+    it('rejects when the prompted replacement directory does not exist either', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([missingDirectory]);
+
+      await expect(Flags.chartDirectory.prompt(fakeTask.asTask(), missingDirectory)).to.be.rejectedWith(
+        FlagInputFailedSoloError,
+        'Invalid chart directory',
+      );
+    });
+  });
+
+  describe(`--${Flags.tlsClusterIssuerType.name} (${Flags.tlsClusterIssuerType.constName})`, (): void => {
+    // current behavior: a provided value short-circuits to undefined instead of being returned
+    it('returns undefined without prompting when a value is provided', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
+
+      const result: unknown = await Flags.tlsClusterIssuerType.prompt(fakeTask.asTask(), 'acme-prod');
+
+      expect(result).to.equal(undefined);
+      expect(fakeTask.recordedCalls).to.have.lengthOf(0);
+    });
+
+    it('offers the issuer types as select choices when no value is provided', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['acme-staging']);
+
+      const result: unknown = await Flags.tlsClusterIssuerType.prompt(fakeTask.asTask(), '');
+
+      expect(result).to.equal('acme-staging');
+      expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+      expect(fakeTask.recordedCalls[0].component).to.equal(selectPrompt);
+      expect(fakeTask.recordedCalls[0].options.message).to.equal(
+        'Enter TLS cluster issuer type, available options are: "acme-staging", "acme-prod", or "self-signed":',
+      );
+      expect(fakeTask.recordedCalls[0].options.default).to.equal('self-signed');
+      expect(fakeTask.recordedCalls[0].options.choices).to.deep.equal(['acme-staging', 'acme-prod', 'self-signed']);
+    });
+
+    it('wraps prompt failures in a flag input error', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([], new Error('prompt aborted'));
+
+      await expect(Flags.tlsClusterIssuerType.prompt(fakeTask.asTask(), '')).to.be.rejectedWith(
+        FlagInputFailedSoloError,
+        'prompt aborted',
+      );
+    });
+  });
+
+  describe(`--${Flags.username.name} (${Flags.username.constName})`, (): void => {
+    // current behavior: the prompt always asks for the username, even when a value was provided
+    it('prompts even when a value is provided', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['newuser1']);
+
+      const result: unknown = await Flags.username.prompt(fakeTask.asTask(), 'provided');
+
+      expect(result).to.equal('newuser1');
+      expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+      expect(fakeTask.recordedCalls[0].options.message).to.equal(
+        'Please enter your username. Can only contain letters and numbers:',
+      );
+    });
+
+    it('re-prompts until the answer is alphanumeric', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['bad user!', 'gooduser1']);
+
+      const result: unknown = await Flags.username.prompt(fakeTask.asTask(), missingInput);
+
+      expect(result).to.equal('gooduser1');
+      expect(fakeTask.recordedCalls).to.have.lengthOf(2);
+    });
+
+    it('validates that the username is alphanumeric', (): void => {
+      expect(Flags.username.validate('user1')).to.equal(true);
+      expect(Flags.username.validate('user 1')).to.equal(false);
+      expect(Flags.username.validate('user-1')).to.equal(false);
+    });
+  });
+
+  describe(`--${Flags.context.name} (${Flags.context.constName})`, (): void => {
+    it('presents the provided contexts as select choices', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['context-2']);
+
+      const result: unknown = await Flags.context.prompt(fakeTask.asTask(), ['context-1', 'context-2']);
+
+      expect(result).to.equal('context-2');
+      expect(fakeTask.recordedCalls).to.have.lengthOf(1);
+      expect(fakeTask.recordedCalls[0].component).to.equal(selectPrompt);
+      expect(fakeTask.recordedCalls[0].options.message).to.equal('Select kubectl context');
+      expect(fakeTask.recordedCalls[0].options.choices).to.deep.equal(['context-1', 'context-2']);
+    });
+
+    it('mentions the cluster in the message when one is given', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['context-1']);
+
+      await Flags.context.prompt(fakeTask.asTask(), ['context-1'], 'cluster-1');
+
+      expect(fakeTask.recordedCalls[0].options.message).to.equal(
+        'Select kubectl context to be associated with cluster: cluster-1',
+      );
+    });
+  });
+
+  describe('shared prompt error handling', (): void => {
+    it('wraps prompt adapter failures in a flag input error naming the flag', async (): Promise<void> => {
+      simulateInteractiveTerminal();
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([], new Error('boom'));
+
+      await expect(Flags.namespace.prompt(fakeTask.asTask(), missingInput)).to.be.rejectedWith(
+        FlagInputFailedSoloError,
+        "Input validation failed for flag 'namespace': boom",
+      );
+    });
+  });
+
+  describe('coverage completeness', (): void => {
+    it('covers every flag that defines a prompt function', (): void => {
+      const coveredFlags: Set<CommandFlag> = new Set<CommandFlag>([
+        ...textPromptCases.map((promptCase: PromptCase): CommandFlag => promptCase.flag),
+        ...togglePromptCases.map((promptCase: PromptCase): CommandFlag => promptCase.flag),
+        ...numberPromptCases.map((promptCase: PromptCase): CommandFlag => promptCase.flag),
+        ...customPromptFlags,
+      ]);
+
+      const uncoveredFlags: string[] = Flags.allFlags
+        .filter((flag: CommandFlag): boolean => flag.prompt !== undefined && !coveredFlags.has(flag))
+        .map((flag: CommandFlag): string => `${flag.constName} (--${flag.name})`);
+
+      expect(uncoveredFlags).to.deep.equal([]);
+    });
+  });
+});
