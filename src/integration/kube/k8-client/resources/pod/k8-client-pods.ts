@@ -25,6 +25,7 @@ import {KubeError} from '../../../errors/kube-error.js';
 import {KubeMissingArgumentError} from '../../../errors/kube-missing-argument-error.js';
 import {KubePodNotFoundError} from '../../../errors/kube-pod-not-found-error.js';
 import {KubePodCreationFailedError} from '../../../errors/kube-pod-creation-failed-error.js';
+import {KubePodReadinessFailedError} from '../../../errors/kube-pod-readiness-failed-error.js';
 import {KubePodTerminationTimeoutError} from '../../../errors/kube-pod-termination-timeout-error.js';
 import * as constants from '../../../../../core/constants.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
@@ -238,7 +239,10 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     } catch (error: Error | unknown) {
       const errorMessage: string = error instanceof Error ? error.message : String(error);
       this.logger.showUser(`Pod readiness check failed: ${errorMessage}`);
-      throw new KubePodNotFoundError(`pods:${labels.join(',')}`);
+      // Wrap readiness failures in a dedicated error so CI reviewers can see the
+      // namespace/label selector that was being waited on while still preserving
+      // the underlying fatal pod cause for image-pull/startup debugging.
+      throw new KubePodReadinessFailedError(namespace.name, labels, error);
     }
   }
 
