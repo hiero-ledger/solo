@@ -317,4 +317,39 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     fs.writeFileSync(destinationPath, configContent, 'utf8');
     process.env.CONTAINERS_CONF = destinationPath;
   }
+
+  /**
+   * Pins podman's `crun` OCI runtime to the one shipped alongside the podman binary Solo is about to
+   * drive, by writing a `CONTAINERS_CONF_OVERRIDE` file.
+   *
+   * podman resolves its OCI runtime from the absolute paths in `containers.conf`, never from `PATH`,
+   * and the built-in search order puts the distribution `/usr/bin/crun` ahead of `/usr/local/bin/crun`.
+   * A host carrying a self-contained podman bundle (podman plus its own matched crun/conmon/netavark)
+   * next to an older distribution crun therefore runs that older crun, which rejects the OCI runtime
+   * spec version podman 5+ writes and aborts the container with `crun: unknown version specified` —
+   * surfacing through kind only as an opaque `exit status 126`.
+   *
+   * Only the runtime path is pinned, and `CONTAINERS_CONF_OVERRIDE` is layered on top of the host's
+   * existing configuration rather than replacing it, so every other host setting still applies.
+   *
+   * @param podmanBinaryDirectory - directory holding the podman binary resolved from the PATH
+   * @param soloHomeDirectory - Solo home directory; the override is written to its `config` subdirectory
+   * @returns the path to the override file, or undefined when podman has no sibling crun to pin, in
+   *   which case the host's own runtime resolution is left untouched
+   */
+  public static writeRuntimeOverride(podmanBinaryDirectory: string, soloHomeDirectory: string): string | undefined {
+    const crunPath: string = PathEx.join(podmanBinaryDirectory, 'crun');
+    if (!fs.existsSync(crunPath)) {
+      return undefined;
+    }
+
+    const configDirectory: string = PathEx.join(soloHomeDirectory, 'config');
+    if (!fs.existsSync(configDirectory)) {
+      fs.mkdirSync(configDirectory, {recursive: true});
+    }
+
+    const overridePath: string = PathEx.join(configDirectory, 'containers-runtime-override.conf');
+    fs.writeFileSync(overridePath, `[engine.runtimes]\ncrun = ["${crunPath.replaceAll('\\', '/')}"]\n`, 'utf8');
+    return overridePath;
+  }
 }

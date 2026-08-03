@@ -177,6 +177,15 @@ export class ClusterTaskManager extends ShellRunner {
           };
           // PATH must include both kindInstallationDirectory (for kind) and podmanPath (for podman).
           const kindRuntimePath: string = `${sudoEnvironment.PATH}${path.delimiter}${podmanPath}`;
+          // podman picks its OCI runtime from absolute paths, not from PATH, so extending PATH above
+          // is not enough to keep it away from an older distribution crun. configureBrewPodmanRuntime
+          // pins the runtime through CONTAINERS_CONF, but only for a Homebrew-managed podman; this
+          // covers the self-contained bundles it deliberately leaves alone. CONTAINERS_CONF_OVERRIDE
+          // layers on top of CONTAINERS_CONF, so the two compose when both apply.
+          const runtimeOverridePath: string | undefined = PodmanDependencyManager.writeRuntimeOverride(
+            podmanPath,
+            constants.SOLO_HOME_DIR,
+          );
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
           const kindConfigFilePath: string = this.getConfigFilePath(useSmallMemoryCluster);
           // Use `sudo env VAR=... PATH=... kind ...` instead of a shell env-var prefix so no shell is needed.
@@ -190,6 +199,7 @@ export class ClusterTaskManager extends ShellRunner {
               ...PodmanDependencyManager.toEnvironmentArguments(
                 this.podmanDependencyManager.containerConfigEnvironment(),
               ),
+              ...(runtimeOverridePath ? [`CONTAINERS_CONF_OVERRIDE=${runtimeOverridePath}`] : []),
               'kind',
               'create',
               'cluster',
