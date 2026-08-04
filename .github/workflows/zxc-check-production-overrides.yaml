@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   check-production-overrides:
-    name: "Production Overrides (${{ inputs.custom-job-label }})"
+    name: "Check Production Overrides (${{ inputs.custom-job-label }})"
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
