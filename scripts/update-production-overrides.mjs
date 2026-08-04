@@ -71,6 +71,27 @@ for (const [key, value] of Object.entries(pkg.overrides ?? {})) {
   alreadyPinned.set(name, versions);
 }
 
+// A range with a lower bound but no upper one ("&gt;=18", "*") intersects every
+// major line, so npm cannot tell which of several line-scoped pins applies to
+// it and may pick one that contradicts the rest of the tree — npm 10 rejects
+// the install outright with ERESOLVE. Packages consumed through such a range
+// therefore get a single pin, on the hoisted version, and nothing else.
+function isOpenEnded(range) {
+  return range
+    .split('||')
+    .map((part) => part.trim())
+    .some((part) => part === '' || part === '*' || part === 'x' || (/^>=?[^<]*$/.test(part) && !part.includes('-')));
+}
+
+const openEndedNames = new Set();
+for (const info of Object.values(lock.packages ?? {})) {
+  for (const group of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+    for (const [name, range] of Object.entries(info[group] ?? {})) {
+      if (isOpenEnded(range)) openEndedNames.add(name);
+    }
+  }
+}
+
 // Collect every version of every package in the resolved tree, noting which
 // one npm hoisted to the top level.
 const installedVersions = new Map();
@@ -105,6 +126,7 @@ for (const [name, versions] of installedVersions) {
   if (hoisted !== undefined) lineOwner.set(scopedKey(name, hoisted), hoisted);
   for (const version of versions) {
     if (alreadyPinned.get(name)?.has(version)) continue; // covered by an existing entry
+    if (openEndedNames.has(name) && version !== hoisted) continue; // one pin only, see isOpenEnded
     const line = scopedKey(name, version);
     generated[lineOwner.get(line) === version ? line : `${name}@^${version}`] = version;
   }

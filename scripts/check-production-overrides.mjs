@@ -51,6 +51,26 @@ function collectPins(object) {
 }
 collectPins(overrides);
 
+// A range with a lower bound but no upper one (">=18", "*") intersects every
+// major line, so a package consumed through one carries a single pin — on the
+// hoisted version — and its other versions are deliberately left unpinned.
+// Pinning several lines of such a package makes npm 10 fail with ERESOLVE.
+function isOpenEnded(range) {
+  return range
+    .split('||')
+    .map((part) => part.trim())
+    .some((part) => part === '' || part === '*' || part === 'x' || (/^>=?[^<]*$/.test(part) && !part.includes('-')));
+}
+
+const openEndedNames = new Set();
+for (const info of Object.values(lock.packages ?? {})) {
+  for (const group of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+    for (const [name, range] of Object.entries(info[group] ?? {})) {
+      if (isOpenEnded(range)) openEndedNames.add(name);
+    }
+  }
+}
+
 const missing = [];
 const mismatched = [];
 const seen = new Set();
@@ -63,6 +83,8 @@ for (const [path, info] of Object.entries(lock.packages ?? {})) {
   // real package name; the override names the real package.
   const name = info.name ?? path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length);
   const lockedVersion = info.version;
+  // Only the hoisted copy of an open-ended package carries a pin.
+  if (openEndedNames.has(name) && path.includes('/node_modules/')) continue;
   if (seen.has(`${name}@${lockedVersion}`)) continue;
   seen.add(`${name}@${lockedVersion}`);
 
