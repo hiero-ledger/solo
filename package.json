@@ -293,6 +293,9 @@
     "libphonenumber-js": "1.13.9",
     "listr2": "11.0.0",
     "lodash.camelcase": "4.3.0",
+    "log-symbols": {
+      "chalk": "4.1.2"
+    },
     "log-update": "8.0.0",
     "loglevel": "1.9.2",
     "long": "5.3.1",
