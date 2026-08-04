@@ -107,7 +107,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
       dual-cluster-node-count:
         description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
         type: number
@@ -204,7 +204,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
       dual-cluster-node-count:
         description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
         type: number
@@ -268,9 +268,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: ${{ inputs.node-version }}
-
-      - name: Setup npm
-        run: npm install --global npm@11.6.2
 
       - name: Configure npm registry
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

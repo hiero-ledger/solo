@@ -27,7 +27,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -76,9 +76,6 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           cache: npm
-
-      - name: Setup npm
-        run: npm install --global npm@11.6.2
 
       - name: Configure npm registry
         run: echo "registry=https://registry.npmjs.org/" > .npmrc

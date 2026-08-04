@@ -28,7 +28,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
       consensus-node-version:
         description: "Consensus node release tag to use"
         type: string
@@ -55,7 +55,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
       consensus-node-version:
         description: "Consensus node release tag to use"
         type: string
@@ -174,11 +174,8 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: ${{ inputs.node-version || '22' }}
+          node-version: ${{ inputs.node-version || '24' }}
           cache: npm
-
-      - name: Setup npm
-        run: npm install --global npm@11.6.2
 
       - name: Configure npm registry
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

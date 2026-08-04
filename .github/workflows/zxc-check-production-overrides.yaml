@@ -51,10 +51,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "22"
-
-      - name: Setup npm
-        run: npm install --global npm@11.6.2
+          node-version: "24"
 
       - name: Check production overrides are current
         run: node scripts/check-production-overrides.mjs

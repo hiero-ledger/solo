@@ -27,7 +27,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -69,9 +69,6 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ inputs.node-version }}
-
-      - name: Setup npm
-        run: npm install --global npm@11.6.2
 
       - name: Configure npm registry
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
