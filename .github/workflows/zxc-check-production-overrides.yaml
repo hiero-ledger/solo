@@ -53,5 +53,8 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Setup npm
+        run: npm install --global npm@11.6.2
+
       - name: Check production overrides are current
         run: node scripts/check-production-overrides.mjs

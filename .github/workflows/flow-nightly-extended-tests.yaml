@@ -66,6 +66,9 @@ jobs:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
 
+      - name: Setup npm
+        run: npm install --global npm@11.6.2
+
       - name: Configure npm registry
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
@@ -135,6 +138,9 @@ jobs:
         with:
           node-version: ${{ inputs.node-version || '22' }}
           cache: npm
+
+      - name: Setup npm
+        run: npm install --global npm@11.6.2
 
       - name: Configure npm registry
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

@@ -99,6 +99,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup npm
+        run: npm install --global npm@11.6.2
+
       - name: Install Task
         uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

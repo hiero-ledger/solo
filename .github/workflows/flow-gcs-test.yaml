@@ -120,6 +120,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup npm
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        run: npm install --global npm@11.6.2
+
       - name: Configure npm registry
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

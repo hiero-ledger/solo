@@ -75,6 +75,9 @@ jobs:
           node-version: 22
           cache: 'npm'
 
+      - name: Setup npm
+        run: npm install --global npm@11.6.2
+
       - name: Install Dependencies
         uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:

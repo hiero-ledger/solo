@@ -141,6 +141,10 @@ jobs:
         with:
           node-version: 22
 
+      - name: Setup npm
+        if: matrix.use_setup_node
+        run: npm install --global npm@11.6.2
+
       - name: Install Dependencies
         run: npm ci
 

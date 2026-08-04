@@ -70,6 +70,9 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
+      - name: Setup npm
+        run: npm install --global npm@11.6.2
+
       - name: Configure npm registry
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
 
