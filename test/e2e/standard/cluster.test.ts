@@ -94,7 +94,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         it('solo cluster setup should fail with invalid cluster name', async (): Promise<void> => {
           await expect(
             main(ClusterReferenceTest.soloClusterReferenceSetup(testName, clusterReferenceName, 'INVALID')),
-          ).to.be.rejectedWith("Namespace name 'INVALID' is invalid");
+          ).to.be.rejectedWith("Invalid value 'INVALID' for flag --cluster-setup-namespace");
         }).timeout(Duration.ofMinutes(1).toMillis());
 
         it('solo cluster setup should work with valid args', async (): Promise<void> => {

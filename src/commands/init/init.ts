@@ -52,7 +52,7 @@ export class InitCommand extends BaseCommand {
           this.configManager.update(argv);
           context_.dirs = this.setupHomeDirectory();
           let username: string = this.configManager.getFlag<string>(flags.username);
-          if (username && !flags.username.validate(username)) {
+          if (username) {
             username = await flags.username.prompt(task, username);
           }
           context_.config = {username} as InitConfig;

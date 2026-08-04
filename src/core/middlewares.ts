@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../commands/flags.js';
+import {FlagValidation} from '../commands/validation/flag-validation.js';
 import chalk from 'chalk';
 
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
@@ -201,6 +202,9 @@ export class Middlewares {
 
       // apply precedence for flags
       argv = configManager.applyPrecedence(argv, yargs.parsed.aliases);
+
+      // Before update(), which coerces some values and would report its own error instead of a flag-scoped one.
+      FlagValidation.assertAllValid(argv);
 
       // update config manager
       configManager.update(argv);
