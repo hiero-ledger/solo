@@ -122,6 +122,7 @@
     "typescript-eslint": "8.65.0"
   },
   "overrides": {
+    "cacheable-request": "13.0.19",
     "@grpc/grpc-js": "1.13.5",
     "protobufjs": "8.7.1",
     "@grpc/proto-loader": {

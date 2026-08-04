@@ -160,7 +160,7 @@ jobs:
           sudo mv /tmp/yq /usr/local/bin/yq
           yq --version
 
-          npm install
+          npm ci
           task build:compile
 
           # Run the script in the background and trap SIGTERM/SIGINT so that a workflow
