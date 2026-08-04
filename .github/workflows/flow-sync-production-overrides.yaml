@@ -71,38 +71,7 @@ jobs:
       - name: Regenerate production overrides
         run: node scripts/update-production-overrides.mjs
 
-      - name: Commit updated overrides if changed
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          script: |
-            const fs = require('fs');
-            const newContent = fs.readFileSync('package.json', 'utf8');
-
-            const ref = context.payload.pull_request?.head?.ref ?? context.ref.replace('refs/heads/', '');
-
-            // Fetch current file to get its blob SHA (required by the API for updates).
-            const {data: current} = await github.rest.repos.getContent({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path: 'package.json',
-              ref,
-            });
-
-            if (Buffer.from(current.content, 'base64').toString('utf8') === newContent) {
-              console.log('No changes to commit.');
-              return;
-            }
-
-            // The GitHub API creates Verified (GPG-signed) commits automatically.
-            // The Signed-off-by trailer satisfies the DCO requirement.
-            await github.rest.repos.createOrUpdateFileContents({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path: 'package.json',
-              message: 'chore: sync production dependency overrides\n\nSigned-off-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>',
-              content: Buffer.from(newContent).toString('base64'),
-              sha: current.sha,
-              branch: ref,
-            });
-
-            console.log('Committed refreshed overrides via GitHub API.');
+      - name: Validate package.json unchanged
+        run:
+          # Git diff to see if the package.json file has changed after regenerating overrides
+          git diff --exit-code package.json
