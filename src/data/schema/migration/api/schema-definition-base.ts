@@ -27,6 +27,12 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     }
 
     const migrated: object = await this.applyMigrations(clone, new SemanticVersion(dataVersion));
+    // TODO(config-checks #3/#9 — schema version too new): assert the migrated data reached the
+    //   current SCHEMA_VERSION. If dataVersion is newer than any known migration, applyMigrations is
+    //   a no-op and unknown data is passed through silently. Fail-fast with a "created by a newer
+    //   Solo — upgrade or remove" error (new SchemaVersionTooNewError). Shared guard for local +
+    //   remote. Prerequisite: #4 (SCHEMA_VERSION const must match latest migration).
+    //   See docs/design/architecture/system/config-checks-to-add.md
     return this.mapper.fromObject(this.classConstructor, migrated);
   }
 

@@ -13,6 +13,10 @@ export class KubernetesApiInvalidResponseSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
+  // TODO(config-checks #8 — preserve the original cause): this constructor takes no arguments, so
+  //   callers (e.g. remote-config getConfigMap) cannot chain the underlying kube error. Add a
+  //   `cause` parameter and pass it through to SoloError so logs show the real reason. Pure
+  //   improvement, no decision. See docs/design/architecture/system/config-checks-to-add.md
   public constructor() {
     super({
       message: 'Received an incorrect or unexpected response from the Kubernetes API',

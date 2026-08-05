@@ -326,6 +326,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         .configMaps()
         .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
     } catch (error) {
+      // TODO(config-checks #8 — preserve the original cause): the non-404 branch discards `error`, so
+      //   the real failure (unreachable / RBAC / API error) is lost. Pass `error` as the cause once
+      //   the error constructor accepts one. See docs/design/architecture/system/config-checks-to-add.md
       throw error instanceof ResourceNotFoundError ? error : new SoloErrors.system.kubernetesApiInvalidResponse();
     }
     if (!configMap) {
@@ -392,7 +395,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const context: Context = this.populateClusterReferences(deploymentName);
 
-    // TODO: Compare configs from clusterReferences
+    // TODO(config-checks #14 — cross-cluster config comparison): only one context is loaded here;
+    //   load remote config from every context in the deployment and reconcile drift.
+    //   DECISION: which cluster is authoritative on mismatch? heal / warn / fail.
+    //   See docs/design/architecture/system/config-checks-to-add.md
     await this.load(this.namespace, context);
 
     this.logger.info('Remote config loaded');

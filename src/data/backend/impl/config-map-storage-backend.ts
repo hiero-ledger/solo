@@ -57,6 +57,10 @@ export class ConfigMapStorageBackend implements StorageBackend {
     try {
       const data: Record<string, string> = this.configMap.data;
 
+      // TODO(config-checks #7 — coded remote-config error family): "config map is empty" / "error
+      //   reading config map" surface as raw StorageBackendError with no SOLO code or remediation;
+      //   fold into the typed remote-config-corrupt error family.
+      //   See docs/design/architecture/system/config-checks-to-add.md
       if (data && Object.keys(data).length > 0) {
         const value: string = data[key];
         return Buffer.from(value, 'utf8');
