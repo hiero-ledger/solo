@@ -556,6 +556,27 @@ jobs:
       - name: Install NPM latest
         run: npm install -g npm@11.7.0
 
+      - name: Resolve NPM Dist Tag
+        id: dist-tag
+        run: |
+          # A maintenance release is older than whatever "latest" already points at, and
+          # npm refuses to move "latest" backwards:
+          #
+          #   npm error Cannot implicitly apply the "latest" tag because previously
+          #   published version 0.85.0 is higher than the new version 0.64.2.
+          #
+          # Publish those to the channel tag for their line instead, matching the
+          # release-<major>.<minor>.x tags already on the registry for earlier lines.
+          # The default branch keeps "latest".
+          if [[ "${{ github.ref_name }}" =~ ^release/([0-9]+)\.([0-9]+)$ ]]; then
+            NPM_DIST_TAG="release-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.x"
+          else
+            NPM_DIST_TAG="latest"
+          fi
+
+          echo "Publishing from '${{ github.ref_name }}' to dist-tag '${NPM_DIST_TAG}'"
+          echo "npm-dist-tag=${NPM_DIST_TAG}" >> "${GITHUB_OUTPUT}"
+
       - name: Download Hashgraph NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' && inputs.dry-run-enabled != true }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -580,7 +601,7 @@ jobs:
         if: ${{ inputs.dry-run-enabled == true || needs.create-github-release.outputs.need-hg-publish == 'true' }}
         run: |
           echo "::group::Set Publish Args"
-            FLAGS="--access=public"
+            FLAGS="--access=public --tag ${{ steps.dist-tag.outputs.npm-dist-tag }}"
             echo "flags=${FLAGS}"
           echo "::endgroup::"
 
@@ -602,7 +623,7 @@ jobs:
         if: ${{ inputs.dual-publish-enabled == true && (needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true) }}
         run: |
           echo "::group::Set Publish Args"
-            FLAGS="--access=public"
+            FLAGS="--access=public --tag ${{ steps.dist-tag.outputs.npm-dist-tag }}"
             echo "flags=${FLAGS}"
           echo "::endgroup::"
 
