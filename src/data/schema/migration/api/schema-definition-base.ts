@@ -34,8 +34,8 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     if (this.migrations.length === 0) {
       return;
     }
-    // eslint-disable-next-line unicorn/no-array-sort
-    const versionJumps: number[] = this.migrations.map((value): number => value.version.major).sort();
+    const versionJumps: number[] = this.migrations.map((value): number => value.version.major);
+    versionJumps.sort((left: number, right: number): number => left - right);
 
     for (let index: number = 1; index < versionJumps.length; index++) {
       if (versionJumps[index] === versionJumps[index - 1]) {
@@ -43,17 +43,31 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
       }
     }
 
-    let currentVersion: SemanticVersion<number> = this.nextVersionJump(new SemanticVersion(0));
+    // A migration which produces data newer than the declared schema version means the declared version was never
+    // bumped alongside the migration. Newly created configurations would then be stamped with a stale version and
+    // needlessly re-migrated on the next load.
+    const newestMigrationVersion: number = versionJumps.at(-1);
+    if (newestMigrationVersion > this.version.major) {
+      throw new SchemaValidationError(
+        `Migration version '${newestMigrationVersion}' is newer than the declared schema version ` +
+          `'${this.version.major}'; the declared schema version must be bumped alongside the migration`,
+      );
+    }
+
+    // Walk the chain from the unversioned form (version zero) and assert that every jump lands exactly on the next
+    // registered migration version. The walk stops on the newest migration; looking beyond it would always report a
+    // gap because no migration exists to advance past the current schema version.
+    let currentVersion: SemanticVersion<number> = new SemanticVersion(0);
 
     for (const versionJump of versionJumps) {
-      const v: SemanticVersion<number> = new SemanticVersion(versionJump);
-      if (!v.equals(currentVersion)) {
+      const nextVersion: SemanticVersion<number> = this.nextVersionJump(currentVersion);
+      if (!nextVersion.equals(new SemanticVersion(versionJump))) {
         throw new SchemaValidationError(
-          `Invalid migration version sequence detected; expected version '${v.major}' but got '${currentVersion.major}'`,
+          `Invalid migration version sequence detected; expected version '${versionJump}' but got '${nextVersion.major}'`,
         );
       }
 
-      currentVersion = this.nextVersionJump(currentVersion);
+      currentVersion = nextVersion;
     }
 
     return;
