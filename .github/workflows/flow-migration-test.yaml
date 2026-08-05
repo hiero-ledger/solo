@@ -93,9 +93,42 @@ jobs:
           max_attempts: 3
           timeout_minutes: 5
           command: |
-            LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
-            echo "Latest Version: ${LATEST_VERSION}"
-            echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
+            # The prior release has to come from this branch's own release line. The "latest"
+            # dist-tag points at whatever is newest across all lines, so on a maintenance branch
+            # it selects a newer release and the test migrates *down* into an older config
+            # schema, which is unsupported and fails with "schemaVersion: N not found".
+            CURRENT_VERSION=$(jq -r '.version' package.json)
+            RELEASE_LINE="${CURRENT_VERSION%.*}"
+
+            ALL_VERSIONS=$(curl -s https://registry.npmjs.org/@hashgraph/solo \
+              | jq -r '.versions | keys[]' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+
+            # Newest release on this line that is strictly older than the version being built.
+            # Appending CURRENT_VERSION and cutting the sorted list at its first occurrence
+            # leaves only genuinely older releases, whether or not it is itself published.
+            PRIOR_VERSION=$(printf '%s\n%s\n' \
+              "$(printf '%s\n' "${ALL_VERSIONS}" | grep -E "^${RELEASE_LINE}\.")" \
+              "${CURRENT_VERSION}" \
+              | grep -v '^$' | sort -V \
+              | awk -v current="${CURRENT_VERSION}" '$0 == current { exit } { print }' | tail -n 1)
+
+            # A line with no earlier publish (a freshly cut branch) falls back to the newest
+            # older release on any line, which is still never a downgrade.
+            if [[ -z "${PRIOR_VERSION}" ]]; then
+              PRIOR_VERSION=$(printf '%s\n%s\n' "${ALL_VERSIONS}" "${CURRENT_VERSION}" \
+                | grep -v '^$' | sort -V \
+                | awk -v current="${CURRENT_VERSION}" '$0 == current { exit } { print }' | tail -n 1)
+            fi
+
+            if [[ -z "${PRIOR_VERSION}" ]]; then
+              echo "No published release older than ${CURRENT_VERSION} was found" >&2
+              exit 1
+            fi
+
+            echo "Current Version: ${CURRENT_VERSION}"
+            echo "Prior Version: ${PRIOR_VERSION}"
+            echo "version=${PRIOR_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Launch Network with Prior Release ${{ steps.get-version.outputs.version }}
         timeout-minutes: 60
