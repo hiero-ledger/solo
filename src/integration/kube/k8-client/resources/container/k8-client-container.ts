@@ -345,7 +345,7 @@ export class K8ClientContainer implements Container {
     // Retry transient exec failures that occur before the command runs: kubelet reporting "container not found" during rolling restarts, and API server to kubelet tunnel errors (connection upgrade, dial, timeout).
     const maxAttempts: number = 30;
     const retryableTransientFailure: RegExp =
-      /(container not found|unable to upgrade connection|internal error occurred: timeout occurred|error dialing backend)/i;
+      /(container not found|unable to upgrade connection|internal error occurred: timeout occurred|error dialing backend|connection reset by peer)/i;
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -368,18 +368,42 @@ export class K8ClientContainer implements Container {
   }
 
   public async hasDir(destinationPath: string): Promise<boolean> {
+    const maxAttempts: number = 3;
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const result: string = await this.probeDirectory(destinationPath);
+
+      if (result === 'true' || result === 'false') {
+        return result === 'true';
+      }
+
+      // an exec stream cut mid-flight (e.g. containerd restart) can exit 0 with no output, so only the literal probe answers are trusted
+      this.logger.warn(
+        `hasDir: unexpected probe output '${result}' on attempt ${attempt} of ${maxAttempts} [podName: ${this.containerReference.parentReference.name} -c ${this.containerReference.name}, path: ${destinationPath}]`,
+      );
+
+      if (attempt < maxAttempts) {
+        await sleep(Duration.ofMillis(attempt * 1000));
+      }
+    }
+
+    throw new KubeContainerOperationFailedError(
+      `hasDir ${destinationPath}`,
+      new Error('directory probe returned no usable output after retries'),
+    );
+  }
+
+  private async probeDirectory(destinationPath: string): Promise<string> {
     const bashScript: string = `[[ -d "${destinationPath}" ]] && echo -n "true" || echo -n "false"`;
     try {
-      const result: string = await this.execContainer(['bash', '-c', bashScript]);
-      return result === 'true';
+      return await this.execContainer(['bash', '-c', bashScript]);
     } catch (error) {
       this.logger.debug(
         `hasDir failed using bash for ${this.containerReference.parentReference.name}:${this.containerReference.name}, retrying with /bin/sh`,
         error,
       );
       const shScript: string = `[ -d "${destinationPath}" ] && echo -n "true" || echo -n "false"`;
-      const result: string = await this.execContainer(['/bin/sh', '-c', shScript]);
-      return result === 'true';
+      return await this.execContainer(['/bin/sh', '-c', shScript]);
     }
   }
 
