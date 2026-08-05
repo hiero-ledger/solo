@@ -22,6 +22,8 @@ import {ValueContainer} from '../../../src/core/dependency-injection/value-conta
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type SoloListrTask} from '../../../src/types/index.js';
+import {type NodeCommonConfigClass} from '../../../src/commands/node/config-interfaces/node-common-config-class.js';
 
 describe('NodeCommandTasks.addWrapsLib', (): void => {
   let configManager: ConfigManager;
@@ -50,7 +52,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     downloaderStub = {fetchPackage: sinon.stub().resolves()};
     zippyStub = {untar: sinon.stub()};
 
-    const remoteConfigStub: {configuration: {state: {wrapsEnabled: boolean}}; isLoaded: any} = {
+    const remoteConfigStub: {configuration: {state: {wrapsEnabled: boolean}}; isLoaded: sinon.SinonStub} = {
       configuration: {state: {wrapsEnabled: true}},
       isLoaded: sinon.stub().returns(true),
     };
@@ -93,8 +95,8 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, sourceDirectory);
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
-    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+    const listrTask: SoloListrTask<{config: NodeCommonConfigClass}> = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as unknown as {config: NodeCommonConfigClass}, {} as never);
 
     const copiedFiles: string[] = fs.readdirSync(extractedDirectory);
     expect(copiedFiles).to.have.members(allowedFiles);
@@ -115,8 +117,8 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, sourceDirectory);
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
-    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+    const listrTask: SoloListrTask<{config: NodeCommonConfigClass}> = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as unknown as {config: NodeCommonConfigClass}, {} as never);
 
     const copiedFiles: string[] = fs.readdirSync(extractedDirectory);
     expect(copiedFiles).to.have.members(allowedFiles);
@@ -130,10 +132,10 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, '/this/path/does/not/exist');
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
+    const listrTask: SoloListrTask<{config: NodeCommonConfigClass}> = nodeCommandTasks.addWrapsLib();
 
     try {
-      await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+      await listrTask.task({config: {consensusNodes: []}} as unknown as {config: NodeCommonConfigClass}, {} as never);
       expect.fail('Expected SoloError to be thrown');
     } catch (error) {
       expect(error).to.be.instanceOf(SoloError);
@@ -150,8 +152,8 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, sourceDirectory);
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
-    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+    const listrTask: SoloListrTask<{config: NodeCommonConfigClass}> = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as unknown as {config: NodeCommonConfigClass}, {} as never);
 
     expect(fs.existsSync(extractedDirectory)).to.be.true;
     expect(fs.readdirSync(extractedDirectory)).to.include('decider_pp.bin');
@@ -161,8 +163,8 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     const argv: Argv = Argv.initializeEmpty();
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
-    await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
+    const listrTask: SoloListrTask<{config: NodeCommonConfigClass}> = nodeCommandTasks.addWrapsLib();
+    await listrTask.task({config: {consensusNodes: []}} as unknown as {config: NodeCommonConfigClass}, {} as never);
 
     expect(downloaderStub.fetchPackage.calledOnce).to.be.true;
     expect(zippyStub.untar.calledOnce).to.be.true;
