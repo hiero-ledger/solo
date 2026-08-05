@@ -66,11 +66,7 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import {
-  HEDERA_PLATFORM_VERSION,
-  MINIMUM_SOLO_CHART_VERSION,
-  needsConfigTxtForConsensusVersion,
-} from '../../../version.js';
+import {HEDERA_PLATFORM_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -108,6 +104,7 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  type EndpointPortMapping,
   type NodeAliasToAddressMapping,
   type Optional,
   type PriorityMapping,
@@ -1190,16 +1187,6 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        const consensusVersion: SemanticVersion<string> | undefined =
-          this.remoteConfig.configuration?.versions?.consensusNode;
-        const releaseTag: string = consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
-        const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
-        const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
-        if (needsConfigTxt && (await k8Container.hasFile(configSource))) {
-          // copy the config.txt file from the node1 upgrade directory if it exists
-          await k8Container.copyFrom(configSource, stagingDir);
-        }
-
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
 
@@ -1694,6 +1681,8 @@ export class NodeCommandTasks {
             config.consensusNodes,
             config.stagingDir,
             config.domainNamesMapping,
+            config.gossipEndpointPortMapping,
+            config.serviceEndpointPortMapping,
           );
         }
 
@@ -1964,12 +1953,16 @@ export class NodeCommandTasks {
    * @param keysDirectory - keys directory
    * @param stagingDirectory - staging directory
    * @param domainNamesMapping
+   * @param gossipEndpointPortMapping - port overrides for the gossip endpoints
+   * @param serviceEndpointPortMapping - port overrides for the gRPC service endpoints
    */
   private async generateGenesisNetworkJson(
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
     stagingDirectory: string,
     domainNamesMapping?: Record<NodeAlias, string>,
+    gossipEndpointPortMapping?: EndpointPortMapping,
+    serviceEndpointPortMapping?: EndpointPortMapping,
   ): Promise<void> {
     const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap: Map<NodeAlias, NetworkNodeServices> = await this.accountManager.getNodeServiceMap(
@@ -1991,6 +1984,8 @@ export class NodeCommandTasks {
       networkNodeServiceMap,
       adminPublicKeys,
       domainNamesMapping,
+      gossipEndpointPortMapping,
+      serviceEndpointPortMapping,
     );
 
     const genesisNetworkJson: string = PathEx.join(stagingDirectory, 'genesis-network.json');
@@ -2162,9 +2157,9 @@ export class NodeCommandTasks {
     ].join('\n');
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+  public enableDebuggerPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Enable port forwarding for debug port and/or GRPC port',
+      title: 'Enable port forwarding for JVM debugger',
       task: async ({config}): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
@@ -2178,6 +2173,18 @@ export class NodeCommandTasks {
 
           await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
         }
+      },
+      skip: ({config}): boolean => !config.debugNodeAlias,
+    };
+  }
+
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable port forwarding for debug port and/or GRPC port',
+      task: async ({config}): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
+        const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
         if (config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
@@ -2425,10 +2432,10 @@ export class NodeCommandTasks {
     };
   }
 
-  public emitNodeStartedEvent(): SoloListrTask<NodeAddContext> {
+  public emitNodeStartedEvent(): SoloListrTask<NodeStartContext> {
     return {
       title: 'Emit node started event',
-      task: async (context_: NodeAddContext): Promise<void> => {
+      task: async (context_: NodeStartContext): Promise<void> => {
         this.eventBus.emit(new NodesStartedEvent(context_.config.deployment));
       },
     };
@@ -3299,7 +3306,11 @@ export class NodeCommandTasks {
               [],
             ),
             k8,
-            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            Templates.resolveEndpointPort(
+              config.gossipEndpointPortMapping,
+              config.nodeAlias,
+              +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            ),
             gossipFqdnRestricted,
           );
 
@@ -3349,6 +3360,12 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const config: NodeAddConfigClass = context_.config;
         let endpoints: string[] = [];
+        // without an override the gRPC service endpoint keeps using the external gossip port, as it always has
+        const servicePort: number = Templates.resolveEndpointPort(
+          config.serviceEndpointPortMapping,
+          config.nodeAlias,
+          +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+        );
 
         if (config.grpcEndpoints) {
           endpoints = splitFlagInput(config.grpcEndpoints);
@@ -3358,15 +3375,11 @@ export class NodeCommandTasks {
           }
 
           endpoints = [
-            `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT}`,
+            `${Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias)}:${servicePort}`,
           ];
         }
 
-        context_.grpcServiceEndpoints = prepareEndpoints(
-          config.endpointType,
-          endpoints,
-          constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
-        );
+        context_.grpcServiceEndpoints = prepareEndpoints(config.endpointType, endpoints, servicePort);
       },
     };
   }
@@ -3690,13 +3703,8 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
-        const releaseTag: string = config.releaseTag || HEDERA_PLATFORM_VERSION;
-        const configTxtPath: string | undefined = needsConfigTxtForConsensusVersion(releaseTag)
-          ? PathEx.joinWithRealPath(config.stagingDir, 'config.txt')
-          : undefined;
         const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
           PathEx.joinWithRealPath(config.stagingDir, 'templates', constants.APPLICATION_PROPERTIES),
-          configTxtPath,
         );
 
         const valuesFilesMap: Record<ClusterReferenceName, HelmChartValues> = {};

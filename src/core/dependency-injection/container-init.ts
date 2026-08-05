@@ -91,6 +91,8 @@ import {DefaultGitClient} from '../../integration/git/impl/default-git-client.js
 import {MetricsServerImpl} from '../../business/runtime-state/services/metrics-server-impl.js';
 import {VfkitDependencyManager} from '../dependency-managers/vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from '../dependency-managers/gvproxy-dependency-manager.js';
+import {NetavarkDependencyManager} from '../dependency-managers/netavark-dependency-manager.js';
+import {AardvarkDnsDependencyManager} from '../dependency-managers/aardvark-dns-dependency-manager.js';
 import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
@@ -153,6 +155,8 @@ export class Container {
       new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
       new SingletonContainer(InjectTokens.VfkitDependencyManager, VfkitDependencyManager),
       new SingletonContainer(InjectTokens.GvproxyDependencyManager, GvproxyDependencyManager),
+      new SingletonContainer(InjectTokens.NetavarkDependencyManager, NetavarkDependencyManager),
+      new SingletonContainer(InjectTokens.AardvarkDnsDependencyManager, AardvarkDnsDependencyManager),
       new SingletonContainer(InjectTokens.CraneDependencyManager, CraneDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
@@ -263,6 +267,8 @@ export class Container {
       new ValueContainer(InjectTokens.PodmanVersion, version.PODMAN_VERSION),
       new ValueContainer(InjectTokens.VfkitVersion, version.VFKIT_VERSION),
       new ValueContainer(InjectTokens.GvproxyVersion, version.GVPROXY_VERSION),
+      new ValueContainer(InjectTokens.NetavarkVersion, version.NETAVARK_VERSION),
+      new ValueContainer(InjectTokens.AardvarkDnsVersion, version.AARDVARK_DNS_VERSION),
       new ValueContainer(InjectTokens.CraneVersion, version.CRANE_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
