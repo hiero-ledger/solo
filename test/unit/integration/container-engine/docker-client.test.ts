@@ -10,6 +10,7 @@ import {SubprocessCommandProfile} from '../../../../src/core/subprocess-command-
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type DependencyManager} from '../../../../src/core/dependency-managers/index.js';
 import {type KindClient} from '../../../../src/integration/kind/kind-client.js';
+import {PodmanDependencyManager} from '../../../../src/core/dependency-managers/podman-dependency-manager.js';
 
 describe('DockerClient', (): void => {
   let previousKindProvider: string | undefined;
@@ -20,6 +21,8 @@ describe('DockerClient', (): void => {
     previousKindProvider = process.env.KIND_EXPERIMENTAL_PROVIDER;
     sandbox = sinon.createSandbox();
     shellRunnerRunStub = sandbox.stub(ShellRunner.prototype, 'run');
+    // Pin the host-dependent container configuration lookup so command shapes are deterministic.
+    sandbox.stub(PodmanDependencyManager.prototype, 'containerConfigEnvironment').returns({});
   });
 
   afterEach((): void => {
@@ -86,6 +89,10 @@ class DockerClientTestBuilder {
     } as unknown as DependencyManager;
   }
 
+  public static sudoPrefix(): string[] {
+    return ['-n', 'env', `PATH=${process.env.PATH || ''}`, 'podman'];
+  }
+
   public static containerExistsArguments(nodeName: string, prefix: readonly string[] = []): string[] {
     return [...prefix, 'container', 'exists', nodeName];
   }
@@ -101,7 +108,7 @@ class DockerClientTestBuilder {
     shellRunnerRunStub
       .withArgs(
         'sudo',
-        DockerClientTestBuilder.containerExistsArguments(nodeName, ['-n', 'podman']),
+        DockerClientTestBuilder.containerExistsArguments(nodeName, DockerClientTestBuilder.sudoPrefix()),
         sinon.match.object,
       )
       .rejects(new Error('missing rootful podman container'));

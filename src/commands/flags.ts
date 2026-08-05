@@ -2911,7 +2911,7 @@ export class Flags {
     constName: 'loadBalancerEnabled',
     name: 'load-balancer',
     definition: {
-      describe: 'Enable load balancer for network node proxies',
+      describe: 'Expose the deployed services via a LoadBalancer service type',
       defaultValue: false,
       type: 'boolean',
     },
@@ -3013,6 +3013,32 @@ export class Flags {
         'Custom domain names for consensus nodes mapping for the' +
         '(e.g. node0=domain.name where key is node alias and value is domain name)' +
         'with multiple nodes comma separated',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly gossipEndpointPort: CommandFlag = {
+    constName: 'gossipEndpointPort',
+    name: 'gossip-endpoint-port',
+    definition: {
+      describe:
+        'Port used when building the consensus node gossip endpoints published to the network' +
+        `\n(Default port: ${constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT})` +
+        '\n[Format: <port> to apply the same port to every node, or <alias>=<port>[,<alias>=<port>] per node]',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly serviceEndpointPort: CommandFlag = {
+    constName: 'serviceEndpointPort',
+    name: 'service-endpoint-port',
+    definition: {
+      describe:
+        'Port used when building the consensus node gRPC service endpoints published to the network' +
+        `\n(Default port: ${constants.GRPC_PORT})` +
+        '\n[Format: <port> to apply the same port to every node, or <alias>=<port>[,<alias>=<port>] per node]',
       type: 'string',
     },
     prompt: undefined,
@@ -3379,6 +3405,8 @@ export class Flags {
     Flags.dnsConsensusNodePattern,
     Flags.domainName,
     Flags.domainNames,
+    Flags.gossipEndpointPort,
+    Flags.serviceEndpointPort,
     Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,

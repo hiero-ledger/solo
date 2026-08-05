@@ -134,6 +134,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
   GOSSIP_KEY_SECRET_RESTORE_FAILED: 'SOLO-3091',
   SDK_CLIENT_NO_HEALTHY_NODES: 'SOLO-3092',
+  NODE_KEY_LOAD_FAILED: 'SOLO-3093',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -213,6 +214,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   BACKUP_NO_LOG_FILES: 'SOLO-4075',
   FLAG_INPUT_FAILED: 'SOLO-4076',
   CONFIRMATION_REQUIRED: 'SOLO-4077',
+  VALUES_FILE_NOT_FOUND: 'SOLO-4078',
+  VALUES_FILE_PARSE_FAILED: 'SOLO-4079',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -291,6 +294,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   UNSUPPORTED_LINUX_DISTRIBUTION: 'SOLO-5074',
   BLOCK_NODES_JSON_EMPTY: 'SOLO-5075',
   HELM_CHART_PULL_NO_ARCHIVE: 'SOLO-5076',
+  PODMAN_RUNTIME_CONFIGURATION_FAILED: 'SOLO-5077',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
