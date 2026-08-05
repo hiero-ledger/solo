@@ -67,7 +67,7 @@ jobs:
           checkout-ref: '${{ github.ref }}'
           checkout-token: '${{ secrets.GH_ACCESS_TOKEN }}'
           setup-node: 'true'
-          node-version: '22'
+          node-version: '24'
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Setup JQ
@@ -81,7 +81,7 @@ jobs:
           npm install -g conventional-changelog-conventionalcommits@9.1.0 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
           npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
 
-      - name: Calculate Next Version (default branch)
+      - name: Calculate Next Version
         id: calculate-version
         env:
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -91,28 +91,35 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
         run: |
           PROCEED="true"
-          if [[ "${{ github.event.repository.default_branch }}" == "${{ github.ref_name }}" ]]; then
-            if SEMREL_OUTPUT=$(npx semantic-release --dry-run 2>&1); then
-              if echo "${SEMREL_OUTPUT}" | grep -q "The next release version is"; then
-                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
-              else
-                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected NO new version"
-                PROCEED="false"
-              fi
+          # Ask Semantic Release for the version on every branch. Which branches are
+          # releasable is already decided by the "branches" config in .releaserc, which
+          # covers main, the release/N.N maintenance lines and the prerelease lines; a
+          # branch it does not recognise simply reports no release below. Gating this on
+          # the default branch meant a maintenance branch never computed its next version
+          # and instead reported the version already sitting in package.json, which is by
+          # construction the version of the *previous* release.
+          if SEMREL_OUTPUT=$(npx semantic-release --dry-run 2>&1); then
+            if echo "${SEMREL_OUTPUT}" | grep -q "The next release version is"; then
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
             else
-              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did NOT run successfully"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected NO new version"
               PROCEED="false"
             fi
-            echo "::group::SemVer output"
-            echo "${SEMREL_OUTPUT}"
-            echo "::endgroup::"
           else
-            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-              jq -r '.version' './package.json' > VERSION
-              PROCEED="true"
-            else
-              PROCEED="false"
-            fi
+            echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did NOT run successfully"
+            PROCEED="false"
+          fi
+          echo "::group::SemVer output"
+          echo "${SEMREL_OUTPUT}"
+          echo "::endgroup::"
+
+          # A dry run that finds nothing to release never invokes verifyReleaseCmd, so no
+          # VERSION file is written. Fall back to package.json so the dry run still reports
+          # a version rather than failing the job.
+          if [[ "${PROCEED}" == "false" ]] && [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "::notice file=flow-deploy-release-artifact.yaml::Dry run with no releasable change, reporting the current package.json version"
+            jq -r '.version' './package.json' > VERSION
+            PROCEED="true"
           fi
 
           echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
@@ -226,7 +233,7 @@ jobs:
           checkout-ref: '${{ github.ref }}'
           checkout-token: '${{ secrets.GH_ACCESS_TOKEN }}'
           setup-node: 'true'
-          node-version: '22'
+          node-version: '24'
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Install GnuPG Tools
@@ -548,11 +555,32 @@ jobs:
           checkout-ref: '${{ github.ref }}'
           checkout-token: '${{ secrets.GITHUB_TOKEN }}'
           setup-node: 'true'
-          node-version: '22'
+          node-version: '24'
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Install NPM latest
         run: npm install -g npm@11.7.0
+
+      - name: Resolve NPM Dist Tag
+        id: dist-tag
+        run: |
+          # A maintenance release is older than whatever "latest" already points at, and
+          # npm refuses to move "latest" backwards:
+          #
+          #   npm error Cannot implicitly apply the "latest" tag because previously
+          #   published version 0.85.0 is higher than the new version 0.64.2.
+          #
+          # Publish those to the channel tag for their line instead, matching the
+          # release-<major>.<minor>.x tags already on the registry for earlier lines.
+          # The default branch keeps "latest".
+          if [[ "${{ github.ref_name }}" =~ ^release/([0-9]+)\.([0-9]+)$ ]]; then
+            NPM_DIST_TAG="release-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.x"
+          else
+            NPM_DIST_TAG="latest"
+          fi
+
+          echo "Publishing from '${{ github.ref_name }}' to dist-tag '${NPM_DIST_TAG}'"
+          echo "npm-dist-tag=${NPM_DIST_TAG}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Hiero-Ledger NPM Package Artifact
         if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' && inputs.dry-run-enabled != true }}
@@ -578,7 +606,7 @@ jobs:
         if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
         run: |
           echo "::group::Set Publish Args"
-            FLAGS="--access=public"
+            FLAGS="--access=public --tag ${{ steps.dist-tag.outputs.npm-dist-tag }}"
             echo "flags=${FLAGS}"
           echo "::endgroup::"
 
@@ -600,7 +628,7 @@ jobs:
         if: ${{ inputs.dual-publish-enabled == true && (needs.create-github-release.outputs.need-hg-publish == 'true' || inputs.dry-run-enabled == true) }}
         run: |
           echo "::group::Set Publish Args"
-            FLAGS="--access=public"
+            FLAGS="--access=public --tag ${{ steps.dist-tag.outputs.npm-dist-tag }}"
             echo "flags=${FLAGS}"
           echo "::endgroup::"
 
