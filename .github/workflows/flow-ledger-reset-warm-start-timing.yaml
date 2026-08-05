@@ -72,7 +72,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
 
       - name: Install Dependencies
@@ -92,7 +92,7 @@ jobs:
       - name: Install Solo CLI (released)
         if: ${{ inputs.use-released-solo == true }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: npm i @hashgraph/solo@latest
+        run: npm i @hiero-ledger/solo@latest
 
       - name: Compile Project (from source)
         if: ${{ inputs.use-released-solo != true }}
@@ -103,7 +103,7 @@ jobs:
         id: solo-cmd
         run: |
           if [ "${{ inputs.use-released-solo }}" = "true" ]; then
-            echo "cmd=npx @hashgraph/solo" >> "$GITHUB_OUTPUT"
+            echo "cmd=npx @hiero-ledger/solo" >> "$GITHUB_OUTPUT"
           else
             echo "cmd=npm run solo --" >> "$GITHUB_OUTPUT"
           fi

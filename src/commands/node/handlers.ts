@@ -1095,11 +1095,11 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         // the gRPC forward stays after the proxy checks so it never targets a proxy pod that startup recovery replaced
         this.tasks.enableGrpcPortForwarding(),
+        this.tasks.emitNodeStartedEvent(),
         this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        this.tasks.emitNodeStartedEvent(),
         // TODO only show this if we are not running in one-shot mode
         // this.tasks.showUserMessages(),
       ],
