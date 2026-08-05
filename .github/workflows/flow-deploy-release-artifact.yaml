@@ -91,28 +91,35 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.GIT_USER_EMAIL }}
         run: |
           PROCEED="true"
-          if [[ "${{ github.event.repository.default_branch }}" == "${{ github.ref_name }}" ]]; then
-            if SEMREL_OUTPUT=$(npx semantic-release --dry-run 2>&1); then
-              if echo "${SEMREL_OUTPUT}" | grep -q "The next release version is"; then
-                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
-              else
-                echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected NO new version"
-                PROCEED="false"
-              fi
+          # Ask Semantic Release for the version on every branch. Which branches are
+          # releasable is already decided by the "branches" config in .releaserc, which
+          # covers main, the release/N.N maintenance lines and the prerelease lines; a
+          # branch it does not recognise simply reports no release below. Gating this on
+          # the default branch meant a maintenance branch never computed its next version
+          # and instead reported the version already sitting in package.json, which is by
+          # construction the version of the *previous* release.
+          if SEMREL_OUTPUT=$(npx semantic-release --dry-run 2>&1); then
+            if echo "${SEMREL_OUTPUT}" | grep -q "The next release version is"; then
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected a new version"
             else
-              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did NOT run successfully"
+              echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release detected NO new version"
               PROCEED="false"
             fi
-            echo "::group::SemVer output"
-            echo "${SEMREL_OUTPUT}"
-            echo "::endgroup::"
           else
-            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-              jq -r '.version' './package.json' > VERSION
-              PROCEED="true"
-            else
-              PROCEED="false"
-            fi
+            echo "::notice file=flow-deploy-release-artifact.yaml::Semantic Release did NOT run successfully"
+            PROCEED="false"
+          fi
+          echo "::group::SemVer output"
+          echo "${SEMREL_OUTPUT}"
+          echo "::endgroup::"
+
+          # A dry run that finds nothing to release never invokes verifyReleaseCmd, so no
+          # VERSION file is written. Fall back to package.json so the dry run still reports
+          # a version rather than failing the job.
+          if [[ "${PROCEED}" == "false" ]] && [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "::notice file=flow-deploy-release-artifact.yaml::Dry run with no releasable change, reporting the current package.json version"
+            jq -r '.version' './package.json' > VERSION
+            PROCEED="true"
           fi
 
           echo "need-release=${PROCEED}" >> "${GITHUB_OUTPUT}"
