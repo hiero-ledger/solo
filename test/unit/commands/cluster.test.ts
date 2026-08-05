@@ -23,6 +23,8 @@ import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
+import {type ClusterReferenceResetContext} from '../../../src/commands/cluster/config-interfaces/cluster-reference-reset-context.js';
+import {type SoloListrTaskWrapper} from '../../../src/types/index.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
 
@@ -145,6 +147,77 @@ describe('ClusterCommand unit tests', (): void => {
       ]);
 
       argv.setArg(flags.deployPrometheusStack, false);
+    });
+  });
+
+  describe('uninstallPodMonitorRole', (): void => {
+    let tasks: ClusterCommandTasks;
+    let rbacStub: any;
+
+    afterEach((): void => {
+      sandbox.restore();
+    });
+
+    beforeEach((): void => {
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
+      rbacStub = {
+        clusterRoleExists: sandbox.stub(),
+        deleteClusterRole: sandbox.stub().resolves(),
+      };
+
+      const k8Stub = {
+        rbac: () => rbacStub,
+      };
+
+      sandbox.stub(k8Factory, 'getK8').returns(k8Stub as unknown as ReturnType<K8Factory['getK8']>);
+
+      tasks = container.resolve(InjectTokens.ClusterCommandTasks);
+    });
+
+    it('deletes ClusterRole when it exists', async (): Promise<void> => {
+      rbacStub.clusterRoleExists.resolves(true);
+
+      const task = tasks.uninstallPodMonitorRole();
+      await task.task(
+        {config: {context: 'test-context'}} as unknown as ClusterReferenceResetContext,
+        {} as unknown as SoloListrTaskWrapper<ClusterReferenceResetContext>,
+      );
+
+      expect(rbacStub.clusterRoleExists.calledOnceWith(constants.POD_MONITOR_ROLE)).to.be.true;
+      expect(rbacStub.deleteClusterRole.calledOnceWith(constants.POD_MONITOR_ROLE)).to.be.true;
+    });
+
+    it('does not delete ClusterRole when it does not exist', async (): Promise<void> => {
+      rbacStub.clusterRoleExists.resolves(false);
+
+      const task = tasks.uninstallPodMonitorRole();
+      await task.task(
+        {config: {context: 'test-context'}} as unknown as ClusterReferenceResetContext,
+        {} as unknown as SoloListrTaskWrapper<ClusterReferenceResetContext>,
+      );
+
+      expect(rbacStub.clusterRoleExists.calledOnceWith(constants.POD_MONITOR_ROLE)).to.be.true;
+      expect(rbacStub.deleteClusterRole.notCalled).to.be.true;
+    });
+
+    it('throws error when clusterRoleExists API fails', async (): Promise<void> => {
+      const apiError = new Error('API unavailable');
+      rbacStub.clusterRoleExists.rejects(apiError);
+
+      const task = tasks.uninstallPodMonitorRole();
+
+      try {
+        await task.task(
+          {config: {context: 'test-context'}} as unknown as ClusterReferenceResetContext,
+          {} as unknown as SoloListrTaskWrapper<ClusterReferenceResetContext>,
+        );
+        expect.fail('Should have thrown an error');
+      } catch (error: any) {
+        expect(error.message).to.include('Failed to check if ClusterRole exists');
+      }
+
+      expect(rbacStub.clusterRoleExists.calledOnceWith(constants.POD_MONITOR_ROLE)).to.be.true;
+      expect(rbacStub.deleteClusterRole.notCalled).to.be.true;
     });
   });
 });
