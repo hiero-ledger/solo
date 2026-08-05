@@ -133,6 +133,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
   GOSSIP_KEY_SECRET_RESTORE_FAILED: 'SOLO-3091',
   SDK_CLIENT_NO_HEALTHY_NODES: 'SOLO-3092',
+  NODE_KEY_LOAD_FAILED: 'SOLO-3093',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',

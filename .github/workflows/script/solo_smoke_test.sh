@@ -31,7 +31,7 @@ function setup_smart_contract_test ()
   rm -f .env
 
   printf "\r::group::Install dependencies and compile smart contract\n"
-  npm install
+  npm ci
   npx hardhat compile || log_and_exit 1
   printf "\r::endgroup::\n"
 
