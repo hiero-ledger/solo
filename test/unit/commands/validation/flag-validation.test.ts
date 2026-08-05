@@ -66,7 +66,7 @@ describe('FlagValidation', (): void => {
   describe('assertAllValid', (): void => {
     it('should not throw for acceptable values', (): void => {
       expect((): void =>
-        FlagValidation.assertAllValid({
+        FlagValidation.assertAllValid(Flags.allFlags, {
           [Flags.namespace.name]: 'good-name',
           [Flags.nodeAliasesUnparsed.name]: 'node1,node2',
         }),
@@ -74,18 +74,18 @@ describe('FlagValidation', (): void => {
     });
 
     it('should ignore flags the user did not supply', (): void => {
-      expect((): void => FlagValidation.assertAllValid({})).to.not.throw();
+      expect((): void => FlagValidation.assertAllValid(Flags.allFlags, {})).to.not.throw();
     });
 
     it('should accept a cluster reference containing an underscore', (): void => {
       expect((): void =>
-        FlagValidation.assertAllValid({[Flags.clusterRef.name]: 'gke_project_us-central1_cluster'}),
+        FlagValidation.assertAllValid(Flags.allFlags, {[Flags.clusterRef.name]: 'gke_project_us-central1_cluster'}),
       ).to.not.throw();
     });
 
     it('should tolerate a trailing comma in a list', (): void => {
       expect((): void =>
-        FlagValidation.assertAllValid({[Flags.nodeAliasesUnparsed.name]: 'node1,node2,'}),
+        FlagValidation.assertAllValid(Flags.allFlags, {[Flags.nodeAliasesUnparsed.name]: 'node1,node2,'}),
       ).to.not.throw();
     });
 
@@ -93,7 +93,7 @@ describe('FlagValidation', (): void => {
       let thrownError: InvalidFlagValueSoloError | undefined;
 
       try {
-        FlagValidation.assertAllValid({[Flags.namespace.name]: 'NOT_FINE'});
+        FlagValidation.assertAllValid(Flags.allFlags, {[Flags.namespace.name]: 'NOT_FINE'});
       } catch (error) {
         thrownError = error as InvalidFlagValueSoloError;
       }

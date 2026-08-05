@@ -204,7 +204,7 @@ export class Middlewares {
       argv = configManager.applyPrecedence(argv, yargs.parsed.aliases);
 
       // Before update(), which coerces some values and would report its own error instead of a flag-scoped one.
-      FlagValidation.assertAllValid(argv);
+      FlagValidation.assertAllValid(flags.allFlags, argv);
 
       // update config manager
       configManager.update(argv);

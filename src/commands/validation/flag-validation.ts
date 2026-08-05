@@ -2,7 +2,6 @@
 
 import {type CommandFlag} from '../../types/flag-types.js';
 import {type Optional} from '../../types/index.js';
-import {Flags} from '../flags.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
 
 /**
@@ -29,8 +28,8 @@ export class FlagValidation {
     return undefined;
   }
 
-  public static assertAllValid(values: Record<string, unknown>): void {
-    for (const flag of Flags.allFlags) {
+  public static assertAllValid(flags: CommandFlag[], values: Record<string, unknown>): void {
+    for (const flag of flags) {
       const violation: string | undefined = FlagValidation.violationOf(flag, values[flag.name]);
 
       if (violation) {

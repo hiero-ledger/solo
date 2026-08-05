@@ -131,7 +131,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // helm list would return an empty list if given invalid namespace
         it('solo cluster reset should fail with invalid cluster name', async (): Promise<void> => {
           try {
-            await main(ClusterReferenceTest.soloClusterReferenceReset(testName, 'INVALID'));
+            await main(ClusterReferenceTest.soloClusterReferenceReset(testName, 'unknown-cluster-ref'));
             expect.fail();
           } catch (error) {
             expect(error.message).to.include('Cluster reset failed');
