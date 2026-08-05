@@ -76,6 +76,7 @@ interface RelayDeployConfigClass {
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
+  loadBalancerEnabled: boolean;
   valuesFile: string;
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
@@ -113,6 +114,7 @@ interface RelayUpgradeConfigClass {
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
+  loadBalancerEnabled: boolean;
   valuesFile: string;
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
@@ -179,6 +181,7 @@ export class RelayCommand extends BaseCommand {
       flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
+      flags.loadBalancerEnabled,
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
@@ -209,6 +212,7 @@ export class RelayCommand extends BaseCommand {
       flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
+      flags.loadBalancerEnabled,
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
@@ -243,6 +247,7 @@ export class RelayCommand extends BaseCommand {
     relayReleaseTag,
     componentImage,
     replicaCount,
+    loadBalancerEnabled,
     operatorId,
     operatorKey,
     namespace,
@@ -291,6 +296,10 @@ export class RelayCommand extends BaseCommand {
 
     if (replicaCount) {
       chartValues.set('relay.replicaCount', replicaCount).set('ws.replicaCount', replicaCount);
+    }
+
+    if (loadBalancerEnabled) {
+      chartValues.set('relay.service.type', 'LoadBalancer').set('ws.service.type', 'LoadBalancer');
     }
 
     const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
@@ -538,6 +547,28 @@ export class RelayCommand extends BaseCommand {
     };
   }
 
+  private checkLoadBalancerIsAssignedTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Check load balancer is assigned',
+      skip: ({config}: RelayDeployContext | RelayUpgradeContext): boolean => !config.loadBalancerEnabled,
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        try {
+          await this.k8Factory
+            .getK8(config.context)
+            .services()
+            .waitForLoadBalancerAddress(
+              config.namespace,
+              [`app.kubernetes.io/instance=${config.releaseName}`],
+              constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+              Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+            );
+        } catch (error) {
+          throw new SoloErrors.system.loadBalancerNotFound(error);
+        }
+      },
+    };
+  }
+
   private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for relay node',
@@ -681,6 +712,7 @@ export class RelayCommand extends BaseCommand {
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -806,6 +838,7 @@ export class RelayCommand extends BaseCommand {
         this.deployJsonRpcRelayTask(RelayCommandType.UPGRADE),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

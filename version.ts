@@ -17,6 +17,10 @@ export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';
+// netavark/aardvark-dns pair with the podman Homebrew installs on Linux (its latest major, not
+// PODMAN_VERSION above); these pins must move whenever the brew podman major moves.
+export const NETAVARK_VERSION: string = 'v2.0.0';
+export const AARDVARK_DNS_VERSION: string = 'v2.0.0';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const CRANE_VERSION: string = 'v0.21.4';
 

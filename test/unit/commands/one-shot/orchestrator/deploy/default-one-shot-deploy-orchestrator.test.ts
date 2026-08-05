@@ -14,6 +14,7 @@ import {ComponentTypes} from '../../../../../../src/core/config/remote/enumerati
 import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
 import {ConfirmationRequiredSoloError} from '../../../../../../src/core/errors/classes/validation/confirmation-required-solo-error.js';
 import {UserBreak} from '../../../../../../src/core/errors/user-break.js';
+import {Flags} from '../../../../../../src/commands/flags.js';
 
 type MockType = any;
 type MockListr = MockType;
@@ -38,6 +39,7 @@ function makeOrchestrator(
     {} as MockType,
     {} as MockType,
     overrides.helm ?? ({} as MockType),
+    {} as MockType,
     {} as MockType,
     {} as MockType,
   );
@@ -72,6 +74,7 @@ function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): On
     pinger: true,
     externalAddress: '',
     edgeEnabled: false,
+    clusterHasOneShotPortMappings: true,
     versions: {
       soloChart: '',
       consensus: '',
@@ -258,6 +261,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       helmMock,
       {} as MockType,
       {} as MockType,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -296,6 +300,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
       {} as MockType,
       {} as MockType,
     );
@@ -354,6 +359,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
       {} as MockType,
       {} as MockType,
     );
@@ -506,6 +512,7 @@ function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
     {} as MockType,
     {} as MockType,
     {} as MockType,
+    {} as MockType,
   );
 }
 
@@ -577,5 +584,90 @@ describe('DefaultOneShotDeployOrchestrator Confirm cleanup of existing deploymen
     } catch (error) {
       expect(error).to.be.instanceOf(UserBreak);
     }
+  });
+});
+
+describe('DefaultOneShotDeployOrchestrator reconcileEffectiveVersions', (): void => {
+  const releaseTagKey: string = Flags.getFormattedFlagKey(Flags.consensusNodeVersion);
+  const soloChartVersionKey: string = Flags.getFormattedFlagKey(Flags.soloChartVersion);
+  const blockNodeVersionKey: string = Flags.getFormattedFlagKey(Flags.blockNodeVersion);
+  const mirrorNodeVersionKey: string = Flags.getFormattedFlagKey(Flags.mirrorNodeVersion);
+  const explorerVersionKey: string = Flags.getFormattedFlagKey(Flags.explorerVersion);
+  const relayVersionKey: string = Flags.getFormattedFlagKey(Flags.relayVersion);
+
+  it('leaves the resolved versions untouched when no values file overrides are present', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      versions: {
+        soloChart: '0.64.0',
+        consensus: 'v0.74.0',
+        mirror: 'v0.158.0',
+        explorer: '26.1.0',
+        relay: '0.77.0',
+        blockNode: '0.38.0',
+      },
+    });
+
+    // @ts-expect-error - to access private method
+    orchestrator.reconcileEffectiveVersions(config);
+
+    expect(config.versions.consensus).to.equal('v0.74.0');
+    expect(config.versions.soloChart).to.equal('0.64.0');
+    expect(config.versions.blockNode).to.equal('0.38.0');
+    expect(config.versions.mirror).to.equal('v0.158.0');
+    expect(config.versions.explorer).to.equal('26.1.0');
+    expect(config.versions.relay).to.equal('0.77.0');
+  });
+
+  it('reflects a consensus node version overridden via the values file network/setup sections', (): void => {
+    // Reproduces https://github.com/hiero-ledger/solo/issues/5384: a values file that only sets
+    // --consensus-node-version under `network`/`setup` (not as a top-level CLI flag) must be
+    // reflected in the printed "Versions Used" summary, not just in the actual deployment.
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      networkConfiguration: {[releaseTagKey]: 'v0.77.0-rc.2'},
+      setupConfiguration: {[releaseTagKey]: 'v0.77.0-rc.2'},
+      versions: {
+        soloChart: '0.64.0',
+        consensus: 'v0.74.0',
+        mirror: 'v0.158.0',
+        explorer: '26.1.0',
+        relay: '0.77.0',
+        blockNode: '0.38.0',
+      },
+    });
+
+    // @ts-expect-error - to access private method
+    orchestrator.reconcileEffectiveVersions(config);
+
+    expect(config.versions.consensus).to.equal('v0.77.0-rc.2');
+  });
+
+  it('reflects per-component version overrides for block, mirror, explorer, and relay nodes', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      networkConfiguration: {[soloChartVersionKey]: '0.65.0'},
+      blockNodeConfiguration: {[blockNodeVersionKey]: '0.39.0'},
+      mirrorNodeConfiguration: {[mirrorNodeVersionKey]: 'v0.159.0'},
+      explorerNodeConfiguration: {[explorerVersionKey]: '26.2.0'},
+      relayNodeConfiguration: {[relayVersionKey]: '0.78.0'},
+      versions: {
+        soloChart: '0.64.0',
+        consensus: 'v0.74.0',
+        mirror: 'v0.158.0',
+        explorer: '26.1.0',
+        relay: '0.77.0',
+        blockNode: '0.38.0',
+      },
+    });
+
+    // @ts-expect-error - to access private method
+    orchestrator.reconcileEffectiveVersions(config);
+
+    expect(config.versions.soloChart).to.equal('0.65.0');
+    expect(config.versions.blockNode).to.equal('0.39.0');
+    expect(config.versions.mirror).to.equal('v0.159.0');
+    expect(config.versions.explorer).to.equal('26.2.0');
+    expect(config.versions.relay).to.equal('0.78.0');
   });
 });
