@@ -10,7 +10,8 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {entityId, showVersionBanner} from '../core/helpers.js';
+import {entityId, showVersionBanner, sleep} from '../core/helpers.js';
+import {Duration} from '../core/time/duration.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -716,6 +717,53 @@ export class MirrorNodeCommand extends BaseCommand {
     return true;
   }
 
+  /** Upgrades the mirror node chart with bounded retries to ride out transient API server outages. */
+  private async upgradeMirrorNodeChart(
+    config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass,
+    shouldReuseValues: boolean,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.chartManager.upgrade(
+          config.namespace,
+          config.releaseName,
+          constants.MIRROR_NODE_CHART,
+          config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
+          config.mirrorNodeVersion,
+          config.chartValues,
+          config.clusterContext,
+          shouldReuseValues,
+          true,
+          false,
+          Boolean(config.mirrorNodeChartDirectory),
+        );
+        return;
+      } catch (error) {
+        if (attempt === constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `Attempt ${attempt} of ${constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS} to upgrade chart ` +
+            `'${config.releaseName}' failed, retrying in ` +
+            `${constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS} seconds`,
+          error,
+        );
+        await sleep(Duration.ofSeconds(constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS));
+
+        if (!config.isChartInstalled) {
+          try {
+            // remove the release left behind by the failed fresh install so the retry starts from a clean state
+            await this.chartManager.uninstall(config.namespace, config.releaseName, config.clusterContext);
+          } catch (uninstallError) {
+            // best-effort cleanup: a persistent failure will surface on the next upgrade attempt
+            this.logger.warn(`Failed to uninstall chart '${config.releaseName}' before retry`, uninstallError);
+          }
+        }
+      }
+    }
+  }
+
   private async deployMirrorNode(
     {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
     commandType: MirrorNodeCommandType,
@@ -733,19 +781,7 @@ export class MirrorNodeCommand extends BaseCommand {
       await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
     }
 
-    await this.chartManager.upgrade(
-      config.namespace,
-      config.releaseName,
-      constants.MIRROR_NODE_CHART,
-      config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
-      config.mirrorNodeVersion,
-      config.chartValues,
-      config.clusterContext,
-      shouldReuseValues,
-      true,
-      false,
-      Boolean(config.mirrorNodeChartDirectory),
-    );
+    await this.upgradeMirrorNodeChart(config, shouldReuseValues);
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
 
