@@ -86,7 +86,13 @@ export class ClusterChecks {
         .configMaps()
         .listForAllNamespaces([constants.SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR]);
 
-      return configmaps.length > 0;
+      for (const cm of configmaps) {
+        if (await this.k8Factory.getK8(context).configMaps().exists(cm.namespace, cm.name)) {
+          return true;
+        }
+      }
+
+      return false;
     } catch (error) {
       throw new SoloError(
         `Failed to determine if cluster is shared (lookup failed): ${(error as Error).message}`,
