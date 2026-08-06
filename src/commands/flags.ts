@@ -41,7 +41,7 @@ export class Flags {
         if (!process.stdout.isTTY || !process.stdin.isTTY) {
           // this is to help find issues with prompts running in non-interactive mode, user should supply quite mode,
           // or provide all flags required for command
-          throw new SoloErrors.validation.nonInteractivePrompt(flag ? Flags.getFormattedFlagKey(flag) : flagName);
+          throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(flag));
         }
 
         const promptOptions: {
@@ -2069,16 +2069,10 @@ export class Flags {
         'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
       type: 'string',
       alias: 'u',
+      promptText: 'Enter node alias and path to TLS certificate key for gRPC (ex. nodeAlias=path )',
     },
     prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
-      return await Flags.promptText(
-        task,
-        input,
-        undefined,
-        'Please enter your username. Can only contain letters and numbers:',
-        'username cannot be empty',
-        Flags.username.name,
-      );
+      return await Flags.prompt('input', task, input, Flags.username);
     },
     rules: [FlagRules.alphanumeric],
   };
