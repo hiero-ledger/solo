@@ -343,10 +343,21 @@ export class DeploymentTest extends BaseCommandTest {
       expect(wideResult.stdout).to.contain('Cluster:');
       expect(wideResult.stdout).to.contain(clusterReference);
       expect(wideResult.stdout).to.contain('Namespace:');
-      expect(wideResult.stdout).to.contain('Consensus node gRPC');
-      expect(wideResult.stdout).to.contain('Mirror node REST');
-      expect(wideResult.stdout).to.contain('JSON-RPC relay');
-      expect(wideResult.stdout).to.contain('Explorer');
+      // When one-shot created the Kind cluster itself, the consensus node gRPC, mirror node REST
+      // API, relay, and explorer are served via stable Kind NodePort mappings and no port-forwards
+      // are registered in the remote config. When the cluster pre-existed (e.g. CI creates it via
+      // setup-dual-e2e.sh), one-shot falls back to the legacy kubectl port-forwards.
+      if (wideResult.stdout.includes('No port-forwards configured in remote config')) {
+        expect(wideResult.stdout).to.not.contain('Consensus node gRPC');
+        expect(wideResult.stdout).to.not.contain('Mirror node REST');
+        expect(wideResult.stdout).to.not.contain('JSON-RPC relay');
+        expect(wideResult.stdout).to.not.contain('Explorer');
+      } else {
+        expect(wideResult.stdout).to.contain('Consensus node gRPC');
+        expect(wideResult.stdout).to.contain('Mirror node REST');
+        expect(wideResult.stdout).to.contain('JSON-RPC relay');
+        expect(wideResult.stdout).to.contain('Explorer');
+      }
 
       const jsonResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
         soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'json', testCacheDirectory),
