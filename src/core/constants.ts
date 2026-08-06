@@ -53,6 +53,8 @@ export const KIND: string = 'kind';
 export const PODMAN: string = 'podman';
 export const VFKIT: string = 'vfkit';
 export const GVPROXY: string = 'gvproxy';
+export const NETAVARK: string = 'netavark';
+export const AARDVARK_DNS: string = 'aardvark-dns';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
 export const CRANE: string = 'crane';
@@ -311,6 +313,31 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'ingress-controller-values.yaml',
 );
+// One-shot only: layer this on top of INGRESS_CONTROLLER_VALUES_FILE to expose the mirror node
+// ingress controller as NodePort. The nodePort values match the extraPortMappings in the one-shot
+// Kind config (resources/templates/small-memory/kind-config.yaml), giving the host a stable Docker
+// port mapping instead of a flaky kubectl port-forward tunnel.
+export const ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot',
+  'mirror-ingress-controller-nodeport-values.yaml',
+);
+// Host port the one-shot deployment publishes for the mirror node REST API. Matches the legacy
+// kubectl port-forward port (MIRROR_NODE_PORT default) so existing URLs keep working; the Kind
+// extraPortMappings map it to ingress-controller NodePort 30003 inside the cluster. Must match the
+// hostPort in resources/templates/small-memory/kind-config.yaml.
+export const ONE_SHOT_MIRROR_REST_HOST_PORT: number = 38_081;
+// One-shot only: fixed NodePorts for the explorer, JSON RPC relay, and consensus node gRPC
+// (node1 HAProxy) services created by the one-shot deploy orchestrator, plus the host ports the
+// Kind extraPortMappings publish them on. Each host port matches the legacy kubectl port-forward
+// port so existing URLs keep working. NodePort and host port values must match the
+// extraPortMappings in resources/templates/small-memory/kind-config.yaml.
+export const ONE_SHOT_EXPLORER_NODE_PORT: number = 30_005;
+export const ONE_SHOT_EXPLORER_HOST_PORT: number = 38_080;
+export const ONE_SHOT_RELAY_NODE_PORT: number = 30_006;
+export const ONE_SHOT_RELAY_HOST_PORT: number = 37_546;
+export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
+export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
@@ -522,6 +549,7 @@ export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 // Collects images that failed to cache (pull) or load so a summary can be shown at the end of the run.
 export const CACHE_IMAGE_FAILURE_MESSAGE_GROUP: string = 'cache-image-failures';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
+export const GRPCS_PORT: number = GRPC_PORT + 1;
 export const GRPC_LOCAL_PORT: number = +getEnvironmentVariable('GRPC_LOCAL_PORT') || 35_211;
 export const GRPC_WEB_PORT: number = +getEnvironmentVariable('GRPC_WEB_PORT') || 8080;
 export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_PORT') || 7546;

@@ -13,6 +13,7 @@ import {
   type PerNodeIdentity,
 } from '../types/helm-values.js';
 import yaml from 'yaml';
+import {ValuesFileParser} from './util/values-file-parser.js';
 
 type ExtractedExtraEnvironmentAnalysis = {
   environmentVariablesByNode: Record<NodeAlias, EnvironmentVariable[]>;
@@ -135,15 +136,12 @@ export class HelmValuesHelper {
     try {
       content = fs.readFileSync(filePath, 'utf8');
     } catch {
+      // best-effort: values files are optional inputs, so an absent or unreadable path simply contributes nothing.
+      // Content that is present but unparseable is a different matter and is reported by ValuesFileParser below.
       return undefined;
     }
 
-    let parsedValues: unknown;
-    try {
-      parsedValues = yaml.parse(content);
-    } catch {
-      return undefined;
-    }
+    const parsedValues: unknown = ValuesFileParser.parse(filePath, content);
 
     if (!parsedValues || typeof parsedValues !== 'object') {
       return undefined;
