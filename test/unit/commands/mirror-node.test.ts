@@ -13,6 +13,7 @@ import * as versions from '../../../version.js';
 import {resetForTest} from '../../test-container.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {type SoloListrTask} from '../../../src/types/index.js';
+import {type ArgvStruct} from '../../../src/types/aliases.js';
 import path from 'node:path';
 import yaml from 'yaml';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
@@ -78,6 +79,15 @@ interface MirrorNodeSchemaWaitTaskContext {
 interface MirrorNodeSchemaWaitPodsStub {
   waitForRunningPhase: sinon.SinonStub;
   waitForReadyStatus: sinon.SinonStub;
+}
+
+interface MirrorNodeCommandTrailingCloseInternal {
+  oneShotState: {isActive: () => boolean};
+  taskList: {
+    newTaskList: (...newTaskListParameters: unknown[]) => unknown;
+    registerCloseFunction: (trailingCloseFunction: () => Promise<void>) => void;
+  };
+  accountManager: {close: () => Promise<void>};
 }
 
 type MirrorNodeDatabaseSkip = (context: MirrorNodeDatabaseTaskContext) => boolean;
@@ -491,6 +501,34 @@ describe('MirrorNodeCommand unit tests', (): void => {
       await (task.task as (context: MirrorNodeSchemaWaitTaskContext) => Promise<void>)(schemaWaitContext);
 
       expect(podsStub.waitForReadyStatus.called).to.equal(false);
+    });
+  });
+
+  describe('upgrade trailing close function', (): void => {
+    it('should tolerate a missing lease when one-shot deactivates before the trailing close runs', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandTrailingCloseInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandTrailingCloseInternal;
+      const isActiveStub: sinon.SinonStub = sinon
+        .stub(mirrorNodeCommandInternal.oneShotState, 'isActive')
+        .returns(true);
+      sinon.stub(mirrorNodeCommandInternal.taskList, 'newTaskList').returns({isRoot: (): boolean => false});
+      let trailingCloseFunction: (() => Promise<void>) | undefined;
+      sinon
+        .stub(mirrorNodeCommandInternal.taskList, 'registerCloseFunction')
+        .callsFake((closeFunction: () => Promise<void>): void => {
+          trailingCloseFunction = closeFunction;
+        });
+      const accountManagerCloseStub: sinon.SinonStub = sinon
+        .stub(mirrorNodeCommandInternal.accountManager, 'close')
+        .resolves();
+
+      expect(await mirrorNodeCommand.upgrade({} as ArgvStruct)).to.equal(true);
+      expect(trailingCloseFunction).to.be.a('function');
+
+      // one-shot deactivates before trailing close functions run, so the release guard must tolerate a missing lease
+      isActiveStub.returns(false);
+      await trailingCloseFunction();
+      expect(accountManagerCloseStub.calledOnce).to.equal(true);
     });
   });
 });

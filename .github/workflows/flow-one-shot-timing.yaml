@@ -132,7 +132,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
 
       - name: Install Dependencies
@@ -152,7 +152,7 @@ jobs:
       - name: Install Solo CLI (released)
         if: ${{ inputs.use-released-solo == true }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: npm i @hashgraph/solo@latest
+        run: npm i @hiero-ledger/solo@latest
 
       - name: Compile Project (from source)
         if: ${{ inputs.use-released-solo != true }}
@@ -163,7 +163,7 @@ jobs:
         id: solo-cmd
         run: |
           if [ "${{ inputs.use-released-solo }}" = "true" ]; then
-            echo "cmd=npx @hashgraph/solo" >> "$GITHUB_OUTPUT"
+            echo "cmd=npx @hiero-ledger/solo" >> "$GITHUB_OUTPUT"
           else
             echo "cmd=npm run solo --" >> "$GITHUB_OUTPUT"
           fi
@@ -216,7 +216,7 @@ jobs:
 
       - name: Setup Java and Gradle (for local build)
         if: ${{ inputs.use-local-build == true }}
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: 'temurin'

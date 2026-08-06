@@ -1910,14 +1910,14 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new SoloErrors.component.mirrorNodeUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
-          await lease.release();
+          await lease?.release();
         }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         if (!this.oneShotState.isActive()) {
-          await lease.release();
+          await lease?.release();
         }
         await this.accountManager.close();
       });
