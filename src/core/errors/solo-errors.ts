@@ -35,6 +35,7 @@ import {IncompleteLocalConfigError} from './classes/config/incomplete-local-conf
 import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-found-solo-error.js';
 import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
+import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-data-invalid-solo-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
@@ -310,12 +311,14 @@ export class SoloErrors {
     readonly incompleteLocalConfig: typeof IncompleteLocalConfigError;
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
+    readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
   } = Object.freeze({
     incompleteLocalConfig: IncompleteLocalConfigError,
     localNotFound: LocalConfigNotFoundSoloError,
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
+    remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
   });
