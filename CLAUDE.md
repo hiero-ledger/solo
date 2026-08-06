@@ -254,6 +254,29 @@ When adding a new `CommandFlag` in `src/commands/flags.ts`:
 5. Run the focused flag registry unit test:
    `npx mocha 'test/unit/commands/flags.test.ts'`.
 
+## Skill Sync — Always Keep Both Locations in Sync
+
+Skills live in two places and must always be identical:
+
+- **Repo copy:** `.claude/skills/<skill-name>/` (committed, reviewed with the code)
+- **User copy:** `~/.claude/skills/<skill-name>/` (loaded by Claude Code at runtime)
+
+**Rule:** whenever you create or modify any file under `.claude/skills/`, immediately copy the
+changed file to the corresponding path under `~/.claude/skills/` (and vice versa). Use the helper
+script to do this reliably:
+
+```bash
+# After editing .claude/skills/some-skill/SKILL.md:
+cp .claude/skills/some-skill/SKILL.md ~/.claude/skills/some-skill/SKILL.md
+
+# Or use the sync script for a whole skill directory:
+bash .claude/scripts/sync-skills.sh  # reads CLAUDE_TOOL_INPUT automatically when run as a hook,
+                                      # or call cp directly for manual syncs
+```
+
+Never leave the two copies out of sync — a skill update that isn't reflected in `~/.claude/skills/`
+won't take effect in the current session.
+
 ## PR Requirements
 
 - **DCO sign-off** on all commits (`git commit -s`)
