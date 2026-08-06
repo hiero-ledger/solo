@@ -4,6 +4,7 @@ import {type Pod} from '../../../resources/pod/pod.js';
 import {PortUtilities} from '../../../../../business/utils/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
 import {KubeContainerOperationFailedError} from '../../../errors/kube-container-operation-failed-error.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {StatusCodes} from 'http-status-codes';
@@ -85,7 +86,13 @@ export class K8ClientPod implements Pod {
     } catch (error) {
       const errorMessage: string = `Failed to delete pod ${this.podReference.name.name} in namespace ${this.podReference.namespace}: ${error.message}`;
 
-      if (error.body?.code === StatusCodes.NOT_FOUND || error.response?.body?.code === StatusCodes.NOT_FOUND) {
+      // ApiException reports the HTTP status on error.code with an unparsed string body,
+      // so the body-based checks alone miss it and a pod that is already gone fails the kill.
+      if (
+        KubeApiResponse.isNotFound(error) ||
+        error.body?.code === StatusCodes.NOT_FOUND ||
+        error.response?.body?.code === StatusCodes.NOT_FOUND
+      ) {
         this.logger.info(`Pod not found: ${errorMessage}`, error);
         return;
       }
