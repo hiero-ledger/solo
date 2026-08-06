@@ -37,7 +37,7 @@ export class Flags {
       let isMissing: boolean = type === 'toggle' ? typeof input !== 'boolean' : !input;
       isMissing = type === 'number' ? typeof input !== 'number' : isMissing;
 
-      if (isMissing || FlagValidation.violationOf(flag, input)) {
+      if (isMissing) {
         if (!process.stdout.isTTY || !process.stdin.isTTY) {
           // this is to help find issues with prompts running in non-interactive mode, user should supply quite mode,
           // or provide all flags required for command
@@ -937,7 +937,8 @@ export class Flags {
     constName: 'tlsClusterIssuerType',
     name: 'tls-cluster-issuer-type',
     definition: {
-      describe: `The TLS cluster issuer type to use for hedera explorer, defaults to "self-signed", the available options are: ${TLS_CLUSTER_ISSUER_TYPES.join(', ')}`,
+      describe:
+        'The TLS cluster issuer type to use for hedera explorer, defaults to "self-signed", the available options are: "acme-staging", "acme-prod", or "self-signed"',
       defaultValue: 'self-signed',
       type: 'string',
     },
@@ -951,7 +952,8 @@ export class Flags {
       try {
         input = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
           default: Flags.tlsClusterIssuerType.definition.defaultValue as string,
-          message: `Enter TLS cluster issuer type, available options are: ${TLS_CLUSTER_ISSUER_TYPES.join(', ')}:`,
+          message:
+            'Enter TLS cluster issuer type, available options are: "acme-staging", "acme-prod", or "self-signed":',
           choices: TLS_CLUSTER_ISSUER_TYPES,
         })) as string;
 
@@ -2069,7 +2071,7 @@ export class Flags {
         'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
       type: 'string',
       alias: 'u',
-      promptText: 'Enter node alias and path to TLS certificate key for gRPC (ex. nodeAlias=path )',
+      promptText: 'Please enter your username. Can only contain letters and numbers:',
     },
     prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.username);
