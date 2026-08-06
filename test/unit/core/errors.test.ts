@@ -8,6 +8,7 @@ import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/res
 import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {DataValidationError} from '../../../src/core/errors/classes/internal/data-validation-error.js';
+import {RemoteConfigUnsupportedComponentError} from '../../../src/core/errors/classes/internal/remote-config-unsupported-component-error.js';
 import {SdkPingFailedSoloError} from '../../../src/core/errors/classes/component/sdk-ping-failed-solo-error.js';
 import {SdkClientNoHealthyNodesSoloError} from '../../../src/core/errors/classes/component/sdk-client-no-healthy-nodes-solo-error.js';
 import {SdkErrorTranslator} from '../../../src/core/errors/sdk-error-translator.js';
@@ -66,6 +67,25 @@ describe('Errors', (): void => {
     );
     expect(error.cause).to.deep.equal({});
     expect(error.meta).to.deep.equal({expected, found});
+  });
+
+  it('should report both Solo and schema versions in RemoteConfigUnsupportedComponentError', (): void => {
+    const error: RemoteConfigUnsupportedComponentError = new RemoteConfigUnsupportedComponentError(
+      'FutureComponent',
+      '0.45.0',
+      '0.40.1',
+      9,
+      8,
+    );
+    expect(error).to.be.instanceof(SoloError);
+    expect(error.message).to.equal(
+      "Unknown component type 'FutureComponent' in the remote config. " +
+        'The config was written by Solo 0.45.0 (config schema v9); ' +
+        'the running Solo is 0.40.1 (supports config schema up to v8)',
+    );
+    const steps: ReadonlyArray<string> = error.getTroubleshootingSteps();
+    expect(steps.join('\n')).to.include('Upgrade this Solo to 0.45.0 or newer');
+    expect(steps.join('\n')).to.not.include('bug');
   });
 
   it('should include the last consensus node platform status in SdkPingFailedSoloError', (): void => {
