@@ -66,11 +66,7 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import {
-  HEDERA_PLATFORM_VERSION,
-  MINIMUM_SOLO_CHART_VERSION,
-  needsConfigTxtForConsensusVersion,
-} from '../../../version.js';
+import {HEDERA_PLATFORM_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -1191,16 +1187,6 @@ export class NodeCommandTasks {
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        const consensusVersion: SemanticVersion<string> | undefined =
-          this.remoteConfig.configuration?.versions?.consensusNode;
-        const releaseTag: string = consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
-        const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
-        const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
-        if (needsConfigTxt && (await k8Container.hasFile(configSource))) {
-          // copy the config.txt file from the node1 upgrade directory if it exists
-          await k8Container.copyFrom(configSource, stagingDir);
-        }
-
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
 
@@ -2171,9 +2157,9 @@ export class NodeCommandTasks {
     ].join('\n');
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+  public enableDebuggerPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Enable port forwarding for debug port and/or GRPC port',
+      title: 'Enable port forwarding for JVM debugger',
       task: async ({config}): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
@@ -2187,6 +2173,18 @@ export class NodeCommandTasks {
 
           await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
         }
+      },
+      skip: ({config}): boolean => !config.debugNodeAlias,
+    };
+  }
+
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Enable port forwarding for debug port and/or GRPC port',
+      task: async ({config}): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
+        const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
         if (config.forcePortForward && enablePortForwardHaProxy) {
           const pods: Pod[] = await this.k8Factory
@@ -2434,10 +2432,10 @@ export class NodeCommandTasks {
     };
   }
 
-  public emitNodeStartedEvent(): SoloListrTask<NodeAddContext> {
+  public emitNodeStartedEvent(): SoloListrTask<NodeStartContext> {
     return {
       title: 'Emit node started event',
-      task: async (context_: NodeAddContext): Promise<void> => {
+      task: async (context_: NodeStartContext): Promise<void> => {
         this.eventBus.emit(new NodesStartedEvent(context_.config.deployment));
       },
     };
@@ -3705,13 +3703,8 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
-        const releaseTag: string = config.releaseTag || HEDERA_PLATFORM_VERSION;
-        const configTxtPath: string | undefined = needsConfigTxtForConsensusVersion(releaseTag)
-          ? PathEx.joinWithRealPath(config.stagingDir, 'config.txt')
-          : undefined;
         const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
           PathEx.joinWithRealPath(config.stagingDir, 'templates', constants.APPLICATION_PROPERTIES),
-          configTxtPath,
         );
 
         const valuesFilesMap: Record<ClusterReferenceName, HelmChartValues> = {};
