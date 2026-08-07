@@ -298,6 +298,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
   CACHE_MANIFEST_DOWNLOAD_FAILED: 'SOLO-5082',
   CACHE_MANIFEST_INVALID: 'SOLO-5083',
+  CACHE_ARCHIVE_HASH_MISMATCH: 'SOLO-5084',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
