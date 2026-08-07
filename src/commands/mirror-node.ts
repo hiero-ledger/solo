@@ -1773,12 +1773,17 @@ export class MirrorNodeCommand extends BaseCommand {
 
             const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              deploymentName,
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
+            // In one-shot mode the AccountManager is owned by the outer deploy flow;
+            // calling loadNodeClient here would race with concurrent tasks (addNodeStakes,
+            // Create accounts) that share the same singleton and corrupt its port-forward state.
+            if (!this.oneShotState.isActive()) {
+              await this.accountManager.loadNodeClient(
+                config.namespace,
+                this.remoteConfig.getClusterRefs(),
+                deploymentName,
+                this.configManager.getFlag<boolean>(flags.forcePortForward),
+              );
+            }
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
