@@ -145,7 +145,7 @@ describe('RemoteConfigRuntimeState', (): void => {
       expect(recoverable.deploymentName).to.equal(deploymentName);
       expect(recoverable.namespace).to.equal(namespace.name);
       expect(recoverable.context).to.equal('kind-solo');
-      expect(recoverable.getFormattedCode()).to.equal('SOLO-1005');
+      expect(recoverable.getFormattedCode()).to.equal('SOLO-1006');
     }
   });
 
