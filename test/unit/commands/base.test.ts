@@ -62,6 +62,7 @@ describe('BaseCommand', (): void => {
 
       sandbox = sinon.createSandbox();
       sandbox.stub(K8Client.prototype, 'init').callsFake(function (this: K8Client): K8Client {
+        // eslint-disable-next-line unicorn/no-this-outside-of-class
         return this;
       });
       const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);

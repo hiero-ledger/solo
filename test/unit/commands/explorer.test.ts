@@ -329,11 +329,9 @@ const createHarness: (sandbox: SinonSandbox) => Promise<ExplorerHarness> = async
     contexts: (): Record<string, unknown> => ({readCurrent: (): string => 'cluster-context-1'}),
   });
 
-  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake(
-    (): Record<string, unknown> => ({
-      metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
-    }),
-  );
+  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake((): Record<string, unknown> => ({
+    metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
+  }));
 
   // @ts-expect-error: Sinon stub typing requires unsafe cast for mocking private methods
   sandbox.stub(command, 'getClusterReference').returns('cluster-ref-1');
@@ -404,7 +402,26 @@ describe('ExplorerCommand unit tests', (): void => {
 
     const chartValues: HelmChartValues = await command.prepareHederaExplorerChartValues(createDeployConfig('explorer'));
 
+    // eslint-disable-next-line unicorn/prefer-https
     expect(chartValues.toArguments()).to.include('proxyPass./api=http://mirror-1-rest.mirror-ns.svc.cluster.local');
+  });
+
+  it('should set explorer service type to LoadBalancer only when load balancer is enabled', async (): Promise<void> => {
+    resetForTest();
+    const command: ExplorerCommandInternal = container.resolve(ExplorerCommand) as unknown as ExplorerCommandInternal;
+
+    const defaultChartValues: HelmChartValues = await command.prepareHederaExplorerChartValues(
+      createDeployConfig('explorer'),
+    );
+
+    expect(defaultChartValues.toArguments()).to.not.include('service.type=LoadBalancer');
+
+    const loadBalancerChartValues: HelmChartValues = await command.prepareHederaExplorerChartValues({
+      ...createDeployConfig('explorer'),
+      loadBalancerEnabled: true,
+    });
+
+    expect(loadBalancerChartValues.toArguments()).to.include('service.type=LoadBalancer');
   });
 
   it('add builds the expected task flow and updates explorer state after successful install', async (): Promise<void> => {
@@ -436,6 +453,7 @@ describe('ExplorerCommand unit tests', (): void => {
       'Install explorer ingress controller',
       'Check explorer pod is ready',
       'Check haproxy ingress controller pod is ready',
+      'Check load balancer is assigned',
       'Enable port forwarding for explorer',
       'Show user messages',
     ]);
@@ -532,6 +550,7 @@ describe('ExplorerCommand unit tests', (): void => {
       'Install explorer ingress controller',
       'Check explorer pod is ready',
       'Check haproxy ingress controller pod is ready',
+      'Check load balancer is assigned',
       'Enable port forwarding for explorer',
     ]);
 

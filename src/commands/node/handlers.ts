@@ -279,6 +279,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.loadAdminKey(),
       this.tasks.setGrpcWebEndpoint('newNodeAliases', NodeSubcommandType.ADD),
       this.tasks.finalize(),
+      this.tasks.removeCachedKeys(),
     ];
   }
 
@@ -324,6 +325,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.triggerStakeWeightCalculate<NodeUpdateContext>(NodeSubcommandType.UPDATE),
       this.tasks.finalize(),
+      this.tasks.removeCachedKeys(),
     ];
   }
 
@@ -1088,13 +1090,14 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
-        this.tasks.enablePortForwarding(true),
+        this.tasks.enableDebuggerPortForwarding(),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
+        this.tasks.enablePortForwarding(true),
+        this.tasks.emitNodeStartedEvent(),
         this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        this.tasks.emitNodeStartedEvent(),
         // TODO only show this if we are not running in one-shot mode
         // this.tasks.showUserMessages(),
       ],
@@ -1249,21 +1252,19 @@ export class NodeCommandHandlers extends CommandHandler {
       task: (context_: Context, task): SoloListr<Context> => {
         const nodeAliases: NodeAliases = context_.config.nodeAliases;
 
-        const subTasks: SoloListrTask<Context>[] = nodeAliases.map(
-          (nodeAlias): SoloListrTask<AnyListrContext> => ({
-            title: `Validating state for node ${nodeAlias}`,
-            task: (_, task): void => {
-              const state: DeploymentPhase = this.validateNodeState(
-                nodeAlias,
-                this.remoteConfig.configuration.components,
-                acceptedPhases,
-                excludedPhases,
-              );
+        const subTasks: SoloListrTask<Context>[] = nodeAliases.map((nodeAlias): SoloListrTask<AnyListrContext> => ({
+          title: `Validating state for node ${nodeAlias}`,
+          task: (_, task): void => {
+            const state: DeploymentPhase = this.validateNodeState(
+              nodeAlias,
+              this.remoteConfig.configuration.components,
+              acceptedPhases,
+              excludedPhases,
+            );
 
-              task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
-            },
-          }),
-        );
+            task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
+          },
+        }));
 
         return task.newListr(subTasks, {
           concurrent: false,

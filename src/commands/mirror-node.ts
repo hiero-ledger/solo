@@ -10,7 +10,8 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {entityId, showVersionBanner} from '../core/helpers.js';
+import {entityId, showVersionBanner, sleep} from '../core/helpers.js';
+import {Duration} from '../core/time/duration.js';
 import {type StorageClassHelper} from '../core/storage-class-helper.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
@@ -233,8 +234,9 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.cacheDir,
       flags.chartDirectory,
       flags.mirrorNodeChartDirectory,
@@ -272,8 +274,9 @@ export class MirrorNodeCommand extends BaseCommand {
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.clusterRef,
       flags.cacheDir,
       flags.chartDirectory,
@@ -311,8 +314,16 @@ export class MirrorNodeCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode, flags.id],
+    required: [],
+    optional: [
+      flags.deployment,
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.force,
+      flags.quiet,
+      flags.debugMode,
+      flags.id,
+    ],
   };
 
   private prepareBlockNodeIntegrationValues(
@@ -709,6 +720,53 @@ export class MirrorNodeCommand extends BaseCommand {
     return true;
   }
 
+  /** Upgrades the mirror node chart with bounded retries to ride out transient API server outages. */
+  private async upgradeMirrorNodeChart(
+    config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass,
+    shouldReuseValues: boolean,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.chartManager.upgrade(
+          config.namespace,
+          config.releaseName,
+          constants.MIRROR_NODE_CHART,
+          config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
+          config.mirrorNodeVersion,
+          config.chartValues,
+          config.clusterContext,
+          shouldReuseValues,
+          true,
+          false,
+          Boolean(config.mirrorNodeChartDirectory),
+        );
+        return;
+      } catch (error) {
+        if (attempt === constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `Attempt ${attempt} of ${constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS} to upgrade chart ` +
+            `'${config.releaseName}' failed, retrying in ` +
+            `${constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS} seconds`,
+          error,
+        );
+        await sleep(Duration.ofSeconds(constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS));
+
+        if (!config.isChartInstalled) {
+          try {
+            // remove the release left behind by the failed fresh install so the retry starts from a clean state
+            await this.chartManager.uninstall(config.namespace, config.releaseName, config.clusterContext);
+          } catch (uninstallError) {
+            // best-effort cleanup: a persistent failure will surface on the next upgrade attempt
+            this.logger.warn(`Failed to uninstall chart '${config.releaseName}' before retry`, uninstallError);
+          }
+        }
+      }
+    }
+  }
+
   private async deployMirrorNode(
     {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
     commandType: MirrorNodeCommandType,
@@ -726,19 +784,7 @@ export class MirrorNodeCommand extends BaseCommand {
       await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
     }
 
-    await this.chartManager.upgrade(
-      config.namespace,
-      config.releaseName,
-      constants.MIRROR_NODE_CHART,
-      config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
-      config.mirrorNodeVersion,
-      config.chartValues,
-      config.clusterContext,
-      shouldReuseValues,
-      true,
-      false,
-      Boolean(config.mirrorNodeChartDirectory),
-    );
+    await this.upgradeMirrorNodeChart(config, shouldReuseValues);
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
 
@@ -1140,9 +1186,49 @@ export class MirrorNodeCommand extends BaseCommand {
                 await this.deployMirrorNode(context_, commandType);
               },
             },
+            this.waitForMirrorNodeSchemaTask(),
           ],
           constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
+    };
+  }
+
+  /**
+   * Waits for the importer to become ready — and thus for its Flyway schema migrations to complete —
+   * before dependent components are health-checked. Without this gate, a slow first-run schema build
+   * lets REST/REST-Java/Web3/gRPC query a partially-migrated database and fail the deployment.
+   */
+  private waitForMirrorNodeSchemaTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for mirror node database schema',
+      task: async (context_): Promise<void> => {
+        const config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass = context_.config;
+        const importerLabels: string[] = [
+          'app.kubernetes.io/component=importer',
+          `app.kubernetes.io/instance=${config.releaseName}`,
+        ];
+        const pods: Pods = this.k8Factory.getK8(config.clusterContext).pods();
+
+        try {
+          await pods.waitForRunningPhase(
+            config.namespace,
+            importerLabels,
+            constants.MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS,
+            constants.MIRROR_NODE_IMPORTER_DETECT_DELAY,
+          );
+        } catch {
+          // importer disabled via custom values — no schema build to wait for
+          this.logger.info(`No importer pod found for release ${config.releaseName}; skipping mirror node schema wait`);
+          return;
+        }
+
+        await pods.waitForReadyStatus(
+          config.namespace,
+          importerLabels,
+          constants.MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS,
+          constants.MIRROR_NODE_SCHEMA_READY_DELAY,
+        );
+      },
     };
   }
 
@@ -1859,14 +1945,14 @@ export class MirrorNodeCommand extends BaseCommand {
         throw new SoloErrors.component.mirrorNodeUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
-          await lease.release();
+          await lease?.release();
         }
         await this.accountManager.close();
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         if (!this.oneShotState.isActive()) {
-          await lease.release();
+          await lease?.release();
         }
         await this.accountManager.close();
       });
@@ -2099,14 +2185,14 @@ export class MirrorNodeCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
-            existingIngressClasses.map((ingressClass): void => {
+            for (const ingressClass of existingIngressClasses) {
               if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
-                this.k8Factory
+                await this.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
                   .delete(constants.MIRROR_INGRESS_CLASS_NAME);
               }
-            });
+            }
           },
         },
         this.disableMirrorNodeComponents(),

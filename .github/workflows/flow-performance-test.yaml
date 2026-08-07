@@ -78,13 +78,13 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Posix Dependencies
@@ -97,10 +97,10 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install wget
         uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
@@ -170,9 +170,8 @@ jobs:
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
-          # Workaround: keep BOTH mode so SmartContractLoadTest does not return INVALID_TRANSACTION_BODY.
-          # TODO: remove once https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is fixed.
           echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
+          echo ONE_SHOT_BLOCK_NODE_PERF=false >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)
@@ -203,22 +202,30 @@ jobs:
           }
           trap cleanup SIGTERM SIGINT
 
-          # API poller: polls the run's updated_at field every 30 s and sends
-          # SIGTERM to the main shell when GitHub marks the run as cancelled.
+          # API poller: polls this job's own status every 30 s and sends SIGTERM
+          # to the main shell when GitHub no longer reports it in_progress.
           # Self-hosted runners do not deliver SIGTERM to step scripts directly,
           # so this is the only reliable way to detect workflow cancellation.
+          # The run-level updated_at field is NOT a cancellation signal: any
+          # sibling job transition in a multi-job run (e.g. the nightly extended
+          # tests) bumps it, which made this job SIGTERM its own healthy task
+          # (see hiero-ledger/solo#5432). The job is identified by RUNNER_NAME,
+          # which is unique per ephemeral ARC runner pod.
           # GITHUB_TOKEN is passed explicitly via step env (self-hosted runners
           # do not auto-expose it as a shell variable).
-          _run_updated_at() {
+          _own_job_in_progress_count() {
             local _api="${GITHUB_API_URL:-https://api.github.com}"
+            # Without a runner identity the job cannot be found; report unknown, never 0.
+            [[ -z "${RUNNER_NAME}" ]] && { echo ""; return; }
             curl -sf \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-              | jq -r '.updated_at // empty' 2>/dev/null || echo ""
+              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
+              | jq -r --arg runner "${RUNNER_NAME}" \
+                  '[.jobs[] | select(.runner_name == $runner and .status == "in_progress")] | length' 2>/dev/null \
+              || echo ""
           }
-          RUN_UPDATED_AT_INITIAL="$(_run_updated_at)"
-          echo "Run updated_at baseline: ${RUN_UPDATED_AT_INITIAL}"
+          echo "Cancellation poller watching job status for runner: ${RUNNER_NAME}"
 
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
@@ -230,12 +237,19 @@ jobs:
 
           # Start poller AFTER TASK_PID is set.
           api_cancel_poller() {
+            local zero_readings=0
             while true; do
               sleep 30
-              current="$(_run_updated_at)"
-              if [[ -n "${RUN_UPDATED_AT_INITIAL}" && -n "${current}" \
-                    && "${current}" != "${RUN_UPDATED_AT_INITIAL}" ]]; then
-                echo "=== API poller: updated_at changed, signalling main shell ==="
+              current="$(_own_job_in_progress_count)"
+              # An empty reading is an API failure, which is not evidence of cancellation.
+              if [[ "${current}" == "0" ]]; then
+                zero_readings=$((zero_readings + 1))
+              else
+                zero_readings=0
+              fi
+              # Require two consecutive confirmations to guard against a stale API read.
+              if (( zero_readings >= 2 )); then
+                echo "=== API poller: job no longer in_progress, signalling main shell ==="
                 kill -TERM $$ 2>/dev/null || true
                 return
               fi
@@ -438,7 +452,11 @@ jobs:
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          MAX_MEMORY_MB=4000
+          # ONE_SHOT_BLOCK_NODE_PERF=false: no ring-buffer workaround applied.
+          # RTT probe runs but failures are non-fatal (hiero-block-node#3150) — block-node RSS
+          # stays at the ~143 MB baseline.  Measured peak (run 29267777062): 2 331 MiB.
+          # 3 000 MB (= 2 331 + 500 margin rounded to nearest 500) leaves headroom for NLG + mirror + kube-system.
+          MAX_MEMORY_MB=3000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')

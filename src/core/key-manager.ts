@@ -248,20 +248,39 @@ export class KeyManager {
 
     this.logger.debug(`Loading ${keyName}-keys for node: ${nodeAlias}`, {nodeKeyFiles});
 
-    const keyBytes: Buffer = fs.readFileSync(nodeKeyFiles.privateKeyFile);
-    const keyPem: string = keyBytes.toString();
-    const key: CryptoKey = await this.convertPemToPrivateKey(keyPem, algo);
-
-    const certBytes: Buffer = fs.readFileSync(nodeKeyFiles.certificateFile);
-    const certPems: any = x509.PemConverter.decode(certBytes.toString());
-
-    const certs: x509.X509Certificate[] = [];
-    for (const certPem of certPems) {
-      const cert: x509.X509Certificate = new x509.X509Certificate(certPem);
-      certs.push(cert);
+    let key: CryptoKey;
+    try {
+      const keyBytes: Buffer = fs.readFileSync(nodeKeyFiles.privateKeyFile);
+      const keyPem: string = keyBytes.toString();
+      key = await this.convertPemToPrivateKey(keyPem, algo);
+    } catch (error) {
+      throw new SoloErrors.component.nodeKeyLoadFailed(keyName, nodeAlias, nodeKeyFiles.privateKeyFile, error as Error);
     }
 
-    const certChain: any = await new x509.X509ChainBuilder({certificates: certs.slice(1)}).build(certs[0]);
+    let certs: x509.X509Certificate[];
+    let certChain: any;
+    try {
+      const certBytes: Buffer = fs.readFileSync(nodeKeyFiles.certificateFile);
+      const certPems: any = x509.PemConverter.decode(certBytes.toString());
+      if (certPems.length === 0) {
+        throw new Error('no PEM certificate blocks found in file');
+      }
+
+      certs = [];
+      for (const certPem of certPems) {
+        const cert: x509.X509Certificate = new x509.X509Certificate(certPem);
+        certs.push(cert);
+      }
+
+      certChain = await new x509.X509ChainBuilder({certificates: certs.slice(1)}).build(certs[0]);
+    } catch (error) {
+      throw new SoloErrors.component.nodeKeyLoadFailed(
+        keyName,
+        nodeAlias,
+        nodeKeyFiles.certificateFile,
+        error as Error,
+      );
+    }
 
     this.logger.debug(`Loaded ${keyName}-key for node: ${nodeAlias}`, {
       nodeKeyFiles,
@@ -590,6 +609,16 @@ export class KeyManager {
       }
     } catch (error: Error | any) {
       throw new SoloErrors.component.explorerTlsSecretCreationFailed(error);
+    }
+
+    // The self-signed cert/key now live in the cluster secret, so remove the on-disk copies to avoid
+    // leaving the private key behind in the cache; they are regenerated on the next deploy when needed.
+    for (const generatedFilePath of [keyPath, certificatePath]) {
+      try {
+        fs.rmSync(generatedFilePath, {force: true});
+      } catch {
+        // best-effort: the secret is already created, so a failed cache cleanup must not fail the deploy
+      }
     }
   }
 

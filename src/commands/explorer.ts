@@ -59,6 +59,7 @@ interface ExplorerDeployConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   componentImage: Optional<string>;
+  loadBalancerEnabled: boolean;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
@@ -99,6 +100,7 @@ interface ExplorerUpgradeConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   componentImage: Optional<string>;
+  loadBalancerEnabled: boolean;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
@@ -165,8 +167,9 @@ export class ExplorerCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.cacheDir,
       flags.chartDirectory,
       flags.explorerChartDirectory,
@@ -178,6 +181,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.componentImage,
+      flags.loadBalancerEnabled,
       flags.namespace,
       flags.quiet,
       flags.soloChartVersion,
@@ -195,8 +199,9 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.clusterRef,
       flags.cacheDir,
       flags.chartDirectory,
@@ -208,6 +213,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.componentImage,
+      flags.loadBalancerEnabled,
       flags.namespace,
       flags.quiet,
       flags.soloChartVersion,
@@ -226,8 +232,8 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode],
+    required: [],
+    optional: [flags.deployment, flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode],
   };
 
   private async prepareHederaExplorerChartValues(
@@ -237,6 +243,10 @@ export class ExplorerCommand extends BaseCommand {
 
     if (config.enableIngress) {
       chartValues.set('ingress.enabled', true).setLiteral('ingressClassName', config.ingressReleaseName);
+    }
+
+    if (config.loadBalancerEnabled) {
+      chartValues.set('service.type', 'LoadBalancer');
     }
     chartValues.setLiteral('fullnameOverride', `${config.releaseName}-${config.namespace.name}`);
 
@@ -461,9 +471,9 @@ export class ExplorerCommand extends BaseCommand {
         const explorerChartValues: HelmChartValues = new HelmChartValues().filesFromCommaSeparatedInput(
           config.valuesFile,
         );
-        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues().add(
-          HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'),
-        );
+        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues()
+          .file(constants.INGRESS_CONTROLLER_VALUES_FILE)
+          .add(HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'));
 
         if (config.explorerStaticIp !== '') {
           explorerIngressControllerChartValues.setLiteral('controller.service.loadBalancerIP', config.explorerStaticIp);
@@ -548,6 +558,28 @@ export class ExplorerCommand extends BaseCommand {
             constants.PODS_READY_MAX_ATTEMPTS,
             constants.PODS_READY_DELAY,
           );
+      },
+    };
+  }
+
+  private checkLoadBalancerIsAssignedTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Check load balancer is assigned',
+      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.loadBalancerEnabled,
+      task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        try {
+          await this.k8Factory
+            .getK8(config.clusterContext)
+            .services()
+            .waitForLoadBalancerAddress(
+              config.namespace,
+              [`app.kubernetes.io/instance=${config.releaseName}`],
+              constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+              Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+            );
+        } catch (error) {
+          throw new SoloErrors.system.loadBalancerNotFound(error);
+        }
       },
     };
   }
@@ -730,6 +762,7 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -843,6 +876,7 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -946,14 +980,14 @@ export class ExplorerCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
-            existingIngressClasses.map((ingressClass: IngressClass): void => {
+            for (const ingressClass of existingIngressClasses) {
               if (ingressClass.name === context_.config.ingressReleaseName) {
-                this.k8Factory
+                await this.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
                   .delete(context_.config.ingressReleaseName);
               }
-            });
+            }
           },
         },
         this.disableMirrorNodeExplorerComponents(),

@@ -56,8 +56,6 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type Lock} from '../core/lock/lock.js';
-import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
-import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -113,13 +111,14 @@ export class NetworkCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.apiPermissionProperties,
       flags.app,
       flags.applicationEnv,
@@ -149,6 +148,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -168,9 +168,12 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.clusterSetupNamespace,
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
@@ -568,9 +571,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (
-      config.storageType === constants.StorageType.GCS_ONLY ||
-      config.storageType === constants.StorageType.AWS_ONLY ||
-      config.storageType === constants.StorageType.AWS_AND_GCS
+      [constants.StorageType.GCS_ONLY, constants.StorageType.AWS_ONLY, constants.StorageType.AWS_AND_GCS].includes(
+        config.storageType,
+      )
     ) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
@@ -684,6 +687,14 @@ export class NetworkCommand extends BaseCommand {
     // Iterate over each node and set static IPs for Envoy Proxy
     this.addValueForEachRecord(config.envoyIpsParsed, config.consensusNodes, chartValuesMap, 'envoyProxyStaticIP');
 
+    // Iterate over each node and set static IPs for consensus node services
+    this.addValueForEachRecord(
+      config.networkNodeIpsParsed,
+      config.consensusNodes,
+      chartValuesMap,
+      'networkNodeStaticIP',
+    );
+
     if (config.resolvedThrottlesFile) {
       // repairing the path, this avoid helm failing when running on windows
       const throttlesFilePath: string = config.resolvedThrottlesFile.replaceAll('\\', '/');
@@ -703,8 +714,19 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.enableMonitoringSupport) {
+      // the Prometheus stack is installed by `cluster-ref setup` into the cluster setup namespace,
+      // which is configurable, so the Alloy sidecar's remote-write target is composed rather than
+      // defaulted in the chart
+      const remoteWriteEndpoint: string =
+        `http://${constants.PROMETHEUS_RELEASE_NAME}-prometheus.${config.clusterSetupNamespace.name}` +
+        '.svc:9090/api/v1/write';
+
       for (const clusterReference of clusterReferences) {
-        chartValuesMap[clusterReference].set('crs.podLog.enabled', true).set('crs.serviceMonitor.enabled', true);
+        chartValuesMap[clusterReference]
+          .set('crs.podLog.enabled', true)
+          .set('crs.serviceMonitor.enabled', true)
+          .set('defaults.sidecars.grafanaAlloy.enabled', true)
+          .setLiteral('defaults.sidecars.grafanaAlloy.remoteWrite.endpoint', remoteWriteEndpoint);
       }
     }
 
@@ -725,13 +747,29 @@ export class NetworkCommand extends BaseCommand {
     valueName: string,
   ): void {
     if (records) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+
       for (const consensusNode of consensusNodes) {
-        if (records[consensusNode.name]) {
-          chartValuesMap[consensusNode.cluster].setLiteral(
-            `hedera.nodes[${consensusNode.nodeId}].${valueName}`,
-            records[consensusNode.name],
-          );
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of consensusNodes) {
+        const recordValue: string | undefined = records[consensusNode.name];
+        if (!recordValue) {
+          continue;
         }
+
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        chartValuesMap[consensusNode.cluster].setLiteral(`hedera.nodes[${nodeIndex}].${valueName}`, recordValue);
       }
     }
   }
@@ -869,6 +907,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -877,6 +916,8 @@ export class NetworkCommand extends BaseCommand {
       flags.gcsBucketPrefix,
       flags.nodeAliasesUnparsed,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -925,9 +966,16 @@ export class NetworkCommand extends BaseCommand {
       config.envoyIpsParsed = Templates.parseNodeAliasToIpMapping(config.envoyIps);
     }
 
+    if (config.networkNodeIps) {
+      config.networkNodeIpsParsed = Templates.parseNodeAliasToIpMapping(config.networkNodeIps);
+    }
+
     if (config.domainNames) {
       config.domainNamesMapping = Templates.parseNodeAliasToDomainNameMapping(config.domainNames);
     }
+
+    config.gossipEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.gossipEndpointPort);
+    config.serviceEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.serviceEndpointPort);
 
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
@@ -1146,6 +1194,54 @@ export class NetworkCommand extends BaseCommand {
     });
 
     await Promise.all(promises);
+  }
+
+  /** Installs the solo-deployment chart with bounded retries to ride out transient API server outages. */
+  private async installSoloDeploymentChart(
+    config: NetworkDeployConfigClass,
+    clusterReference: ClusterReferenceName,
+  ): Promise<void> {
+    const kubeContext: Context = config.clusterRefs.get(clusterReference);
+
+    for (let attempt: number = 1; attempt <= constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.chartManager.upgrade(
+          config.namespace,
+          constants.SOLO_DEPLOYMENT_CHART,
+          constants.SOLO_DEPLOYMENT_CHART,
+          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.soloChartVersion,
+          config.chartValuesMap[clusterReference],
+          kubeContext,
+          false,
+          true,
+        );
+        return;
+      } catch (error) {
+        if (attempt === constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `Attempt ${attempt} of ${constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS} to install chart ` +
+            `'${constants.SOLO_DEPLOYMENT_CHART}' failed, retrying in ` +
+            `${constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS} seconds`,
+          error,
+        );
+        await sleep(Duration.ofSeconds(constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS));
+
+        try {
+          // remove the release left behind by the failed attempt so the retry starts from a clean state
+          await this.chartManager.uninstall(config.namespace, constants.SOLO_DEPLOYMENT_CHART, kubeContext);
+        } catch (uninstallError) {
+          // best-effort cleanup: a persistent failure will surface on the next upgrade attempt
+          this.logger.warn(
+            `Failed to uninstall chart '${constants.SOLO_DEPLOYMENT_CHART}' before retry`,
+            uninstallError,
+          );
+        }
+      }
+    }
   }
 
   private async crdExists(context: string, crdName: string): Promise<boolean> {
@@ -1510,7 +1606,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs, chartValuesMap, chartDirectory} = config;
+            const {namespace, clusterRefs} = config;
 
             for (const [clusterReference] of clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
@@ -1534,17 +1630,7 @@ export class NetworkCommand extends BaseCommand {
                 versions.MINIMUM_SOLO_CHART_VERSION,
               );
 
-              await this.chartManager.upgrade(
-                namespace,
-                constants.SOLO_DEPLOYMENT_CHART,
-                constants.SOLO_DEPLOYMENT_CHART,
-                chartDirectory || constants.SOLO_TESTING_CHART_URL,
-                config.soloChartVersion,
-                chartValuesMap[clusterReference],
-                clusterRefs.get(clusterReference),
-                false,
-                true,
-              );
+              await this.installSoloDeploymentChart(config, clusterReference);
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
           },
@@ -1558,7 +1644,6 @@ export class NetworkCommand extends BaseCommand {
             }
           },
         },
-        // TODO: Move the check for load balancer logic to a utility method or class
         {
           title: 'Check for load balancer',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
@@ -1570,34 +1655,19 @@ export class NetworkCommand extends BaseCommand {
               subTasks.push({
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
-                  let attempts: number = 0;
-                  let svc: Service[];
-
-                  while (attempts < constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS) {
-                    svc = await this.k8Factory
+                  try {
+                    await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
-
-                    if (svc && svc.length > 0 && svc[0].status?.loadBalancer?.ingress?.length > 0) {
-                      let shouldContinue: boolean = false;
-                      for (let index: number = 0; index < svc[0].status.loadBalancer.ingress.length; index++) {
-                        const ingress: LoadBalancerIngress = svc[0].status.loadBalancer.ingress[index];
-                        if (!ingress.hostname && !ingress.ip) {
-                          shouldContinue = true; // try again if there is neither a hostname nor an ip
-                          break;
-                        }
-                      }
-                      if (shouldContinue) {
-                        continue;
-                      }
-                      return;
-                    }
-
-                    attempts++;
-                    await sleep(Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS));
+                      .waitForLoadBalancerAddress(
+                        namespace,
+                        Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId),
+                        constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+                        Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+                      );
+                  } catch (error) {
+                    throw new SoloErrors.system.loadBalancerNotFound(error);
                   }
-                  throw new SoloErrors.system.loadBalancerNotFound();
                 },
               });
             }
@@ -1619,7 +1689,7 @@ export class NetworkCommand extends BaseCommand {
             const {namespace, chartDirectory, soloChartVersion, clusterRefs} = config;
 
             // Update the chartValuesMap with the external IP addresses
-            // This regenerates the config.txt and genesis-network.json files with the external IP addresses
+            // This regenerates the genesis-network.json file with the external IP addresses
             config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
             // Perform a helm upgrade for each cluster
@@ -1811,6 +1881,23 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
+            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz
+            // (tss.wrapsProvingKeyPath) at genesis, not from the pre-extracted
+            // TSS_LIB_WRAPS_ARTIFACTS_PATH directory. If the wraps-key-path directory carries the
+            // tarball, stage it under that exact name so the library is ready for the genesis history
+            // proof (construction #1). Without it the CN races a ~2 GB runtime download that finishes
+            // just after construction #1 finalizes, leaving it WRAPS-extensible=false forever.
+            let wrapsTarball: string | undefined;
+            if (config.wrapsKeyPath) {
+              const tarballName: string | undefined = fs
+                .readdirSync(config.wrapsKeyPath)
+                .find((file: string): boolean => file.endsWith('.tar.gz'));
+              if (tarballName) {
+                wrapsTarball = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps.tar.gz');
+                fs.copyFileSync(PathEx.join(config.wrapsKeyPath, tarballName), wrapsTarball);
+              }
+            }
+
             for (const consensusNode of config.consensusNodes) {
               const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
                 config.namespace,
@@ -1818,6 +1905,10 @@ export class NetworkCommand extends BaseCommand {
               );
 
               await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+
+              if (wrapsTarball) {
+                await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+              }
             }
           },
         },
@@ -1944,8 +2035,8 @@ export class NetworkCommand extends BaseCommand {
               force: this.configManager.getFlag(flags.force),
               contexts: remoteConfigLoaded
                 ? this.remoteConfig.getContexts()
-                : [...this.localConfig.configuration.clusterRefs.values()].map(
-                    (context): Context => context.toString(),
+                : [...this.localConfig.configuration.clusterRefs.values()].map((context): Context =>
+                    context.toString(),
                   ),
             };
 

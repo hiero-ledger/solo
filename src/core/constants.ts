@@ -17,6 +17,7 @@ import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
 import {type AnyListrContext, type NodeAlias} from '../types/aliases.js';
 import {type ListrBaseClassOptions} from 'listr2';
+import {SoloListrRenderer} from './task-list/solo-listr-renderer.js';
 
 export const PACKAGE_NAME: string = '@hiero-ledger/solo';
 
@@ -24,14 +25,17 @@ export const SOLO_SILENT_MODE: boolean = getEnvironmentVariable('SOLO_SILENT_MOD
 
 // eslint-disable-next-line solo/no-exported-function
 export function getEnvironmentVariable(name: string): string | undefined {
-  if (process.env[name] && process.env[name].trim() !== '') {
+  const value: string | undefined = process.env[name];
+
+  if (value && value.trim() !== '') {
     if (!(process.env.SOLO_SILENT_MODE === 'true')) {
       console.log(`>> environment variable '${name}' exists, using its value`);
     }
-    return process.env[name];
+    return value;
   }
   return undefined;
 }
+
 export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
 
 // -------------------- solo related constants ---------------------------------------------------------------------
@@ -49,6 +53,8 @@ export const KIND: string = 'kind';
 export const PODMAN: string = 'podman';
 export const VFKIT: string = 'vfkit';
 export const GVPROXY: string = 'gvproxy';
+export const NETAVARK: string = 'netavark';
+export const AARDVARK_DNS: string = 'aardvark-dns';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
 export const CRANE: string = 'crane';
@@ -108,15 +114,6 @@ const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_M
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
   : ['network-load-generator', 'metrics-server'];
-
-export const HEDERA_NODE_SIDECARS: string[] = [
-  'recordStreamUploader',
-  'eventStreamUploader',
-  'backupUploader',
-  'accountBalanceUploader',
-  'otelCollector',
-  'blockstreamUploader',
-];
 
 export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
@@ -284,6 +281,14 @@ export const BLOCK_NODE_SOLO_DEV_FILE: string = PathEx.joinWithRealPath(RESOURCE
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const PROMETHEUS_STACK_VALUES_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'prometheus-stack-values.yaml',
+);
+export const ONE_SHOT_FALCON_PREPARE_SPEC_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot-falcon-prepare.yaml',
+);
 
 /* vars MIRROR_NODE_OLD_.* can be removed once minimum mirrornode version support is 0.152.0.
  * These variables will only be applied if the MIRROR_NODE_VERSION < 0.152.0
@@ -308,7 +313,36 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'ingress-controller-values.yaml',
 );
+// One-shot only: layer this on top of INGRESS_CONTROLLER_VALUES_FILE to expose the mirror node
+// ingress controller as NodePort. The nodePort values match the extraPortMappings in the one-shot
+// Kind config (resources/templates/small-memory/kind-config.yaml), giving the host a stable Docker
+// port mapping instead of a flaky kubectl port-forward tunnel.
+export const ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot',
+  'mirror-ingress-controller-nodeport-values.yaml',
+);
+// Host port the one-shot deployment publishes for the mirror node REST API. Matches the legacy
+// kubectl port-forward port (MIRROR_NODE_PORT default) so existing URLs keep working; the Kind
+// extraPortMappings map it to ingress-controller NodePort 30003 inside the cluster. Must match the
+// hostPort in resources/templates/small-memory/kind-config.yaml.
+export const ONE_SHOT_MIRROR_REST_HOST_PORT: number = 38_081;
+// One-shot only: fixed NodePorts for the explorer, JSON RPC relay, and consensus node gRPC
+// (node1 HAProxy) services created by the one-shot deploy orchestrator, plus the host ports the
+// Kind extraPortMappings publish them on. Each host port matches the legacy kubectl port-forward
+// port so existing URLs keep working. NodePort and host port values must match the
+// extraPortMappings in resources/templates/small-memory/kind-config.yaml.
+export const ONE_SHOT_EXPLORER_NODE_PORT: number = 30_005;
+export const ONE_SHOT_EXPLORER_HOST_PORT: number = 38_080;
+export const ONE_SHOT_RELAY_NODE_PORT: number = 30_006;
+export const ONE_SHOT_RELAY_HOST_PORT: number = 37_546;
+export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
+export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'block-node-messaging-workaround.yaml',
+);
 export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-postgres-truncate.sql',
@@ -320,6 +354,7 @@ export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOU
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
+export const ONE_SHOT_BLOCK_NODE_PERF: string = getEnvironmentVariable('ONE_SHOT_BLOCK_NODE_PERF') || 'false';
 export const ONE_SHOT_DEPLOYMENT_NAME: string = 'one-shot';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
@@ -388,7 +423,7 @@ export const LISTR_DEFAULT_OPTIONS: {
   WITH_CONCURRENCY_COLLAPSABLE: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
 } = {
   DEFAULT: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: false,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -396,7 +431,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -404,7 +439,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY_COLLAPSABLE: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
     fallbackRendererOptions: {
@@ -412,6 +447,11 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
 };
+
+// Maximum number of image cache operations that run concurrently, applied to both the pull path
+// and the load path. Bounded to avoid amplifying Docker Hub rate limits when fetching images and to avoid
+// saturating the network/disk, while staying wide enough to keep a cold pull responsive.
+export const CACHE_IMAGE_MAX_CONCURRENCY: number = +getEnvironmentVariable('CACHE_IMAGE_MAX_CONCURRENCY') || 12;
 
 export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
@@ -468,6 +508,13 @@ export const MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS') || 900;
 export const MIRROR_NODE_PINGER_PODS_READY_DELAY: number =
   +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_DELAY') || 2000;
+export const MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS') || 900;
+export const MIRROR_NODE_SCHEMA_READY_DELAY: number = +getEnvironmentVariable('MIRROR_NODE_SCHEMA_READY_DELAY') || 2000;
+export const MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS') || 15;
+export const MIRROR_NODE_IMPORTER_DETECT_DELAY: number =
+  +getEnvironmentVariable('MIRROR_NODE_IMPORTER_DETECT_DELAY') || 2000;
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const RELAY_PODS_RUNNING_DELAY: number =
@@ -485,6 +532,11 @@ export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_
 
 export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
 
+// Block node >= v0.39.0 serves its health endpoints (/healthz/livez, /healthz/readyz) from a
+// dedicated web server on this port, separate from the gRPC port (BLOCK_NODE_PORT). See
+// hiero-ledger/hiero-block-node#3216.
+export const BLOCK_NODE_HEALTH_PORT: number = +getEnvironmentVariable('BLOCK_NODE_HEALTH_PORT') || 40_983;
+
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
 // Filename suffix used for log/config archive files
@@ -493,9 +545,11 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
-
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
+// Collects images that failed to cache (pull) or load so a summary can be shown at the end of the run.
+export const CACHE_IMAGE_FAILURE_MESSAGE_GROUP: string = 'cache-image-failures';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
+export const GRPCS_PORT: number = GRPC_PORT + 1;
 export const GRPC_LOCAL_PORT: number = +getEnvironmentVariable('GRPC_LOCAL_PORT') || 35_211;
 export const GRPC_WEB_PORT: number = +getEnvironmentVariable('GRPC_WEB_PORT') || 8080;
 export const JSON_RPC_RELAY_PORT: number = +getEnvironmentVariable('JSON_RPC_RELAY_PORT') || 7546;
@@ -503,11 +557,22 @@ export const JSON_RPC_RELAY_LOCAL_PORT: number = +getEnvironmentVariable('JSON_R
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
 export const EXPLORER_LOCAL_PORT: number = +getEnvironmentVariable('EXPLORER_LOCAL_PORT') || 38_080;
 export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 38_081;
+export const MIRROR_REST_CONTAINER_PORT: number = 5551;
 export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;
 export const LOAD_BALANCER_CHECK_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('LOAD_BALANCER_CHECK_MAX_ATTEMPTS') || 60;
+
+export const NETWORK_CHART_INSTALL_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NETWORK_CHART_INSTALL_MAX_ATTEMPTS') || 3;
+export const NETWORK_CHART_INSTALL_RETRY_DELAY_SECS: number =
+  +getEnvironmentVariable('NETWORK_CHART_INSTALL_RETRY_DELAY_SECS') || 15;
+
+export const MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS') || 3;
+export const MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS: number =
+  +getEnvironmentVariable('MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS') || 15;
 
 export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NETWORK_DESTROY_WAIT_TIMEOUT') || 120;
 
@@ -563,3 +628,8 @@ export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PRO
 export const SOLO_CREATED_BY_LABEL: string = 'app.kubernetes.io/created-by';
 export const SOLO_CREATED_BY_VALUE: string = 'solo';
 export const DEFAULT_SOLO_NAMESPACE_LABELS: Record<string, string> = {[SOLO_CREATED_BY_LABEL]: SOLO_CREATED_BY_VALUE};
+
+// Log rotation configuration
+export const LOG_MAX_FILE_SIZE: string = '50M';
+export const LOG_MAX_FILES: number = 5;
+export const LOG_ROTATION_INTERVAL: string = '1d';

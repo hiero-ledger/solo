@@ -59,20 +59,20 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
 
       - name: Install Dependencies
@@ -92,7 +92,7 @@ jobs:
       - name: Install Solo CLI (released)
         if: ${{ inputs.use-released-solo == true }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: npm i @hashgraph/solo@latest
+        run: npm i @hiero-ledger/solo@latest
 
       - name: Compile Project (from source)
         if: ${{ inputs.use-released-solo != true }}
@@ -103,7 +103,7 @@ jobs:
         id: solo-cmd
         run: |
           if [ "${{ inputs.use-released-solo }}" = "true" ]; then
-            echo "cmd=npx @hashgraph/solo" >> "$GITHUB_OUTPUT"
+            echo "cmd=npx @hiero-ledger/solo" >> "$GITHUB_OUTPUT"
           else
             echo "cmd=npm run solo --" >> "$GITHUB_OUTPUT"
           fi
@@ -156,7 +156,7 @@ jobs:
 
       - name: Setup Java and Gradle (for local build)
         if: ${{ inputs.use-local-build == true }}
-        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: 'temurin'
