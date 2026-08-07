@@ -24,12 +24,12 @@ export class SharedClusterResourceReport {
   }
 
   /** Formats a possibly-missing version for the report's found/expected slots. */
-  public static formatVersion(version: string | undefined): string {
+  public static formatVersion(version?: string): string {
     return version ? `version ${version}` : 'unknown version';
   }
 
   /** Extracts a version advertised by the resource's labels, formatted for the report's found/expected slots. */
-  public static versionFromLabels(labels: Record<string, string> | undefined): string {
+  public static versionFromLabels(labels?: Record<string, string>): string {
     for (const label of SharedClusterResourceReport.VERSION_LABELS) {
       if (labels?.[label]) {
         return SharedClusterResourceReport.formatVersion(labels[label]);
