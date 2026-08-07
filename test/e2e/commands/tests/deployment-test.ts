@@ -469,7 +469,12 @@ export class DeploymentTest extends BaseCommandTest {
       );
 
       expect(stopResult.stdout).to.contain('Stopping Port-Forwards');
-      expect(stopResult.stdout).to.contain('Stopped:');
+      // One-shot with a self-created Kind cluster serves via NodePort, so no port-forwards are registered to stop.
+      if (stopResult.stdout.includes('No port-forwards configured in this deployment')) {
+        expect(stopResult.stdout).to.not.contain('Stopped:');
+      } else {
+        expect(stopResult.stdout).to.contain('Stopped:');
+      }
 
       // After stopping, the remote config no longer lists any port-forwards, so `config ports` reports none.
       const portsResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
