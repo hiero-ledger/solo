@@ -1056,6 +1056,25 @@ export class NetworkCommand extends BaseCommand {
       await Promise.allSettled(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+          let exists: boolean = await this.k8Factory
+            .getK8(context)
+            .configMaps()
+            .exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          let attempts: number = 0;
+          while (exists && attempts < constants.NETWORK_DESTROY_WAIT_TIMEOUT) {
+            await sleep(Duration.ofSeconds(1));
+            exists = await this.k8Factory
+              .getK8(context)
+              .configMaps()
+              .exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+            attempts++;
+          }
+          if (exists) {
+            throw new SoloErrors.system.timeout(
+              `Timeout waiting for configMap ${constants.SOLO_REMOTE_CONFIGMAP_NAME} to be deleted.`,
+            );
+          }
         }),
       ),
     );
@@ -1094,6 +1113,25 @@ export class NetworkCommand extends BaseCommand {
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+          let exists: boolean = await this.k8Factory
+            .getK8(context)
+            .configMaps()
+            .exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          let attempts: number = 0;
+          while (exists && attempts < constants.NETWORK_DESTROY_WAIT_TIMEOUT) {
+            await sleep(Duration.ofSeconds(1));
+            exists = await this.k8Factory
+              .getK8(context)
+              .configMaps()
+              .exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+            attempts++;
+          }
+          if (exists) {
+            throw new SoloErrors.system.timeout(
+              `Timeout waiting for configMap ${constants.SOLO_REMOTE_CONFIGMAP_NAME} to be deleted.`,
+            );
+          }
         }),
       );
 
