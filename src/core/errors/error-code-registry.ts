@@ -296,6 +296,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CLUSTER_UNREACHABLE: 'SOLO-5078',
   KIND_CLUSTER_STOPPED: 'SOLO-5079',
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
+  CACHE_MANIFEST_DOWNLOAD_FAILED: 'SOLO-5082',
+  CACHE_MANIFEST_INVALID: 'SOLO-5083',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
