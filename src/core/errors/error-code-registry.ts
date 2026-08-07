@@ -296,6 +296,10 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CLUSTER_UNREACHABLE: 'SOLO-5078',
   KIND_CLUSTER_STOPPED: 'SOLO-5079',
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
+  // SOLO-5081 is claimed by PodNotReadySoloError in the in-flight PR #5696.
+  CONTAINER_ENGINE_NOT_FOUND: 'SOLO-5082',
+  CONTAINER_ENGINE_START_FAILED: 'SOLO-5083',
+  KIND_CLUSTER_CONTAINER_NOT_FOUND: 'SOLO-5084',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
