@@ -376,9 +376,16 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
             // When a createdAfter cutoff is provided, skip pods that existed before the
             // cutoff (e.g. a terminating predecessor from a recreate migration).
+            // Kubernetes stores creationTimestamp at second precision (sub-second part is
+            // always 0). A millisecond-precision cutoff would silently exclude a replacement
+            // pod created in the same second; floor to the second boundary minus 1 ms so
+            // any pod timestamped at or after that second is treated as eligible.
+            const createdAfterThreshold: number = createdAfter
+              ? Math.floor(createdAfter.getTime() / 1000) * 1000 - 1
+              : 0;
             const createdAfterEligibleItems: V1Pod[] = createdAfter
               ? sortedItems.filter(
-                  (pod): boolean => (pod.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
+                  (pod): boolean => (pod.metadata?.creationTimestamp?.getTime() || 0) > createdAfterThreshold,
                 )
               : sortedItems;
 
