@@ -2157,81 +2157,85 @@ export class NodeCommandTasks {
     ].join('\n');
   }
 
-  public enableDebuggerPortForwarding(): SoloListrTask<AnyListrContext> {
+  /**
+   * Forwards the JDWP port to the debugged consensus node's pod. Must run BEFORE any
+   * node-activeness check: a node started with a debug node alias suspends its JVM until a
+   * debugger attaches through this forward, so checking for ACTIVE first would deadlock.
+   */
+  public enableJvmDebugPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Enable port forwarding for JVM debugger',
+      title: 'Enable port forwarding for JVM debug port',
       task: async ({config}): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
-        const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
+        const nodeAlias: NodeAlias = config.debugNodeAlias;
         const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const pod: Pod = await new K8Helper(context).getConsensusNodePod(config.namespace, nodeAlias);
 
-        if (config.debugNodeAlias) {
-          const pod: Pod = await new K8Helper(context).getConsensusNodePod(config.namespace, nodeAlias);
+        this.logger.showUser('Enable port forwarding for JVM debugger');
+        this.logger.debug(`Enable port forwarding for JVM debugger on pod ${pod.podReference.name}`);
 
-          this.logger.showUser('Enable port forwarding for JVM debugger');
-          this.logger.debug(`Enable port forwarding for JVM debugger on pod ${pod.podReference.name}`);
-
-          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
-        }
+        await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
       },
       skip: ({config}): boolean => !config.debugNodeAlias,
     };
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
+  /**
+   * Forwards the consensus node gRPC port through the HAProxy pods. Runs AFTER the proxy
+   * readiness checks so a forward never targets a proxy pod the startup recovery replaced.
+   */
+  public enableGrpcPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Enable port forwarding for debug port and/or GRPC port',
+      title: 'Enable port forwarding for GRPC port',
       task: async ({config}): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
         const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
-        if (config.forcePortForward && enablePortForwardHaProxy) {
-          const pods: Pod[] = await this.k8Factory
-            .getK8(context)
-            .pods()
-            .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
+        const pods: Pod[] = await this.k8Factory
+          .getK8(context)
+          .pods()
+          .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
 
-          if (pods.length === 0) {
-            throw new SoloErrors.system.haproxyPodsNotFound();
-          }
-
-          for (const pod of pods) {
-            const podReference: PodReference = pod.podReference;
-            const nodeIdLabel: string | undefined = pod.labels?.['solo.hedera.com/node-id'];
-            let nodeId: number;
-
-            if (nodeIdLabel !== undefined && Number.isInteger(Number(nodeIdLabel))) {
-              nodeId = Number(nodeIdLabel);
-            } else {
-              const podName: string = podReference.name.toString();
-              const match: RegExpMatchArray | null = podName.match(/^haproxy-(node\d+)-/);
-              if (!match) {
-                this.logger.warn(`Skipping HAProxy pod with unknown node alias format: ${podName}`);
-                continue;
-              }
-              nodeId = Templates.nodeIdFromNodeAlias(match[1] as NodeAlias);
-            }
-
-            await this.remoteConfig.configuration.components.managePortForward(
-              undefined,
-              podReference,
-              constants.GRPC_PORT, // Pod port
-              constants.GRPC_LOCAL_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
-              this.k8Factory.getK8(context),
-              this.logger,
-              ComponentTypes.HaProxy,
-              'Consensus Node gRPC',
-              config.isChartInstalled, // Reuse existing port if chart is already installed
-              nodeId,
-              true, // persist: auto-restart on failure using persist-port-forward.js
-              externalAddress,
-            );
-          }
-          await this.remoteConfig.persist();
+        if (pods.length === 0) {
+          throw new SoloErrors.system.haproxyPodsNotFound();
         }
+
+        for (const pod of pods) {
+          const podReference: PodReference = pod.podReference;
+          const nodeIdLabel: string | undefined = pod.labels?.['solo.hedera.com/node-id'];
+          let nodeId: number;
+
+          if (nodeIdLabel !== undefined && Number.isInteger(Number(nodeIdLabel))) {
+            nodeId = Number(nodeIdLabel);
+          } else {
+            const podName: string = podReference.name.toString();
+            const match: RegExpMatchArray | null = podName.match(/^haproxy-(node\d+)-/);
+            if (!match) {
+              this.logger.warn(`Skipping HAProxy pod with unknown node alias format: ${podName}`);
+              continue;
+            }
+            nodeId = Templates.nodeIdFromNodeAlias(match[1] as NodeAlias);
+          }
+
+          await this.remoteConfig.configuration.components.managePortForward(
+            undefined,
+            podReference,
+            constants.GRPC_PORT, // Pod port
+            constants.GRPC_LOCAL_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
+            this.k8Factory.getK8(context),
+            this.logger,
+            ComponentTypes.HaProxy,
+            'Consensus Node gRPC',
+            config.isChartInstalled, // Reuse existing port if chart is already installed
+            nodeId,
+            true, // persist: auto-restart on failure using persist-port-forward.js
+            externalAddress,
+          );
+        }
+        await this.remoteConfig.persist();
       },
-      skip: ({config}): boolean => !config.debugNodeAlias && !config.forcePortForward,
+      skip: ({config}): boolean => !config.forcePortForward,
     };
   }
 
