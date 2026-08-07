@@ -2,6 +2,11 @@
 
 import {Flags as flags} from '../commands/flags.js';
 import chalk from 'chalk';
+import {type CommandFlag} from '../types/flag-types.js';
+import {type FlagDeprecation} from '../types/flag-deprecation.js';
+import {type RegisteredDeprecation} from '../types/registered-deprecation.js';
+import {Deprecations} from './deprecations.js';
+import {type DeprecationRegistry} from './deprecation-registry.js';
 
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type ConfigManager} from './config-manager.js';
@@ -37,6 +42,7 @@ export class Middlewares {
     private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.InitCommand) private readonly initCommand: InitCommand,
     @inject(InjectTokens.NpmClient) private readonly npmClient: NpmClient,
+    @inject(InjectTokens.DeprecationRegistry) private readonly deprecationRegistry: DeprecationRegistry,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -47,6 +53,11 @@ export class Middlewares {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
     this.npmClient = patchInject(npmClient, InjectTokens.NpmClient, this.constructor.name);
+    this.deprecationRegistry = patchInject(
+      deprecationRegistry,
+      InjectTokens.DeprecationRegistry,
+      this.constructor.name,
+    );
   }
 
   public initSystemFiles(): (argv: ArgvStruct) => AnyObject {
@@ -57,7 +68,7 @@ export class Middlewares {
       if (tasks.isRoot()) {
         try {
           await tasks.run();
-        } catch (error: Error | any) {
+        } catch (error) {
           throw new SoloErrors.system.initSystemFilesFailed(error);
         }
       }
@@ -89,17 +100,6 @@ export class Middlewares {
      * @param argv - listr Argv
      */
     return (argv: ArgvStruct): AnyObject => {
-      // `--dev` is the deprecated alias of `--debug` (yargs mirrors the value onto both keys), so
-      // detect the literal token in the raw process arguments to warn only when the user typed it.
-      // TODO(#1560): remove this deprecation warning when the `dev` alias is dropped from `flags.debugMode`.
-      if (process.argv.includes('--dev')) {
-        logger.showUser(
-          chalk.yellow(
-            'Warning: `--dev` is deprecated and will be removed in a future release; use `--debug` instead.',
-          ),
-        );
-      }
-
       if (argv.debug) {
         logger.debug('Setting logger debug flag');
         logger.setDevMode(argv.debug);
@@ -107,6 +107,113 @@ export class Middlewares {
 
       return argv;
     };
+  }
+
+  /**
+   * Warns the user, once per invocation, whenever a deprecated flag is supplied. Flag deprecations are
+   * discovered from the flag registry ({@link Definition.deprecated}): a flag deprecated outright warns
+   * wherever it is supplied, while a flag deprecated only for certain commands
+   * ({@link FlagDeprecation.commands}) warns solely when one of those commands — or an operation beneath it
+   * — was invoked. The `--dev` alias of `--debug` is a narrower alias-only deprecation handled explicitly.
+   */
+  public warnDeprecatedFlags(): (argv: ArgvStruct) => AnyObject {
+    const logger: SoloLogger = this.logger;
+
+    return (argv: ArgvStruct): AnyObject => {
+      const commandPath: string = (argv._ ?? []).join(' ').trim();
+
+      for (const flag of flags.allFlags) {
+        const deprecation: FlagDeprecation | undefined = flag.definition.deprecated;
+        if (!deprecation || !Middlewares.isFlagSupplied(flag)) {
+          continue;
+        }
+
+        if (!Deprecations.appliesToCommand(deprecation, commandPath)) {
+          continue;
+        }
+
+        // Name the invoked command in the warning for a scoped deprecation, so it is clear the flag is
+        // still supported elsewhere.
+        const commandScope: string | undefined = Deprecations.commandScope(deprecation) ? commandPath : undefined;
+        logger.showUser(
+          chalk.yellow(`⚠ ${Deprecations.formatDeprecationMessage(`--${flag.name}`, deprecation, commandScope)}`),
+        );
+      }
+
+      // `--dev` is the deprecated alias of `--debug`. Only the alias is deprecated (the `--debug` flag itself
+      // is not), so it cannot be expressed as a whole-flag deprecation and is detected explicitly here.
+      if (process.argv.includes('--dev')) {
+        logger.showUser(
+          chalk.yellow(
+            `⚠ ${Deprecations.formatDeprecationMessage('--dev', {since: '0.84.0', removalIssue: 5181, replacement: '--debug'})}`,
+          ),
+        );
+      }
+
+      return argv;
+    };
+  }
+
+  /**
+   * Warns the user, once per invocation, when the command they ran is deprecated. This is the single,
+   * framework-level place command/subcommand deprecation warnings are emitted — individual command classes
+   * only declare a deprecation (which the {@link DeprecationRegistry} collects); they never print the warning
+   * themselves. A deprecated command group warns for every operation beneath it (prefix match).
+   */
+  public warnDeprecatedCommands(): (argv: ArgvStruct) => AnyObject {
+    const logger: SoloLogger = this.logger;
+    const deprecationRegistry: DeprecationRegistry = this.deprecationRegistry;
+
+    return (argv: ArgvStruct): AnyObject => {
+      const commandPath: string = (argv._ ?? []).join(' ').trim();
+      if (!commandPath) {
+        return argv;
+      }
+
+      // Match the most specific deprecated command/subcommand for the invoked path: an exact match, or a
+      // deprecated ancestor group that the invoked path falls under. The longest matching feature wins.
+      let match: RegisteredDeprecation | undefined;
+      for (const entry of deprecationRegistry.list()) {
+        const matches: boolean =
+          entry.kind !== 'flag' && (commandPath === entry.feature || commandPath.startsWith(`${entry.feature} `));
+        if (matches && (!match || entry.feature.length > match.feature.length)) {
+          match = entry;
+        }
+      }
+
+      if (match) {
+        logger.showUser(chalk.yellow(`⚠ ${Deprecations.formatDeprecationMessage(match.feature, match.deprecation)}`));
+      }
+
+      return argv;
+    };
+  }
+
+  /** Returns true when the given flag (by its name or any alias) was supplied on the command line. */
+  private static isFlagSupplied(flag: CommandFlag): boolean {
+    const tokens: string[] = [`--${flag.name}`];
+    const camelCaseName: string = flag.name.replaceAll(/-([a-z])/g, (_: string, letter: string): string =>
+      letter.toUpperCase(),
+    );
+    if (camelCaseName !== flag.name) {
+      tokens.push(`--${camelCaseName}`);
+    }
+    const alias: string | string[] | undefined = flag.definition.alias;
+    const aliases: string[] = [];
+    if (Array.isArray(alias)) {
+      aliases.push(...alias);
+    } else if (alias !== undefined) {
+      aliases.push(alias);
+    }
+    for (const singleAlias of aliases) {
+      tokens.push(singleAlias.length === 1 ? `-${singleAlias}` : `--${singleAlias}`);
+    }
+
+    return tokens.some(
+      (token: string): boolean =>
+        process.argv.includes(token) ||
+        process.argv.some((argument: string): boolean => argument.startsWith(`${token}=`)),
+    );
   }
 
   public detectLocalSoloPackages(): (argv: ArgvStruct) => AnyObject {
@@ -118,7 +225,6 @@ export class Middlewares {
     return async (argv: ArgvStruct): Promise<AnyObject> => {
       try {
         const listResult: string[] = await this.npmClient.listGlobal();
-        const foundLinkedPackages: string[] = [];
 
         for (const item of listResult) {
           // Check if any of the globally linked packages match the SOLO_PACKAGES_TO_UNLINK
@@ -131,7 +237,6 @@ export class Middlewares {
               const logMessage: string = `Warning: Found locally linked installation of ${packageName}.`;
               this.logger.showUser(chalk.yellow(logMessage));
               this.logger.info(logMessage);
-              foundLinkedPackages.push(packageName);
             } catch {
               this.logger.error(
                 new SoloErrors.system.initSystemFilesFailed(
@@ -215,8 +320,8 @@ export class Middlewares {
       const commandData: string = (currentCommand + ' ' + commandArguments).trim();
 
       // Check if output format is set (machine-readable modes: json, yaml, wide)
-      const outputFormat = configManager.getFlag<string>(flags.output) || '';
-      const isMachineReadable = ['json', 'yaml', 'wide'].includes(outputFormat);
+      const outputFormat: string = configManager.getFlag<string>(flags.output) || '';
+      const isMachineReadable: boolean = ['json', 'yaml', 'wide'].includes(outputFormat);
 
       if (this.taskList.parentTaskListMap.size === 0 && !isMachineReadable) {
         // Display command header (skip in machine-readable output modes)
