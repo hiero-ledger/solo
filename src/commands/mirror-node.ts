@@ -49,6 +49,7 @@ import {Lock} from '../core/lock/lock.js';
 import {Base64} from 'js-base64';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
+import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -1726,6 +1727,14 @@ export class MirrorNodeCommand extends BaseCommand {
             ) as MirrorNodeUpgradeConfigClass;
 
             context_.config = config;
+
+            config.mirrorNodeVersion = UpgradeVersionResolver.resolveFromFlags(
+              this.configManager,
+              [flags.mirrorNodeVersion],
+              config.mirrorNodeVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
+              versions.MIRROR_NODE_VERSION,
+            );
 
             const hasMirrorNodeMemoryImprovements: boolean = new SemanticVersion<string>(
               config.mirrorNodeVersion,
