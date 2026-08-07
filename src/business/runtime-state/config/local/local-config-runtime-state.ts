@@ -17,6 +17,7 @@ import {LocalConfig} from './local-config.js';
 import path from 'node:path';
 import {Templates} from '../../../../core/templates.js';
 import {type ConfigManager} from '../../../../core/config-manager.js';
+import {type SoloLogger} from '../../../../core/logging/solo-logger.js';
 import {Flags as flags} from '../../../../commands/flags.js';
 
 @injectable()
@@ -32,10 +33,12 @@ export class LocalConfigRuntimeState {
     @inject(InjectTokens.HomeDirectory) private readonly basePath: string,
     @inject(InjectTokens.LocalConfigFileName) private readonly fileName: string,
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
     this.fileName = patchInject(fileName, InjectTokens.LocalConfigFileName, this.constructor.name);
     this.basePath = patchInject(basePath, InjectTokens.HomeDirectory, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.backend = new YamlFileStorageBackend(this.basePath);
     this.objectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
     this.source = new LocalConfigSource(
@@ -58,20 +61,10 @@ export class LocalConfigRuntimeState {
   // Loads the source data and writes it back in case of migrations.
   public async load(): Promise<void> {
     // TODO this needs to be a migration, not a load
-    // check if config from an old version exists under the cache directory
-    const oldConfigPath: string = PathEx.join(this.basePath, 'cache');
-    const oldConfigFile: string = PathEx.join(oldConfigPath, this.fileName);
-    const oldConfigFileExists: boolean = existsSync(oldConfigFile);
-
-    if (this.configFileExists() && oldConfigFileExists) {
-      // if both files exist, remove the old one
-      fs.rmSync(oldConfigFile);
-    } else if (existsSync(oldConfigFile)) {
-      // if only the old file exists, copy it to the new location
-      mkdirSync(this.basePath, {recursive: true});
-      fs.copyFileSync(oldConfigFile, PathEx.join(this.basePath, this.fileName));
-      fs.rmSync(oldConfigFile);
-    }
+    // Stage a legacy config (from the old cache path) at the current path without deleting the legacy
+    // file yet, so validation can run before the legacy copy is retired.
+    const legacyConfigFile: string = PathEx.join(this.basePath, 'cache', this.fileName);
+    const legacyMigrationPending: boolean = this.stageLegacyLocalConfig(legacyConfigFile);
 
     this.refresh();
     if (!this.configFileExists()) {
@@ -82,12 +75,63 @@ export class LocalConfigRuntimeState {
       await this.source.refresh();
       this.refresh();
     } catch (error) {
+      if (legacyMigrationPending) {
+        // The legacy config failed validation: discard the corrupt copy and keep the legacy file in
+        // place so nothing is lost, then surface an actionable error naming the legacy file.
+        this.removeFileSafely(PathEx.join(this.basePath, this.fileName));
+        throw new SoloErrors.config.migrateLegacyLocalConfig(error, legacyConfigFile);
+      }
       throw new SoloErrors.config.refreshLocalConfigSource(PathEx.join(this.basePath, this.fileName), error);
     }
     await this.persist();
 
+    if (legacyMigrationPending) {
+      // Validated and persisted (unknown fields pruned by the mapper): retire the legacy file.
+      this.removeFileSafely(legacyConfigFile);
+      this.logger?.warn(
+        `Migrated legacy local configuration from ${legacyConfigFile} to ${PathEx.join(this.basePath, this.fileName)}`,
+      );
+    }
+
     await this.migrateCacheDirectories();
     this.isLoaded = true;
+  }
+
+  /**
+   * Stages a legacy local config (from the old cache path) at the current path without deleting the
+   * legacy file, so it can be validated before the legacy copy is retired. Returns true when a legacy
+   * file was copied and is awaiting validation; false when there is nothing to migrate or a current
+   * config already exists (in which case the redundant legacy file is removed).
+   */
+  private stageLegacyLocalConfig(legacyConfigFile: string): boolean {
+    if (!existsSync(legacyConfigFile)) {
+      return false;
+    }
+
+    // A current config already exists: the legacy copy is redundant — remove it, keep the current one.
+    if (this.configFileExists()) {
+      this.removeFileSafely(legacyConfigFile);
+      return false;
+    }
+
+    try {
+      mkdirSync(this.basePath, {recursive: true});
+      fs.copyFileSync(legacyConfigFile, PathEx.join(this.basePath, this.fileName));
+    } catch (error) {
+      throw new SoloErrors.config.migrateLegacyLocalConfig(error, legacyConfigFile);
+    }
+    return true;
+  }
+
+  /** Removes a file if it exists, wrapping any filesystem failure in a typed error. */
+  private removeFileSafely(filePath: string): void {
+    try {
+      if (existsSync(filePath)) {
+        fs.rmSync(filePath);
+      }
+    } catch (error) {
+      throw new SoloErrors.config.migrateLegacyLocalConfig(error, filePath);
+    }
   }
 
   /**

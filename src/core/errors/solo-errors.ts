@@ -34,6 +34,7 @@ import {ResourceNotFoundError} from './classes/system/resource-not-found-error.j
 import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-found-solo-error.js';
 import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
+import {MigrateLegacyLocalConfigError} from './classes/config/migrate-legacy-local-config-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
@@ -310,11 +311,13 @@ export class SoloErrors {
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
+    readonly migrateLegacyLocalConfig: typeof MigrateLegacyLocalConfigError;
   } = Object.freeze({
     localNotFound: LocalConfigNotFoundSoloError,
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
+    migrateLegacyLocalConfig: MigrateLegacyLocalConfigError,
   });
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
