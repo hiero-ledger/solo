@@ -9,6 +9,7 @@ import path from 'node:path';
 import * as https from 'node:https';
 import * as http from 'node:http';
 import {Templates} from './templates.js';
+import {PathEx} from '../business/utils/path-ex.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {StatusCodes} from 'http-status-codes';
@@ -211,7 +212,9 @@ export class PackageDownloader {
    * @param destinationDirectory - a directory where the files should be downloaded to
    * @param verifyChecksum - whether to verify checksum or not
    * @param [algo] - checksum algo
-   * @param [force] - force download even if the file exists in the destinationDirectory
+   * @param [force] - download unconditionally, skipping the checksum check of an already present file.
+   *                  When false, an already present file is reused only if its checksum matches; otherwise
+   *                  it is discarded and downloaded again.
    */
   public async fetchPackage(
     packageURL: string,
@@ -236,19 +239,15 @@ export class PackageDownloader {
       fs.mkdirSync(destinationDirectory, {recursive: true});
     }
 
-    const packageFile: string = `${destinationDirectory}/${path.basename(packageURL)}`;
+    const packageFile: string = PathEx.join(destinationDirectory, path.basename(packageURL));
 
     let checksumFile: string;
     try {
-      if (fs.existsSync(packageFile) && !force) {
-        return packageFile;
-      }
-
       let checksum: string;
       if (verifyChecksum) {
         if (this.isValidURL(checksumDataOrURL)) {
           const checksumURL: string = checksumDataOrURL;
-          checksumFile = `${destinationDirectory}/${path.basename(checksumURL)}`;
+          checksumFile = PathEx.join(destinationDirectory, path.basename(checksumURL));
           await this.fetchFile(checksumURL, checksumFile);
           // Then read its contents
           const checksumData: string = fs.readFileSync(checksumFile).toString();
@@ -258,6 +257,22 @@ export class PackageDownloader {
           checksum = checksumData.split(' ', 1)[0];
         } else {
           checksum = checksumDataOrURL;
+        }
+      }
+
+      if (fs.existsSync(packageFile) && !force) {
+        if (!verifyChecksum) {
+          return packageFile;
+        }
+
+        try {
+          await this.verifyChecksum(packageFile, checksum, algo);
+          return packageFile;
+        } catch (error) {
+          // an already present file that fails verification (e.g. truncated by a crashed download) must
+          // never be reused, so discard it and fall through to the download below, which verifies again
+          this.logger.warn(`Cached package '${packageFile}' failed checksum verification, downloading it again`, error);
+          fs.rmSync(packageFile);
         }
       }
 
