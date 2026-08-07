@@ -570,6 +570,11 @@ export const NETWORK_CHART_INSTALL_MAX_ATTEMPTS: number =
 export const NETWORK_CHART_INSTALL_RETRY_DELAY_SECS: number =
   +getEnvironmentVariable('NETWORK_CHART_INSTALL_RETRY_DELAY_SECS') || 15;
 
+export const MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS') || 3;
+export const MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS: number =
+  +getEnvironmentVariable('MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS') || 15;
+
 export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NETWORK_DESTROY_WAIT_TIMEOUT') || 120;
 
 export const DEFAULT_LOCAL_CONFIG_FILE: string = 'local-config.yaml';
