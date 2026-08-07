@@ -283,12 +283,6 @@ export class ExplorerCommand extends BaseCommand {
 
     const chartValues: HelmChartValues = new HelmChartValues();
 
-    if (!['acme-staging', 'acme-prod', 'self-signed'].includes(tlsClusterIssuerType)) {
-      throw new Error(
-        `Invalid TLS cluster issuer type: ${tlsClusterIssuerType}, must be one of: "acme-staging", "acme-prod", or "self-signed"`,
-      );
-    }
-
     if (!(await this.clusterChecks.isCertManagerInstalled())) {
       chartValues.set('cert-manager.installCRDs', true);
     }

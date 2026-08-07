@@ -48,14 +48,10 @@ export class InitCommand extends BaseCommand {
     return [
       {
         title: 'Setup home directory and cache',
-        task: async (context_: InitContext, task): Promise<void> => {
+        task: (context_: InitContext): void => {
           this.configManager.update(argv);
           context_.dirs = this.setupHomeDirectory();
-          let username: string = this.configManager.getFlag<string>(flags.username);
-          if (username && !flags.username.validate(username)) {
-            username = await flags.username.prompt(task, username);
-          }
-          context_.config = {username} as InitConfig;
+          context_.config = {username: this.configManager.getFlag<string>(flags.username)} as InitConfig;
         },
       },
       {

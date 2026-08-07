@@ -10,6 +10,7 @@ import {
   select as selectPrompt,
 } from '@inquirer/prompts';
 import {Flags} from '../../../src/commands/flags.js';
+import {FlagValidation} from '../../../src/commands/validation/flag-validation.js';
 import {FlagInputFailedSoloError} from '../../../src/core/errors/classes/validation/flag-input-failed-solo-error.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
@@ -18,7 +19,7 @@ import {type ClusterReferenceName, type SoloListrTaskWrapper} from '../../../src
 
 interface RecordedPromptCall {
   component: unknown;
-  options: {default?: unknown; message?: string; choices?: unknown};
+  options: {default?: unknown; message?: string; choices?: unknown; validate?: (value: unknown) => boolean | string};
 }
 
 /** Stands in for the Listr2 task wrapper so prompt functions can be exercised without a real terminal. */
@@ -44,7 +45,12 @@ class FakePromptTaskWrapper {
         if (this.answers.length === 0) {
           throw new Error('FakePromptTaskWrapper has no scripted answer left');
         }
-        return this.answers.shift();
+
+        // Inquirer re-asks in place while `validate` rejects, so an unacceptable answer never reaches the caller.
+        const answer: unknown = this.answers.shift();
+        return options.validate?.(answer) === true || options.validate === undefined
+          ? answer
+          : this.prompt().run(component, options);
       },
     };
   }
@@ -143,6 +149,11 @@ function expectedPromptDefault(flag: CommandFlag): unknown {
   return flag.definition.promptDefaultValue ?? flag.definition.defaultValue;
 }
 
+/** An answer that satisfies each flag's own rules; flags without rules accept any string. */
+function acceptableAnswer(flag: CommandFlag): string {
+  return FlagValidation.violationOf(flag, 'answered-value') ? 'node1' : 'answered-value';
+}
+
 function simulateInteractiveTerminal(): void {
   process.stdout.isTTY = true;
   process.stdin.isTTY = true;
@@ -191,11 +202,12 @@ describe('Flag prompts', (): void => {
 
         it('prompts with the definition prompt text and default when no value is provided', async (): Promise<void> => {
           simulateInteractiveTerminal();
-          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['answered-value']);
+          const answer: string = acceptableAnswer(flag);
+          const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper([answer]);
 
           const result: unknown = await flag.prompt(fakeTask.asTask(), missingInput);
 
-          expect(result).to.equal('answered-value');
+          expect(result).to.equal(answer);
           expect(fakeTask.recordedCalls).to.have.lengthOf(1);
           expect(fakeTask.recordedCalls[0].component).to.equal(inputPrompt);
           expect(fakeTask.recordedCalls[0].options.message).to.equal(flag.definition.promptText);
@@ -521,32 +533,32 @@ describe('Flag prompts', (): void => {
   });
 
   describe(`--${Flags.username.name} (${Flags.username.constName})`, (): void => {
-    // current behavior: the prompt always asks for the username, even when a value was provided
-    it('prompts even when a value is provided', async (): Promise<void> => {
-      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['newuser1']);
+    it('returns the provided value without prompting', async (): Promise<void> => {
+      const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper();
 
       const result: unknown = await Flags.username.prompt(fakeTask.asTask(), 'provided');
 
-      expect(result).to.equal('newuser1');
-      expect(fakeTask.recordedCalls).to.have.lengthOf(1);
-      expect(fakeTask.recordedCalls[0].options.message).to.equal(
-        'Please enter your username. Can only contain letters and numbers:',
-      );
+      expect(result).to.equal('provided');
+      expect(fakeTask.recordedCalls).to.have.lengthOf(0);
     });
 
     it('re-prompts until the answer is alphanumeric', async (): Promise<void> => {
+      simulateInteractiveTerminal();
       const fakeTask: FakePromptTaskWrapper = new FakePromptTaskWrapper(['bad user!', 'gooduser1']);
 
       const result: unknown = await Flags.username.prompt(fakeTask.asTask(), missingInput);
 
       expect(result).to.equal('gooduser1');
       expect(fakeTask.recordedCalls).to.have.lengthOf(2);
+      expect(fakeTask.recordedCalls[0].options.message).to.equal(
+        'Please enter your username. Can only contain letters and numbers:',
+      );
     });
 
     it('validates that the username is alphanumeric', (): void => {
-      expect(Flags.username.validate('user1')).to.equal(true);
-      expect(Flags.username.validate('user 1')).to.equal(false);
-      expect(Flags.username.validate('user-1')).to.equal(false);
+      expect(FlagValidation.violationOf(Flags.username, 'user1')).to.be.undefined;
+      expect(FlagValidation.violationOf(Flags.username, 'user 1')).to.not.be.undefined;
+      expect(FlagValidation.violationOf(Flags.username, 'user-1')).to.not.be.undefined;
     });
   });
 

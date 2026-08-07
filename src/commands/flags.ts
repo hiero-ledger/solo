@@ -17,7 +17,10 @@ import {type AnyListrContext, type AnyObject, type AnyYargs} from '../types/alia
 import {type ClusterReferenceName} from '../types/index.js';
 import {type Optional, type SoloListrTaskWrapper} from '../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
-import validator from 'validator';
+import {FlagRules} from './validation/flag-rules.js';
+import {FlagValidation} from './validation/flag-validation.js';
+
+const TLS_CLUSTER_ISSUER_TYPES: string[] = ['acme-staging', 'acme-prod', 'self-signed'];
 
 export class Flags {
   public static KEY_COMMON: string = '_COMMON_';
@@ -31,20 +34,26 @@ export class Flags {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
     try {
-      let needsPrompt: boolean = type === 'toggle' ? input === undefined || typeof input !== 'boolean' : !input;
-      needsPrompt = type === 'number' ? typeof input !== 'number' : needsPrompt;
+      let isMissing: boolean = type === 'toggle' ? typeof input !== 'boolean' : !input;
+      isMissing = type === 'number' ? typeof input !== 'number' : isMissing;
 
-      if (needsPrompt) {
+      if (isMissing) {
         if (!process.stdout.isTTY || !process.stdin.isTTY) {
           // this is to help find issues with prompts running in non-interactive mode, user should supply quite mode,
           // or provide all flags required for command
-          throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(Flags.deployment));
+          throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(flag));
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const promptOptions: {default: Optional<any>; message: string} = {
+        const promptOptions: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          default: Optional<any>;
+          message: string;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          validate?: (candidate: any) => boolean | string;
+        } = {
           default: flag.definition.promptDefaultValue ?? flag.definition.defaultValue,
           message: flag.definition.promptText,
+          validate: (candidate: unknown): boolean | string => FlagValidation.violationOf(flag, candidate) ?? true,
         };
 
         switch (type) {
@@ -127,7 +136,6 @@ export class Flags {
       defaultValue: constants.SOLO_DEV_OUTPUT,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly check: CommandFlag = {
@@ -138,7 +146,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly predefinedAccounts: CommandFlag = {
@@ -149,7 +156,6 @@ export class Flags {
       defaultValue: true,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly forcePortForward: CommandFlag = {
@@ -176,7 +182,6 @@ export class Flags {
       describe: 'Bind address for kubectl port-forward (for example 127.0.0.1 or 0.0.0.0)',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   // list of common flags across commands. command specific flags are defined in the command's module.
@@ -198,6 +203,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.clusterRef);
     },
+    rules: [FlagRules.each(FlagRules.clusterReference)],
   };
 
   public static readonly clusterSetupNamespace: CommandFlag = {
@@ -218,6 +224,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.clusterSetupNamespace);
     },
+    rules: [FlagRules.dnsLabel],
   };
 
   public static readonly namespace: CommandFlag = {
@@ -237,6 +244,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.namespace);
     },
+    rules: [FlagRules.dnsLabel],
   };
 
   public static readonly mirrorNamespace: CommandFlag = {
@@ -246,7 +254,7 @@ export class Flags {
       describe: 'Namespace to use for the Mirror Node deployment, a new one will be created if it does not exist',
       type: 'string',
     },
-    prompt: undefined,
+    rules: [FlagRules.dnsLabel],
   };
 
   /**
@@ -307,7 +315,6 @@ export class Flags {
       defaultValue: PathEx.join(constants.SOLO_CACHE_DIR, 'falcon-values.yaml'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly networkDeploymentValuesFile: CommandFlag = {
@@ -371,7 +378,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly deployCertManager: CommandFlag = {
@@ -421,7 +427,6 @@ export class Flags {
       alias: 'j',
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly stateFile: CommandFlag = {
@@ -432,7 +437,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly upgradeZipFile: CommandFlag = {
@@ -443,7 +447,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly releaseTag: CommandFlag = {
@@ -472,7 +475,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly imageTag: CommandFlag = {
@@ -483,7 +485,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly componentImage: CommandFlag = {
@@ -498,7 +499,6 @@ export class Flags {
       type: 'string',
       alias: 'relay-image',
     },
-    prompt: undefined,
   };
 
   public static readonly relayReleaseTag: CommandFlag = {
@@ -552,6 +552,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.nodeAliasesUnparsed);
     },
+    rules: [FlagRules.each(FlagRules.nodeAlias)],
   };
 
   public static readonly force: CommandFlag = {
@@ -577,7 +578,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly javaFlightRecorderConfiguration: CommandFlag = {
@@ -588,7 +588,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly chartDirectory: CommandFlag = {
@@ -633,7 +632,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly explorerChartDirectory: CommandFlag = {
@@ -644,7 +642,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly blockNodeChartDirectory: CommandFlag = {
@@ -655,7 +652,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly blockNodeTssOverlay: CommandFlag = {
@@ -667,7 +663,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly blockNodeMessageSizeSoftLimitBytes: CommandFlag = {
@@ -678,7 +673,6 @@ export class Flags {
       defaultValue: undefined,
       type: 'number',
     },
-    prompt: undefined,
   };
 
   public static readonly blockNodeMessageSizeHardLimitBytes: CommandFlag = {
@@ -689,7 +683,6 @@ export class Flags {
       defaultValue: undefined,
       type: 'number',
     },
-    prompt: undefined,
   };
 
   public static readonly blockNodeMapping: CommandFlag = {
@@ -699,7 +692,6 @@ export class Flags {
       describe: Flags.renderBlockNodeMappingDescription('block-node'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly externalBlockNodeMapping: CommandFlag = {
@@ -709,7 +701,6 @@ export class Flags {
       describe: Flags.renderBlockNodeMappingDescription('external-block-node'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static renderBlockNodeMappingDescription(name: 'block-node' | 'external-block-node'): string {
@@ -735,7 +726,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly replicaCount: CommandFlag = {
@@ -754,6 +744,7 @@ export class Flags {
     ): Promise<number> {
       return await Flags.prompt('number', task, input, Flags.replicaCount);
     },
+    rules: [FlagRules.integer, FlagRules.atLeast(1)],
   };
 
   public static readonly id: CommandFlag = {
@@ -784,7 +775,6 @@ export class Flags {
         '\n\tlocalhost,127.0.0.2:8081',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly grpcWebEndpoint: CommandFlag = {
@@ -797,7 +787,6 @@ export class Flags {
         '\n[Format: <address>[:<port>]]',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly skipGrpcWebEndpoint: CommandFlag = {
@@ -811,7 +800,6 @@ export class Flags {
       type: 'boolean',
       defaultValue: false,
     },
-    prompt: undefined,
   };
 
   public static readonly mirrorNodeId: CommandFlag = {
@@ -943,7 +931,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly tlsClusterIssuerType: CommandFlag = {
@@ -967,7 +954,7 @@ export class Flags {
           default: Flags.tlsClusterIssuerType.definition.defaultValue as string,
           message:
             'Enter TLS cluster issuer type, available options are: "acme-staging", "acme-prod", or "self-signed":',
-          choices: ['acme-staging', 'acme-prod', 'self-signed'],
+          choices: TLS_CLUSTER_ISSUER_TYPES,
         })) as string;
 
         return input;
@@ -975,6 +962,7 @@ export class Flags {
         throw new SoloErrors.validation.flagInputFailed(Flags.tlsClusterIssuerType.name, error);
       }
     },
+    rules: [FlagRules.oneOf(...TLS_CLUSTER_ISSUER_TYPES)],
   };
 
   public static readonly enableExplorerTls: CommandFlag = {
@@ -1003,7 +991,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly explorerStaticIp: CommandFlag = {
@@ -1014,7 +1001,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly explorerTlsHostName: CommandFlag = {
@@ -1042,7 +1028,6 @@ export class Flags {
       defaultValue: true,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly deletePvcs: CommandFlag = {
@@ -1126,7 +1111,6 @@ export class Flags {
         ' Example: "priority-mapping node1=2,node2=1"',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly externalBlockNodeAddress: CommandFlag = {
@@ -1139,7 +1123,6 @@ export class Flags {
         ' Examples: "--address localhost:8080", "--address 192.0.0.1"',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly wrapsEnabled: CommandFlag = {
@@ -1150,7 +1133,6 @@ export class Flags {
       type: 'boolean',
       defaultValue: false,
     },
-    prompt: undefined,
   };
 
   public static readonly wrapsKeyPath: CommandFlag = {
@@ -1160,7 +1142,6 @@ export class Flags {
       describe: 'Path to a local directory containing pre-existing WRAPs proving key files (.bin)',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly tssEnabled: CommandFlag = {
@@ -1171,7 +1152,6 @@ export class Flags {
       type: 'boolean',
       defaultValue: true,
     },
-    prompt: undefined,
   };
 
   public static readonly applicationProperties: CommandFlag = {
@@ -1184,7 +1164,6 @@ export class Flags {
       defaultValue: PathEx.join('templates', constants.APPLICATION_PROPERTIES),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly applicationEnv: CommandFlag = {
@@ -1197,7 +1176,6 @@ export class Flags {
       defaultValue: PathEx.join('templates', 'application.env'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly apiPermissionProperties: CommandFlag = {
@@ -1208,7 +1186,6 @@ export class Flags {
       defaultValue: PathEx.join('templates', 'api-permission.properties'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly bootstrapProperties: CommandFlag = {
@@ -1219,7 +1196,6 @@ export class Flags {
       defaultValue: PathEx.join('templates', 'bootstrap.properties'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly genesisThrottlesFile: CommandFlag = {
@@ -1230,7 +1206,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly settingTxt: CommandFlag = {
@@ -1241,7 +1216,6 @@ export class Flags {
       defaultValue: PathEx.join('templates', 'settings.txt'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly app: CommandFlag = {
@@ -1252,7 +1226,6 @@ export class Flags {
       defaultValue: constants.HEDERA_APP_NAME,
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly appConfig: CommandFlag = {
@@ -1263,7 +1236,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly localBuildPath: CommandFlag = {
@@ -1291,7 +1263,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly newAdminKey: CommandFlag = {
@@ -1302,7 +1273,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly gossipPublicKey: CommandFlag = {
@@ -1313,7 +1283,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly gossipPrivateKey: CommandFlag = {
@@ -1325,7 +1294,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly tlsPublicKey: CommandFlag = {
@@ -1336,7 +1304,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly tlsPrivateKey: CommandFlag = {
@@ -1348,7 +1315,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly log4j2Xml: CommandFlag = {
@@ -1359,7 +1325,6 @@ export class Flags {
       defaultValue: PathEx.join('templates', 'log4j2.xml'),
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly updateAccountKeys: CommandFlag = {
@@ -1407,7 +1372,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly ecdsaPrivateKey: CommandFlag = {
@@ -1436,7 +1400,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly accountId: CommandFlag = {
@@ -1531,6 +1494,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.nodeAlias);
     },
+    rules: [FlagRules.nodeAlias],
   };
 
   public static readonly skipNodeAlias: CommandFlag = {
@@ -1547,6 +1511,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.skipNodeAlias);
     },
+    rules: [FlagRules.nodeAlias],
   };
 
   public static readonly gossipEndpoints: CommandFlag = {
@@ -1630,6 +1595,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.debugNodeAlias);
     },
+    rules: [FlagRules.nodeAlias],
   };
 
   public static readonly outputDir: CommandFlag = {
@@ -1657,7 +1623,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly zipFile: CommandFlag = {
@@ -1668,7 +1633,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly inputDir: CommandFlag = {
@@ -1697,7 +1661,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly metallbConfig: CommandFlag = {
@@ -1708,7 +1671,6 @@ export class Flags {
       defaultValue: 'metallb-cluster-{index}.yaml',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly backupExternalDatabase: CommandFlag = {
@@ -1720,7 +1682,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly externalDbParamsFile: CommandFlag = {
@@ -1732,7 +1693,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly expectedLbIpsFile: CommandFlag = {
@@ -1744,7 +1704,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly skipIpTracking: CommandFlag = {
@@ -1755,7 +1714,6 @@ export class Flags {
       defaultValue: true,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly adminKey: CommandFlag = {
@@ -1767,7 +1725,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly adminPublicKeys: CommandFlag = {
@@ -1778,7 +1735,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly quiet: CommandFlag = {
@@ -1791,7 +1747,6 @@ export class Flags {
       type: 'boolean',
       disablePrompt: true,
     },
-    prompt: undefined,
   };
 
   public static readonly rollback: CommandFlag = {
@@ -1805,7 +1760,6 @@ export class Flags {
       type: 'boolean',
       disablePrompt: true,
     },
-    prompt: undefined,
   };
 
   public static readonly output: CommandFlag = {
@@ -1818,7 +1772,6 @@ export class Flags {
       type: 'string',
       disablePrompt: true,
     },
-    prompt: undefined,
   };
 
   public static readonly mirrorNodeVersion: CommandFlag = {
@@ -1846,7 +1799,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly mirrorStaticIp: CommandFlag = {
@@ -1857,7 +1809,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly explorerVersion: CommandFlag = {
@@ -1918,6 +1869,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.deployment);
     },
+    rules: [FlagRules.dnsLabel],
   };
 
   public static readonly deploymentClusters: CommandFlag = {
@@ -1934,6 +1886,7 @@ export class Flags {
     ): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.deploymentClusters);
     },
+    rules: [FlagRules.each(FlagRules.clusterReference)],
   };
 
   public static readonly serviceMonitor: CommandFlag = {
@@ -1944,7 +1897,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly podLog: CommandFlag = {
@@ -1955,7 +1907,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly pinger: CommandFlag = {
@@ -1966,7 +1917,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   //* ------------- Node Proxy Certificates ------------- !//
@@ -2020,7 +1970,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   //* ----------------- External Mirror Node PostgreSQL Database Related Flags ------------------ *//
@@ -2122,26 +2071,12 @@ export class Flags {
         'Optional user name used for local configuration. Only accepts letters and numbers. Defaults to the username provided by the OS',
       type: 'string',
       alias: 'u',
+      promptText: 'Please enter your username. Can only contain letters and numbers:',
     },
     prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
-      const promptForInput: () => Promise<string> = async (): Promise<string> => {
-        return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
-          message: 'Please enter your username. Can only contain letters and numbers:',
-        });
-      };
-
-      input = await promptForInput();
-
-      while (!Flags.username.validate(input)) {
-        input = await promptForInput();
-      }
-
-      return input;
+      return await Flags.prompt('input', task, input, Flags.username);
     },
-    validate: (input: string): boolean => {
-      // only allow letters and numbers
-      return validator.isAlphanumeric(input);
-    },
+    rules: [FlagRules.alphanumeric],
   };
 
   public static readonly grpcTlsKeyPath: CommandFlag = {
@@ -2195,7 +2130,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly haproxyIps: CommandFlag = {
@@ -2207,7 +2141,6 @@ export class Flags {
         '(e.g.: --haproxy-ips node1=127.0.0.1,node2=127.0.0.1)',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly envoyIps: CommandFlag = {
@@ -2219,7 +2152,6 @@ export class Flags {
         '(e.g.: --envoy-ips node1=127.0.0.1,node2=127.0.0.1)',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly networkNodeIps: CommandFlag = {
@@ -2231,7 +2163,6 @@ export class Flags {
         '(e.g.: --network-node-ips node1=127.0.0.1,node2=127.0.0.2)',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly storageType: CommandFlag = {
@@ -2243,7 +2174,6 @@ export class Flags {
         'storage type for saving stream files, available options are minio_only, aws_only, gcs_only, aws_and_gcs',
       type: 'StorageType',
     },
-    prompt: undefined,
   };
 
   public static readonly gcsWriteAccessKey: CommandFlag = {
@@ -2255,7 +2185,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly gcsWriteSecrets: CommandFlag = {
@@ -2267,7 +2196,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly gcsEndpoint: CommandFlag = {
@@ -2279,7 +2207,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly gcsBucket: CommandFlag = {
@@ -2291,7 +2218,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly gcsBucketPrefix: CommandFlag = {
@@ -2302,7 +2228,6 @@ export class Flags {
       describe: 'path prefix of google storage bucket',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly awsWriteAccessKey: CommandFlag = {
@@ -2314,7 +2239,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly awsWriteSecrets: CommandFlag = {
@@ -2326,7 +2250,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly awsEndpoint: CommandFlag = {
@@ -2338,7 +2261,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly awsBucket: CommandFlag = {
@@ -2350,7 +2272,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly awsBucketRegion: CommandFlag = {
@@ -2362,7 +2283,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly awsBucketPrefix: CommandFlag = {
@@ -2374,7 +2294,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly backupBucket: CommandFlag = {
@@ -2386,7 +2305,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly backupWriteAccessKey: CommandFlag = {
@@ -2398,7 +2316,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly backupWriteSecrets: CommandFlag = {
@@ -2410,7 +2327,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly backupEndpoint: CommandFlag = {
@@ -2422,7 +2338,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly backupRegion: CommandFlag = {
@@ -2433,7 +2348,6 @@ export class Flags {
       describe: 'backup storage region',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly backupProvider: CommandFlag = {
@@ -2444,7 +2358,6 @@ export class Flags {
       describe: 'backup storage service provider, GCS or AWS',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly storageReadAccessKey: CommandFlag = {
@@ -2456,7 +2369,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly storageReadSecrets: CommandFlag = {
@@ -2468,7 +2380,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly storageEndpoint: CommandFlag = {
@@ -2480,7 +2391,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly storageBucket: CommandFlag = {
@@ -2492,7 +2402,6 @@ export class Flags {
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
-    prompt: undefined,
   };
 
   public static readonly storageBucketPrefix: CommandFlag = {
@@ -2503,7 +2412,6 @@ export class Flags {
       describe: 'path prefix of storage bucket mirror node importer',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly storageBucketRegion: CommandFlag = {
@@ -2514,7 +2422,6 @@ export class Flags {
       describe: 'region of storage bucket mirror node importer',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly loadBalancerEnabled: CommandFlag = {
@@ -2544,7 +2451,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly numberOfConsensusNodes: CommandFlag = {
@@ -2576,7 +2482,6 @@ export class Flags {
       defaultValue: 'cluster.local',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly dnsConsensusNodePattern: CommandFlag = {
@@ -2589,7 +2494,6 @@ export class Flags {
       defaultValue: 'network-{nodeAlias}-svc.{namespace}.svc',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly domainName: CommandFlag = {
@@ -2599,7 +2503,6 @@ export class Flags {
       describe: 'Custom domain name',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly domainNames: CommandFlag = {
@@ -2612,7 +2515,6 @@ export class Flags {
         'with multiple nodes comma separated',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly gossipEndpointPort: CommandFlag = {
@@ -2625,7 +2527,6 @@ export class Flags {
         '\n[Format: <port> to apply the same port to every node, or <alias>=<port>[,<alias>=<port>] per node]',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly serviceEndpointPort: CommandFlag = {
@@ -2638,7 +2539,6 @@ export class Flags {
         '\n[Format: <port> to apply the same port to every node, or <alias>=<port>[,<alias>=<port>] per node]',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly realm: CommandFlag = {
@@ -2649,7 +2549,6 @@ export class Flags {
       type: 'number',
       defaultValue: 0,
     },
-    prompt: undefined,
   };
 
   public static readonly shard: CommandFlag = {
@@ -2660,7 +2559,6 @@ export class Flags {
       type: 'number',
       defaultValue: 0,
     },
-    prompt: undefined,
   };
 
   // --------------- Rapid Fire --------------- //
@@ -2673,7 +2571,6 @@ export class Flags {
       type: 'number',
       defaultValue: 0,
     },
-    prompt: undefined,
   };
 
   public static readonly maxRtt: CommandFlag = {
@@ -2685,7 +2582,6 @@ export class Flags {
       type: 'number',
       defaultValue: 0,
     },
-    prompt: undefined,
   };
 
   public static readonly performanceTest: CommandFlag = {
@@ -2696,7 +2592,6 @@ export class Flags {
       type: 'string',
       defaultValue: '',
     },
-    prompt: undefined,
   };
 
   public static readonly packageName: CommandFlag = {
@@ -2707,7 +2602,6 @@ export class Flags {
       type: 'string',
       defaultValue: 'com.hedera.benchmark',
     },
-    prompt: undefined,
   };
 
   public static readonly nlgArguments: CommandFlag = {
@@ -2720,7 +2614,6 @@ export class Flags {
       type: 'string',
       defaultValue: '',
     },
-    prompt: undefined,
   };
 
   public static readonly javaHeap: CommandFlag = {
@@ -2731,7 +2624,6 @@ export class Flags {
       type: 'number',
       defaultValue: 8,
     },
-    prompt: undefined,
   };
 
   // --------------- One Shot --------------- //
@@ -2746,7 +2638,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly deployMirrorNode: CommandFlag = {
@@ -2757,7 +2648,6 @@ export class Flags {
       defaultValue: true,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly deployExplorer: CommandFlag = {
@@ -2768,7 +2658,6 @@ export class Flags {
       defaultValue: true,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly deployRelay: CommandFlag = {
@@ -2779,7 +2668,6 @@ export class Flags {
       defaultValue: true,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   public static readonly parallelDeploy: CommandFlag = {
@@ -2792,7 +2680,6 @@ export class Flags {
       defaultValue: true,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   // --------------- One Shot Version Pins --------------- //
@@ -2805,7 +2692,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly relayVersion: CommandFlag = {
@@ -2816,7 +2702,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   public static readonly blockNodeVersion: CommandFlag = {
@@ -2827,7 +2712,6 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
   };
 
   // ------------------ Edge ---------------- //
@@ -2843,7 +2727,6 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
   };
 
   // Every static CommandFlag defined in this class must be listed here.
