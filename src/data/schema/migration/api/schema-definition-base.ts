@@ -15,6 +15,16 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
 
   protected constructor(protected readonly mapper: ObjectMapper) {}
 
+  public get latestSupportedVersion(): SemanticVersion<number> {
+    let latest: SemanticVersion<number> = this.version;
+    for (const migration of this.migrations) {
+      if (migration.version.compare(latest) > 0) {
+        latest = migration.version;
+      }
+    }
+    return latest;
+  }
+
   public async transform(data: object, sourceVersion?: SemanticVersion<number>): Promise<T> {
     if (data === undefined || data === null) {
       return null;
