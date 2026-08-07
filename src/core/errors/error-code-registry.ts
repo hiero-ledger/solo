@@ -313,6 +313,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5083',
   PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5084',
   SAVED_STATE_HASH_TOOL_MISSING: 'SOLO-5085',
+  CACHE_MANIFEST_DOWNLOAD_FAILED: 'SOLO-5086',
+  CACHE_MANIFEST_INVALID: 'SOLO-5087',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
