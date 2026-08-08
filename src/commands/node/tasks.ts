@@ -159,6 +159,7 @@ import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
+import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
@@ -2258,6 +2259,34 @@ export class NodeCommandTasks {
     };
   }
 
+  public waitForFrozenStateToBeStable(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for frozen state files to stabilize',
+      task: (context_, task): SoloListr<AnyListrContext> => {
+        const nodeAliases: NodeAliases = context_.config[nodeAliasesProperty];
+        const subTasks: SoloListrTask<AnyListrContext>[] = nodeAliases.map(
+          (nodeAlias): SoloListrTask<AnyListrContext> => ({
+            title: `Wait for stable frozen state: ${chalk.yellow(nodeAlias)}`,
+            task: async (): Promise<void> => {
+              const context: string = extractContextFromConsensusNodes(
+                nodeAlias,
+                this.remoteConfig.getConsensusNodes(),
+              );
+              const podReference: PodReference = PodReference.of(
+                context_.config.namespace,
+                Templates.renderNetworkPodName(nodeAlias),
+              );
+              await container
+                .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+                .waitForFrozenStateToBeStable(podReference, context);
+            },
+          }),
+        );
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
   public checkNodeProxiesAreActive(): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
     return {
       title: 'Check node proxies are ACTIVE',
@@ -3153,12 +3182,48 @@ export class NodeCommandTasks {
     return {
       title: 'Get node states',
       task: async (context_): Promise<void> => {
+        const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
+        const nodePhases: DeploymentPhase[] = [];
         for (const nodeAlias of context_.config.nodeAliases) {
           const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
-          await container
-            .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
-            .getStatesFromPod(context_.config.namespace, nodeAlias, context);
+          const nodeComponent: ConsensusNodeStateSchema = this.remoteConfig.configuration.components.getComponent(
+            ComponentTypes.ConsensusNode,
+            Templates.renderComponentIdFromNodeAlias(nodeAlias),
+          );
+          const deploymentPhase: DeploymentPhase = nodeComponent.metadata.phase;
+
+          if (![DeploymentPhase.FROZEN, DeploymentPhase.STOPPED].includes(deploymentPhase)) {
+            this.logger.showUser(
+              chalk.yellow(
+                `Warning: node ${nodeAlias} is in phase '${deploymentPhase}'. State download is only supported when consensus nodes are frozen or stopped.`,
+              ),
+            );
+            throw new SoloErrors.validation.illegalArgument(
+              `Consensus node ${nodeAlias} must be in phase '${DeploymentPhase.FROZEN}' or '${DeploymentPhase.STOPPED}' before downloading saved state.`,
+            );
+          }
+
+          nodePhases.push(deploymentPhase);
+          await networkNodes.getStatesFromPod(
+            context_.config.namespace,
+            nodeAlias,
+            context,
+            undefined,
+            deploymentPhase,
+          );
         }
+
+        // Normalize all downloaded archives together so every node restores from
+        // the same signed round instead of independently selecting a boundary.
+        const allNodesFrozen: boolean = nodePhases.every(
+          (phase: DeploymentPhase): boolean => phase === DeploymentPhase.FROZEN,
+        );
+        await networkNodes.normalizeDownloadedStateArchives(
+          context_.config.namespace,
+          context_.config.nodeAliases,
+          undefined,
+          allNodesFrozen ? DeploymentPhase.FROZEN : undefined,
+        );
       },
     };
   }

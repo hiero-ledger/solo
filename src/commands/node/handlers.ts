@@ -818,7 +818,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), undefined, true, false),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
         this.tasks.getHelmChartValues(outputDirectory),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -890,7 +890,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.ensureInteractiveSelectionPrompt();
       const selectedFromRemote: string = (await selectPrompt({
         message: 'Select deployment for diagnostics logs:',
-        choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
+        choices: remoteDeploymentNames.map((name: string): {name: string; value: string} => ({name, value: name})),
       })) as string;
       this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
       return selectedFromRemote;
@@ -903,7 +903,9 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (this.resolveQuietFlag(argv)) {
-      const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
+      const deploymentNames: string = validDeployments
+        .map((deployment: Deployment): string => deployment.name)
+        .join(', ');
       throw new SoloErrors.system.multipleDeploymentsFound('local', deploymentNames);
     }
 
@@ -931,7 +933,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), undefined, true, false),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
         ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -1136,22 +1138,30 @@ export class NodeCommandHandlers extends CommandHandler {
   public async start(argv: ArgvStruct): Promise<boolean> {
     argv = addFlagsToArgv(argv, NodeFlags.START_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
+    const restoringState: boolean =
+      typeof argv[flags.stateFile.name] === 'string' && argv[flags.stateFile.name].length > 0;
 
-    await this.commandAction(
-      argv,
-      [
-        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(
-          argv,
-          this.configs.startConfigBuilder.bind(this.configs),
-          leaseWrapper.lease,
-          true,
-          false,
-        ),
-        this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
-        this.tasks.identifyExistingNodes(),
-        this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
-        this.tasks.startNodes('nodeAliases'),
+    const startTasks: SoloListrTask<AnyListrContext>[] = [
+      this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+      this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
+      this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
+      this.tasks.identifyExistingNodes(),
+      this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
+      this.tasks.startNodes('nodeAliases'),
+      this.tasks.enableDebuggerPortForwarding(),
+    ];
+
+    if (restoringState) {
+      // A freeze-captured archive is expected to restore into FREEZE_COMPLETE.
+      // Do not require ACTIVE or run ACTIVE-only TSS/start-event tasks for it.
+      startTasks.push(
+        this.tasks.checkAllNodesAreFrozen('nodeAliases'),
+        this.tasks.checkNodeProxiesAreActive(),
+        this.changeAllNodePhases(DeploymentPhase.FROZEN),
+      );
+    } else {
+      startTasks.push(
+        this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.enablePortForwarding(true),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.emitNodeStartedEvent(),
@@ -1159,9 +1169,13 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        // TODO only show this if we are not running in one-shot mode
-        // this.tasks.showUserMessages(),
-      ],
+        this.tasks.emitNodeStartedEvent(),
+      );
+    }
+
+    await this.commandAction(
+      argv,
+      startTasks,
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error starting node',
       leaseWrapper.lease,
@@ -1217,6 +1231,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+        this.tasks.waitForFrozenStateToBeStable('existingNodeAliases'),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],

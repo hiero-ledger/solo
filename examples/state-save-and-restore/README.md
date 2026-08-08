@@ -90,10 +90,10 @@ task restore
 
 This will:
 
-* Stop and destroy existing network
+* Stop and destroy the mirror node and consensus network
 * Recreate PostgreSQL database
 * Import database dump
-* Create new consensus network with same configuration
+* Recreate the consensus network with the original deployment metadata and key material
 * Upload saved state to new nodes
 * Start nodes with restored state
 * Reconnect mirror node to database
@@ -135,6 +135,7 @@ saved-states/
 ├── state-restore-namespace/
 │   ├── network-node1-0-state.zip
 │   └── network-node2-0-state.zip
+├── mirror-passwords-secret.json
 └── database-dump.sql          # PostgreSQL database export
 ```
 
@@ -143,6 +144,7 @@ saved-states/
 * State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
 * During save: All node state files are downloaded
 * During restore: A per-node restore input directory is built and passed to `solo consensus node start --state-file`
+* Mirror database credentials are preserved in `mirror-passwords-secret.json` and restored before mirror redeploy
 
 The example also includes:
 
@@ -166,19 +168,21 @@ The `init.sh` script sets up the PostgreSQL database with:
 1. **Download State**: Uses `solo consensus state download` to download signed state from each consensus node to `~/.solo/logs/<namespace>/`
 2. **Copy State Files**: Copies state files from `~/.solo/logs/<namespace>/` to `./saved-states/` directory
 3. **Export Database**: Uses `pg_dump` with `--clean --if-exists` flags to export the complete database including schema and data
+4. **Save Mirror Credentials**: Exports the `mirror-passwords` secret so the restored mirror deployment reuses the original DB role passwords
 
 ### State Restoration Process
 
 1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
-2. **Database Restore**: Imports database dump which drops and recreates tables with all data
-3. **Stable Service Validation**: Verifies per-node service DNS names are resolvable (`network-<node>-svc.<namespace>.svc.cluster.local`)
-4. **Restore Input Build**: Builds `./saved-states/restore-input/states/<cluster-ref>/<namespace>/` and copies each node's state zip
-5. **State Upload and Start**: Starts all nodes together with `solo consensus node start --state-file ./saved-states/restore-input`
+2. **Fresh Network Deployment**: Reuses the original deployment metadata and consensus key material, redeploys the consensus network, and runs node setup for the new pods
+3. **Restore Mirror Credentials**: Restores the saved `mirror-passwords` secret so mirror components reuse the original database passwords
+4. **Database Restore**: Reconciles mirror database roles from the saved secret, then imports the database dump
+5. **Restore Input Build**: Builds `./saved-states/restore-input/states/<cluster-ref>/<namespace>/` and copies each node's state zip
+6. **State Upload and Start**: Starts all nodes together with `solo consensus node start --state-file ./saved-states/restore-input`
    * State files are extracted to `data/saved/`
    * Cleanup: Only the latest/biggest round is kept, older rounds are automatically deleted to save disk space
    * Node ID Renaming: Directory paths containing node IDs are automatically renamed to match each target node
-6. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
-7. **Verification**: Checks that restored state matches original
+7. **Mirror Node**: Redeploys the mirror node connected to the restored database
+8. **Verification**: Checks that restored state matches original
 
 ## Notes
 
@@ -187,8 +191,7 @@ The `init.sh` script sets up the PostgreSQL database with:
 * External PostgreSQL database provides data persistence and queryability
 * State restoration maintains transaction history and account balances
 * Mirror node will resume from the restored state point
-* **Per-node State Restore**: Uses each node's own state zip and starts all nodes together on the existing network pods
-* Stable per-node service names are validated before restore start
+* **Per-node State Restore**: Uses each node's own state zip and starts all nodes together on a freshly redeployed network with the original consensus keys
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 
 ### View Logs

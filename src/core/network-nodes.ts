@@ -4,6 +4,7 @@ import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {HEDERA_HAPI_PATH, LOG_CONFIG_ZIP_SUFFIX, ROOT_CONTAINER, SOLO_LOGS_DIR} from './constants.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import * as constants from './constants.js';
 import {sleep} from './helpers.js';
@@ -19,6 +20,9 @@ import {K8} from '../integration/kube/k8.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import {NodeStatusEnums} from './enumerations.js';
 import chalk from 'chalk';
+import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {SoloErrors} from './errors/solo-errors.js';
+import {Zippy} from './zippy.js';
 
 /**
  * Class to manage network nodes
@@ -28,9 +32,11 @@ export class NetworkNodes {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
+    @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
+    this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
   }
 
   /**
@@ -139,6 +145,7 @@ export class NetworkNodes {
     nodeAlias: string,
     context?: string,
     baseDirectory?: string,
+    deploymentPhase?: DeploymentPhase,
   ): Promise<void[]> {
     const pods: Pod[] = await this.k8Factory
       .getK8(context)
@@ -149,12 +156,174 @@ export class NetworkNodes {
     const stateBaseDirectory: string = baseDirectory || SOLO_LOGS_DIR;
     const promises: Promise<void>[] = [];
     for (const pod of pods) {
-      promises.push(this.getState(pod, namespace, stateBaseDirectory, context));
+      promises.push(this.getState(pod, namespace, stateBaseDirectory, context, deploymentPhase));
     }
     return await Promise.all(promises);
   }
 
-  private async getState(pod: Pod, namespace: NamespaceName, baseDirectory: string, context?: string): Promise<void> {
+  /**
+   * Normalize downloaded state archives to one common signed round.
+   *
+   * State downloads contain every round flushed before the archive is created.
+   * Restore must use one round that exists and is fully signed in every node
+   * archive; otherwise the nodes can start from different state/PCES boundaries.
+   */
+  public async normalizeDownloadedStateArchives(
+    namespace: NamespaceName,
+    nodeAliases: string[],
+    baseDirectory: string = SOLO_LOGS_DIR,
+    deploymentPhase?: DeploymentPhase,
+  ): Promise<string> {
+    const archivePaths: string[] = nodeAliases.map((nodeAlias: string): string => {
+      const archivePath: string = PathEx.join(baseDirectory, namespace.name, `network-${nodeAlias}-0-state.zip`);
+      if (!fs.existsSync(archivePath)) {
+        throw new SoloErrors.validation.illegalArgument(`State file not found: ${archivePath}`);
+      }
+      return archivePath;
+    });
+
+    const extractedDirectories: string[] = [];
+    try {
+      const roundSets: Set<string>[] = [];
+      const freezeRoundSets: Set<string>[] = [];
+
+      for (const archivePath of archivePaths) {
+        const extractedDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-state-'));
+        extractedDirectories.push(extractedDirectory);
+        this.zippy.unzip(archivePath, extractedDirectory);
+
+        const stateRoot: string = this.findSavedStateRoundRoot(extractedDirectory);
+        const signedRounds: Set<string> = new Set<string>();
+        const freezeRounds: Set<string> = new Set<string>();
+        for (const roundDirectory of fs.readdirSync(stateRoot, {withFileTypes: true})) {
+          if (!roundDirectory.isDirectory() || !/^\d+$/.test(roundDirectory.name)) {
+            continue;
+          }
+
+          const metadataPath: string = PathEx.join(stateRoot, roundDirectory.name, 'stateMetadata.txt');
+          if (!fs.existsSync(metadataPath)) {
+            continue;
+          }
+
+          const metadata: string = fs.readFileSync(metadataPath, 'utf8');
+          const signingWeight: string | undefined = this.readStateMetadataValue(metadata, 'SIGNING_WEIGHT_SUM');
+          const totalWeight: string | undefined = this.readStateMetadataValue(metadata, 'TOTAL_WEIGHT');
+          if (!signingWeight || signingWeight !== totalWeight) {
+            continue;
+          }
+
+          signedRounds.add(roundDirectory.name);
+          if (this.readStateMetadataValue(metadata, 'FREEZE_STATE') === 'true') {
+            freezeRounds.add(roundDirectory.name);
+          }
+        }
+
+        roundSets.push(signedRounds);
+        freezeRoundSets.push(freezeRounds);
+      }
+
+      const commonSignedRounds: Set<string> = this.intersectRoundSets(roundSets);
+      const commonFreezeRounds: Set<string> = this.intersectRoundSets(freezeRoundSets);
+      const preferFreezeRound: boolean = deploymentPhase === DeploymentPhase.FROZEN;
+      const selectedRound: string | undefined = this.selectHighestRound(
+        preferFreezeRound && commonFreezeRounds.size > 0 ? commonFreezeRounds : commonSignedRounds,
+      );
+
+      if (!selectedRound) {
+        throw new SoloErrors.validation.illegalArgument(
+          `No common fully signed state round found for nodes: ${nodeAliases.join(',')}`,
+        );
+      }
+
+      for (const [index, extractedDirectory] of extractedDirectories.entries()) {
+        const stateRoot: string = this.findSavedStateRoundRoot(extractedDirectory);
+        for (const roundDirectory of fs.readdirSync(stateRoot, {withFileTypes: true})) {
+          if (
+            roundDirectory.isDirectory() &&
+            /^\d+$/.test(roundDirectory.name) &&
+            roundDirectory.name !== selectedRound
+          ) {
+            fs.rmSync(PathEx.join(stateRoot, roundDirectory.name), {recursive: true, force: true});
+          }
+        }
+
+        // These transient directories are not part of the selected state/PCES boundary.
+        fs.rmSync(PathEx.join(extractedDirectory, 'saved'), {recursive: true, force: true});
+        fs.rmSync(PathEx.join(extractedDirectory, 'swirlds-tmp'), {recursive: true, force: true});
+        await this.zippy.zip(extractedDirectory, archivePaths[index]);
+      }
+
+      this.logger.showUser(`Normalized state archives to common signed round ${selectedRound}`);
+      return selectedRound;
+    } finally {
+      for (const extractedDirectory of extractedDirectories) {
+        fs.rmSync(extractedDirectory, {recursive: true, force: true});
+      }
+    }
+  }
+
+  private findSavedStateRoundRoot(extractedDirectory: string): string {
+    const serviceDirectory: string = PathEx.join(extractedDirectory, 'com.hedera.services.ServicesMain');
+    const nodeDirectory: string | undefined = fs
+      .readdirSync(serviceDirectory, {withFileTypes: true})
+      .find((entry): boolean => entry.isDirectory())?.name;
+    const realmShardDirectory: string | undefined = nodeDirectory
+      ? fs
+          .readdirSync(PathEx.join(serviceDirectory, nodeDirectory), {withFileTypes: true})
+          .find((entry): boolean => entry.isDirectory())?.name
+      : undefined;
+    if (!nodeDirectory || !realmShardDirectory) {
+      throw new SoloErrors.validation.illegalArgument(`Could not locate saved state rounds in ${extractedDirectory}`);
+    }
+    return PathEx.join(serviceDirectory, nodeDirectory, realmShardDirectory);
+  }
+
+  private readStateMetadataValue(metadata: string, key: string): string | undefined {
+    return metadata
+      .split('\n')
+      .find((line: string): boolean => line.startsWith(`${key}:`))
+      ?.slice(key.length + 1)
+      .trim();
+  }
+
+  private intersectRoundSets(roundSets: Set<string>[]): Set<string> {
+    const [firstSet, ...remainingSets] = roundSets;
+    return new Set<string>(
+      [...(firstSet ?? [])].filter((round: string): boolean =>
+        remainingSets.every((set: Set<string>): boolean => set.has(round)),
+      ),
+    );
+  }
+
+  private selectHighestRound(rounds: Set<string>): string | undefined {
+    let highestRound: string | undefined;
+    for (const currentRound of rounds) {
+      if (highestRound === undefined || Number(currentRound) > Number(highestRound)) {
+        highestRound = currentRound;
+      }
+    }
+
+    return highestRound;
+  }
+
+  /**
+   * Wait for a fully signed freeze state before a freeze workflow stops the node.
+   * A FROZEN platform status alone is not enough: stopping immediately can leave
+   * the archive with only a non-freeze state and misaligned PCES replay data.
+   */
+  public async waitForFrozenStateToBeStable(podReference: PodReference, context?: string): Promise<void> {
+    const containerReference: ContainerReference = ContainerReference.of(podReference, ROOT_CONTAINER);
+    const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+    await this.waitForStableSavedState(container, podReference.name.name, false);
+  }
+
+  private async getState(
+    pod: Pod,
+    namespace: NamespaceName,
+    baseDirectory: string,
+    context?: string,
+    deploymentPhase?: DeploymentPhase,
+  ): Promise<void> {
     const podReference: PodReference = pod.podReference;
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): begin...`);
     const targetDirectory: string = PathEx.join(baseDirectory, namespace.name);
@@ -167,6 +336,15 @@ export class NetworkNodes {
 
       const k8: K8 = this.k8Factory.getK8(context);
       const zipFileName: string = `${HEDERA_HAPI_PATH}/${podReference.name}-state.zip`;
+      // A frozen node should yield a freeze round; a merely stopped node may only
+      // have a non-freeze signed round available.
+      const requireFreezeRound: boolean = deploymentPhase === DeploymentPhase.FROZEN;
+
+      await this.waitForStableSavedState(
+        k8.containers().readByRef(containerReference),
+        podReference.name.name,
+        requireFreezeRound,
+      );
 
       // Zip doesn't have a -C flag like tar, so we use sh -c with subshell to change directory
       // Use the -X to archive for cross-platform compatibility
@@ -185,6 +363,86 @@ export class NetworkNodes {
       this.logger.showUser(`Failed to download state from pod ${podReference.name}` + error);
     }
     this.logger.debug(`getNodeState(${pod.podReference.name.name}): ...end`);
+  }
+
+  private async waitForStableSavedState(
+    container: Container,
+    podName: string,
+    requireFreezeRound: boolean,
+  ): Promise<void> {
+    const maxAttempts: number = 180;
+    const stablePollsRequired: number = 3;
+    const pollDelay: Duration = Duration.ofSeconds(2);
+    let lastFingerprint: string | undefined;
+    let stablePolls: number = 0;
+    const scriptName: string = 'wait-for-stable-saved-state.sh';
+    const sourcePath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName);
+    const destinationPath: string = `${HEDERA_HAPI_PATH}/${scriptName}`;
+
+    // Reuse a checked-in resource script so the in-pod state-selection logic is
+    // versioned alongside Solo and remains readable/testable outside TS strings.
+    await container.copyTo(sourcePath, `${HEDERA_HAPI_PATH}`);
+    await sleep(Duration.ofSeconds(1));
+    await container.execContainer([
+      'bash',
+      '-c',
+      `sync ${HEDERA_HAPI_PATH} && chown hedera:hedera ${destinationPath} && chmod 0755 ${destinationPath}`,
+    ]);
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const rawOutput: string = await container.execContainer([
+          'bash',
+          '-lc',
+          // The script prints "<tree-fingerprint> <selected-round> <kind>"
+          // once it finds the best fully signed saved-state boundary currently
+          // persisted on disk, preferring a freeze round when requested.
+          `${destinationPath} ${String(requireFreezeRound)} ${HEDERA_HAPI_PATH}/data/saved`,
+        ]);
+        const output: string = rawOutput.trim();
+
+        const [fingerprint, round, kind] = output.split(/\s+/);
+        if (!fingerprint || !round || !kind) {
+          throw new SoloErrors.validation.illegalArgument(`Missing saved state fingerprint for pod ${podName}`);
+        }
+
+        stablePolls = fingerprint === lastFingerprint ? stablePolls + 1 : 1;
+        lastFingerprint = fingerprint;
+
+        this.logger.debug(
+          `[state-download] ${podName}: round ${round} (${kind}) stable poll ${stablePolls}/${stablePollsRequired}`,
+        );
+
+        if (kind === 'frozen-fallback') {
+          // A frozen deployment can expose the FROZEN platform status before a
+          // freeze-marked round becomes fully signed on disk. In that case,
+          // export the newest fully signed non-freeze round instead of waiting
+          // indefinitely for a freeze round that may never materialize.
+          this.logger.warn(
+            `[state-download] ${podName}: deployment is FROZEN but no fully signed freeze round exists on disk yet; using the newest fully signed non-freeze round`,
+          );
+        }
+
+        if (stablePolls >= stablePollsRequired) {
+          // One final sync narrows the gap between the successful probe and the
+          // subsequent zip/copy operation.
+          await container.execContainer('sync');
+          return;
+        }
+      } catch (error) {
+        // The script exits non-zero until a qualifying signed round exists or the
+        // saved-state tree stops changing across polls.
+        this.logger.debug(`[state-download] ${podName}: saved state not stable yet`, error);
+      }
+
+      await sleep(pollDelay);
+    }
+
+    throw new SoloErrors.validation.illegalArgument(
+      requireFreezeRound
+        ? `Timed out waiting for a stable fully signed saved state on pod ${podName}. The deployment is frozen, but no signed round became stable on disk.`
+        : `Timed out waiting for a stable fully signed saved state on pod ${podName}. Stop or freeze the node and retry state download.`,
+    );
   }
 
   public async getNetworkNodePodStatus(podReference: PodReference, context?: string): Promise<string> {
