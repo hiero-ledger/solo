@@ -14,17 +14,11 @@ import {type ConfigManager} from './config-manager.js';
 import {Helpers} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
-import {type Optional, type PriorityMapping} from '../types/index.js';
+import {type PriorityMapping} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
-import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type K8} from '../integration/kube/k8.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
-import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {type Container} from '../integration/kube/resources/container/container.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {FilePermissions} from '../business/utils/file-permissions.js';
@@ -33,12 +27,18 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {type ProfileManagerStagingOptions} from './profile-manager-staging-options.js';
+import {Address} from '../business/address/address.js';
+import {type K8} from '../integration/kube/k8.js';
+import {type K8Factory} from '../integration/kube/k8-factory.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
 
 @injectable()
 export class ProfileManager {
@@ -172,23 +172,6 @@ export class ProfileManager {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(resolvedStagingOptions.releaseTag);
-    let configTxtPath: Optional<string>;
-    if (needsConfigTxt) {
-      const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(
-        consensusNodes,
-        applicationPropertiesPath,
-      );
-      configTxtPath = await this.prepareConfigTxt(
-        accountMap,
-        consensusNodes,
-        stagingDirectory,
-        resolvedStagingOptions.appName,
-        resolvedStagingOptions.chainId,
-        gossipFqdnRestricted,
-      );
-    }
-
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
       applicationPropertiesPath,
@@ -257,9 +240,6 @@ export class ProfileManager {
     const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
     await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
 
-    if (configTxtPath) {
-      this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
-    }
     this._setFileContentsAsValue(
       'hedera.configMaps.log4j2Xml',
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'log4j2.xml'),

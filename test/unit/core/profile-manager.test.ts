@@ -30,7 +30,6 @@ import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../../src/data/schema/model/remote/state/component-state-metadata-schema.js';
 import {ClusterSchema} from '../../../src/data/schema/model/common/cluster-schema.js';
-
 function invokeExtractSavedEndpoint(
   manager: ProfileManager,
   consensusNode: ConsensusNode,
