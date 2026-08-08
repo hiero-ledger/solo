@@ -80,7 +80,8 @@ interface ActiveConditionalLogSuppression {
  * codes and `[traceId="..."]` suffixes are stripped before matching.
  *
  * ### 2. Pod describe files  (`*.describe.txt`)
- * Written by `downloadHieroComponentLogs()` for every pod across all clusters.
+ * Written by `downloadHieroComponentLogs()` for every pod in the collected scope
+ * (all deployments by default, or a selected deployment when `--deployment` is set).
  * These are the output of `kubectl describe pod <name> -n <namespace>` and
  * contain the pod's status, container states, events, and resource usage.
  *

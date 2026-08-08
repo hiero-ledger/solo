@@ -8,6 +8,7 @@ import {NodeCommandHandlers} from '../../../../src/commands/node/handlers.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {DiagnosticsCollector} from '../../../../src/commands/util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../../../../src/commands/util/diagnostics-reporter.js';
+import {GetSoloRemoteConfigMapTask} from '../../../../src/commands/util/get-solo-remote-config-map-task.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type LockManager} from '../../../../src/core/lock/lock-manager.js';
 import {type ConfigManager} from '../../../../src/core/config-manager.js';
@@ -87,6 +88,9 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   let commandActionStub: SinonStub;
   let runDiagnosticsReportStub: SinonStub;
   let defaultK8Stub: SinonStub;
+  let getHelmChartValuesStub: SinonStub;
+  let downloadHieroComponentLogsStub: SinonStub;
+  let getRemoteConfigMapTaskStub: SinonStub;
 
   beforeEach((): void => {
     loggerStub = makeLoggerStub();
@@ -110,12 +114,14 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     const dummyTask: SoloListrTask<object> = {title: 'dummy', task: async (): Promise<void> => {}};
     analyzeStub = sinon.stub().returns(dummyTask);
     initializeStub = sinon.stub().returns(dummyTask);
+    getHelmChartValuesStub = sinon.stub().returns(dummyTask);
+    downloadHieroComponentLogsStub = sinon.stub().returns(dummyTask);
     const tasksStub: NodeCommandTasks = {
       analyzeCollectedDiagnostics: analyzeStub,
       initialize: initializeStub,
       getNodeLogsAndConfigs: sinon.stub().returns(dummyTask),
-      getHelmChartValues: sinon.stub().returns(dummyTask),
-      downloadHieroComponentLogs: sinon.stub().returns(dummyTask),
+      getHelmChartValues: getHelmChartValuesStub,
+      downloadHieroComponentLogs: downloadHieroComponentLogsStub,
       reportActivePortForwards: sinon.stub().returns(dummyTask),
     } as unknown as NodeCommandTasks;
 
@@ -155,6 +161,7 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
 
     commandActionStub = sinon.stub(NodeCommandHandlers.prototype, 'commandAction').resolves();
     runDiagnosticsReportStub = sinon.stub(DiagnosticsReporter, 'runDiagnosticsReport').resolves();
+    getRemoteConfigMapTaskStub = sinon.stub(GetSoloRemoteConfigMapTask, 'getTask').returns(dummyTask);
   });
 
   afterEach((): void => {
@@ -239,6 +246,45 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     expect(collectLocalDiagnosticsStub).to.not.have.been.called;
     expect(resolveDeploymentForLogsStub).to.have.been.calledOnce;
     expect(initializeStub).to.have.been.calledOnce;
+  });
+
+  it('logs scopes cluster-wide diagnostics collectors when --deployment is provided', async (): Promise<void> => {
+    defaultK8Stub.returns(makeK8WithListError(forbiddenError()));
+
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_LOGS),
+      deployment: 'solo-deployment',
+    } as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.logs(argv);
+
+    expect(result).to.equal(true);
+    expect(resolveDeploymentForLogsStub).to.not.have.been.called;
+    expect(getHelmChartValuesStub).to.have.been.calledOnce;
+    expect(getHelmChartValuesStub.firstCall.args[1]).to.equal(true);
+    expect(downloadHieroComponentLogsStub).to.have.been.calledOnce;
+    expect(downloadHieroComponentLogsStub.firstCall.args[1]).to.equal(true);
+    expect(getRemoteConfigMapTaskStub).to.have.been.calledOnce;
+    expect(getRemoteConfigMapTaskStub.firstCall.args[3]).to.equal(true);
+  });
+
+  it('all keeps cluster-wide diagnostics collectors when --deployment is omitted', async (): Promise<void> => {
+    defaultK8Stub.returns(makeK8WithListError(forbiddenError()));
+
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_ALL),
+    } as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.all(argv);
+
+    expect(result).to.equal(true);
+    expect(resolveDeploymentForLogsStub).to.have.been.calledOnce;
+    expect(getHelmChartValuesStub).to.have.been.calledOnce;
+    expect(getHelmChartValuesStub.firstCall.args[1]).to.equal(false);
+    expect(downloadHieroComponentLogsStub).to.have.been.calledOnce;
+    expect(downloadHieroComponentLogsStub.firstCall.args[1]).to.equal(false);
+    expect(getRemoteConfigMapTaskStub).to.have.been.calledOnce;
+    expect(getRemoteConfigMapTaskStub.firstCall.args[3]).to.equal(false);
   });
 
   it('report resolves the deployment from local config when the cluster is unreachable', async (): Promise<void> => {

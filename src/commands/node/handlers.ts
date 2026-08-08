@@ -738,6 +738,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+    const scopeToSelectedDeployment: boolean = Boolean(this.resolveDeploymentFlag(argv));
 
     const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
     if (!reachability.reachable) {
@@ -755,9 +756,9 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
-        this.tasks.getHelmChartValues(outputDirectory),
-        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
-        this.tasks.downloadHieroComponentLogs(outputDirectory),
+        this.tasks.getHelmChartValues(outputDirectory, scopeToSelectedDeployment),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
+        this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.reportActivePortForwards(),
       ],
@@ -856,6 +857,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    const scopeToSelectedDeployment: boolean = Boolean(this.resolveDeploymentFlag(argv));
 
     const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
     if (!reachability.reachable) {
@@ -871,9 +873,9 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
-        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
-        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
-        this.tasks.downloadHieroComponentLogs(outputDirectory),
+        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory, scopeToSelectedDeployment)]),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
+        this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
