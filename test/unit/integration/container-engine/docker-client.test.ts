@@ -195,6 +195,24 @@ class DockerClientTestBuilder {
       .rejects(new Error('podman is not installed'));
   }
 
+  public static stubMissingPodmanContainer(shellRunnerRunStub: SinonStub, nodeName: string): void {
+    shellRunnerRunStub
+      .withArgs('podman', DockerClientTestBuilder.containerExistsArguments(nodeName), sinon.match.object)
+      .rejects(new Error('missing podman container'));
+    shellRunnerRunStub
+      .withArgs(
+        'sudo',
+        DockerClientTestBuilder.containerExistsArguments(nodeName, [
+          '-n',
+          'env',
+          `PATH=${process.env.PATH || ''}`,
+          'podman',
+        ]),
+        sinon.match.object,
+      )
+      .rejects(new Error('missing rootful podman container'));
+  }
+
   public static buildDependencyManager(kindExecutable: string): DependencyManager {
     return {
       getExecutable: async (): Promise<string> => kindExecutable,
