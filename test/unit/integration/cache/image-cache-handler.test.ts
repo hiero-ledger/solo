@@ -13,6 +13,7 @@ import {type CacheHealthInspector} from '../../../../src/integration/cache/api/c
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type ContainerEngineClient} from '../../../../src/integration/container-engine/container-engine-client.js';
+import {ClusterNodeResumeOutcome} from '../../../../src/integration/container-engine/cluster-node-resume-outcome.js';
 import {type SoloListrTask} from '../../../../src/types/index.js';
 import {type AnyListrContext} from '../../../../src/types/aliases.js';
 
@@ -110,6 +111,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -137,6 +139,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -163,6 +166,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -190,6 +194,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -253,6 +258,7 @@ describe('ImageCacheHandler load', (): void => {
       loadImageArchiveIntoCluster: loadArchiveStub,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(
@@ -278,6 +284,7 @@ describe('ImageCacheHandler load', (): void => {
       loadImageArchiveIntoCluster: loadArchiveStub,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => ['docker.io/library/busybox:1.36.1'],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(
@@ -305,6 +312,7 @@ describe('ImageCacheHandler load', (): void => {
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => {
         throw new Error('cluster unreachable');
       },
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(
@@ -329,6 +337,7 @@ describe('ImageCacheHandler load', (): void => {
       loadImageArchiveIntoCluster: sinon.stub().rejects(new Error('unrecognized image format')),
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(

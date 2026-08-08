@@ -10,6 +10,8 @@ import {SubprocessCommandProfile} from '../../../../src/core/subprocess-command-
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type DependencyManager} from '../../../../src/core/dependency-managers/index.js';
 import {type KindClient} from '../../../../src/integration/kind/kind-client.js';
+import {PodmanDependencyManager} from '../../../../src/core/dependency-managers/podman-dependency-manager.js';
+import {ClusterNodeResumeOutcome} from '../../../../src/integration/container-engine/cluster-node-resume-outcome.js';
 
 describe('DockerClient', (): void => {
   let previousKindProvider: string | undefined;
@@ -20,6 +22,8 @@ describe('DockerClient', (): void => {
     previousKindProvider = process.env.KIND_EXPERIMENTAL_PROVIDER;
     sandbox = sinon.createSandbox();
     shellRunnerRunStub = sandbox.stub(ShellRunner.prototype, 'run');
+    // Pin the host-dependent container configuration lookup so command shapes are deterministic.
+    sandbox.stub(PodmanDependencyManager.prototype, 'containerConfigEnvironment').returns({});
   });
 
   afterEach((): void => {
@@ -70,20 +74,107 @@ describe('DockerClient', (): void => {
       sinon.match.has('archivePath', '/tmp/busybox.tar').and(sinon.match.has('name', 'kind')),
     );
   });
+
+  it('starts a stopped kind node container', async (): Promise<void> => {
+    delete process.env.KIND_EXPERIMENTAL_PROVIDER;
+    const nodeName: string = 'solo-cluster-control-plane';
+    DockerClientTestBuilder.stubMissingPodmanContainer(shellRunnerRunStub, nodeName);
+    shellRunnerRunStub
+      .withArgs('docker', DockerClientTestBuilder.inspectStateArguments(nodeName), sinon.match.object)
+      .resolves(['exited']);
+    shellRunnerRunStub
+      .withArgs('docker', DockerClientTestBuilder.startArguments(nodeName), sinon.match.object)
+      .resolves([]);
+
+    const client: DockerClient = DockerClientTestBuilder.build();
+    const outcome: ClusterNodeResumeOutcome = await client.resumeStoppedClusterNode('solo-cluster');
+
+    expect(outcome).to.equal(ClusterNodeResumeOutcome.RESUMED);
+    expect(shellRunnerRunStub).to.have.been.calledWith(
+      'docker',
+      DockerClientTestBuilder.startArguments(nodeName),
+      sinon.match.object,
+    );
+  });
+
+  it('leaves a running kind node container alone', async (): Promise<void> => {
+    delete process.env.KIND_EXPERIMENTAL_PROVIDER;
+    const nodeName: string = 'solo-cluster-control-plane';
+    DockerClientTestBuilder.stubMissingPodmanContainer(shellRunnerRunStub, nodeName);
+    shellRunnerRunStub
+      .withArgs('docker', DockerClientTestBuilder.inspectStateArguments(nodeName), sinon.match.object)
+      .resolves(['running']);
+
+    const client: DockerClient = DockerClientTestBuilder.build();
+    const outcome: ClusterNodeResumeOutcome = await client.resumeStoppedClusterNode('solo-cluster');
+
+    expect(outcome).to.equal(ClusterNodeResumeOutcome.UNCHANGED);
+    expect(shellRunnerRunStub).to.not.have.been.calledWith(
+      'docker',
+      DockerClientTestBuilder.startArguments(nodeName),
+      sinon.match.object,
+    );
+  });
+
+  it('reports the container engine as unavailable when nothing answers', async (): Promise<void> => {
+    delete process.env.KIND_EXPERIMENTAL_PROVIDER;
+    const nodeName: string = 'solo-cluster-control-plane';
+    DockerClientTestBuilder.stubMissingPodmanContainer(shellRunnerRunStub, nodeName);
+    shellRunnerRunStub
+      .withArgs('docker', DockerClientTestBuilder.inspectStateArguments(nodeName), sinon.match.object)
+      .rejects(new Error('Cannot connect to the Docker daemon'));
+    DockerClientTestBuilder.stubUnreachableEngineInfo(shellRunnerRunStub);
+
+    const client: DockerClient = DockerClientTestBuilder.build(
+      {} as DependencyManager,
+      {} as DefaultKindClientBuilder,
+      DockerClientTestBuilder.silentLogger(),
+    );
+    const outcome: ClusterNodeResumeOutcome = await client.resumeStoppedClusterNode('solo-cluster');
+
+    expect(outcome).to.equal(ClusterNodeResumeOutcome.ENGINE_UNAVAILABLE);
+  });
 });
 
 class DockerClientTestBuilder {
   public static build(
     dependencyManager: DependencyManager = {} as DependencyManager,
     kindBuilder: DefaultKindClientBuilder = {} as DefaultKindClientBuilder,
+    logger: SoloLogger = {} as SoloLogger,
   ): DockerClient {
-    return new DockerClient(kindBuilder, {} as SoloLogger, dependencyManager);
+    return new DockerClient(kindBuilder, logger, dependencyManager);
+  }
+
+  /** A logger for the paths that report a failed probe; the production code logs those at debug level. */
+  public static silentLogger(): SoloLogger {
+    return {debug: (): void => undefined} as unknown as SoloLogger;
+  }
+
+  public static inspectStateArguments(nodeName: string, prefix: readonly string[] = []): string[] {
+    return [...prefix, 'container', 'inspect', '--format', '{{.State.Status}}', nodeName];
+  }
+
+  public static startArguments(nodeName: string, prefix: readonly string[] = []): string[] {
+    return [...prefix, 'start', nodeName];
+  }
+
+  public static stubUnreachableEngineInfo(shellRunnerRunStub: SinonStub): void {
+    shellRunnerRunStub
+      .withArgs('docker', ['info', '--format', '{{json .}}'], sinon.match.object)
+      .rejects(new Error('Cannot connect to the Docker daemon'));
+    shellRunnerRunStub
+      .withArgs('podman', ['info', '--format', 'json'], sinon.match.object)
+      .rejects(new Error('podman is not installed'));
   }
 
   public static buildDependencyManager(kindExecutable: string): DependencyManager {
     return {
       getExecutable: async (): Promise<string> => kindExecutable,
     } as unknown as DependencyManager;
+  }
+
+  public static sudoPrefix(): string[] {
+    return ['-n', 'env', `PATH=${process.env.PATH || ''}`, 'podman'];
   }
 
   public static containerExistsArguments(nodeName: string, prefix: readonly string[] = []): string[] {
@@ -101,7 +192,7 @@ class DockerClientTestBuilder {
     shellRunnerRunStub
       .withArgs(
         'sudo',
-        DockerClientTestBuilder.containerExistsArguments(nodeName, ['-n', 'podman']),
+        DockerClientTestBuilder.containerExistsArguments(nodeName, DockerClientTestBuilder.sudoPrefix()),
         sinon.match.object,
       )
       .rejects(new Error('missing rootful podman container'));
