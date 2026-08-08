@@ -757,7 +757,7 @@ echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 # TEMPORARY BYPASS:
 #   CN upgrade is disabled in this migration test until hiero-consensus-node#26498 is fixed.
 #   Current CN FREEZE_UPGRADE can reach FREEZE_COMPLETE while the freeze-boundary block is only
-#   partially delivered to BN. CN v0.75.1 then resumes at N+1 instead of replaying N, leaving
+#   partially delivered to BN. CN v0.76.1 then resumes at N+1 instead of replaying N, leaving
 #   mirror permanently stuck at N-1 because block N cannot be provided by BN.
 #
 #   Keep the CN-upgrade code below this flag so the test can be restored once CN guarantees
