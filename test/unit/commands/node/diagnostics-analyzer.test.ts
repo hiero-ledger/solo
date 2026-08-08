@@ -404,6 +404,31 @@ containers:
     expect(reportText).to.not.include('line 2: 2026-06-29T07:59:05.479Z ERROR Startup healthcheck failed');
   });
 
+  it('suppresses bare mirror rest healthcheck failures only during startup', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const restLogPath: string = path.join(componentLogDirectory, 'mirror-1-rest-67c8d766f9-zls4k.log');
+    fs.writeFileSync(
+      restLogPath,
+      [
+        '2026-08-02T23:02:45.000Z 2026-08-02T23:02:45.000Z INFO Startup Loaded configuration source: /home/node/app/config/application.yml',
+        '2026-08-02T23:02:48.034834922Z 2026-08-02T23:02:47.871Z ERROR Startup healthcheck failed',
+        '2026-08-02T23:02:48.034846047Z Error: connect ECONNREFUSED 10.96.184.220:5432',
+        '2026-08-02T23:05:46.000Z 2026-08-02T23:05:46.000Z ERROR Startup healthcheck failed',
+        '2026-08-02T23:05:46.001Z Error: connect ECONNREFUSED 10.96.184.220:5432',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: mirror-1-rest-67c8d766f9-zls4k');
+    expect(reportText).to.include('line 4: 2026-08-02T23:05:46.000Z ERROR Startup healthcheck failed');
+    expect(reportText).to.not.include('line 2: 2026-08-02T23:02:47.871Z ERROR Startup healthcheck failed');
+  });
+
   it('suppresses split mirror rest db auth failures only during startup', (): void => {
     const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
     fs.mkdirSync(componentLogDirectory, {recursive: true});
