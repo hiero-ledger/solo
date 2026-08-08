@@ -34,6 +34,8 @@ export class ArgumentProcessor {
       [
         middlewares.detectLocalSoloPackages(),
         middlewares.printCustomHelp(rootCmd),
+        middlewares.warnDeprecatedFlags(),
+        middlewares.warnDeprecatedCommands(),
         middlewares.setLoggerDebugFlag(),
         // @ts-expect-error - TS2322: To assign middlewares
         middlewares.processArgumentsAndDisplayHeader(),
@@ -84,7 +86,7 @@ export class ArgumentProcessor {
 
     logger.debug('Setting up flags');
     // set root level flags
-    flags.setOptionalCommandFlags(rootCmd, flags.debugMode, flags.forcePortForward);
+    flags.setOptionalCommandFlags(rootCmd, [flags.debugMode, flags.forcePortForward]);
     logger.debug('Parsing root command (executing the commands)');
     return await rootCmd.parseAsync();
   }
