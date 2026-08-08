@@ -33,7 +33,7 @@ function create_test_account ()
   echo "CONTRACT_TEST_KEY_TWO=${CONTRACT_TEST_KEY_TWO}"
   rm test.log
 
-  export CONTRACT_TEST_KEYS=${CONTRACT_TEST_KEY_ONE},$'\n'${CONTRACT_TEST_KEY_TWO}
+  export CONTRACT_TEST_KEYS=${CONTRACT_TEST_KEY_ONE},${CONTRACT_TEST_KEY_TWO}
   export HEDERA_NETWORK="local-node"
 
   echo "OPERATOR_KEY=${OPERATOR_KEY}"

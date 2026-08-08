@@ -76,6 +76,10 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly DESTROY_CONTEXT_FILE: string = 'node-destroy.json';
   private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
+  // CN does not signal when the final block has been flushed to the block node after a freeze.
+  // Without this delay, stopNodes races the in-flight blocks and the block node may miss the
+  // last block before the freeze boundary, causing a gap in mirror node ingestion.
+  private static readonly FREEZE_BLOCK_STREAM_DRAIN_MILLISECONDS: number = 20_000;
 
   private resolveOutputDirectory(argv: ArgvStruct, fallback: string = ''): string {
     this.nodeConfigManager.update(argv);
@@ -325,7 +329,8 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.addNewConsensusNodeToRemoteConfig(),
-      this.tasks.copyNodeKeysToSecrets(),
+      // The new node is not part of the active proof roster immediately after node create.
+      this.tasks.copyNodeKeysToSecrets(undefined, false),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap('Deploy new network node', NodeSubcommandType.ADD),
       this.tasks.stopNodes('existingNodeAliases'),
@@ -337,6 +342,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
       this.tasks.updateBlockNodesJson(),
+      this.tasks.refreshBlockNodeRsaBootstrapStateTask(),
       this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
@@ -376,7 +382,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
-      this.tasks.copyNodeKeysToSecrets(),
+      this.tasks.copyNodeKeysToSecrets(undefined, false),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap(
         'Update chart to use new configMap due to account number change',
@@ -387,6 +393,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.refreshBlockNodeRsaBootstrapStateTask(),
       this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
@@ -396,6 +403,32 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.finalize(),
       this.tasks.removeCachedKeys(),
     ];
+  }
+
+  private skipTaskWhenNodeStartSkipped(task: SoloListrTask<NodeUpgradeContext>): SoloListrTask<NodeUpgradeContext> {
+    return {
+      ...task,
+      skip: (context_: NodeUpgradeContext): boolean | string =>
+        context_.config.skipNodeStart ? 'Skipped by --skip-node-start' : false,
+    };
+  }
+
+  private markNodesConfiguredWhenNodeStartSkipped(): SoloListrTask<NodeUpgradeContext> {
+    const task: SoloListrTask<NodeUpgradeContext> = this.changeAllNodePhases(
+      DeploymentPhase.CONFIGURED,
+    ) as SoloListrTask<NodeUpgradeContext>;
+
+    return {
+      ...task,
+      title: 'Mark nodes CONFIGURED because node start was skipped',
+      skip: (context_: NodeUpgradeContext): boolean | string => {
+        if (!context_.config.skipNodeStart) {
+          return 'Node start was not skipped';
+        }
+
+        return !this.remoteConfig.isLoaded();
+      },
+    };
   }
 
   private upgradePrepareTasks(argv: ArgvStruct, lease: Lock): SoloListrTask<NodeUpgradeContext>[] {
@@ -419,17 +452,19 @@ export class NodeCommandHandlers extends CommandHandler {
   private upgradeExecuteTasks(): SoloListrTask<NodeUpgradeContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+      this.tasks.drainBlockStreamAfterFreeze(),
       this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.upgradeNodeConfigurationFilesWithChart(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
       this.tasks.addWrapsLib(),
-      this.tasks.startNodes('allNodeAliases'),
-      this.tasks.enablePortForwarding(),
-      this.tasks.checkAllNodesAreActive('allNodeAliases'),
-      this.tasks.checkAllNodeProxiesAreActive(),
-      this.tasks.finalize(),
+      this.markNodesConfiguredWhenNodeStartSkipped(),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.startNodes('allNodeAliases')),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.enablePortForwarding()),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.checkAllNodesAreActive('allNodeAliases')),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.checkAllNodeProxiesAreActive()),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.finalize()),
     ];
   }
 
@@ -599,7 +634,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
     const leaseWrapper: LeaseWrapper = {lease: undefined};
-    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_EXECUTE_FLAGS);
     await this.commandAction(
       argv,
       [
@@ -818,7 +853,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), undefined, true, false),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
         this.tasks.getHelmChartValues(outputDirectory),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -890,7 +925,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.ensureInteractiveSelectionPrompt();
       const selectedFromRemote: string = (await selectPrompt({
         message: 'Select deployment for diagnostics logs:',
-        choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
+        choices: remoteDeploymentNames.map((name: string): {name: string; value: string} => ({name, value: name})),
       })) as string;
       this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
       return selectedFromRemote;
@@ -903,7 +938,9 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (this.resolveQuietFlag(argv)) {
-      const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
+      const deploymentNames: string = validDeployments
+        .map((deployment: Deployment): string => deployment.name)
+        .join(', ');
       throw new SoloErrors.system.multipleDeploymentsFound('local', deploymentNames);
     }
 
@@ -931,7 +968,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), undefined, true, false),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
         ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -1077,7 +1114,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.downloadLastState(),
         this.tasks.uploadStateToNewNode(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
-        this.tasks.setupNetworkNodes('nodeAliases', true),
+        this.tasks.setupNetworkNodes('nodeAliases', false),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
       ],
@@ -1217,6 +1254,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+        this.tasks.sleep('Drain block stream after freeze', NodeCommandHandlers.FREEZE_BLOCK_STREAM_DRAIN_MILLISECONDS),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],
