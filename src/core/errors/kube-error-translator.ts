@@ -39,7 +39,7 @@ export class KubeErrorTranslator {
       return new SoloErrors.system.multipleItemsFound(error.filters);
     }
     if (error instanceof KubeApiInvalidResponseError) {
-      return new SoloErrors.system.kubernetesApiInvalidResponse();
+      return new SoloErrors.system.kubernetesApiInvalidResponse(error);
     }
     if (error instanceof KubePvcCreationFailedError) {
       return new SoloErrors.system.pvcCreationFailed();

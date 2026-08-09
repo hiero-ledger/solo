@@ -4,6 +4,8 @@ import {IllegalArgumentError} from '../core/errors/classes/validation/illegal-ar
 import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
+import {type Definition} from '../types/definition.js';
+import {Deprecations} from '../core/deprecations.js';
 import fs from 'node:fs';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
@@ -87,14 +89,32 @@ export class Flags {
   }
 
   /**
+   * Translates a flag {@link Definition} into the options object yargs understands. The structured
+   * {@link Definition.deprecated} metadata is reduced to yargs' native boolean `deprecated` marker, so the
+   * rich object never reaches yargs and `--help` renders a bare `[deprecated]` instead of an annotation wide
+   * enough to distort the option table. The version window, replacement, and tracking issue remain available
+   * in the warning printed when the flag is used and in the generated "Deprecated Features" table.
+   *
+   * A deprecation scoped to specific commands is marked only on those commands; the flag renders without the
+   * annotation everywhere else, including where the caller does not know its command path.
+   */
+  private static toYargsOptions(definition: Definition, commandPath: string = ''): AnyObject {
+    const {deprecated, ...yargsOptions}: Definition = definition;
+    return deprecated && Deprecations.appliesToCommand(deprecated, commandPath)
+      ? {...yargsOptions, deprecated: true}
+      : {...yargsOptions};
+  }
+
+  /**
    * Set flag from the flag option
    * @param y instance of yargs
    * @param commandFlags a set of command flags
-   *
+   * @param commandPath the command the flags are being registered for, e.g. `relay node add`; supplied so
+   *   that a flag deprecated only for certain commands is marked deprecated only there
    */
-  public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]): void {
+  public static setRequiredCommandFlags(y: AnyYargs, commandFlags: CommandFlag[], commandPath?: string): void {
     for (const flag of commandFlags) {
-      y.option(flag.name, {...flag.definition, demandOption: true});
+      y.option(flag.name, {...Flags.toYargsOptions(flag.definition, commandPath), demandOption: true});
     }
   }
 
@@ -102,14 +122,15 @@ export class Flags {
    * Set flag from the flag option
    * @param y instance of yargs
    * @param commandFlags a set of command flags
-   *
+   * @param commandPath the command the flags are being registered for, e.g. `relay node add`; supplied so
+   *   that a flag deprecated only for certain commands is marked deprecated only there
    */
-  public static setOptionalCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]): void {
+  public static setOptionalCommandFlags(y: AnyYargs, commandFlags: CommandFlag[], commandPath?: string): void {
     for (const flag of commandFlags) {
       const defaultValue: string | number | boolean =
         flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
       y.option(flag.name, {
-        ...flag.definition,
+        ...Flags.toYargsOptions(flag.definition, commandPath),
         default: defaultValue,
       });
     }
@@ -473,10 +494,11 @@ export class Flags {
     constName: 'releaseTag',
     name: 'release-tag',
     definition: {
-      describe: `DEPRECATED: use --consensus-node-version (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
+      describe: `Consensus node release tag (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
       alias: 't',
       defaultValue: version.HEDERA_PLATFORM_VERSION,
       type: 'string',
+      deprecated: {since: '0.85.0', removalIssue: 5387, replacement: '--consensus-node-version'},
       promptText: 'Enter release version: ',
     },
     prompt: async function promptReleaseTag(
@@ -502,9 +524,10 @@ export class Flags {
     constName: 'imageTag',
     name: 'image-tag',
     definition: {
-      describe: '[Deprecated] Use --component-image instead. Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
+      describe: 'Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
       defaultValue: '',
       type: 'string',
+      deprecated: {since: '0.85.0', removalIssue: 5385, replacement: '--component-image'},
     },
     prompt: undefined,
   };
@@ -528,9 +551,10 @@ export class Flags {
     constName: 'relayReleaseTag',
     name: 'relay-release',
     definition: {
-      describe: 'DEPRECATED: use --relay-version (e.g. v0.48.0)',
+      describe: 'Relay release tag (e.g. v0.48.0)',
       defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
       type: 'string',
+      deprecated: {since: '0.85.0', removalIssue: 5386, replacement: '--relay-version'},
       promptText: 'Enter relay release version: ',
       emptyCheckMessage: 'relay-release-tag cannot be empty',
     },
@@ -1125,9 +1149,10 @@ export class Flags {
     constName: 'chartVersion',
     name: 'chart-version',
     definition: {
-      describe: 'DEPRECATED: use --block-node-version',
+      describe: 'Block node chart version',
       defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
+      deprecated: {since: '0.85.0', removalIssue: 5388, replacement: '--block-node-version'},
       promptText: 'Enter block node chart version: ',
     },
     prompt: async function promptBlockNodeChartVersion(

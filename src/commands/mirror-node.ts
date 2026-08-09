@@ -10,7 +10,8 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {entityId, showVersionBanner} from '../core/helpers.js';
+import {entityId, showVersionBanner, sleep} from '../core/helpers.js';
+import {Duration} from '../core/time/duration.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -48,6 +49,7 @@ import {Lock} from '../core/lock/lock.js';
 import {Base64} from 'js-base64';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
+import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -716,6 +718,53 @@ export class MirrorNodeCommand extends BaseCommand {
     return true;
   }
 
+  /** Upgrades the mirror node chart with bounded retries to ride out transient API server outages. */
+  private async upgradeMirrorNodeChart(
+    config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass,
+    shouldReuseValues: boolean,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.chartManager.upgrade(
+          config.namespace,
+          config.releaseName,
+          constants.MIRROR_NODE_CHART,
+          config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
+          config.mirrorNodeVersion,
+          config.chartValues,
+          config.clusterContext,
+          shouldReuseValues,
+          true,
+          false,
+          Boolean(config.mirrorNodeChartDirectory),
+        );
+        return;
+      } catch (error) {
+        if (attempt === constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `Attempt ${attempt} of ${constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS} to upgrade chart ` +
+            `'${config.releaseName}' failed, retrying in ` +
+            `${constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS} seconds`,
+          error,
+        );
+        await sleep(Duration.ofSeconds(constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS));
+
+        if (!config.isChartInstalled) {
+          try {
+            // remove the release left behind by the failed fresh install so the retry starts from a clean state
+            await this.chartManager.uninstall(config.namespace, config.releaseName, config.clusterContext);
+          } catch (uninstallError) {
+            // best-effort cleanup: a persistent failure will surface on the next upgrade attempt
+            this.logger.warn(`Failed to uninstall chart '${config.releaseName}' before retry`, uninstallError);
+          }
+        }
+      }
+    }
+  }
+
   private async deployMirrorNode(
     {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
     commandType: MirrorNodeCommandType,
@@ -733,19 +782,7 @@ export class MirrorNodeCommand extends BaseCommand {
       await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
     }
 
-    await this.chartManager.upgrade(
-      config.namespace,
-      config.releaseName,
-      constants.MIRROR_NODE_CHART,
-      config.mirrorNodeChartDirectory || constants.MIRROR_NODE_RELEASE_NAME,
-      config.mirrorNodeVersion,
-      config.chartValues,
-      config.clusterContext,
-      shouldReuseValues,
-      true,
-      false,
-      Boolean(config.mirrorNodeChartDirectory),
-    );
+    await this.upgradeMirrorNodeChart(config, shouldReuseValues);
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
 
@@ -1691,6 +1728,14 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            config.mirrorNodeVersion = UpgradeVersionResolver.resolveFromFlags(
+              this.configManager,
+              [flags.mirrorNodeVersion],
+              config.mirrorNodeVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
+              versions.MIRROR_NODE_VERSION,
+            );
+
             const hasMirrorNodeMemoryImprovements: boolean = new SemanticVersion<string>(
               config.mirrorNodeVersion,
             ).greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION);
@@ -1737,12 +1782,17 @@ export class MirrorNodeCommand extends BaseCommand {
 
             const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
 
-            await this.accountManager.loadNodeClient(
-              config.namespace,
-              this.remoteConfig.getClusterRefs(),
-              deploymentName,
-              this.configManager.getFlag<boolean>(flags.forcePortForward),
-            );
+            // In one-shot mode the AccountManager is owned by the outer deploy flow;
+            // calling loadNodeClient here would race with concurrent tasks (addNodeStakes,
+            // Create accounts) that share the same singleton and corrupt its port-forward state.
+            if (!this.oneShotState.isActive()) {
+              await this.accountManager.loadNodeClient(
+                config.namespace,
+                this.remoteConfig.getClusterRefs(),
+                deploymentName,
+                this.configManager.getFlag<boolean>(flags.forcePortForward),
+              );
+            }
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
