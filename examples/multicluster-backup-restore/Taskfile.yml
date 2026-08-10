@@ -455,6 +455,20 @@ tasks:
       - cmd: |
           $SOLO_COMMAND config ops restore-db \
             --input-dir {{ .BACKUP_DIR }}
+      # The relay performs an operator-balance check during startup. Starting it against an
+      # empty mirror database leaves the deployment waiting on a 404 response until its
+      # startup timeout expires, which obscures the failed database restore.
+      - cmd: |
+          RECORD_FILE_COUNT="$(kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
+            --context kind-solo-e2e-c2 -- env PGPASSWORD={{ .POSTGRES_PASSWORD }} \
+            psql -U {{ .POSTGRES_USERNAME }} -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tAc \
+            'SELECT COUNT(*) FROM record_file;' 2>/dev/null || true)"
+          if ! echo "${RECORD_FILE_COUNT}" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "Mirror database restore produced no record files (count='${RECORD_FILE_COUNT}')."
+            echo "Refusing to deploy the relay against an empty mirror database."
+            exit 1
+          fi
+          echo "Mirror database restore verified (${RECORD_FILE_COUNT} record files)."
 
   restore-config:
     desc: Restore configuration and state from backup (DB already populated by restore-db)
