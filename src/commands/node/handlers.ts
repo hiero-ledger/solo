@@ -1153,6 +1153,8 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.enablePortForwarding(true),
+        // Must precede checkNodesAndProxiesAreActive: when --debug-node-alias is set the JVM starts
+        // with suspend=y and will never reach ACTIVE until a debugger connects via this port-forward.
         this.tasks.enableDebuggerPortForwarding(),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.emitNodeStartedEvent(),
