@@ -296,8 +296,13 @@ tasks:
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --mirrorNamespace {{ .NAMESPACE }} \
             --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
           echo "📡 Deploying Relay on Cluster 2..."
-          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev \
-            --values-file examples/multicluster-backup-restore/relay-node-values-dual-cluster-minimal.yaml
+          if ! $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev \
+            --values-file examples/multicluster-backup-restore/relay-node-values-dual-cluster-minimal.yaml; then
+            echo "Relay deployment failed; collecting Cluster 2 resource diagnostics..."
+            kubectl describe node solo-e2e-c2-control-plane --context kind-solo-e2e-c2 || true
+            kubectl get events -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --sort-by='.lastTimestamp' || true
+            exit 1
+          fi
           echo "✅ Explorer and Relay deployed"
 
       - cmd: echo "✅ Initial deployment completed successfully!"
