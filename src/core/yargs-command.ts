@@ -55,8 +55,9 @@ export class YargsCommand {
         command,
         desc: description,
         builder: (y: any) => {
-          commandFlags.setRequiredCommandFlags(y, ...required);
-          commandFlags.setOptionalCommandFlags(y, ...optional);
+          const commandPath: string = `${commandNamespace} ${command}`.trim();
+          commandFlags.setRequiredCommandFlags(y, required, commandPath);
+          commandFlags.setOptionalCommandFlags(y, optional, commandPath);
           y.help(); // Enable help for this subcommand
         },
         handler: async (argv: any) => {
