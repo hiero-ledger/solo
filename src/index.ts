@@ -13,7 +13,8 @@ import {type SoloLogger} from './core/logging/solo-logger.js';
 import {Container} from './core/dependency-injection/container-init.js';
 import {InjectTokens} from './core/dependency-injection/inject-tokens.js';
 import {SoloErrors} from './core/errors/solo-errors.js';
-import {type SoloError} from './core/errors/solo-error.js';
+import {SoloError} from './core/errors/solo-error.js';
+import {FatalErrorReporter} from './core/fatal-error-reporter.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
 import {VersionUpdateNotifier} from './core/version-update-notifier.js';
@@ -35,15 +36,23 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     const soloLogLevel: string = developerMode || constants.SOLO_DEV_OUTPUT ? 'debug' : constants.SOLO_LOG_LEVEL;
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, soloLogLevel);
   } catch (incomingError) {
-    const error: SoloError = new SoloErrors.system.initSystemFilesFailed(
-      incomingError instanceof Error ? incomingError : new Error(String(incomingError)),
-    );
-    if (context.logger) {
+    // An already-coded failure (e.g. an unwritable log destination) carries the specific message and
+    // remediation; wrapping it would replace its code with the generic one in the rendered error box.
+    const error: SoloError =
+      incomingError instanceof SoloError
+        ? incomingError
+        : new SoloErrors.system.initSystemFilesFailed(
+            incomingError instanceof Error ? incomingError : new Error(String(incomingError)),
+          );
+    process.exitCode = 1;
+    if (context?.logger) {
       context.logger.showUserError(error);
     } else {
-      console.error(`Error initializing container: ${error?.message}`, error);
+      // Initialization builds the logger, so a failure here often means there is nothing to log through.
+      FatalErrorReporter.reportWithoutLogger(error);
     }
-    throw error;
+    // The failure is rendered above; a SilentBreak keeps the entrypoint from rendering it a second time.
+    throw new SilentBreak(error.message);
   }
 
   const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
@@ -52,16 +61,11 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     // save the logger so that solo.ts can use it to properly flush the logs and exit
     context.logger = logger;
   }
-  process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise): void => {
-    logger.showUserError(
-      new SoloErrors.internal.commandReturnedFalse(
-        `Unhandled Rejection at: ${JSON.stringify(promise)}`,
-        `reason: ${JSON.stringify(reason)}`,
-      ),
-    );
+  process.on('unhandledRejection', (reason: unknown): void => {
+    FatalErrorReporter.report(logger, 'unhandledRejection', reason);
   });
-  process.on('uncaughtException', (error, origin): void => {
-    logger.showUserError(new SoloErrors.internal.commandReturnedFalse('uncaughtException', String(origin)));
+  process.on('uncaughtException', (error: Error): void => {
+    FatalErrorReporter.report(logger, 'uncaughtException', error);
   });
 
   logger.debug('Initializing Solo CLI');

@@ -17,8 +17,14 @@ await fnm
     context.logger?.info('Solo CLI completed, via entrypoint');
   })
   .catch((error): void => {
-    const errorHandler: ErrorHandler = container.resolve(InjectTokens.ErrorHandler);
-    errorHandler.handle(error);
+    try {
+      const errorHandler: ErrorHandler = container.resolve(InjectTokens.ErrorHandler);
+      errorHandler.handle(error);
+    } catch {
+      // The error handler depends on the logger, so it cannot be built when logger construction is what
+      // failed. main() has already reported that failure directly, so there is nothing left to render.
+      process.exitCode = 1;
+    }
   });
 
 // Exit with the proper exit code and force close any open handles that prevent Solo from exiting

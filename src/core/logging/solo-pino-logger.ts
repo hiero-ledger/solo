@@ -4,7 +4,7 @@ import pino, {type Logger as PinoLogger, type LoggerOptions, type StreamEntry} f
 import pinoPretty from 'pino-pretty';
 import {createStream, type Options as RotatingFileStreamOptions, type RotatingFileStream} from 'rotating-file-stream';
 import {type Writable} from 'node:stream';
-import {mkdirSync} from 'node:fs';
+import {accessSync, constants as fileSystemConstants, existsSync, mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
@@ -59,17 +59,12 @@ export class SoloPinoLogger implements SoloLogger {
 
     this.nextTraceId();
 
-    // Ensure logs directory exists
-    const logsDirectory: string = constants.SOLO_LOGS_DIR;
-    try {
-      mkdirSync(logsDirectory, {recursive: true});
-    } catch {
-      // no-op: if this fails, pino will attempt to create the files and error if impossible
-    }
-
     // Configure dual outputs: NDJSON (machine) + pretty (human)
     const ndjsonFileName: string = 'solo.ndjson';
     const prettyFileName: string = 'solo.log';
+
+    const logsDirectory: string = constants.SOLO_LOGS_DIR;
+    SoloPinoLogger.assertLogDestinationsWritable(logsDirectory, [ndjsonFileName, prettyFileName]);
 
     // Shared pino-pretty formatting options; the destination is supplied per output below.
     const prettyOptions: NonNullable<Parameters<typeof pinoPretty>[0]> = {
@@ -380,6 +375,35 @@ export class SoloPinoLogger implements SoloLogger {
         stack: cause.stack,
       })),
     };
+  }
+
+  /**
+   * Fails fast when the log directory, or an existing log file inside it, cannot be written.
+   *
+   * The stream implementations report this asynchronously, after the constructor has already returned, so
+   * it escapes as an uncaught exception instead of an actionable message — and because reporting it writes
+   * another log line, it can repeat without bound. Checking up front turns the whole class of failure into
+   * one coded error naming the offending path.
+   */
+  private static assertLogDestinationsWritable(logsDirectory: string, fileNames: string[]): void {
+    try {
+      mkdirSync(logsDirectory, {recursive: true});
+      accessSync(logsDirectory, fileSystemConstants.W_OK);
+    } catch (error) {
+      throw new SoloErrors.system.soloLogsDirectoryNotWritable(logsDirectory, error as Error);
+    }
+
+    for (const fileName of fileNames) {
+      const filePath: string = PathEx.join(logsDirectory, fileName);
+      if (!existsSync(filePath)) {
+        continue;
+      }
+      try {
+        accessSync(filePath, fileSystemConstants.W_OK);
+      } catch (error) {
+        throw new SoloErrors.system.soloLogsDirectoryNotWritable(filePath, error as Error);
+      }
+    }
   }
 
   public showUserError(error: unknown): void {
