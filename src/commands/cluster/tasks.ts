@@ -536,7 +536,8 @@ export class ClusterCommandTasks {
         {config: {clusterSetupNamespace, context}},
         task,
       ): Promise<SoloListr<ClusterReferenceResetContext>> => {
-        const isShared: boolean = await this.clusterChecks.isRemoteConfigPresentInAnyNamespace(context);
+        const isShared: boolean =
+          !argv.force && (await this.clusterChecks.isRemoteConfigPresentInAnyNamespace(context));
         if (isShared) {
           // Document Design Assumption:
           // Today, Cluster reset contains only cluster-scoped cleanup (Prometheus, Minio, etc.).
