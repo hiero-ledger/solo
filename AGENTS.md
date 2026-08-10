@@ -19,3 +19,11 @@ conventions are defined once and referenced here — do not duplicate them:
   `npx dpdm --no-warning --no-tree --exit-code circular:1 ./solo.ts` after any such move.
 - `import {type X}` (inline), explicit type annotations everywhere, no banned abbreviations, SPDX
   header on every source file.
+- **TypeScript style guide applies repo-wide** — `scripts/`, `test/`, and any other TypeScript
+  outside `src/` follow the same rules. There are no location-based exceptions.
+
+## PR hygiene
+
+- **Do not mix linter-reformatted files into a feature PR.** If a linter run touches files
+  unrelated to the task at hand, revert those files (`git checkout HEAD -- <file>`) before
+  committing. Submit reformatting as a dedicated PR so feature diffs stay reviewable.

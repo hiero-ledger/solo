@@ -115,7 +115,7 @@ For small enhancements to existing features or bug fixes, architectural alignmen
 
 ## Coding Standards
 
-Follow the project's TypeScript style guide at [`docs/contributing/typescript-code-style.md`](docs/contributing/typescript-code-style.md) for all code changes.
+Follow the project's TypeScript style guide at [`docs/contributing/typescript-code-style.md`](docs/contributing/typescript-code-style.md) for **all TypeScript files in the repository** — `src/`, `scripts/`, `test/`, and anywhere else. There are no location-based exceptions to the style rules.
 
 Before writing or modifying code, review these configuration files to avoid lint and formatting issues:
 
@@ -145,6 +145,13 @@ Key rules enforced as ESLint **errors** (not warnings):
 Run `task format` to auto-fix formatting and lint issues before committing. Note that
 `task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations
 and missing type annotations must be fixed manually** — they appear as errors in the lint output.
+
+### PR Hygiene — Linter-Reformatted Files
+
+Do not mix linter-reformatted files into a feature PR. If running the linter touches files
+unrelated to your task (e.g., Markdown bullet-style rewrites), revert them with
+`git checkout HEAD -- <file>` before committing. Submit reformatting as a separate PR so that
+feature diffs stay readable and reviewable.
 
 ### Dead Code Removal
 
