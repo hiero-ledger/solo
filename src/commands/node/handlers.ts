@@ -1153,6 +1153,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.enablePortForwarding(true),
+        this.tasks.enableDebuggerPortForwarding(),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.emitNodeStartedEvent(),
         this.tasks.waitForTss(),
