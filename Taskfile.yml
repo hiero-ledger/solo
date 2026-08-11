@@ -127,6 +127,12 @@ tasks:
     deps: [npm:install]
     sources:
       - src/**/*.ts
-      - test/**/*.tss 
+      - test/**/*.tss
     cmds:
       - npx eslint .
+
+  sea:build:
+    desc: "Build a Node.js Single Executable Application (SEA) hello-world binary for the current platform"
+    deps: [npm:install]
+    cmds:
+      - npx tsx sea/build.ts
