@@ -113,6 +113,13 @@ tasks:
       # CN 0.75+ waits for pending-block proofs and block-node acknowledgements before
       # completing freeze shutdown, so the historical freeze-block gap workaround is not
       # needed here.
+      # Restore/re-keying can still change the first live block's previous hash relative
+      # to the final record_file hash in the backup. CN is running and BN exposes that
+      # block at this point, so align the boundary before verification.
+      - cmd: |
+          $SOLO_COMMAND config ops bridge-import-gap \
+            --deployment {{ .DEPLOYMENT }} \
+            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
       - task: verify
 
   initial-deploy:
@@ -429,14 +436,6 @@ tasks:
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \
             --input-dir {{ .BACKUP_DIR }} \
-            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
-      # Restore/re-keying can leave the first live block's previous hash different from
-      # the final record_file hash in the backup. Align that boundary and restart the
-      # importer before verification (CN 0.75+ fixes pending-block replay, but does not
-      # remove this separate post-restore TSS hash-chain boundary).
-      - cmd: |
-          $SOLO_COMMAND config ops bridge-import-gap \
-            --deployment {{ .DEPLOYMENT }} \
             --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
 
   # ==================== Verification Tasks ====================
