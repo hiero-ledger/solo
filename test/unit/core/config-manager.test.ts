@@ -183,4 +183,50 @@ describe('ConfigManager', (): void => {
       expect(config.relayReleaseTag).to.equal('0.77.0');
     });
   });
+
+  describe('recordUserSuppliedFlags / wasFlagProvidedByUser', (): void => {
+    it('should report a flag as user-supplied when present and not defaulted', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.explorerVersion, '26.2.0');
+
+      cm.recordUserSuppliedFlags(argv.build(), {});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.true;
+    });
+
+    it('should report a flag as NOT user-supplied when it was populated from its default', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.explorerVersion, '26.1.0');
+
+      cm.recordUserSuppliedFlags(argv.build(), {[flags.explorerVersion.name]: true});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
+    });
+
+    it('should treat a flag defaulted under its camelCase constName as NOT user-supplied', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.explorerVersion, '26.1.0');
+
+      cm.recordUserSuppliedFlags(argv.build(), {[flags.explorerVersion.constName]: true});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
+    });
+
+    it('should report a flag as NOT user-supplied when absent from argv', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+
+      cm.recordUserSuppliedFlags(Argv.initializeEmpty().build(), {});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
+    });
+
+    it('should default to not-supplied before recordUserSuppliedFlags has run', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
+    });
+  });
 });

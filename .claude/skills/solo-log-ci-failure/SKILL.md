@@ -4,7 +4,7 @@ description: Create a GitHub bug issue in hiero-ledger/solo for a failed CI work
 license: MIT
 metadata:
   author: Jeromy Cannon
-  version: "2.0.0"
+  version: "2.1.0"
   domain: github
   triggers: log ci failure, ci failure issue, workflow failure, failed workflow run, solo-log-ci-failure
   role: developer
@@ -71,7 +71,7 @@ bash ~/.claude/skills/solo-log-ci-failure/log-ci-failure.sh "<workflow-url>" [<p
 The script:
 1. Fetches run and job metadata
 2. Downloads job log and best-matching artifact
-3. Extracts SOLO error codes, error boxes, and failed commands
+3. Extracts SOLO error codes, full exception stack traces (including `Caused by` chains), error boxes, and failed commands
 4. Auto-generates issue title and body from extracted error data
 5. Creates a secret gist with all log files
 6. Creates the GitHub issue (Bug, P0-🔥)
@@ -85,8 +85,18 @@ The script generates a title in `{Job Name} > {error description}` format using 
 
 1. **SOLO error code** — `[SOLO-NNNN] <message from solo.log>`
 2. **First meaningful `ERROR:` line** from solo.log (skipping the noisy `Error executing: 'podman'` cascade)
-3. **`##[error]`** line from the job log
-4. Fallback: `task failed`
+3. **First extracted exception stack headline** from job/solo logs (for example `OneShotDeployFailedSoloError: ...`)
+4. **`##[error]`** line from the job log
+5. Fallback: `task failed`
+
+### Error details extraction
+
+Issue bodies now prioritize the most informative failure context in this order:
+
+1. **Full exception stack trace** (error class/message + `at ...` frames + `Caused by` chain)
+2. **Solo error box** (`╭─ ERROR ... ╰─`)
+3. **Solo `ERROR:` lines**
+4. **Job-level fallback lines** (`##[error]`, failed command snippets, exit status)
 
 For `Error: Executing command: /path/cmd --flags url`, the command and image/URL are extracted
 (e.g. `crane quay.io/minio/operator:v7.1.1`) to keep the title concise.
