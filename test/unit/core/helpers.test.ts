@@ -831,6 +831,7 @@ describe('createAndCopyBlockNodeJsonFileForConsensusNode', (): void => {
 
   afterEach((): void => {
     sinon.restore();
+    resetTestContainer();
   });
 
   it('throws BlockNodesJsonEmptySoloError when blockNodeMap is empty and allowEmpty is false', async (): Promise<void> => {
