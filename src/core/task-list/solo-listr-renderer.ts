@@ -16,6 +16,11 @@ import {
 const TIMER_MINIMUM_MILLISECONDS: number = 100;
 /** Durations above this (ms) render the timer in red instead of green, matching the default renderer. */
 const TIMER_RED_THRESHOLD_MILLISECONDS: number = 30_000;
+/**
+ * A still-running task only shows its elapsed time once it has been running this long (ms), so tasks that
+ * finish quickly stay clean instead of flickering a counter on and off.
+ */
+const RUNNING_TIMER_MINIMUM_MILLISECONDS: number = 5000;
 /** How many of a parent's still-pending children are shown live before the rest are collapsed. */
 const CHILD_WINDOW_SIZE: number = 5;
 
@@ -76,6 +81,9 @@ const INDENT: string = '  ';
  * `N completed, M pending...` summary line, so each parent contributes only a small window. If even that
  * exceeds the terminal height, the frame is clamped to a trailing window plus the ancestor title spine
  * that gives it context, so a parent task's title is never clipped off the top.
+ *
+ * Tasks that have been running for a while carry a live elapsed time, so a phase that polls silently for
+ * many minutes still visibly progresses instead of looking hung.
  */
 export class SoloListrRenderer {
   public static nonTTY: boolean = false;
@@ -88,6 +96,13 @@ export class SoloListrRenderer {
 
   /** Ids of task subtrees already written to permanent scrollback. */
   private readonly committed: Set<string> = new Set();
+
+  /**
+   * When each still-running task was first seen running, keyed by task id, so a live elapsed time can be
+   * shown for work that listr2 has not finished timing yet. Entries are dropped once a task finalizes, so
+   * this stays bounded to the tasks currently in flight.
+   */
+  private readonly startedAt: Map<string, number> = new Map();
 
   private promptText?: string;
   private activePromptId?: string;
@@ -395,7 +410,45 @@ export class SoloListrRenderer {
     return color.dim(figures.pointerSmall);
   }
 
+  /**
+   * The `[duration]` suffix for a task line: a live elapsed time while the task is still running, and the
+   * final duration listr2 measured once it has finished. Long waits (a node becoming ACTIVE, a database
+   * schema being created) can otherwise sit unchanged for many minutes, leaving no way to tell a slow task
+   * from a hung one.
+   */
   private timer(task: RendererTask): string {
+    if (task.hasFinalized()) {
+      // Finished tasks are timed by listr2 itself, so the running stamp is no longer needed. Dropping it
+      // here also keeps the map bounded, and guarantees permanent scrollback shows the final duration
+      // rather than whatever the counter last read.
+      this.startedAt.delete(task.id);
+      return this.completedTimer(task);
+    }
+    return this.runningTimer(task);
+  }
+
+  /** The elapsed time of a task that is still running, dimmed so it reads as information, not alarm. */
+  private runningTimer(task: RendererTask): string {
+    let startedAt: number | undefined = this.startedAt.get(task.id);
+
+    if (startedAt === undefined) {
+      // Tasks that have not started yet have nothing to count.
+      if (!task.isPending()) {
+        return '';
+      }
+      startedAt = Date.now();
+      this.startedAt.set(task.id, startedAt);
+    }
+
+    const elapsed: number = Date.now() - startedAt;
+    if (elapsed < RUNNING_TIMER_MINIMUM_MILLISECONDS) {
+      return '';
+    }
+    return color.dim(` [${parseTimer(elapsed)}]`);
+  }
+
+  /** The duration listr2 measured for a completed task; nothing for failed, skipped or very fast tasks. */
+  private completedTimer(task: RendererTask): string {
     const duration: number | undefined = task.message?.duration;
     if (duration === undefined || !task.isCompleted() || duration <= TIMER_MINIMUM_MILLISECONDS) {
       return '';

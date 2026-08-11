@@ -6,6 +6,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   WRITE_LOCAL_CONFIG: 'SOLO-1002',
   REFRESH_LOCAL_CONFIG_SOURCE: 'SOLO-1003',
   REMOTE_CONFIGS_MISMATCH: 'SOLO-1004',
+  INCOMPLETE_LOCAL_CONFIG: 'SOLO-1005',
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
   CREATE_DEPLOYMENT: 'SOLO-2001',
