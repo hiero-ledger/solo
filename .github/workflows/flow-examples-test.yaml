@@ -49,6 +49,11 @@ on:
         type: boolean
         required: false
         default: false
+      use-reduced-test-matrix:
+        description: "Use reduced test matrix for faster execution (only runs a subset of examples)."
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       node-version:
@@ -76,9 +81,27 @@ on:
         type: boolean
         required: false
         default: false
+      use-reduced-test-matrix:
+        description: "Use reduced test matrix for faster execution (only runs a subset of examples)."
+        type: boolean
+        required: false
+        default: false
   push:
     branches:
+      - main
+      - 'release/*'
       - trunk-merge/**
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
@@ -113,17 +136,18 @@ jobs:
         run: |
           EXAMPLE_DIR="${{ inputs.example-directory }}"
           STANDARD_MATRIX_FILE=".github/workflows/support/examples-test-matrix.json"
-          TRUNK_MATRIX_FILE=".github/workflows/support/examples-trunkio-matrix.json"
+          REDUCED_MATRIX_FILE=".github/workflows/support/examples-reduced-matrix.json"
           EVENT_NAME="${{ github.event_name }}"
           REF_NAME="${{ github.ref_name }}"
+          USE_REDUCED_TEST_MATRIX="${{ inputs.use-reduced-test-matrix }}"
 
-          if [[ "${EVENT_NAME}" == "push" && "${REF_NAME}" == trunk-merge/* ]]; then
-            echo "Detected trunk.io merge queue context (push to ${REF_NAME})."
-            SOURCE_MATRIX_JSON=$(cat "${TRUNK_MATRIX_FILE}")
+          if [[ "${REF_NAME}" == trunk-merge/* || "${EVENT_NAME}" == "push" || "${EVENT_NAME}" == "pull_request" || "${USE_REDUCED_TEST_MATRIX}" == "true" ]]; then
+            echo "Using reduced matrix (${EVENT_NAME}:${REF_NAME}, use-reduced-test-matrix=${USE_REDUCED_TEST_MATRIX})."
+            SOURCE_MATRIX_JSON=$(cat "${REDUCED_MATRIX_FILE}")
           else
-            echo "Non-trunk merge queue context detected (${EVENT_NAME}:${REF_NAME})."
-            echo "Using concatenated matrix from standard + trunkio files."
-            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${TRUNK_MATRIX_FILE}" "${STANDARD_MATRIX_FILE}")
+            echo "Reduced-matrix conditions not met (${EVENT_NAME}:${REF_NAME}, use-reduced-test-matrix=${USE_REDUCED_TEST_MATRIX})."
+            echo "Using concatenated matrix from standard + reduced files."
+            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${REDUCED_MATRIX_FILE}" "${STANDARD_MATRIX_FILE}")
           fi
 
           if [ -n "$EXAMPLE_DIR" ]; then
