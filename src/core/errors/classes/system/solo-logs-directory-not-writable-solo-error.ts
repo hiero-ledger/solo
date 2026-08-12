@@ -19,7 +19,8 @@ export class SoloLogsDirectoryNotWritableSoloError extends SoloError {
   public constructor(logPath: string, cause?: Error) {
     super(
       {
-        message: `Solo cannot write to its log destination: ${logPath}`,
+        message:
+          `Solo cannot write to its log destination: ${logPath}` + SoloLogsDirectoryNotWritableSoloError.detail(cause),
         code: ErrorCodeRegistry.SOLO_LOGS_DIRECTORY_NOT_WRITABLE,
         troubleshootingSteps:
           'Check who owns the path: ls -la ~/.solo ~/.solo/logs\n' +
@@ -31,5 +32,18 @@ export class SoloLogsDirectoryNotWritableSoloError extends SoloError {
       cause,
       {logPath},
     );
+  }
+
+  /**
+   * Renders the underlying failure into the message so the errno is visible: `EACCES` is fixed by taking
+   * ownership, while `EROFS` and `ENOSPC` need a different path or a freed disk, and the steps below only
+   * address the first. This error is raised while the logger is being built, so it is reported without one
+   * and the cause is never written anywhere else — leaving it off the message loses the errno entirely.
+   *
+   * The trailing `, <syscall> '<path>'` of a Node file system message is dropped, since the path is already
+   * named above; a message in any other shape is kept whole.
+   */
+  private static detail(cause?: Error): string {
+    return cause?.message ? `: ${cause.message.replace(/,\s\w+\s'.*'$/, '')}` : '';
   }
 }

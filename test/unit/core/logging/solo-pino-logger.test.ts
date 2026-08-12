@@ -415,6 +415,8 @@ describe('SoloPinoLogger log destination preflight', (): void => {
     expect(thrown, 'expected the preflight to reject a read-only logs directory').to.be.instanceOf(SoloError);
     expect(thrown.getFormattedCode()).to.equal('SOLO-5081');
     expect(thrown.message).to.include(logsDirectory);
+    // The errno reaches the message, so a permissions failure reads differently from a full disk.
+    expect(thrown.message).to.include('EACCES');
   });
 
   (canDenyWrites ? it : it.skip)('rejects an existing log file that cannot be written', (): void => {
