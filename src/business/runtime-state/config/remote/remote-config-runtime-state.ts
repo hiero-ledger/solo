@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../../../../core/errors/solo-errors.js';
+import {type SoloError} from '../../../../core/errors/solo-error.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
 import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-config-source.js';
@@ -56,6 +57,9 @@ import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
 import {type BaseStateSchema} from '../../../../data/schema/model/remote/state/base-state-schema.js';
 import {Helpers} from '../../../../core/helpers.js';
+import {Duration} from '../../../../core/time/duration.js';
+import {type ContainerEngineClient} from '../../../../integration/container-engine/container-engine-client.js';
+import {ClusterNodeResumeOutcome} from '../../../../integration/container-engine/cluster-node-resume-outcome.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
 import {SemanticVersion} from '../../../utils/semantic-version.js';
@@ -72,6 +76,13 @@ interface VersionField {
 @injectable()
 export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   private static readonly SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
+
+  /** Kind names the kubeconfig context it writes `kind-<cluster-name>`. */
+  private static readonly KIND_CONTEXT_PREFIX: string = 'kind-';
+
+  /** How long to wait for a resumed kind cluster's API: 30 attempts every 2 seconds, so at most a minute. */
+  private static readonly KIND_RESUME_MAX_ATTEMPTS: number = 30;
+  private static readonly KIND_RESUME_RETRY_INTERVAL: Duration = Duration.ofSeconds(2);
 
   private phase: RuntimeStatePhase = RuntimeStatePhase.NotLoaded;
 
@@ -90,6 +101,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     @inject(InjectTokens.ConfigManager) private readonly configManager?: ConfigManager,
     @inject(InjectTokens.RemoteConfigValidator) private readonly remoteConfigValidator?: RemoteConfigValidatorApi,
     @inject(InjectTokens.ObjectMapper) private readonly objectMapper?: ObjectMapper,
+    @inject(InjectTokens.ContainerEngineClient) private readonly containerEngine?: ContainerEngineClient,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -101,6 +113,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.constructor.name,
     );
     this.objectMapper = patchInject(objectMapper, InjectTokens.ObjectMapper, this.constructor.name);
+    this.containerEngine = patchInject(containerEngine, InjectTokens.ContainerEngineClient, this.constructor.name);
   }
 
   public get configuration(): RemoteConfig {
@@ -321,12 +334,22 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     let configMap: ConfigMap;
     try {
-      configMap = await this.k8Factory
-        .getK8(context)
-        .configMaps()
-        .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+      configMap = await this.readRemoteConfigMap(namespace, context);
     } catch (error) {
-      throw error instanceof ResourceNotFoundError ? error : new SoloErrors.system.kubernetesApiInvalidResponse();
+      if (error instanceof ResourceNotFoundError) {
+        throw error;
+      }
+
+      // A kind cluster runs on this machine, so a failure there is a local problem rather than a cluster solo
+      // cannot reach — and the usual local problem is a node container that is simply stopped. Kind names its
+      // kubeconfig context `kind-<cluster-name>`, the same heuristic the one-shot deploy orchestrator uses.
+      // Either way the original failure is kept as the cause so the real reason (context down, RBAC denial,
+      // API error) reaches the error output and the logs.
+      if (!context.startsWith(RemoteConfigRuntimeState.KIND_CONTEXT_PREFIX)) {
+        throw new SoloErrors.system.clusterUnreachable(context, error);
+      }
+
+      configMap = await this.resumeKindClusterAndRead(namespace, context, error);
     }
     if (!configMap) {
       throw new SoloErrors.system.resourceNotFound(
@@ -335,6 +358,61 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     return configMap;
+  }
+
+  private async readRemoteConfigMap(namespace: NamespaceName, context: Context): Promise<ConfigMap> {
+    return await this.k8Factory.getK8(context).configMaps().read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+  }
+
+  /**
+   * Recovers a kind cluster whose node container was left stopped — by a reboot or a manual stop — and reads
+   * the remote config ConfigMap again once its Kubernetes API answers.
+   *
+   * Only a container that solo actually started is waited on: when there was nothing to resume the original
+   * failure is reported unchanged, so this never turns an unrelated API failure into a long wait.
+   *
+   * @param namespace - the namespace holding the remote config ConfigMap.
+   * @param context - the kind kubeconfig context the read failed against.
+   * @param cause - the failure that triggered the recovery attempt.
+   */
+  private async resumeKindClusterAndRead(namespace: NamespaceName, context: Context, cause: Error): Promise<ConfigMap> {
+    const clusterName: string = context.slice(RemoteConfigRuntimeState.KIND_CONTEXT_PREFIX.length);
+    const outcome: ClusterNodeResumeOutcome = await this.containerEngine.resumeStoppedClusterNode(clusterName);
+
+    if (outcome === ClusterNodeResumeOutcome.ENGINE_UNAVAILABLE) {
+      throw new SoloErrors.system.containerEngineNotRunning(cause);
+    }
+
+    if (outcome !== ClusterNodeResumeOutcome.RESUMED) {
+      throw new SoloErrors.system.kubernetesApiInvalidResponse(cause);
+    }
+
+    this.logger.showUser(
+      `The kind cluster '${clusterName}' was stopped; solo started its node container and is waiting for the Kubernetes API...`,
+    );
+
+    let lastError: Error = cause;
+
+    for (let attempt: number = 0; attempt < RemoteConfigRuntimeState.KIND_RESUME_MAX_ATTEMPTS; attempt++) {
+      if (attempt > 0) {
+        await Helpers.sleep(RemoteConfigRuntimeState.KIND_RESUME_RETRY_INTERVAL);
+      }
+
+      try {
+        const configMap: ConfigMap = await this.readRemoteConfigMap(namespace, context);
+        this.logger.showUser(`The kind cluster '${clusterName}' is available again.`);
+        return configMap;
+      } catch (error) {
+        // The API is answering again once it can tell us the ConfigMap is missing, so that is a real answer
+        // rather than a reason to keep waiting.
+        if (error instanceof ResourceNotFoundError) {
+          throw error;
+        }
+        lastError = error;
+      }
+    }
+
+    throw new SoloErrors.system.kindClusterStopped(clusterName, lastError);
   }
 
   public async populateFromExisting(namespace: NamespaceName, context: Context): Promise<void> {
@@ -478,7 +556,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
             break;
           }
           default: {
-            throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
+            throw this.unsupportedComponentTypeError(componentType);
           }
         }
       }
@@ -716,9 +794,20 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         break;
       }
       default: {
-        throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
+        throw this.unsupportedComponentTypeError(componentType);
       }
     }
+  }
+
+  /** Builds the unsupported-component-type error, reporting the Solo and config schema versions on both sides. */
+  private unsupportedComponentTypeError(componentType: ComponentTypes): SoloError {
+    return new SoloErrors.internal.remoteConfigUnsupportedComponent(
+      componentType,
+      this.configuration.versions.cli.toString(),
+      getSoloVersion(),
+      this.configuration.schemaVersion,
+      this.source.schema.latestSupportedVersion.major,
+    );
   }
 
   public getComponentVersion(type: ComponentTypes): SemanticVersion<string> {
