@@ -27,6 +27,11 @@ if (!process.stdout.isTTY) {
 
 // eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
+  // Latch escaped-error reporting per invocation, not per process: the CLI calls main() once, but the
+  // end-to-end tests call it many times in one process, and a latch left set would reduce every failure
+  // after the first to a bare stderr line.
+  FatalErrorReporter.reset();
+
   try {
     // New files default to 0640 and new directories to 0750. No-op on Windows.
     process.umask(0o027);

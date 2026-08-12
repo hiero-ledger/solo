@@ -66,6 +66,19 @@ describe('FatalErrorReporter', (): void => {
     expect(String(standardErrorWrite.lastCall.args[0])).to.include('unhandled uncaughtException');
   });
 
+  it('should render again after a reset, so one run does not silence the next', (): void => {
+    // main() resets per invocation; the end-to-end tests call it many times in a single process.
+    FatalErrorReporter.report(logger, 'uncaughtException', new Error('first run'));
+    FatalErrorReporter.report(logger, 'uncaughtException', new Error('still the first run'));
+    expect(showUserError).to.have.been.callCount(1);
+
+    FatalErrorReporter.reset();
+    FatalErrorReporter.report(logger, 'uncaughtException', new Error('second run'));
+
+    expect(showUserError).to.have.been.callCount(2);
+    expect((showUserError.secondCall.args[0] as SoloError).message).to.include('second run');
+  });
+
   it('should fall back to stderr when the logger itself throws', (): void => {
     showUserError.throws(new Error('EACCES: permission denied, open solo.ndjson'));
 
