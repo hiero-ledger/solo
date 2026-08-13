@@ -70,6 +70,11 @@ export class PackageDownloader {
     }
   }
 
+  private isHeadCheckOptional(url: string): boolean {
+    const parsedUrl: URL = new URL(url);
+    return parsedUrl.hostname === 'github.com' && parsedUrl.pathname.includes('/releases/download/');
+  }
+
   public urlExists(url: string): Promise<boolean> {
     return new Promise<boolean>((resolve): void => {
       try {
@@ -132,7 +137,10 @@ export class PackageDownloader {
     }
 
     if (!(await this.urlExists(url))) {
-      throw new SoloErrors.system.resourceNotFound(url);
+      if (!this.isHeadCheckOptional(url)) {
+        throw new SoloErrors.system.resourceNotFound(url);
+      }
+      this.logger.warn(`HEAD request reported missing URL; continuing with direct download attempt: ${url}`);
     }
 
     try {
