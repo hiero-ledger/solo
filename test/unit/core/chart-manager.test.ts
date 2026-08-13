@@ -14,6 +14,7 @@ import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type CacheCatalogStore} from '../../../src/integration/cache/api/cache-catalog-store.js';
 import {type CacheHealthInspector} from '../../../src/integration/cache/api/cache-health-inspector.js';
+import {ReleaseItem} from '../../../src/integration/helm/model/release/release-item.js';
 
 const inspectorReturning: (present: boolean) => CacheHealthInspector = (present: boolean): CacheHealthInspector =>
   ({
@@ -48,7 +49,7 @@ describe('ChartManager cached-chart consumption', (): void => {
   ): ChartManager => {
     const manager: ChartManager = new ChartManager(helm, logger, buildStore(), inspector);
     // Short-circuit isChartInstalled so install() always reaches the install branch.
-    sinon.stub(manager, 'getInstalledCharts').resolves([]);
+    sinon.stub(manager, 'getInstalledRelease').resolves();
     return manager;
   };
 
@@ -90,5 +91,50 @@ describe('ChartManager cached-chart consumption', (): void => {
     expect(chart.name).to.equal(chartName);
     expect(chart.repoName).to.equal(repositoryUrl);
     expect(options.version).to.equal(chartVersion);
+  });
+});
+
+describe('ChartManager installed-release lookup', (): void => {
+  const logger: SoloLogger = {
+    debug: (): void => undefined,
+    showUserError: (): void => undefined,
+  } as unknown as SoloLogger;
+
+  const releases: ReleaseItem[] = [
+    new ReleaseItem('prometheus', 'solo-setup', '1', '', 'deployed', 'kube-prometheus-stack-52.0.1', 'v0.68.0'),
+    new ReleaseItem('metrics-server', 'kube-system', '1', '', 'deployed', 'metrics-server-3.13.1', '0.8.1'),
+  ];
+
+  const buildManager: () => ChartManager = (): ChartManager => {
+    const helm: HelmClient = {listReleases: sinon.stub().resolves(releases)} as unknown as HelmClient;
+    return new ChartManager(
+      helm,
+      logger,
+      undefined as unknown as CacheCatalogStore,
+      undefined as unknown as CacheHealthInspector,
+    );
+  };
+
+  it('returns the release matching the release name with its chart version', async (): Promise<void> => {
+    const release: ReleaseItem | undefined = await buildManager().getInstalledRelease(
+      undefined as unknown as NamespaceName,
+      'prometheus',
+    );
+    expect(release?.chart).to.equal('kube-prometheus-stack-52.0.1');
+    expect(release?.namespace).to.equal('solo-setup');
+  });
+
+  it('returns undefined when the release is not installed', async (): Promise<void> => {
+    const release: ReleaseItem | undefined = await buildManager().getInstalledRelease(
+      undefined as unknown as NamespaceName,
+      'absent-release',
+    );
+    expect(release).to.be.undefined;
+  });
+
+  it('keeps isChartInstalled consistent with the release lookup', async (): Promise<void> => {
+    const manager: ChartManager = buildManager();
+    expect(await manager.isChartInstalled(undefined as unknown as NamespaceName, 'prometheus')).to.be.true;
+    expect(await manager.isChartInstalled(undefined as unknown as NamespaceName, 'absent-release')).to.be.false;
   });
 });

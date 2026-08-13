@@ -19,10 +19,10 @@ async function runCommandOutput(): Promise<void> {
   }
 
   console.log(chalk.cyan('ℹ Running task build:compile'));
-  await run('task build:compile');
+  await run('npx @go-task/cli build:compile');
 
   console.log(chalk.cyan('ℹ Installing and linking @hiero-ledger/solo'));
-  await run('SOLO_NO_CACHE=true npm install -g @hiero-ledger/solo');
+  await run('npx cross-env SOLO_NO_CACHE=true npm install -g @hiero-ledger/solo');
   await run('npm link');
 
   await run('which solo');
