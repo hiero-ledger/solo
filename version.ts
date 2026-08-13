@@ -86,6 +86,12 @@ export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT: string = 'v0.39.0-0';
 
 export function getSoloVersion(): Version {
+  // In SEA mode the bootstrap embeds package.json and sets SOLO_SEA_VERSION before any
+  // module initializes, so we can return the version without a filesystem read.
+  if (process.env['SOLO_SEA_VERSION']) {
+    return process.env['SOLO_SEA_VERSION'] as Version;
+  }
+
   const __filename: string = fileURLToPath(import.meta.url);
   const __dirname: string = path.dirname(__filename);
 

@@ -15,12 +15,9 @@
 ##
 
 name: "Build SEA Binaries"
-# Builds a Node.js Single Executable Application (SEA) for each supported platform.
-# The hello-world binary is used to prove the SEA pipeline works end-to-end before
-# wiring in the full solo CLI.
-#
-# Each matrix leg produces one self-contained binary (no Node.js required to run it)
-# and uploads it as a GitHub Actions artifact for download and smoke-testing.
+# Builds the Solo Node.js Single Executable Application (SEA) for each supported platform.
+# The binary bundles the full solo CLI with all resources embedded so it runs without
+# a Node.js installation. Each matrix leg uploads its binary as a GitHub Actions artifact.
 
 on:
   workflow_dispatch:
@@ -86,29 +83,30 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Compile TypeScript
+        run: npx tsc
+
       - name: Build SEA Binary
         run: npx tsx sea/build.ts
 
-      - name: Smoke Test Binary
-        # Verify the binary runs and correctly reports isSea() = true
+      - name: Smoke Test — solo --help
+        # Verify the binary starts, resolves its embedded resources, and exits cleanly.
         shell: bash
         run: |
           if [[ "${{ matrix.platform }}" == "win32" ]]; then
-            BIN=$(find sea/dist -name "solo-hello-win32-*.exe" | head -1)
+            BIN=$(find sea/dist -name "solo-win32-*.exe" | head -1)
           else
-            BIN=$(find sea/dist -name "solo-hello-${{ matrix.platform }}-*" | head -1)
+            BIN=$(find sea/dist -name "solo-${{ matrix.platform }}-*" ! -name "*.blob" ! -name "*.cjs" ! -name "*.json" | head -1)
             chmod +x "$BIN"
           fi
-          echo "Running: $BIN"
-          OUTPUT=$("$BIN")
-          echo "$OUTPUT"
-          echo "$OUTPUT" | grep -q "Running as Single Executable Application: true"
-          echo "✓ Smoke test passed"
+          echo "Running: $BIN --help"
+          "$BIN" --help
+          echo "✓ Smoke test passed (exit code $?)"
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: solo-hello-${{ matrix.platform }}-${{ github.sha }}
-          path: sea/dist/solo-hello-*
+          name: solo-${{ matrix.platform }}-${{ github.sha }}
+          path: sea/dist/solo-${{ matrix.platform }}-*
           if-no-files-found: error
           retention-days: 7
