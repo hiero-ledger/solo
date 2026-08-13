@@ -144,6 +144,11 @@ jobs:
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
+          # netavark v2.0.0 only supports nftables; on some runner VMs the nf_tables kernel module
+          # is not loaded at job start, so netavark fails even when firewall_driver is set to
+          # "nftables". Load it explicitly before any podman invocation.
+          sudo modprobe nf_tables
+
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $("${BINARY}" --version 2> /dev/null | head -n 1)"
@@ -174,6 +179,8 @@ jobs:
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]
 
+          [network]
+          firewall_driver = "nftables"
           EOF
 
       - name: Validate Homebrew Podman Install
