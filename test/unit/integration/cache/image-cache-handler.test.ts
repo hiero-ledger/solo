@@ -29,7 +29,7 @@ describe('ImageCacheHandler pull', (): void => {
   const mirrorRegistryEnvironmentVariable: string = 'KIND_DOCKER_REGISTRY_MIRRORS';
   // Tracks the first docker.io endpoint in resources/kind-config.yaml, which is what the handler
   // falls back to when KIND_DOCKER_REGISTRY_MIRRORS is unset. Update both together.
-  const defaultMirrorRegistry: string = 'mirror.gcr.io';
+  const defaultMirrorRegistry: string = 'hub.mirror.docker.lat.ope.eng.hashgraph.io';
   const configuredMirrorRegistry: string = 'custom.registry.example.com';
   let previousMirrorRegistry: string | undefined;
 
@@ -156,7 +156,7 @@ describe('ImageCacheHandler pull', (): void => {
     expect(context.config.results).to.have.lengthOf(0);
   });
 
-  it('should use the gcr mirror by default when no mirror override is set', async (): Promise<void> => {
+  it('should use the Hashgraph mirror by default when no mirror override is set', async (): Promise<void> => {
     delete process.env[mirrorRegistryEnvironmentVariable];
 
     const saveImageStub: SinonStub = sinon.stub().resolves();
