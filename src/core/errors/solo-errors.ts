@@ -272,6 +272,7 @@ import {HomebrewInstallFailedSoloError} from './classes/system/homebrew-install-
 import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupported-linux-distribution-solo-error.js';
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {PodmanRuntimeConfigurationFailedSoloError} from './classes/system/podman-runtime-configuration-failed-solo-error.js';
+import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
@@ -799,6 +800,7 @@ export class SoloErrors {
     readonly unsupportedLinuxDistribution: typeof UnsupportedLinuxDistributionSoloError;
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
     readonly podmanRuntimeConfigurationFailed: typeof PodmanRuntimeConfigurationFailedSoloError;
+    readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
@@ -881,6 +883,7 @@ export class SoloErrors {
     unsupportedLinuxDistribution: UnsupportedLinuxDistributionSoloError,
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
     podmanRuntimeConfigurationFailed: PodmanRuntimeConfigurationFailedSoloError,
+    podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
