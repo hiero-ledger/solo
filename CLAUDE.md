@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Solo (`@hiero-ledger/solo`) is a CLI tool for deploying and managing private Hedera Networks on Kubernetes. It orchestrates consensus nodes, mirror nodes, block explorers, and JSON-RPC relays via Helm charts on Kind clusters.
+Solo (`@hiero-ledger/solo`) is a CLI tool for deploying and managing private Hedera Networks on Kubernetes. It orchestrates consensus nodes, mirror nodes, block explorers, and JSON-RPC relays via Helm charts and Kubernetes APIs.
 
 - **Language:** TypeScript (ES2022, ESM)
 - **Runtime:** Node.js >= 22.0.0
@@ -57,9 +57,9 @@ The codebase follows a layered, command-driven architecture with dependency inje
 
 ### Layer Overview
 
-1. **`src/commands/`** — 14 CLI commands (account, deployment, network, node, cluster, block-node, explorer, mirror-node, relay, one-shot, backup-restore, rapid-fire, file). Each command extends `BaseCommand`. Command schemas are in `src/commands/command-definitions/`.
+1. **`src/commands/`** — 14 CLI commands (account, deployment, network, node, cluster, block-node, explorer, mirror-node, relay, one-shot, backup-restore, rapid-fire, file). Each command extends `BaseCommand` and implements command-specific workflows.
 
-2. **`src/core/`** — ~95 services: `account-manager.ts`, `config-manager.ts`, `chart-manager.ts`, `key-manager.ts`, `lock/` (distributed leases), `logging/` (Pino), `dependency-managers/` (installs Helm, Kind, kubectl), `dependency-injection/` (service container + `InjectTokens`).
+2. **`src/core/`** — ~95 services: `account-manager.ts`, `config-manager.ts`, `chart-manager.ts`, `key-manager.ts`, `lock/` (distributed leases), `logging/` (Pino), `dependency-managers/` (installation checks and dynamic command loading).
 
 3. **`src/integration/`** — External system clients: `kubernetes/` (K8s API wrapper), `helm/` (Helm chart execution), `kind/` (cluster provisioning), `git/`, `npm/`.
 
@@ -81,13 +81,13 @@ There are two categories of environment variables to keep in sync with `docs/sit
 
 ### 1. Direct env vars
 
-When adding, removing, or modifying environment variables consumed via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, update `env.md`. Each entry must include the variable name, a short description, and its default value (as defined in the source).
+When adding, removing, or modifying environment variables consumed via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, update `env.md`. Each entry must include the variable name, a short description, accepted/default values, and where it is used.
 
 ### 2. Config-system env vars
 
-The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows environment variables to override any `@Expose()`d field on `SoloConfigSchema` and its nested schemas (`HelmChartSchema`, `TssSchema`, `WrapsSchema`). When adding, renaming, or removing `@Expose()`d properties on these schema classes, update `env.md` to reflect the corresponding env var.
+The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows environment variables to override any `@Expose()`d field on `SoloConfigSchema` and its nested schemas (`HelmChartSchema`, etc.). Keep `env.md` updated for any user-facing config fields that can be overridden this way.
 
-**Naming convention:** Each camelCase property name segment is converted to `UPPER-KEBAB-CASE` (dashes separate words within a segment); schema object nesting levels are joined with `_`; the whole thing is prefixed with `SOLO_`.
+**Naming convention:** Each camelCase property name segment is converted to `UPPER-KEBAB-CASE` (dashes separate words within a segment); schema object nesting levels are joined with `_`; the whole key is prefixed with `SOLO_`.
 
 | Config property path           | Env var                               |
 | ------------------------------ | ------------------------------------- |

@@ -6,11 +6,9 @@ import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
-import {UserBreak} from '../../core/errors/user-break.js';
+
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type Context, type ReleaseNameData, type SoloListr, type SoloListrTask} from '../../types/index.js';
-import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
-import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
@@ -579,14 +577,22 @@ export class ClusterCommandTasks {
     return {
       title: 'Uninstall pod-monitor-role ClusterRole',
       task: async ({config: {context}}): Promise<void> => {
+        let podMonitorRoleExists: boolean = false;
         try {
           // Check if ClusterRole exists using Kubernetes JavaScript API
-          await this.k8Factory.getK8(context).rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+          podMonitorRoleExists = await this.k8Factory
+            .getK8(context)
+            .rbac()
+            .clusterRoleExists(constants.POD_MONITOR_ROLE);
+        } catch (error) {
+          throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
+        }
 
+        if (podMonitorRoleExists) {
           // ClusterRole exists, delete it
           await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
           this.logger.showUserUnlessOneShot('✅ ClusterRole pod-monitor-role uninstalled successfully');
-        } catch {
+        } else {
           // ClusterRole doesn't exist, skip
           this.logger.showUserUnlessOneShot('⏭️  ClusterRole pod-monitor-role not found, skipping');
         }
@@ -708,17 +714,17 @@ export class ClusterCommandTasks {
         {config: {clusterSetupNamespace, context}},
         task,
       ): Promise<SoloListr<ClusterReferenceResetContext>> => {
-        if (!argv.force && (await this.clusterChecks.isRemoteConfigPresentInAnyNamespace(context))) {
-          const confirm: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
-            default: false,
-            message:
-              'There is remote config for one of the deployments' +
-              'Are you sure you would like to uninstall the cluster?',
-          });
-
-          if (!confirm) {
-            throw new UserBreak('Aborted application by user prompt');
-          }
+        const isShared: boolean =
+          !argv.force && (await this.clusterChecks.isRemoteConfigPresentInAnyNamespace(context));
+        if (isShared) {
+          // Document Design Assumption:
+          // Today, Cluster reset contains only cluster-scoped cleanup (Prometheus, Minio, etc.).
+          // Skipping the phase is therefore safe because these shared resources should persist
+          // for the other remaining deployments.
+          this.logger.showUserUnlessOneShot(
+            'Cluster is shared with other deployments. Skipping cluster reset to preserve shared resources.',
+          );
+          return task.newListr([], {concurrent: false});
         }
 
         if (argv.debug) {
