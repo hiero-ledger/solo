@@ -2158,6 +2158,9 @@ export class NodeCommandTasks {
     ].join('\n');
   }
 
+  // Distinct from enablePortForwarding: that task handles HAProxy/gRPC forwards only.
+  // This one forwards the JDWP debug port so a debugger can connect and resume the suspended JVM.
+  // It must run before checkNodesAndProxiesAreActive in the node start flow.
   public enableDebuggerPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for JVM debugger',

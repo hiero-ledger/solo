@@ -15,6 +15,7 @@ import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js
 export class PodmanClient {
   private static readonly CONTAINER_ENGINE_PROBE_TIMEOUT_MS: number = 5 * 1000;
   private readonly shellRunner: ShellRunner;
+  private podmanUnavailable: boolean = false;
 
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -33,7 +34,9 @@ export class PodmanClient {
   }
 
   public async getKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
-    const detectedCommand: ContainerEngineCommand | undefined = await this.detectKindContainerCommand(nodeName);
+    const detectedCommand: ContainerEngineCommand | undefined = this.podmanUnavailable
+      ? undefined
+      : await this.detectKindContainerCommand(nodeName);
 
     if (detectedCommand) {
       return detectedCommand;
@@ -112,6 +115,10 @@ export class PodmanClient {
       return podmanCommand;
     }
 
+    if (this.podmanUnavailable) {
+      return undefined;
+    }
+
     const sudoPodmanCommand: ContainerEngineCommand = this.sudoPodmanCommand();
 
     if (await this.containerExists(sudoPodmanCommand, nodeName)) {
@@ -129,9 +136,17 @@ export class PodmanClient {
         timeoutMs: PodmanClient.CONTAINER_ENGINE_PROBE_TIMEOUT_MS,
       });
       return true;
-    } catch {
+    } catch (error) {
+      if (PodmanClient.isPodmanUnavailable(error)) {
+        this.podmanUnavailable = true;
+      }
       // best-effort probe: fall back to the next supported container engine when this one cannot see the kind node
       return false;
     }
+  }
+
+  private static isPodmanUnavailable(error: unknown): boolean {
+    const message: string = error instanceof Error ? error.message : String(error);
+    return /Cannot connect to Podman|unable to connect to Podman socket|spawn podman ENOENT/i.test(message);
   }
 }
