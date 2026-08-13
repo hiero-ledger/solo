@@ -807,6 +807,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+    const scopeToSelectedDeployment: boolean = Boolean(this.resolveDeploymentFlag(argv));
 
     const fallbackReason: string | undefined = await this.localDiagnosticsFallbackReason(argv);
     if (fallbackReason !== undefined) {
@@ -820,9 +821,9 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
-        this.tasks.getHelmChartValues(outputDirectory),
-        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
-        this.tasks.downloadHieroComponentLogs(outputDirectory),
+        this.tasks.getHelmChartValues(outputDirectory, scopeToSelectedDeployment),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
+        this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.reportActivePortForwards(),
       ],
@@ -921,6 +922,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    const scopeToSelectedDeployment: boolean = Boolean(this.resolveDeploymentFlag(argv));
 
     const fallbackReason: string | undefined = await this.localDiagnosticsFallbackReason(argv);
     if (fallbackReason !== undefined) {
@@ -933,9 +935,9 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
-        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
-        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
-        this.tasks.downloadHieroComponentLogs(outputDirectory),
+        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory, scopeToSelectedDeployment)]),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
+        this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
@@ -1152,8 +1154,11 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
-        this.tasks.enablePortForwarding(true),
+        // Must precede checkNodesAndProxiesAreActive: when --debug-node-alias is set the JVM starts
+        // with suspend=y and will never reach ACTIVE until a debugger connects via this port-forward.
+        this.tasks.enableDebuggerPortForwarding(),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
+        this.tasks.enablePortForwarding(true),
         this.tasks.emitNodeStartedEvent(),
         this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),

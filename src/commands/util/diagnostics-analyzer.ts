@@ -80,7 +80,8 @@ interface ActiveConditionalLogSuppression {
  * codes and `[traceId="..."]` suffixes are stripped before matching.
  *
  * ### 2. Pod describe files  (`*.describe.txt`)
- * Written by `downloadHieroComponentLogs()` for every pod across all clusters.
+ * Written by `downloadHieroComponentLogs()` for every pod in the collected scope
+ * (all deployments by default, or a selected deployment when `--deployment` is set).
  * These are the output of `kubectl describe pod <name> -n <namespace>` and
  * contain the pod's status, container states, events, and resource usage.
  *
@@ -199,7 +200,8 @@ export class DiagnosticsAnalyzer {
       // entry block during the startup window.
       logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
       startupTransientMessagePattern: /Startup healthcheck failed .*Application readiness check failed/i,
-      startupTransientBlockPattern: /Application readiness check failed/i,
+      startupTransientBlockPattern:
+        /Application readiness check failed|^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+ERROR Startup healthcheck failed\s*$|^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+ERROR Startup healthcheck failed\s*\nError: connect ECONNREFUSED\b/i,
       startupWindowSeconds: 180,
       reason: 'Mirror Node REST readiness healthcheck during startup',
     },
