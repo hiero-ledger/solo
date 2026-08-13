@@ -119,7 +119,7 @@ export class PlatformInstaller {
     }
     const zipPath: string = await this.packageDownloader.fetchPlatform(tag, buildDirectory);
 
-    // fetchPlatform always downloads the checksum file, both on a fresh download and on a cache hit
+    // fetchPlatform ensures the checksum file is present, downloading it only when it is missing or unusable
     const checksumPath: string = PathEx.join(buildDirectory, `build-${tag}.sha384`);
 
     return [zipPath, checksumPath];

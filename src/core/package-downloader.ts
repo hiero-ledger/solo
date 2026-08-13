@@ -206,6 +206,38 @@ export class PackageDownloader {
   }
 
   /**
+   * Download a checksum file and return the checksum it contains
+   * @param checksumURL - URL of the checksum file
+   * @param checksumFile - path where the checksum file should be saved
+   * @returns the checksum read from the downloaded file
+   */
+  private async fetchChecksum(checksumURL: string, checksumFile: string): Promise<string> {
+    await this.fetchFile(checksumURL, checksumFile);
+    const checksumData: string = fs.readFileSync(checksumFile).toString();
+    if (!checksumData) {
+      throw new SoloErrors.system.checksumReadFailed(checksumFile);
+    }
+    return checksumData.split(' ', 1)[0];
+  }
+
+  /**
+   * Read a previously downloaded checksum file
+   * @param checksumFile - path of the cached checksum file
+   * @param algo - hash algorithm the checksum is expected to be for
+   * @returns the checksum, or undefined when the file is absent or not a well-formed digest for the algorithm
+   */
+  private readCachedChecksum(checksumFile: string, algo: string): string | undefined {
+    try {
+      const checksum: string = fs.readFileSync(checksumFile).toString().split(' ', 1)[0].trim();
+      const digestHexLength: number = crypto.createHash(algo).digest().length * 2;
+      return new RegExp(`^[0-9a-f]{${digestHexLength}}$`, 'i').test(checksum) ? checksum : undefined;
+    } catch {
+      // best-effort: an absent or unreadable cached checksum file simply means it must be downloaded
+      return undefined;
+    }
+  }
+
+  /**
    * Fetch a remote package
    * @param packageURL
    * @param checksumDataOrURL - package checksum URL or checksum data
@@ -244,17 +276,20 @@ export class PackageDownloader {
     let checksumFile: string;
     try {
       let checksum: string;
+      let checksumIsFromCache: boolean = false;
       if (verifyChecksum) {
         if (this.isValidURL(checksumDataOrURL)) {
-          const checksumURL: string = checksumDataOrURL;
-          checksumFile = PathEx.join(destinationDirectory, path.basename(checksumURL));
-          await this.fetchFile(checksumURL, checksumFile);
-          // Then read its contents
-          const checksumData: string = fs.readFileSync(checksumFile).toString();
-          if (!checksumData) {
-            throw new SoloErrors.system.checksumReadFailed(checksumFile);
+          checksumFile = PathEx.join(destinationDirectory, path.basename(checksumDataOrURL));
+          // prefer the cached checksum file when reusing a cached package, so that a fully warm
+          // cache stays usable without network access; download it when missing or malformed
+          const cachedChecksum: string | undefined =
+            fs.existsSync(packageFile) && !force ? this.readCachedChecksum(checksumFile, algo) : undefined;
+          if (cachedChecksum === undefined) {
+            checksum = await this.fetchChecksum(checksumDataOrURL, checksumFile);
+          } else {
+            checksum = cachedChecksum;
+            checksumIsFromCache = true;
           }
-          checksum = checksumData.split(' ', 1)[0];
         } else {
           checksum = checksumDataOrURL;
         }
@@ -269,9 +304,24 @@ export class PackageDownloader {
           await this.verifyChecksum(packageFile, checksum, algo);
           return packageFile;
         } catch (error) {
+          let verificationError: unknown = error;
+          if (checksumIsFromCache) {
+            // the cached checksum file may itself be the corrupt artifact, so retry against a
+            // freshly downloaded one before giving up on the cached package
+            checksum = await this.fetchChecksum(checksumDataOrURL, checksumFile);
+            try {
+              await this.verifyChecksum(packageFile, checksum, algo);
+              return packageFile;
+            } catch (freshChecksumError) {
+              verificationError = freshChecksumError;
+            }
+          }
           // an already present file that fails verification (e.g. truncated by a crashed download) must
           // never be reused, so discard it and fall through to the download below, which verifies again
-          this.logger.warn(`Cached package '${packageFile}' failed checksum verification, downloading it again`, error);
+          this.logger.warn(
+            `Cached package '${packageFile}' failed checksum verification, downloading it again`,
+            verificationError,
+          );
           fs.rmSync(packageFile);
         }
       }

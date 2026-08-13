@@ -43,6 +43,16 @@ describe('PackageDownloader', (): void => {
       });
   }
 
+  // stubs fetchFile so that each URL writes its own content instead of hitting the network
+  function stubFetchFileByURL(contentByURL: Record<string, string>): SinonStub {
+    return sandbox
+      .stub(downloader, 'fetchFile')
+      .callsFake(async (url: string, destinationPath: string): Promise<string> => {
+        fs.writeFileSync(destinationPath, contentByURL[url]);
+        return destinationPath;
+      });
+  }
+
   describe('urlExists', (): void => {
     it('should return true if source URL is valid', async (): Promise<void> => {
       const url: string = 'https://builds.hedera.com/node/software/v0.42/build-v0.42.5.sha384';
@@ -195,6 +205,67 @@ describe('PackageDownloader', (): void => {
         downloader.fetchPackage(packageURL, 'unused', temporaryDirectory, false, '', false),
       ).to.eventually.equal(packageFile);
       expect(fetchFileStub.called).to.equal(false);
+    });
+
+    describe('with a checksum URL', (): void => {
+      const checksumURL: string = 'https://example.com/build-v0.0.1.sha256';
+      const checksumContent: string = `${packageChecksum}  build-v0.0.1.zip`;
+
+      let checksumFile: string;
+
+      beforeEach((): void => {
+        checksumFile = PathEx.join(temporaryDirectory, 'build-v0.0.1.sha256');
+      });
+
+      it('should reuse a cached package and checksum file without any download', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent);
+        fs.writeFileSync(checksumFile, checksumContent);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({});
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.called).to.equal(false);
+      });
+
+      it('should download only the checksum file when it is missing next to a cached package', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({[checksumURL]: checksumContent});
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.calledOnceWith(checksumURL, checksumFile)).to.equal(true);
+      });
+
+      it('should keep a cached package when only the cached checksum file is stale', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent);
+        fs.writeFileSync(checksumFile, `${'0'.repeat(64)}  build-v0.0.1.zip`);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({[checksumURL]: checksumContent});
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.calledOnceWith(checksumURL, checksumFile)).to.equal(true);
+        expect(fs.readFileSync(packageFile, 'utf8')).to.equal(packageContent);
+      });
+
+      it('should re-download a truncated package after re-verifying against a fresh checksum file', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+        fs.writeFileSync(checksumFile, checksumContent);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({
+          [checksumURL]: checksumContent,
+          [packageURL]: packageContent,
+        });
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.calledTwice).to.equal(true);
+        expect(fetchFileStub.firstCall.calledWith(checksumURL, checksumFile)).to.equal(true);
+        expect(fetchFileStub.secondCall.calledWith(packageURL, packageFile)).to.equal(true);
+        expect(fs.readFileSync(packageFile, 'utf8')).to.equal(packageContent);
+      });
     });
   });
 
