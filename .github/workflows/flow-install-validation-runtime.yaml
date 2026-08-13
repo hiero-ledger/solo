@@ -174,8 +174,6 @@ jobs:
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]
 
-          [network]
-          firewall_driver = "nftables"
           EOF
 
       - name: Validate Homebrew Podman Install
