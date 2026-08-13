@@ -303,7 +303,10 @@ const createHarness: (sandbox: SinonSandbox) => Promise<ExplorerHarness> = async
     });
 
   const kubernetesClient: Record<string, unknown> = {
-    crds: (): Record<string, unknown> => ({ifExists: sandbox.stub().resolves(false)}),
+    crds: (): Record<string, unknown> => ({
+      ifExists: sandbox.stub().resolves(false),
+      readLabels: sandbox.stub().resolves(),
+    }),
     pods: ((): (() => Record<string, unknown>) => {
       const podsStubs: Record<string, unknown> = {waitForReadyStatus: sandbox.stub().resolves()};
       return (): Record<string, unknown> => podsStubs;
