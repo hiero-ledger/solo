@@ -200,3 +200,66 @@ extract_version() {
 
   printf '%s' "${value}"
 }
+
+# Resolve the published release a migration test should start from
+#
+# Prefers the newest release on the same major.minor line as CURRENT_VERSION,
+# falling back to the newest release on any line. Both candidates are required
+# to be strictly older than CURRENT_VERSION, so the result is never the version
+# under test nor a newer one. The npm "latest" dist-tag cannot be used for this:
+# it points at the newest release across every line, which on a maintenance
+# branch selects a newer release and makes the test migrate downwards into a
+# config schema the older code cannot read.
+#
+# Usage:
+#   resolve_prior_release <PACKAGE> <CURRENT_VERSION>
+#
+# Arguments:
+#   PACKAGE          npm package name to query (e.g., @hashgraph/solo)
+#   CURRENT_VERSION  version being built (e.g., 0.85.0)
+#
+# Examples:
+#   resolve_prior_release @hashgraph/solo "$(jq -r '.version' package.json)"
+resolve_prior_release() {
+  if [[ "$#" -ne 2 ]]; then
+    echo "Usage: resolve_prior_release <PACKAGE> <CURRENT_VERSION>" >&2
+    return 1
+  fi
+
+  local PACKAGE="$1"
+  local CURRENT_VERSION="$2"
+  local RELEASE_LINE="${CURRENT_VERSION%.*}"
+
+  local all_versions
+  all_versions="$(curl -s "https://registry.npmjs.org/${PACKAGE}" \
+    | jq -r '.versions // {} | keys[]' 2>/dev/null \
+    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')" || true
+
+  if [[ -z "${all_versions}" ]]; then
+    echo "Unable to list published versions for ${PACKAGE}" >&2
+    return 1
+  fi
+
+  # Appending CURRENT_VERSION and cutting the version-sorted list at its first
+  # occurrence leaves only strictly older releases, whether or not the current
+  # version is itself published yet.
+  local prior
+  prior="$(printf '%s\n%s\n' \
+    "$(printf '%s\n' "${all_versions}" | grep -E "^${RELEASE_LINE}\.")" \
+    "${CURRENT_VERSION}" \
+    | grep -v '^$' | sort -V \
+    | awk -v current="${CURRENT_VERSION}" '$0 == current { exit } { print }' | tail -n 1)"
+
+  if [[ -z "${prior}" ]]; then
+    prior="$(printf '%s\n%s\n' "${all_versions}" "${CURRENT_VERSION}" \
+      | grep -v '^$' | sort -V \
+      | awk -v current="${CURRENT_VERSION}" '$0 == current { exit } { print }' | tail -n 1)"
+  fi
+
+  if [[ -z "${prior}" ]]; then
+    echo "No published release of ${PACKAGE} older than ${CURRENT_VERSION} was found" >&2
+    return 1
+  fi
+
+  printf '%s' "${prior}"
+}

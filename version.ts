@@ -6,7 +6,6 @@ import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
 import * as constants from './src/core/constants.js';
-import {SemanticVersion} from './src/business/utils/semantic-version.js';
 
 /**
  * This file should only contain versions for dependencies and the function to get the Solo version.
@@ -18,10 +17,14 @@ export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';
+// netavark/aardvark-dns pair with the podman Homebrew installs on Linux (its latest major, not
+// PODMAN_VERSION above); these pins must move whenever the brew podman major moves.
+export const NETAVARK_VERSION: string = 'v2.0.0';
+export const AARDVARK_DNS_VERSION: string = 'v2.0.0';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const CRANE_VERSION: string = 'v0.21.4';
 
-export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.65.0';
+export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.65.1';
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.75.1';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.160.0';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.2.0';
@@ -66,7 +69,6 @@ export const BLOCK_NODE_EDGE_VERSION: string =
 
 // -------------------------------------------------------------------- //
 
-export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.0';
 export const MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION: string = '0.152.0';
 export const MINIMUM_MIRROR_NODE_VERSION_FOR_ARM64_WEB3_NATIVE_IMAGE: string = '0.155.0';
 
@@ -84,10 +86,6 @@ export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';
 // Block node >= v0.39.0 serves health endpoints from a dedicated port (BLOCK_NODE_HEALTH_PORT)
 // rather than the gRPC port. The '-0' suffix makes pre-releases (e.g. v0.39.0-rc1) satisfy the check.
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT: string = 'v0.39.0-0';
-export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
-  const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
-  return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
-}
 
 export function getSoloVersion(): Version {
   const __filename: string = fileURLToPath(import.meta.url);
