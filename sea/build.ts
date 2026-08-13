@@ -37,7 +37,7 @@ import * as esbuild from 'esbuild';
 import {execSync} from 'node:child_process';
 import {copyFileSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const SEA_DIR: string = path.dirname(fileURLToPath(import.meta.url));
 const ROOT: string = path.join(SEA_DIR, '..');
@@ -101,9 +101,10 @@ await esbuild.build({
   keepNames: true,
   // In CJS format, esbuild replaces import.meta with {}. Some ESM packages call
   // Module.createRequire(import.meta.url) at module level — with import.meta.url === undefined
-  // that throws ERR_INVALID_ARG_VALUE at runtime. Providing a synthetic file URL keeps those
-  // createRequire() calls valid; the returned require is only used for built-in resolution.
-  define: {'import.meta.url': JSON.stringify('file:///solo-sea-bundle.cjs')},
+  // that throws ERR_INVALID_ARG_VALUE at runtime. Providing the bundle's own file URL keeps
+  // those createRequire() calls valid on all platforms (pathToFileURL produces a correct
+  // file:///C:/... URL on Windows, file:///... on Unix).
+  define: {'import.meta.url': JSON.stringify(pathToFileURL(bundlePath).href)},
   logOverride: {'empty-import-meta': 'silent'},
   logLevel: 'warning',
 });
