@@ -3,6 +3,7 @@
 import {KubeError} from './kube-error.js';
 import {KubePodCreationFailedError} from './kube-pod-creation-failed-error.js';
 import {KubePodNotFoundError} from './kube-pod-not-found-error.js';
+import {KubePodNotReadyError} from './kube-pod-not-ready-error.js';
 
 export class KubePodReadinessFailedError extends KubeError {
   public readonly namespace: string;
@@ -22,6 +23,12 @@ export class KubePodReadinessFailedError extends KubeError {
 
     if (cause instanceof KubePodNotFoundError) {
       meta['resource'] = cause.resource;
+    }
+
+    if (cause instanceof KubePodNotReadyError) {
+      meta['podName'] = cause.podName;
+      meta['phase'] = cause.phase;
+      meta['containerSummary'] = cause.containerSummary;
     }
 
     super(
