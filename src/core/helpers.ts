@@ -703,6 +703,7 @@ export class Helpers {
     return {
       exists: true,
       releaseName: minioTenantPod.labels?.['app.kubernetes.io/instance'],
+      version: minioTenantPod.labels?.['app.kubernetes.io/version'],
     };
   }
 
