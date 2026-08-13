@@ -144,9 +144,8 @@ jobs:
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
-          # netavark v2.0.0 only supports nftables; on some runner VMs the nf_tables kernel module
-          # is not loaded at job start, so netavark fails even when firewall_driver is set to
-          # "nftables". Load it explicitly before any podman invocation.
+          # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
+          # podman invocation so nftables is available when netavark initialises.
           sudo modprobe nf_tables
 
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
@@ -170,13 +169,13 @@ jobs:
           printf 'unqualified-search-registries = ["docker.io"]\n' |
             sudo tee /etc/containers/registries.conf > /dev/null
 
-          # Write the same config to both the system path and root's user config. Rootful podman
-          # (which the test and kind steps both use via `sudo`) reads user config at highest priority
-          # ($HOME/.config/containers/containers.conf → /root/.config/containers/containers.conf),
-          # above the system /etc/containers/containers.conf. A pre-existing user config with
-          # firewall_driver = "iptables" — from the runner image's system podman 4.x setup — would
-          # otherwise override our system config and cause netavark v2.0.0 to error with "Must
-          # provide a valid firewall backend, got iptables" even when the system config is correct.
+          # Write the same config to both the system path and root's user config. The user config
+          # ($HOME/.config/containers/containers.conf → /root/.config/containers/containers.conf)
+          # is the highest-priority source for rootful podman and is never touched by package
+          # managers. Writing only to /etc/containers/containers.conf is not enough: `brew install
+          # podman` overwrites that file during the next step, dropping our firewall_driver setting
+          # and causing netavark v2.0.0 to fall back to iptables — which it no longer supports —
+          # with "Must provide a valid firewall backend, got iptables".
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [engine]
           runtime = "crun"
@@ -193,38 +192,6 @@ jobs:
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
           sudo mkdir -p /root/.config/containers
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
-
-      - name: Diagnose Container Configuration
-        run: |
-          echo "=== /etc/containers/containers.conf ==="
-          sudo cat /etc/containers/containers.conf
-
-          echo "=== /root/.config/containers/containers.conf ==="
-          sudo cat /root/.config/containers/containers.conf 2>/dev/null || echo "(not found)"
-
-          echo "=== /usr/share/containers/containers.conf (vendor) ==="
-          cat /usr/share/containers/containers.conf 2>/dev/null | grep -E "firewall|cgroup|events" || echo "(not found or no relevant keys)"
-
-          echo "=== /run/containers/networks/ ==="
-          sudo ls -la /run/containers/networks/ 2>/dev/null || echo "(directory does not exist)"
-          for f in /run/containers/networks/*.json; do
-            [[ -f "$f" ]] || continue
-            echo "--- $f ---"
-            sudo cat "$f"
-          done
-
-          echo "=== sudo podman info (system podman) ==="
-          sudo podman info --format '{{.Host.NetworkBackend}} firewall={{.Host.NetworkBackendInfo.Package}}' 2>/dev/null || \
-            sudo podman info 2>/dev/null | grep -E -i "firewall|network|backend|cgroup" || \
-            echo "(podman info failed)"
-
-          echo "=== sudo podman network ls ==="
-          sudo podman network ls 2>/dev/null || echo "(failed)"
-
-          echo "=== sudo podman network inspect podman ==="
-          sudo podman network inspect podman 2>/dev/null || echo "(not found)"
-          
-          echo "==="
 
       - name: Validate Homebrew Podman Install
         env:
