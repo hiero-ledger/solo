@@ -38,7 +38,13 @@ describe('DockerClient', (): void => {
 
   it('uses docker to list images loaded into a kind cluster by default', async (): Promise<void> => {
     delete process.env.KIND_EXPERIMENTAL_PROVIDER;
-    DockerClientTestBuilder.stubMissingPodmanContainer(shellRunnerRunStub, 'solo-cluster-control-plane');
+    shellRunnerRunStub
+      .withArgs(
+        'docker',
+        DockerClientTestBuilder.containerExistsArguments('solo-cluster-control-plane'),
+        sinon.match.object,
+      )
+      .resolves([]);
     shellRunnerRunStub
       .withArgs('docker', DockerClientTestBuilder.listImagesArguments('solo-cluster-control-plane'))
       .resolves(['docker.io/library/busybox:latest']);
@@ -47,11 +53,31 @@ describe('DockerClient', (): void => {
     const images: readonly string[] = await client.listLoadedImagesInCluster('solo-cluster');
 
     expect(images).to.deep.equal(['docker.io/library/busybox:latest']);
+    expect(shellRunnerRunStub).to.not.have.been.calledWith('podman', sinon.match.any, sinon.match.any);
     expect(shellRunnerRunStub).to.have.been.calledWithExactly(
       'docker',
       DockerClientTestBuilder.listImagesArguments('solo-cluster-control-plane'),
       {commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE},
     );
+  });
+
+  it('caches the docker kind container command', async (): Promise<void> => {
+    delete process.env.KIND_EXPERIMENTAL_PROVIDER;
+    const nodeName: string = 'solo-cluster-control-plane';
+    shellRunnerRunStub
+      .withArgs('docker', DockerClientTestBuilder.containerExistsArguments(nodeName), sinon.match.object)
+      .resolves([]);
+    shellRunnerRunStub
+      .withArgs('docker', DockerClientTestBuilder.listImagesArguments(nodeName))
+      .resolves(['docker.io/library/busybox:latest']);
+
+    const client: DockerClient = DockerClientTestBuilder.build();
+    await client.listLoadedImagesInCluster('solo-cluster');
+    await client.listLoadedImagesInCluster('solo-cluster');
+
+    expect(shellRunnerRunStub.withArgs('docker', DockerClientTestBuilder.containerExistsArguments(nodeName))).to.have
+      .been.calledOnce;
+    expect(shellRunnerRunStub).to.not.have.been.calledWith('podman', sinon.match.any, sinon.match.any);
   });
 
   it('loads image archives into a docker-backed kind cluster with kind', async (): Promise<void> => {
@@ -62,7 +88,9 @@ describe('DockerClient', (): void => {
     const kindBuilder: DockerClientTestKindBuilder = new DockerClientTestKindBuilder({
       loadImageArchive: kindLoadImageArchiveStub,
     } as unknown as KindClient);
-    DockerClientTestBuilder.stubMissingPodmanContainer(shellRunnerRunStub, 'kind-control-plane');
+    shellRunnerRunStub
+      .withArgs('docker', DockerClientTestBuilder.containerExistsArguments('kind-control-plane'), sinon.match.object)
+      .resolves([]);
 
     const client: DockerClient = DockerClientTestBuilder.build(dependencyManager, kindBuilder);
     await client.loadImageArchiveIntoCluster('/tmp/busybox.tar', 'kind');
@@ -167,14 +195,28 @@ class DockerClientTestBuilder {
       .rejects(new Error('podman is not installed'));
   }
 
+  public static stubMissingPodmanContainer(shellRunnerRunStub: SinonStub, nodeName: string): void {
+    shellRunnerRunStub
+      .withArgs('podman', DockerClientTestBuilder.containerExistsArguments(nodeName), sinon.match.object)
+      .rejects(new Error('missing podman container'));
+    shellRunnerRunStub
+      .withArgs(
+        'sudo',
+        DockerClientTestBuilder.containerExistsArguments(nodeName, [
+          '-n',
+          'env',
+          `PATH=${process.env.PATH || ''}`,
+          'podman',
+        ]),
+        sinon.match.object,
+      )
+      .rejects(new Error('missing rootful podman container'));
+  }
+
   public static buildDependencyManager(kindExecutable: string): DependencyManager {
     return {
       getExecutable: async (): Promise<string> => kindExecutable,
     } as unknown as DependencyManager;
-  }
-
-  public static sudoPrefix(): string[] {
-    return ['-n', 'env', `PATH=${process.env.PATH || ''}`, 'podman'];
   }
 
   public static containerExistsArguments(nodeName: string, prefix: readonly string[] = []): string[] {
@@ -183,19 +225,6 @@ class DockerClientTestBuilder {
 
   public static listImagesArguments(nodeName: string, prefix: readonly string[] = []): string[] {
     return [...prefix, 'exec', '--privileged', nodeName, 'ctr', '--namespace=k8s.io', 'images', 'ls', '-q'];
-  }
-
-  public static stubMissingPodmanContainer(shellRunnerRunStub: SinonStub, nodeName: string): void {
-    shellRunnerRunStub
-      .withArgs('podman', DockerClientTestBuilder.containerExistsArguments(nodeName), sinon.match.object)
-      .rejects(new Error('missing podman container'));
-    shellRunnerRunStub
-      .withArgs(
-        'sudo',
-        DockerClientTestBuilder.containerExistsArguments(nodeName, DockerClientTestBuilder.sudoPrefix()),
-        sinon.match.object,
-      )
-      .rejects(new Error('missing rootful podman container'));
   }
 }
 
