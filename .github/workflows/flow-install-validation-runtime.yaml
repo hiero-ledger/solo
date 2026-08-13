@@ -148,6 +148,14 @@ jobs:
           # podman invocation so nftables is available when netavark initialises.
           sudo modprobe nf_tables
 
+          # The runner image's system podman 4.x may have pre-created the default "podman" network
+          # in /var/lib/containers/storage/network/ with firewall_driver = "iptables". Brew's
+          # podman 6.x shares the same rootful graph root and picks up that stored definition,
+          # passing "iptables" to netavark v2.0.0 — which no longer supports it — regardless of
+          # what containers.conf says. Removing it here forces brew's podman to recreate the
+          # network from scratch using our containers.conf (firewall_driver = "nftables").
+          sudo podman network rm --force podman 2>/dev/null || true
+
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $("${BINARY}" --version 2> /dev/null | head -n 1)"
