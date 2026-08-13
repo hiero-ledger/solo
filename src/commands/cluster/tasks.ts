@@ -8,8 +8,8 @@ import {ListrLock} from '../../core/lock/listr-lock.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
 
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-import {type Context, type ReleaseNameData, type SoloListr, type SoloListrTask} from '../../types/index.js';
-import {type NamespaceName} from '../../types/namespace/namespace-name.js';
+import {type Context, type SoloListr, type SoloListrTask} from '../../types/index.js';
+import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -34,8 +34,8 @@ import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
-import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
+import {type Crds} from '../../integration/kube/resources/crd/crds.js';
 import {HelmChartValues} from '../../integration/helm/model/values.js';
 import {Flags} from '../flags.js';
 
@@ -61,19 +61,32 @@ export class ClusterCommandTasks {
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
   }
 
-  public findMinioOperator(context: Context): Promise<ReleaseNameData> {
-    return findMinioOperator(context, this.k8Factory);
+  /**
+   * The operator's CRDs are cluster-scoped, so they are what a second install collides with — and they
+   * remain after the operator's pods and namespace are gone.
+   */
+  public async findMinioOperatorCrds(context: Context): Promise<string[]> {
+    const crds: Crds = this.k8Factory.getK8(context).crds();
+    const present: string[] = [];
+
+    for (const crd of constants.MINIO_OPERATOR_CRDS) {
+      if (await crds.ifExists(crd)) {
+        present.push(crd);
+      }
+    }
+
+    return present;
   }
 
   public async installMinioOperatorChart(clusterSetupNamespace: NamespaceName, context: Context): Promise<void> {
-    const existingMinioOperator: ReleaseNameData = await this.findMinioOperator(context);
+    const existingCrds: string[] = await this.findMinioOperatorCrds(context);
 
-    if (existingMinioOperator.exists) {
+    if (existingCrds.length > 0) {
       SharedClusterResourceReport.show(
         this.logger,
         'MinIO Operator',
         context,
-        `Helm release '${existingMinioOperator.releaseName}' (${SharedClusterResourceReport.formatVersion(existingMinioOperator.version)})`,
+        `CRDs ${existingCrds.join(', ')} already present`,
         `version ${versions.MINIO_OPERATOR_VERSION} as release '${constants.MINIO_OPERATOR_RELEASE_NAME}'`,
       );
       return;
@@ -501,11 +514,17 @@ export class ClusterCommandTasks {
   public uninstallMinioOperator(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall MinIO Operator chart',
-      task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
-        const {exists: isMinioInstalled, releaseName}: ReleaseNameData = await this.findMinioOperator(context);
+      task: async ({config: {context}}): Promise<void> => {
+        // Looked up across all namespaces: the operator is shared, so it need not live in the namespace
+        // this reset was invoked with.
+        const release: ReleaseItem | undefined = await this.chartManager.getInstalledRelease(
+          undefined,
+          constants.MINIO_OPERATOR_RELEASE_NAME,
+          context,
+        );
 
-        if (isMinioInstalled) {
-          await this.chartManager.uninstall(namespace, releaseName, context);
+        if (release) {
+          await this.chartManager.uninstall(NamespaceName.of(release.namespace), release.name, context);
 
           this.logger.showUserUnlessOneShot('✅ MinIO Operator chart uninstalled successfully');
         } else {

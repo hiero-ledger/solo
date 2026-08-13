@@ -102,10 +102,7 @@ describe('ClusterCommand unit tests', (): void => {
         task: async (): Promise<void> => {},
       });
 
-      sandbox.stub(ClusterCommandTasks.prototype, 'findMinioOperator' as any).returns({
-        exists: false,
-        releaseName: undefined,
-      });
+      sandbox.stub(ClusterCommandTasks.prototype, 'findMinioOperatorCrds' as any).resolves([]);
 
       options.configManager = container.resolve(InjectTokens.ConfigManager);
       options.remoteConfig = sandbox.stub();
@@ -219,6 +216,78 @@ describe('ClusterCommand unit tests', (): void => {
 
       expect(rbacStub.clusterRoleExists.calledOnceWith(constants.POD_MONITOR_ROLE)).to.be.true;
       expect(rbacStub.deleteClusterRole.notCalled).to.be.true;
+    });
+  });
+
+  describe('MinIO Operator, whose CRDs outlive the namespace it was installed into', (): void => {
+    const configuredNamespace: NamespaceName = NamespaceName.of('solo-cluster-setup');
+    const installedNamespace: string = 'solo-setup';
+    let tasks: ClusterCommandTasks;
+    let chartManager: any;
+    let crdsStub: any;
+
+    afterEach((): void => {
+      sandbox.restore();
+    });
+
+    beforeEach((): void => {
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
+      crdsStub = {ifExists: sandbox.stub().resolves(false)};
+      sandbox
+        .stub(k8Factory, 'getK8')
+        .returns({crds: (): typeof crdsStub => crdsStub} as unknown as ReturnType<K8Factory['getK8']>);
+
+      chartManager = container.resolve(InjectTokens.ChartManager);
+      chartManager.install = sandbox.stub().resolves(true);
+      chartManager.uninstall = sandbox.stub().resolves(true);
+      chartManager.getInstalledRelease = sandbox.stub().resolves();
+
+      tasks = container.resolve(InjectTokens.ClusterCommandTasks);
+    });
+
+    it('reuses a pre-existing operator instead of installing over its CRDs', async (): Promise<void> => {
+      crdsStub.ifExists.resolves(true);
+
+      await tasks.installMinioOperatorChart(configuredNamespace, 'test-context');
+
+      expect(chartManager.install.notCalled).to.be.true;
+    });
+
+    it('installs when none of its CRDs are present', async (): Promise<void> => {
+      await tasks.installMinioOperatorChart(configuredNamespace, 'test-context');
+
+      expect(chartManager.install.calledOnce).to.be.true;
+      expect(chartManager.install.args[0][0]).to.equal(configuredNamespace);
+    });
+
+    async function runUninstall(): Promise<void> {
+      const task: SoloListrTask<ClusterReferenceResetContext> = tasks.uninstallMinioOperator();
+      await task.task(
+        {
+          config: {context: 'test-context', clusterSetupNamespace: configuredNamespace},
+        } as unknown as ClusterReferenceResetContext,
+        {} as unknown as SoloListrTaskWrapper<ClusterReferenceResetContext>,
+      );
+    }
+
+    it('uninstalls from the namespace the release is actually in, not the configured one', async (): Promise<void> => {
+      chartManager.getInstalledRelease.resolves({
+        name: constants.MINIO_OPERATOR_RELEASE_NAME,
+        namespace: installedNamespace,
+      });
+
+      await runUninstall();
+
+      // Looked up across all namespaces, so a reset run against a different namespace still finds it.
+      expect(chartManager.getInstalledRelease.args[0][0]).to.be.undefined;
+      expect(chartManager.uninstall.args[0][0].name).to.equal(installedNamespace);
+      expect(chartManager.uninstall.args[0][1]).to.equal(constants.MINIO_OPERATOR_RELEASE_NAME);
+    });
+
+    it('skips the uninstall when no release exists', async (): Promise<void> => {
+      await runUninstall();
+
+      expect(chartManager.uninstall.notCalled).to.be.true;
     });
   });
 });
