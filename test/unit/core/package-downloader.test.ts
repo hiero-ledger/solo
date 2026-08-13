@@ -115,6 +115,27 @@ describe('PackageDownloader', (): void => {
 
       fs.rmSync(temporaryDirectory, {recursive: true, force: true});
     });
+
+    it('should continue download when GitHub release HEAD check reports missing URL', async (): Promise<void> => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'artifact.txt');
+      const urlExistsStub: SinonStub = sandbox.stub(downloader, 'urlExists').resolves(false);
+      const gotStreamStub: SinonStub = sandbox
+        .stub(got, 'stream')
+        .returns(Readable.from(['payload']) as ReturnType<typeof got.stream>);
+
+      await expect(
+        downloader.fetchFile(
+          'https://github.com/google/go-containerregistry/releases/download/v0.21.4/go-containerregistry_Linux_x86_64.tar.gz',
+          destinationPath,
+        ),
+      ).to.eventually.equal(destinationPath);
+      expect(fs.readFileSync(destinationPath, 'utf8')).to.equal('payload');
+      expect(urlExistsStub.calledOnce).to.equal(true);
+      expect(gotStreamStub.calledOnce).to.equal(true);
+
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
   });
 
   describe('fetchPlatform', (): void => {
