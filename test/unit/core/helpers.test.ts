@@ -189,14 +189,14 @@ describe('Helpers', (): void => {
       ]);
     });
 
-    it('keeps wrapped record block publishing enabled for BOTH mode', (): void => {
+    it('does not overwrite streamWrappedRecordBlocks in BOTH mode', (): void => {
       const lines: string[] = ['blockStream.streamMode=BLOCKS', 'blockStream.streamWrappedRecordBlocks=false'];
 
       Helpers.updateBlockStreamPropertiesForMode(lines, 'BOTH');
 
       expect(lines).to.deep.equal([
         'blockStream.streamMode=BOTH',
-        'blockStream.streamWrappedRecordBlocks=true',
+        'blockStream.streamWrappedRecordBlocks=false',
         'blockStream.writerMode=FILE_AND_GRPC',
       ]);
     });
