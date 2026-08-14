@@ -144,6 +144,33 @@ describe('RelayCommand unit tests', (): void => {
     expect(valueArguments).to.include('ws.image.tag=7');
   });
 
+  it('should set relay and ws service type to LoadBalancer when load balancer is enabled', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.loadBalancerEnabled.constName]: true,
+      }),
+    );
+
+    expect(valueArguments).to.include('relay.service.type=LoadBalancer');
+    expect(valueArguments).to.include('ws.service.type=LoadBalancer');
+  });
+
+  it('should not override service types when load balancer is disabled', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(relayCommandInternal, createRelayConfig());
+
+    expect(valueArguments).to.not.include('relay.service.type=LoadBalancer');
+    expect(valueArguments).to.not.include('ws.service.type=LoadBalancer');
+  });
+
   it('should reject plain tag value for componentImage', async (): Promise<void> => {
     const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
 

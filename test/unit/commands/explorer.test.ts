@@ -303,7 +303,10 @@ const createHarness: (sandbox: SinonSandbox) => Promise<ExplorerHarness> = async
     });
 
   const kubernetesClient: Record<string, unknown> = {
-    crds: (): Record<string, unknown> => ({ifExists: sandbox.stub().resolves(false)}),
+    crds: (): Record<string, unknown> => ({
+      ifExists: sandbox.stub().resolves(false),
+      readLabels: sandbox.stub().resolves(),
+    }),
     pods: ((): (() => Record<string, unknown>) => {
       const podsStubs: Record<string, unknown> = {waitForReadyStatus: sandbox.stub().resolves()};
       return (): Record<string, unknown> => podsStubs;
@@ -406,6 +409,24 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(chartValues.toArguments()).to.include('proxyPass./api=http://mirror-1-rest.mirror-ns.svc.cluster.local');
   });
 
+  it('should set explorer service type to LoadBalancer only when load balancer is enabled', async (): Promise<void> => {
+    resetForTest();
+    const command: ExplorerCommandInternal = container.resolve(ExplorerCommand) as unknown as ExplorerCommandInternal;
+
+    const defaultChartValues: HelmChartValues = await command.prepareHederaExplorerChartValues(
+      createDeployConfig('explorer'),
+    );
+
+    expect(defaultChartValues.toArguments()).to.not.include('service.type=LoadBalancer');
+
+    const loadBalancerChartValues: HelmChartValues = await command.prepareHederaExplorerChartValues({
+      ...createDeployConfig('explorer'),
+      loadBalancerEnabled: true,
+    });
+
+    expect(loadBalancerChartValues.toArguments()).to.include('service.type=LoadBalancer');
+  });
+
   it('add builds the expected task flow and updates explorer state after successful install', async (): Promise<void> => {
     const harness: ExplorerHarness = await createHarness(sandbox);
     const deployConfig: Record<string, unknown> = createDeployConfig('explorer-add');
@@ -435,6 +456,7 @@ describe('ExplorerCommand unit tests', (): void => {
       'Install explorer ingress controller',
       'Check explorer pod is ready',
       'Check haproxy ingress controller pod is ready',
+      'Check load balancer is assigned',
       'Enable port forwarding for explorer',
       'Show user messages',
     ]);
@@ -531,6 +553,7 @@ describe('ExplorerCommand unit tests', (): void => {
       'Install explorer ingress controller',
       'Check explorer pod is ready',
       'Check haproxy ingress controller pod is ready',
+      'Check load balancer is assigned',
       'Enable port forwarding for explorer',
     ]);
 
