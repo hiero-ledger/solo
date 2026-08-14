@@ -44,7 +44,6 @@ jobs:
   podman-runtime-validation:
     name: 'Install Validation (Podman Runtime)'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
@@ -145,46 +144,6 @@ jobs:
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
-          # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
-          # podman invocation so nftables is available when netavark initialises.
-          sudo modprobe nf_tables
-
-          # Two problems arise from the system podman 4.x writing to the shared rootful graph root
-          # (/var/lib/containers/storage) before brew podman 6.x ever runs:
-          #
-          #   1. The default "podman" network may be stored with firewall_driver = "iptables". Brew
-          #      podman 6.x shares the same graph root and picks up that definition, passing
-          #      "iptables" to netavark v2.0.0 — which no longer supports it — regardless of what
-          #      containers.conf says.
-          #
-          #   2. `podman network rm` initialises the libpod state database (bolt_state.db). Brew
-          #      podman 6.x opens the same database on its first rootful invocation and tries to
-          #      migrate the system podman's schema. On certain runner images the system podman
-          #      version at /usr/local/bin/podman writes a schema variant that this migration path
-          #      hangs on indefinitely, stalling `podman info` (called by kind) for 8+ minutes.
-          #
-          # `podman system reset --force` via the system podman solves both: it removes all
-          # networks (including the iptables-backed "podman" one) and wipes the libpod database so
-          # brew podman 6.x creates a fresh one with no migration.
-          sudo podman system reset --force 2>/dev/null || true
-          # Belt-and-suspenders: remove the libpod state directory directly in case `system reset`
-          # left the database file with schema-version markers intact. Brew podman 6.x opening a
-          # schema-only (empty) database from system podman can still trigger the migration path.
-          # With the directory absent brew podman creates a fresh database at its own schema version.
-          sudo rm -rf /var/lib/containers/storage/libpod 2>/dev/null || true
-
-          # Defensive cleanup: flush any PODMAN iptables chains that an older system podman
-          # might leave in the kernel after the stored network definition is removed. On
-          # ubuntu-latest the runner image's podman 4.x already uses the nftables backend
-          # (xtables-nft-multi) so these chains are absent in practice, but a future runner
-          # image change could re-introduce them. Harmless when the chains do not exist.
-          for TABLE in filter nat mangle; do
-            for CHAIN in PODMAN "PODMAN-DN" "PODMAN-ISOLATION-1" "PODMAN-ISOLATION-2"; do
-              sudo iptables -t "${TABLE}" -F "${CHAIN}" 2>/dev/null || true
-              sudo iptables -t "${TABLE}" -X "${CHAIN}" 2>/dev/null || true
-            done
-          done
-
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $("${BINARY}" --version 2> /dev/null | head -n 1)"
@@ -206,14 +165,7 @@ jobs:
           printf 'unqualified-search-registries = ["docker.io"]\n' |
             sudo tee /etc/containers/registries.conf > /dev/null
 
-          # Write the same config to both the system path and root's user config. The user config
-          # ($HOME/.config/containers/containers.conf → /root/.config/containers/containers.conf)
-          # is the highest-priority source for rootful podman and is never touched by package
-          # managers. Writing only to /etc/containers/containers.conf is not enough: `brew install
-          # podman` overwrites that file during the next step, dropping our firewall_driver setting
-          # and causing netavark v2.0.0 to fall back to iptables — which it no longer supports —
-          # with "Must provide a valid firewall backend, got iptables".
-          CONTAINERS_CONF_CONTENT=$(cat << EOF
+          sudo tee /etc/containers/containers.conf > /dev/null << EOF
           [engine]
           runtime = "crun"
           conmon_path = ["${BREW_PREFIX}/bin/conmon"]
@@ -221,23 +173,7 @@ jobs:
 
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]
-
-          [network]
-          firewall_driver = "nftables"
           EOF
-          )
-          echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
-          sudo mkdir -p /root/.config/containers
-          echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
-
-          # Diagnostics: capture the iptables and nftables state after cleanup so a future hang
-          # has enough context to determine whether residual rules are still the cause.
-          echo "=== iptables -t nat -L -n (post-cleanup) ==="
-          sudo iptables -t nat -L -n 2>&1 || true
-          echo "=== iptables -t filter -L -n (post-cleanup) ==="
-          sudo iptables -t filter -L -n 2>&1 || true
-          echo "=== nft list tables (post-cleanup) ==="
-          sudo nft list tables 2>&1 || true
 
       - name: Validate Homebrew Podman Install
         env:
