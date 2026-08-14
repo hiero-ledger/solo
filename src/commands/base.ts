@@ -132,7 +132,7 @@ export abstract class BaseCommand extends ShellRunner {
     return paths;
   }
 
-  private static checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
+  public static checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
     if (OperatingSystem.isLinux()) {
       return {containerdSnapshotterEnabled: false};
     }

@@ -38,7 +38,6 @@ export class InjectTokens {
   public static NodeCommand: symbol = Symbol.for('NodeCommand');
   public static DeploymentCommand: symbol = Symbol.for('DeploymentCommand');
   public static ExplorerCommand: symbol = Symbol.for('ExplorerCommand');
-  public static InitCommand: symbol = Symbol.for('InitCommand');
   public static MirrorNodeCommand: symbol = Symbol.for('MirrorNodeCommand');
   public static NetworkCommand: symbol = Symbol.for('NetworkCommand');
   public static RelayCommand: symbol = Symbol.for('RelayCommand');

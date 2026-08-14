@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import fs from 'node:fs';
 import {Flags as flags} from '../commands/flags.js';
 import chalk from 'chalk';
 import {type CommandFlag} from '../types/flag-types.js';
@@ -24,10 +25,11 @@ import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/re
 import {K8} from '../integration/kube/k8.js';
 import {type TaskList} from './task-list/task-list.js';
 import {Listr, ListrContext, ListrRendererValue} from 'listr2';
-import {type InitCommand} from '../commands/init/init.js';
-import {InitContext} from '../commands/init/init-context.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import {NpmClient} from '../integration/npm/npm-client.js';
+import * as constants from './constants.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 
 @injectable()
 export class Middlewares {
@@ -40,7 +42,6 @@ export class Middlewares {
     @inject(InjectTokens.HelpRenderer) private readonly helpRenderer: HelpRenderer,
     @inject(InjectTokens.TaskList)
     private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
-    @inject(InjectTokens.InitCommand) private readonly initCommand: InitCommand,
     @inject(InjectTokens.NpmClient) private readonly npmClient: NpmClient,
     @inject(InjectTokens.DeprecationRegistry) private readonly deprecationRegistry: DeprecationRegistry,
   ) {
@@ -51,7 +52,6 @@ export class Middlewares {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
-    this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
     this.npmClient = patchInject(npmClient, InjectTokens.NpmClient, this.constructor.name);
     this.deprecationRegistry = patchInject(
       deprecationRegistry,
@@ -62,9 +62,59 @@ export class Middlewares {
 
   public initSystemFiles(): (argv: ArgvStruct) => AnyObject {
     return async (argv: ArgvStruct): Promise<AnyObject> => {
-      const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> =
-        // @ts-expect-error - TS2445: Property taskList is protected and only accessible within class BaseCommand and its subclasses.
-        this.initCommand.taskList.newTaskList(this.initCommand.setupSystemFilesTasks(argv), {renderer: 'silent'});
+      const cacheDirectory: string =
+        (this.configManager.getFlag<string>(flags.cacheDir) as string) || (constants.SOLO_CACHE_DIR as string);
+
+      const tasks: Listr<ListrContext, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
+        [
+          {
+            title: 'Setup home directory and cache',
+            task: (): void => {
+              for (const directoryPath of [
+                constants.SOLO_HOME_DIR as string,
+                constants.SOLO_LOGS_DIR as string,
+                cacheDirectory,
+                constants.SOLO_VALUES_DIR as string,
+              ]) {
+                if (!fs.existsSync(directoryPath)) {
+                  fs.mkdirSync(directoryPath, {recursive: true});
+                }
+              }
+            },
+          },
+          {
+            title: 'Create local configuration',
+            skip: (): boolean => this.localConfig.configFileExists(),
+            task: async (): Promise<void> => {
+              await this.localConfig.load();
+            },
+          },
+          {
+            title: `Copy templates in '${cacheDirectory}'`,
+            task: (): void => {
+              const directoryName: string = 'templates';
+              const sourceDirectory: string = PathEx.safeJoinWithBaseDirConfinement(
+                constants.RESOURCES_DIR as string,
+                directoryName,
+              );
+              if (!fs.existsSync(sourceDirectory)) {
+                return;
+              }
+
+              const destinationDirectory: string = PathEx.join(cacheDirectory, directoryName);
+              if (!fs.existsSync(destinationDirectory)) {
+                fs.mkdirSync(destinationDirectory, {recursive: true});
+              }
+
+              fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
+              // cpSync preserves the packaged source mode (0755) and bypasses the process umask.
+              FilePermissions.restrictTreeToOwner(destinationDirectory);
+            },
+          },
+        ],
+        {renderer: 'silent'},
+      );
+
       if (tasks.isRoot()) {
         try {
           await tasks.run();
@@ -281,11 +331,6 @@ export class Middlewares {
 
       let clusterName: string = 'N/A';
       let contextName: string = 'N/A';
-
-      // reset config on `solo init` command
-      if (argv._[0] === 'init') {
-        configManager.reset();
-      }
 
       // set cluster and namespace in the global configManager from kubernetes context
       // so that we don't need to prompt the user

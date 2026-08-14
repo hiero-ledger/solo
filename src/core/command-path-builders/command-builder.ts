@@ -8,7 +8,6 @@ import {type CommandFlags} from '../../types/flag-types.js';
 import {Flags as flags} from '../../commands/flags.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
-import {InitCommand} from '../../commands/init/init.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
@@ -17,6 +16,10 @@ import {SpinnerListrOptions} from '../spinner-listr-options.js';
 import {type Deprecation} from '../../types/deprecation.js';
 import {Deprecations} from '../deprecations.js';
 import {type DeprecationRegistry} from '../deprecation-registry.js';
+import {type DependencyManager} from '../dependency-managers/index.js';
+import {type ChartManager} from '../chart-manager.js';
+import {type ClusterTaskManager} from '../cluster-task-manager.js';
+import {BaseCommand} from '../../commands/base.js';
 
 export const ONE_SHOT_COMMAND: string = 'one-shot';
 export const SINGLE_SUBCOMMAND: string = 'single';
@@ -35,26 +38,68 @@ export class Subcommand {
     public readonly dependencies: string[] = [],
     public readonly createCluster: boolean = false,
     public readonly deprecated?: Deprecation,
-    @inject(InjectTokens.InitCommand) private readonly initCommand?: InitCommand,
     @inject(InjectTokens.TaskList)
     private readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+    @inject(InjectTokens.DependencyManager) private readonly depManager?: DependencyManager,
+    @inject(InjectTokens.ChartManager) private readonly chartManager?: ChartManager,
+    @inject(InjectTokens.ClusterTaskManager) private readonly clusterTaskManager?: ClusterTaskManager,
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
-    this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
+    this.depManager = patchInject(depManager, InjectTokens.DependencyManager, this.constructor.name);
+    this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
+    this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, this.constructor.name);
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
   public async installDependencies(
     useSmallMemoryCluster: boolean = false,
     collapseTasks: boolean = false,
   ): Promise<void> {
+    if (!this.dependencies || this.dependencies.length === 0) {
+      return;
+    }
+
+    const taskItems: any[] = [
+      {
+        title: 'Pre-flight: check Docker Desktop containerd setting',
+        task: async (): Promise<void> => {
+          const result: ReturnType<typeof BaseCommand.checkDockerDesktopContainerdSetting> =
+            BaseCommand.checkDockerDesktopContainerdSetting();
+          if (result.containerdSnapshotterEnabled && result.warningMessage) {
+            this.logger.warn(result.warningMessage);
+          }
+        },
+      },
+      {
+        title: 'Check dependencies',
+        task: (_: ListrContext, task: any): any => {
+          const subTasks: any[] = this.depManager.taskCheckDependencies(this.dependencies);
+          return task.newListr(subTasks, {
+            concurrent: true,
+            rendererOptions: {
+              collapseSubtasks: false,
+            },
+          });
+        },
+      },
+    ];
+
+    if (this.dependencies.includes(constants.HELM)) {
+      taskItems.push({
+        title: 'Setup chart manager',
+        task: async (): Promise<void> => {
+          await this.chartManager.setup();
+        },
+      });
+    }
+
+    if (this.createCluster) {
+      taskItems.push(...this.clusterTaskManager.setupLocalClusterTasks(useSmallMemoryCluster));
+    }
+
     const tasks: any = this.taskList.newTaskList(
-      [
-        ...this.initCommand.installDependenciesTasks({
-          deps: this.dependencies,
-          createCluster: this.createCluster,
-          useSmallMemoryCluster,
-        }),
-      ],
+      taskItems,
       collapseTasks ? SpinnerListrOptions.build(true) : constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       this.name,

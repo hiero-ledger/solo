@@ -47,7 +47,6 @@ import {AccountCommand} from '../../commands/account.js';
 import {FileCommand} from '../../commands/file.js';
 import {DeploymentCommand} from '../../commands/deployment.js';
 import {ExplorerCommand} from '../../commands/explorer.js';
-import {InitCommand} from '../../commands/init/init.js';
 import {MirrorNodeCommand} from '../../commands/mirror-node.js';
 import {RelayCommand} from '../../commands/relay.js';
 import {NetworkCommand} from '../../commands/network.js';
@@ -181,7 +180,6 @@ export class Container {
       new SingletonContainer(InjectTokens.NodeCommand, NodeCommand),
       new SingletonContainer(InjectTokens.DeploymentCommand, DeploymentCommand),
       new SingletonContainer(InjectTokens.ExplorerCommand, ExplorerCommand),
-      new SingletonContainer(InjectTokens.InitCommand, InitCommand),
       new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
