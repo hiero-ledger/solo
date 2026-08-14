@@ -93,6 +93,7 @@ describe('ClusterCommand unit tests', (): void => {
       options.helm.dependency = sandbox.stub();
 
       options.chartManager.isChartInstalled = sandbox.stub().returns(false);
+      options.chartManager.getInstalledRelease = sandbox.stub().resolves();
       options.chartManager.install = sandbox.stub().returns(true);
 
       // Simple mock for installPodMonitorRole to avoid cluster connection
