@@ -243,7 +243,8 @@ describe('NetworkCommand unit tests', (): void => {
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);
 
-      GenesisNetworkDataConstructor.initialize = sinon.stub().resolves();
+      // stub through sinon so that afterEach's restore puts the real method back for other test files
+      sinon.stub(GenesisNetworkDataConstructor, 'initialize').resolves();
     });
 
     afterEach((): void => {

@@ -25,4 +25,14 @@ export interface ContainerStatus {
    * The exit code of the terminated container, if any.
    */
   readonly terminatedExitCode?: number;
+
+  /**
+   * Whether the container is currently passing its readiness check.
+   */
+  readonly ready?: boolean;
+
+  /**
+   * How many times the container has been restarted.
+   */
+  readonly restartCount?: number;
 }

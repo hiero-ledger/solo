@@ -15,6 +15,7 @@ export class InjectTokens {
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
   public static LockManager: symbol = Symbol.for('LockManager');
   public static SoloEventBus: symbol = Symbol.for('SoloEventBus');
+  public static DeprecationRegistry: symbol = Symbol.for('DeprecationRegistry');
   public static K8Factory: symbol = Symbol.for('K8Factory');
   public static SoloLogger: symbol = Symbol.for('SoloLogger');
   public static PackageDownloader: symbol = Symbol.for('PackageDownloader');
@@ -86,6 +87,8 @@ export class InjectTokens {
   public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');
   public static VfkitDependencyManager: symbol = Symbol.for('VfkitDependencyManager');
   public static GvproxyDependencyManager: symbol = Symbol.for('GvproxyDependencyManager');
+  public static NetavarkDependencyManager: symbol = Symbol.for('NetavarkDependencyManager');
+  public static AardvarkDnsDependencyManager: symbol = Symbol.for('AardvarkDnsDependencyManager');
   public static CraneDependencyManager: symbol = Symbol.for('CraneDependencyManager');
 
   // Dependency Directories
@@ -103,6 +106,8 @@ export class InjectTokens {
   public static PodmanVersion: symbol = Symbol.for('PodmanVersion');
   public static VfkitVersion: symbol = Symbol.for('VfkitVersion');
   public static GvproxyVersion: symbol = Symbol.for('GvproxyVersion');
+  public static NetavarkVersion: symbol = Symbol.for('NetavarkVersion');
+  public static AardvarkDnsVersion: symbol = Symbol.for('AardvarkDnsVersion');
   public static CraneVersion: symbol = Symbol.for('CraneVersion');
 
   // Cache

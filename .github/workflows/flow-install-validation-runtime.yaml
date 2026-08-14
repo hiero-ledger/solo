@@ -1,0 +1,316 @@
+##
+# Copyright (C) 2025 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+# Validates Solo's real Debian/Ubuntu container-runtime bootstrap: the Homebrew bootstrap plus
+# `brew install podman`, that the resulting podman runs a container rootfully (the mode Solo uses on
+# Linux), and that a kind cluster backed by that podman comes up and tears down with no residue.
+#
+# This job cannot live in the distribution-container matrix of flow-install-validation.yaml: podman
+# and kind need a VM-class runner, which a GitHub-hosted `ubuntu-latest` runner is.
+#
+# Tracked by hiero-ledger/solo#4888, closes hiero-ledger/solo#4910.
+name: 'Install Validation (Podman Runtime)'
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  CLUSTER_NAME: solo-install-validation
+
+jobs:
+  podman-runtime-validation:
+    name: 'Install Validation (Podman Runtime)'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Task
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Matching Podman Network Helpers
+        run: |
+          # netavark and aardvark-dns are the only podman helpers Homebrew does not package, so
+          # helper_binaries_dir otherwise falls through to the netavark that shipped with the runner's
+          # preinstalled podman 4.x — and podman 6 hands it a network-options payload in a shape that
+          # the old netavark cannot deserialize, failing the container's network setup with "netavark:
+          # failed to load network options: IO error: invalid type: sequence, expected a map". That is
+          # the same version skew as the system crun described in the next step, except there is no
+          # brew binary to point at, so a matching pair is fetched here instead.
+          #
+          # v2.0.0 is the release line that pairs with podman 6.x. Homebrew tracks podman's latest, so
+          # this pin has to move whenever the brew podman major moves. The binaries come from the
+          # upstream containers/* GitHub releases — the same provenance Solo itself uses for podman,
+          # whose PodmanDependencyManager downloads from api.github.com/repos/containers/podman/releases
+          # — and each archive is checked against the sha256sum asset published with that release, so a
+          # bad or tampered download fails this step rather than being installed.
+          HELPER_VERSION='v2.0.0'
+          HELPER_DIRECTORY='/opt/podman-helpers'
+
+          # A dedicated directory: nothing is written into the brew prefix or the system podman
+          # directories, both of which belong to package managers that will overwrite them.
+          sudo mkdir -p "${HELPER_DIRECTORY}"
+
+          for HELPER in netavark aardvark-dns; do
+            RELEASE_URL="https://github.com/containers/${HELPER}/releases/download/${HELPER_VERSION}"
+            DOWNLOAD_DIRECTORY="$(mktemp -d)"
+
+            curl --fail --silent --show-error --location --output "${DOWNLOAD_DIRECTORY}/${HELPER}.gz" \
+              "${RELEASE_URL}/${HELPER}.gz"
+            curl --fail --silent --show-error --location --output "${DOWNLOAD_DIRECTORY}/sha256sum" \
+              "${RELEASE_URL}/sha256sum"
+
+            # The asset lists every file in the release, so --ignore-missing narrows the check to the
+            # one archive downloaded above; it still fails when that archive matches no listed entry.
+            if ! (cd "${DOWNLOAD_DIRECTORY}" && sha256sum --check --ignore-missing sha256sum); then
+              echo "::error::${HELPER}.gz does not match the checksum published for ${HELPER_VERSION}"
+              exit 1
+            fi
+
+            gunzip "${DOWNLOAD_DIRECTORY}/${HELPER}.gz"
+            sudo install --mode 0755 "${DOWNLOAD_DIRECTORY}/${HELPER}" "${HELPER_DIRECTORY}/${HELPER}"
+            "${HELPER_DIRECTORY}/${HELPER}" --version
+          done
+
+      - name: Normalize System Container Configuration
+        run: |
+          # The GitHub-hosted ubuntu-latest image preinstalls podman 4.x along with the whole system
+          # container stack it needs (/usr/bin/crun, /usr/libexec/podman/*) and a legacy v1
+          # /etc/containers/registries.conf. `brew install podman` gives us podman 6.x plus its own
+          # helper stack inside the brew prefix (conmon, crun, fuse-overlayfs, passt, ...), but two
+          # things still send it back to the preinstalled system stack:
+          #
+          #   * podman 5+ refuses to load a v1 registries.conf at all ("registries.conf must be in v2
+          #     format but is in v1 format").
+          #   * podman resolves its OCI runtime from the absolute paths in containers.conf
+          #     (/usr/bin/crun, /usr/sbin/crun, ...), never from PATH — so the brew podman runs the
+          #     4.x-era system crun, which cannot parse the OCI spec version podman 6 writes and fails
+          #     the container start with "OCI runtime error: crun: unknown version specified".
+          #
+          # Solo does not write either of these files: it installs podman through Homebrew and leaves
+          # the system container configuration untouched, so a user whose machine already carries an
+          # older system container stack hits exactly the same mismatch. This step is the CI
+          # environment standing in for that gap in the product, and it is worth its own issue.
+          #
+          # Rootful podman reads these system files whichever binary is invoked, so this one step
+          # covers both the rootful `podman run` in the validation harness below and the rootful `kind
+          # create cluster` later in this job — and that kind step passes a short image name
+          # (kindest/node:...), which only resolves via unqualified-search-registries.
+          #
+          # helper_binaries_dir is searched in order, so the netavark/aardvark-dns pair installed by
+          # the previous step comes first, then the brew prefix, then the system helper directories
+          # that still supply every other helper podman looks up. The brew binaries below do not exist
+          # yet — the brew bootstrap runs in the next step — which is why the diagnostics only report
+          # on them.
+          BREW_PREFIX='/home/linuxbrew/.linuxbrew'
+          HELPER_DIRECTORY='/opt/podman-helpers'
+
+          # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
+          # podman invocation so nftables is available when netavark initialises.
+          sudo modprobe nf_tables
+
+          # The runner image's system podman 4.x may have pre-created the default "podman" network
+          # in /var/lib/containers/storage/network/ with firewall_driver = "iptables". Brew's
+          # podman 6.x shares the same rootful graph root and picks up that stored definition,
+          # passing "iptables" to netavark v2.0.0 — which no longer supports it — regardless of
+          # what containers.conf says. Removing it here forces brew's podman to recreate the
+          # network from scratch using our containers.conf (firewall_driver = "nftables").
+          sudo podman network rm --force podman 2>/dev/null || true
+
+          for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
+            if [[ -x "${BINARY}" ]]; then
+              echo "${BINARY}: $("${BINARY}" --version 2> /dev/null | head -n 1)"
+            else
+              echo "${BINARY}: not present"
+            fi
+          done
+
+          for CONFIGURATION in /etc/containers/registries.conf /etc/containers/containers.conf; do
+            if [[ -f "${CONFIGURATION}" ]]; then
+              echo "Existing ${CONFIGURATION}:"
+              cat "${CONFIGURATION}"
+            else
+              echo "No existing ${CONFIGURATION}"
+            fi
+          done
+
+          sudo mkdir -p /etc/containers
+          printf 'unqualified-search-registries = ["docker.io"]\n' |
+            sudo tee /etc/containers/registries.conf > /dev/null
+
+          # Write the same config to both the system path and root's user config. The user config
+          # ($HOME/.config/containers/containers.conf → /root/.config/containers/containers.conf)
+          # is the highest-priority source for rootful podman and is never touched by package
+          # managers. Writing only to /etc/containers/containers.conf is not enough: `brew install
+          # podman` overwrites that file during the next step, dropping our firewall_driver setting
+          # and causing netavark v2.0.0 to fall back to iptables — which it no longer supports —
+          # with "Must provide a valid firewall backend, got iptables".
+          CONTAINERS_CONF_CONTENT=$(cat << EOF
+          [engine]
+          runtime = "crun"
+          conmon_path = ["${BREW_PREFIX}/bin/conmon"]
+          helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
+
+          [engine.runtimes]
+          crun = ["${BREW_PREFIX}/bin/crun"]
+
+          [network]
+          firewall_driver = "nftables"
+          EOF
+          )
+          echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
+          sudo mkdir -p /root/.config/containers
+          echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
+
+      - name: Validate Homebrew Podman Install
+        env:
+          SOLO_PODMAN_RUNTIME_VALIDATION: 'true'
+        run: task test-podman-runtime-validation
+
+      - name: Resolve Pinned Versions and Podman Path
+        id: runtime
+        run: |
+          # kind's version and node image are read from the repo so this job cannot drift from the
+          # versions Solo actually pins.
+          source .github/workflows/script/helper.sh
+          echo "kind-version=$(extract_version KIND_VERSION version.ts)" >> "$GITHUB_OUTPUT"
+          echo "kind-node-image=$(extract_version KIND_NODE_IMAGE src/core/constants.ts)" >> "$GITHUB_OUTPUT"
+
+          # BrewPackageManager installs into this fixed prefix. Prefer it over any distribution
+          # podman, which is too old for kind; the PATH the previous step's brew bootstrap set lives
+          # in that test process only, not in this shell.
+          PODMAN_DIRECTORY="/home/linuxbrew/.linuxbrew/bin"
+          if [[ ! -x "${PODMAN_DIRECTORY}/podman" ]]; then
+            PODMAN_DIRECTORY="$(dirname "$(command -v podman)")"
+          fi
+          echo "podman-directory=${PODMAN_DIRECTORY}" >> "$GITHUB_OUTPUT"
+          "${PODMAN_DIRECTORY}/podman" --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          # install_only keeps this to the kind binary — the cluster below is created with the
+          # podman provider, not the runner's docker daemon.
+          install_only: true
+          version: ${{ steps.runtime.outputs.kind-version }}
+
+      - name: Create Kind Cluster With Podman
+        env:
+          PODMAN_DIRECTORY: ${{ steps.runtime.outputs.podman-directory }}
+          KIND_NODE_IMAGE: ${{ steps.runtime.outputs.kind-node-image }}
+        run: |
+          RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "$(command -v kind)"):${PATH}"
+
+          # Same invocation shape as ClusterTaskManager: kind runs rootfully (PodmanMode.ROOTFUL on
+          # Linux) and sudo resets the PATH, so podman and kind are passed through `sudo env`.
+          sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" \
+            kind create cluster --name "${CLUSTER_NAME}" --image "${KIND_NODE_IMAGE}"
+
+          # Creation is asserted through podman and kubectl instead of `kind get clusters`, which cannot
+          # answer at all against podman 6:
+          #
+          #   ERROR: failed to list clusters: command "podman ps -a --filter
+          #   label=io.x-k8s.kind.cluster --format '{{index .Labels "io.x-k8s.kind.cluster"}}'" failed
+          #   Command Output: Error: template: ps:1:13: executing "ps" at
+          #   <index .Labels "io.x-k8s.kind.cluster">: error calling index: cannot index ...
+          #
+          # kind v0.29.0's podman provider lists clusters with exactly that Go template, and podman 6 no
+          # longer hands `--format` a .Labels value the `index` builtin can index, so every cluster
+          # listing errors out. Cluster creation is unaffected: it enumerates *nodes*
+          # (`podman ps --filter label=io.x-k8s.kind.cluster=<name> --format '{{.Names}}'`), which does
+          # not use the broken template. Solo pins kind v0.29.0 in version.ts while installing podman
+          # through Homebrew, which is now podman 6.x, so that pairing is what users get and
+          # KindClient.getClusters() (src/integration/kind/impl/default-kind-client.ts) hits the same
+          # break in the product, not only in this job. Tracked by hiero-ledger/solo#5354.
+          if ! sudo env "PATH=${RUNTIME_PATH}" podman ps --filter "name=${CLUSTER_NAME}-control-plane" \
+            --format '{{.Names}}' | grep -qx "${CLUSTER_NAME}-control-plane"; then
+            echo "::error::podman has no running node container for cluster ${CLUSTER_NAME}"
+            exit 1
+          fi
+
+          # kubectl is preinstalled on the runner. kind wrote its kubeconfig under sudo, so the same
+          # `sudo env` wrapper reads it back through the context kind just set.
+          if ! sudo env "PATH=${RUNTIME_PATH}" kubectl wait --for=condition=Ready node --all \
+            --timeout=90s --context "kind-${CLUSTER_NAME}"; then
+            echo "::error::cluster ${CLUSTER_NAME} never reported a Ready node through kubectl"
+            exit 1
+          fi
+
+      - name: Delete Kind Cluster And Assert No Residue
+        if: always()
+        env:
+          PODMAN_DIRECTORY: ${{ steps.runtime.outputs.podman-directory }}
+        run: |
+          KIND_PATH="$(command -v kind || true)"
+          if [[ -z "${PODMAN_DIRECTORY}" || -z "${KIND_PATH}" ]]; then
+            echo "Podman or kind was never resolved, so no cluster was created — nothing to clean up."
+            exit 0
+          fi
+          RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "${KIND_PATH}"):${PATH}"
+
+          # kind's delete path may hit the same podman 6 listing defect as `kind get clusters` (see the
+          # previous step and hiero-ledger/solo#5354) — we do not yet know, and this run is how we find
+          # out. Its exit status is captured rather than allowed to abort the step, so the podman-based
+          # residue assertion below runs and reports either way.
+          DELETE_STATUS=0
+          sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" \
+            kind delete cluster --name "${CLUSTER_NAME}" || DELETE_STATUS=$?
+
+          if [[ "${DELETE_STATUS}" -eq 0 ]]; then
+            echo "kind delete cluster --name ${CLUSTER_NAME} succeeded."
+          else
+            echo "::warning::kind delete cluster exited ${DELETE_STATUS}; the residue check decides this step"
+          fi
+
+          # Residue is asserted through podman alone, for the same reason the creation step no longer
+          # calls `kind get clusters`.
+          RESIDUAL_CONTAINERS="$(sudo env "PATH=${RUNTIME_PATH}" podman ps -a \
+            --filter "name=${CLUSTER_NAME}" --format '{{.Names}}')"
+          if [[ -n "${RESIDUAL_CONTAINERS}" ]]; then
+            # Leave the runner clean first — the names are newline-separated, so the unquoted expansion
+            # splits them into arguments — then fail loudly rather than pass on a half-deleted cluster.
+            sudo env "PATH=${RUNTIME_PATH}" podman rm --force --volumes ${RESIDUAL_CONTAINERS} ||
+              echo "::warning::podman could not force-remove every leftover container"
+            RESIDUAL_LIST="$(echo "${RESIDUAL_CONTAINERS}" | tr '\n' ' ')"
+            echo "::error::kind delete cluster did not clean up; podman force-removed: ${RESIDUAL_LIST}"
+            exit 1
+          fi

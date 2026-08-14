@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Standard Runner One-Shot Deploy and Destroy"
+name: 'Standard Runner One-Shot Deploy and Destroy'
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
 # using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
@@ -26,7 +26,7 @@ name: "Standard Runner One-Shot Deploy and Destroy"
 #   2. global-package — reproduce a first-time user experience with the published package.
 #      Runs on hiero-solo-linux-large:
 #      - Faithful package: the tarball is built with the same release packaging code that produces
-#        the published artifact (`scripts/Taskfile.release.yml` dual-publish tasks), so
+#        the published artifact, so
 #        `npm install -g` installs `@hiero-ledger/solo` under its real published name, exercising
 #        the path a first-time user hits (packaging, bin, postinstall).
 #      - Separate directory: every `solo` command runs from a directory outside the checkout,
@@ -84,7 +84,7 @@ jobs:
             runner: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         with:
           egress-policy: audit
 
@@ -96,7 +96,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install Task
@@ -151,16 +151,12 @@ jobs:
           echo "Environment is clean."
 
       - name: Pack Solo as the Published Package
-        # Use the same release packaging code that produces the published artifact, renaming to the
-        # @hiero-ledger/solo namespace so `npm install -g` emulates a real user install. `dual-publish:pack`
-        # runs npm install + task build + npm pack; the build runs after the rename, so dist/package.json
-        # is renamed too, matching the real artifact. `dual-publish:restore` runs `git restore .`.
+        # Use the same release packaging code that produces the primary published artifact so
+        # `npm install -g` emulates a real user install of `@hiero-ledger/solo`.
         if: ${{ matrix.install-mode == 'global-package' }}
         timeout-minutes: 10
         run: |
-          task -t scripts/Taskfile.release.yml dual-publish:rename
           task -t scripts/Taskfile.release.yml dual-publish:pack OUTPUT_DIR=output/hl
-          task -t scripts/Taskfile.release.yml dual-publish:restore
 
       - name: Globally Install Solo
         # SOLO_NO_CACHE skips the postinstall image-cache population so no images are cached before deploy.

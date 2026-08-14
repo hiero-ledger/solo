@@ -68,7 +68,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -81,7 +81,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Setup Helm
@@ -120,7 +120,12 @@ jobs:
             TO_CN_INPUT="${{ inputs.to-consensus-node-version }}"
 
             if [[ -z "${FROM_INPUT}" ]]; then
-              FROM_INPUT=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+              FROM_INPUT=$(resolve_prior_release @hashgraph/solo "$(jq -r '.version' package.json)")
+            fi
+
+            if [[ -z "${FROM_INPUT}" ]]; then
+              echo "Failed to resolve from-solo-version input or a prior published release"
+              exit 1
             fi
 
             if [[ -z "${TO_CN_INPUT}" ]]; then
@@ -160,7 +165,7 @@ jobs:
           sudo mv /tmp/yq /usr/local/bin/yq
           yq --version
 
-          npm install
+          npm ci
           task build:compile
 
           # Run the script in the background and trap SIGTERM/SIGINT so that a workflow
