@@ -772,6 +772,7 @@
     "pkijs@^3.0.0": "3.4.0",
     "pluralize@^8.0.0": "8.0.0",
     "possible-typed-array-names@^1.0.0": "1.1.0",
+    "postject@^1.0.0": "1.0.0-alpha.6",
     "prelude-ls@^1.0.0": "1.2.1",
     "prettier-linter-helpers@^1.0.0": "1.0.1",
     "prettier@^3.0.0": "3.9.6",
