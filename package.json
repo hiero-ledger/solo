@@ -118,6 +118,7 @@
     "typescript-eslint": "8.65.0"
   },
   "overrides": {
+    "commander@^9.0.0": "9.5.0",
     "@adraffy/ens-normalize@^1.0.0": "1.10.1",
     "@babel/code-frame@^7.0.0": "7.29.7",
     "@babel/helper-string-parser@^7.0.0": "7.29.7",
