@@ -138,6 +138,7 @@ import {type NodeStopContext} from './config-interfaces/node-stop-context.js';
 import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
 import {type NodeStartContext} from './config-interfaces/node-start-context.js';
 import {type NodeRestartContext} from './config-interfaces/node-restart-context.js';
+import {type NodeCommonConfigClass} from './config-interfaces/node-common-config-class.js';
 import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodeKeysContext} from './config-interfaces/node-keys-context.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
@@ -2157,6 +2158,9 @@ export class NodeCommandTasks {
     ].join('\n');
   }
 
+  // Distinct from enablePortForwarding: that task handles HAProxy/gRPC forwards only.
+  // This one forwards the JDWP debug port so a debugger can connect and resume the suspended JVM.
+  // It must run before checkNodesAndProxiesAreActive in the node start flow.
   public enableDebuggerPortForwarding(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for JVM debugger',
@@ -2770,10 +2774,15 @@ export class NodeCommandTasks {
     };
   }
 
-  public getHelmChartValues(outputDirectory?: string): SoloListrTask<AnyListrContext> {
+  public getHelmChartValues(
+    outputDirectory?: string,
+    scopeToSelectedDeployment: boolean = false,
+  ): SoloListrTask<AnyListrContext> {
     return {
-      title: 'Get Helm chart values from all releases',
-      task: async (): Promise<void> => {
+      title: scopeToSelectedDeployment
+        ? 'Get Helm chart values from selected deployment releases'
+        : 'Get Helm chart values from all releases',
+      task: async (context_: AnyListrContext): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
         const helmClient: HelmClient = new DefaultHelmClient();
         container.registerInstance(InjectTokens.Helm, helmClient);
@@ -2792,10 +2801,21 @@ export class NodeCommandTasks {
 
         this.logger.info(`Helm chart values will be saved to: ${helmChartValuesDirectory}`);
 
-        const contextList: string[] = contexts.list();
+        const scopedContextList: string[] | undefined = scopeToSelectedDeployment
+          ? context_?.config?.contexts
+          : undefined;
+        const scopedContextNames: ReadonlySet<string> | undefined =
+          scopedContextList === undefined ? undefined : new Set<string>(scopedContextList);
+        const scopedNamespaceName: string | undefined = scopeToSelectedDeployment
+          ? context_?.config?.namespace?.name
+          : undefined;
+        const contextList: string[] =
+          scopedContextNames === undefined
+            ? contexts.list()
+            : contexts.list().filter((context): boolean => scopedContextNames.has(context));
         this.logger.info(`Processing Helm releases for contexts: ${contextList.join(', ')}`);
 
-        for (const context of contexts.list()) {
+        for (const context of contextList) {
           this.logger.info(`Getting Helm releases for context: ${context}`);
 
           try {
@@ -2820,6 +2840,9 @@ export class NodeCommandTasks {
             }
 
             for (const release of releases) {
+              if (scopedNamespaceName !== undefined && release.namespace !== scopedNamespaceName) {
+                continue;
+              }
               try {
                 this.logger.info(`Getting values for release: ${release.name} in namespace: ${release.namespace}`);
 
@@ -3533,7 +3556,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public addWrapsLib(): SoloListrTask<NodeAddContext | NodeUpdateContext> {
+  public addWrapsLib(): SoloListrTask<{config: NodeCommonConfigClass}> {
     return {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
@@ -4637,13 +4660,28 @@ export class NodeCommandTasks {
     };
   }
 
-  public downloadHieroComponentLogs(customOutputDirectory: string = ''): SoloListrTask<AnyListrContext> {
+  public downloadHieroComponentLogs(
+    customOutputDirectory: string = '',
+    scopeToSelectedDeployment: boolean = false,
+  ): SoloListrTask<AnyListrContext> {
     return {
       title: 'Download logs from Hiero components',
-      task: async (_, task): Promise<void> => {
+      task: async (context_: AnyListrContext, task): Promise<void> => {
         // Iterate all k8 contexts to find solo-remote-config configmaps
         this.logger.info('Discovering Hiero components from remote configuration...');
         const contexts: Contexts = this.k8Factory.default().contexts();
+        const scopedContextList: string[] | undefined = scopeToSelectedDeployment
+          ? context_?.config?.contexts
+          : undefined;
+        const scopedContextNames: ReadonlySet<string> | undefined =
+          scopedContextList === undefined ? undefined : new Set<string>(scopedContextList);
+        const scopedNamespaceName: NamespaceName | undefined = scopeToSelectedDeployment
+          ? context_?.config?.namespace
+          : undefined;
+        const contextList: string[] =
+          scopedContextNames === undefined
+            ? contexts.list()
+            : contexts.list().filter((context): boolean => scopedContextNames.has(context));
         const allPods: Array<{pod: Pod; context: string; namespace: NamespaceName}> = [];
 
         // Define component types and their label selectors
@@ -4673,7 +4711,7 @@ export class NodeCommandTasks {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
 
-        for (const context of contexts.list()) {
+        for (const context of contextList) {
           const k8: K8 = this.k8Factory.getK8(context);
 
           try {
@@ -4681,7 +4719,10 @@ export class NodeCommandTasks {
 
             // Iterate through each component type and discover pods
             for (const config of componentLabelConfigs) {
-              const pods: Pod[] = await k8.pods().listForAllNamespaces(config.labels);
+              const pods: Pod[] =
+                scopedNamespaceName === undefined
+                  ? await k8.pods().listForAllNamespaces(config.labels)
+                  : await k8.pods().list(scopedNamespaceName, config.labels);
               this.logger.info(`Found ${pods.length} ${config.name} pod(s) in context ${context}`);
 
               for (const pod of pods) {

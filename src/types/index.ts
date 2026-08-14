@@ -60,6 +60,7 @@ export type InitDependenciesOptions = {deps: string[]; createCluster: boolean; u
 export type ReleaseNameData = {
   releaseName: Optional<string>;
   exists: boolean;
+  version?: Optional<string>;
 };
 
 export type Version = string;

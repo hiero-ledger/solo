@@ -35,6 +35,7 @@ import {IncompleteLocalConfigError} from './classes/config/incomplete-local-conf
 import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-found-solo-error.js';
 import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
+import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-data-invalid-solo-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {RemoteConfigMissingOnKindClusterError} from './classes/config/remote-config-missing-on-kind-cluster-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
@@ -272,6 +273,7 @@ import {HomebrewInstallFailedSoloError} from './classes/system/homebrew-install-
 import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupported-linux-distribution-solo-error.js';
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {PodmanRuntimeConfigurationFailedSoloError} from './classes/system/podman-runtime-configuration-failed-solo-error.js';
+import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
@@ -312,12 +314,14 @@ export class SoloErrors {
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
     readonly remoteConfigMissingOnKindCluster: typeof RemoteConfigMissingOnKindClusterError;
+    readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
   } = Object.freeze({
     incompleteLocalConfig: IncompleteLocalConfigError,
     localNotFound: LocalConfigNotFoundSoloError,
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
+    remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteConfigMissingOnKindCluster: RemoteConfigMissingOnKindClusterError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
@@ -799,6 +803,7 @@ export class SoloErrors {
     readonly unsupportedLinuxDistribution: typeof UnsupportedLinuxDistributionSoloError;
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
     readonly podmanRuntimeConfigurationFailed: typeof PodmanRuntimeConfigurationFailedSoloError;
+    readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
@@ -881,6 +886,7 @@ export class SoloErrors {
     unsupportedLinuxDistribution: UnsupportedLinuxDistributionSoloError,
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
     podmanRuntimeConfigurationFailed: PodmanRuntimeConfigurationFailedSoloError,
+    podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,

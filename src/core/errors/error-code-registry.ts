@@ -7,7 +7,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   REFRESH_LOCAL_CONFIG_SOURCE: 'SOLO-1003',
   REMOTE_CONFIGS_MISMATCH: 'SOLO-1004',
   INCOMPLETE_LOCAL_CONFIG: 'SOLO-1005',
-  REMOTE_CONFIG_MISSING_ON_KIND_CLUSTER: 'SOLO-1006',
+  REMOTE_CONFIG_DATA_INVALID: 'SOLO-1006',
+  REMOTE_CONFIG_MISSING_ON_KIND_CLUSTER: 'SOLO-1007',
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
   CREATE_DEPLOYMENT: 'SOLO-2001',
@@ -298,6 +299,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CLUSTER_UNREACHABLE: 'SOLO-5078',
   KIND_CLUSTER_STOPPED: 'SOLO-5079',
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
+  POD_NOT_READY: 'SOLO-5081',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
