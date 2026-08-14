@@ -208,6 +208,51 @@ TypeScript style guide bans empty or unexplained catch blocks.
 This applies even when the catch body contains statements — the comment documents the *intent*,
 not just the code.
 
+### Error Handling — Always Use a Registered `SoloErrors` Subclass
+
+Every error thrown in `src/` must be a dedicated subclass of `SoloError` registered in the
+`SoloErrors` namespace. **Never** throw `new SoloError(message)` directly or `new Error(message)`.
+The base class lacks the required `code` and `troubleshootingSteps` fields that users and operators
+depend on for diagnosis.
+
+**The three-step pattern:**
+
+1. **Create the error class** in `src/core/errors/classes/<category>/<name>-solo-error.ts`:
+
+```typescript
+// src/core/errors/classes/validation/backup-database-dump-not-found-solo-error.ts
+export class BackupDatabaseDumpNotFoundSoloError extends SoloError {
+  protected override readonly retryable: boolean = false;
+  protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
+
+  public constructor(dumpPath: string) {
+    super({
+      message: `Database dump required for restore but not found at ${dumpPath}`,
+      code: ErrorCodeRegistry.BACKUP_DATABASE_DUMP_NOT_FOUND,
+      troubleshootingSteps:
+        'Create the backup with --backup-external-database\n' +
+        'Restore from the extracted backup directory, not a zip file',
+    });
+  }
+}
+```
+
+2. **Register a new code** in `src/core/errors/error-code-registry.ts`.
+
+3. **Register and throw** via `SoloErrors.<category>` in `src/core/errors/solo-errors.ts`:
+
+```typescript
+// in SoloErrors.validation:
+throw new SoloErrors.validation.backupDatabaseDumpNotFound(dumpPath);
+```
+
+See `src/core/errors/classes/validation/backup-no-log-files-solo-error.ts` as a reference for the
+full class shape. The `SoloErrors` namespace in `solo-errors.ts` shows how to wire the import and
+factory entry.
+
+**Exception:** `KubeApiResponse.throwError` is the correct wrapper for K8s API errors — do not
+replace it with a raw `SoloError`.
+
 ### Pin All Container Image Tags
 
 Every container image reference in this repository — whether in TypeScript source (init-container spec

@@ -461,7 +461,34 @@ cycle is detected and prints the offending chains.
 
 ---
 
-## 23. Pin all container image tags
+## 23. Every thrown error must be a registered `SoloErrors` subclass
+
+**What to look for**
+
+- `throw new SoloError(message)` — bare base-class throw, missing `code` and `troubleshootingSteps`.
+- `throw new Error(message)` — native Error instead of `SoloError` at all.
+- `new SoloError({message, code})` with no `troubleshootingSteps`.
+- A catch block that re-wraps with `new SoloError(...)` instead of the registered type.
+
+**How to respond**
+
+- "we should not throw `new SoloError(message)` directly — every error must be a dedicated subclass registered in `SoloErrors`."
+- Spell out the three steps:
+  1. Create `src/core/errors/classes/<category>/<name>-solo-error.ts` extending `SoloError` with `message`, `code` (new entry in `ErrorCodeRegistry`), and `troubleshootingSteps`.
+  2. Register it in `SoloErrors.<category>` in `solo-errors.ts`.
+  3. Replace the raw throw with `throw new SoloErrors.<category>.<methodName>(params)`.
+- Name the nearest sibling error class as a shape reference (e.g. "see `backup-no-log-files-solo-error.ts` for the shape to follow").
+
+**Counter-check before flagging**
+
+- `KubeApiResponse.throwError` is the correct pattern for K8s client wrappers — do not flag it.
+- Catch blocks that *translate* a foreign error by calling `SoloErrors.*` are fine.
+
+**Prior precedent:** PR #5358 (`backup-restore.ts:1187` threw `new SoloError(message)` directly; the rest of the file used `SoloErrors.validation.*` correctly).
+
+---
+
+## 24. Pin all container image tags
 
 **What to look for**
 
