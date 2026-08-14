@@ -270,7 +270,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.prepareStagingDirectory('existingNodeAliases'),
       this.tasks.refreshNodeList(),
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap(
         'Delete network node from chart and update configMaps',
         NodeSubcommandType.DESTROY,
@@ -326,7 +325,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.addNewConsensusNodeToRemoteConfig(),
       this.tasks.copyNodeKeysToSecrets(),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap('Deploy new network node', NodeSubcommandType.ADD),
       this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.killNodes(),
@@ -377,7 +375,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.copyNodeKeysToSecrets(),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap(
         'Update chart to use new configMap due to account number change',
         NodeSubcommandType.UPDATE,
@@ -421,7 +418,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.upgradeNodeConfigurationFilesWithChart(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
       this.tasks.addWrapsLib(),
