@@ -44,6 +44,7 @@ jobs:
   podman-runtime-validation:
     name: 'Install Validation (Podman Runtime)'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
@@ -156,6 +157,20 @@ jobs:
           # network from scratch using our containers.conf (firewall_driver = "nftables").
           sudo podman network rm --force podman 2>/dev/null || true
 
+          # Flush the PODMAN iptables chains that system podman 4.x leaves in the kernel even after
+          # the stored network definition is removed. The stored definition lives in
+          # /var/lib/containers/storage/network/; the kernel rules live separately in iptables.
+          # When netavark v2.0.0 tries to create a fresh nftables bridge it sometimes deadlocks
+          # while reconciling its nftables state against these orphaned iptables chains — the
+          # exact race depends on the runner's kernel state, which is why the hang is intermittent.
+          # Clearing these chains before brew's podman runs gives netavark a clean slate.
+          for TABLE in filter nat mangle; do
+            for CHAIN in PODMAN "PODMAN-DN" "PODMAN-ISOLATION-1" "PODMAN-ISOLATION-2"; do
+              sudo iptables -t "${TABLE}" -F "${CHAIN}" 2>/dev/null || true
+              sudo iptables -t "${TABLE}" -X "${CHAIN}" 2>/dev/null || true
+            done
+          done
+
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $("${BINARY}" --version 2> /dev/null | head -n 1)"
@@ -200,6 +215,15 @@ jobs:
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
           sudo mkdir -p /root/.config/containers
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
+
+          # Diagnostics: capture the iptables and nftables state after cleanup so a future hang has
+          # enough context to determine whether residual rules are still the cause.
+          echo "=== iptables -t nat -L -n (post-cleanup) ==="
+          sudo iptables -t nat -L -n 2>&1 || true
+          echo "=== iptables -t filter -L -n (post-cleanup) ==="
+          sudo iptables -t filter -L -n 2>&1 || true
+          echo "=== nft list tables (post-cleanup) ==="
+          sudo nft list tables 2>&1 || true
 
       - name: Validate Homebrew Podman Install
         env:
