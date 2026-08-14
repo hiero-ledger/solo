@@ -10,8 +10,7 @@ import {BrewPackageManager} from '../../../../../src/core/package-managers/brew-
 
 /**
  * Validates Solo's Linux container-runtime bootstrap end to end: Homebrew is installed when it is
- * absent, `brew install podman` lands a podman new enough for kind's podman provider, and that
- * podman actually runs a container rootfully — the mode Solo uses on Linux (`PodmanMode.ROOTFUL`).
+ * absent, and `brew install podman` lands a podman new enough for kind's podman provider.
  *
  * Every assertion targets the brew-installed binary specifically (see {@link resolvePodmanPath}),
  * never the distribution-native podman, which is too old for kind — installing podman through
@@ -20,8 +19,10 @@ import {BrewPackageManager} from '../../../../../src/core/package-managers/brew-
  * This mutates the host (it installs Homebrew and podman), so it only runs on disposable CI VM
  * runners when {@link SOLO_PODMAN_RUNTIME_VALIDATION} is set; every other run skips it.
  *
- * Creating the kind cluster on top of this podman is the workflow's job
- * (`.github/workflows/flow-install-validation-runtime.yaml`), not this harness's.
+ * Proving that this podman can actually run a container rootfully is the workflow's job
+ * (`.github/workflows/flow-install-validation-runtime.yaml`), via the kind cluster creation step,
+ * not this harness's — a registry image pull inside a synchronous execFileSync call has no read
+ * timeout and stalls indefinitely on CDN connectivity issues.
  *
  * Tracked by hiero-ledger/solo#4888 (per-distro install validation epic).
  */
@@ -29,9 +30,6 @@ const SOLO_PODMAN_RUNTIME_VALIDATION: string = 'SOLO_PODMAN_RUNTIME_VALIDATION';
 
 /** Oldest podman release kind's podman provider supports, as `[major, minor]`. */
 const MINIMUM_PODMAN_VERSION: [number, number] = [3, 0];
-
-/** Quay is used rather than Docker Hub so shared CI runners do not hit anonymous pull-rate limits. */
-const HELLO_IMAGE: string = 'quay.io/podman/hello';
 
 /** Fixed prefix `BrewPackageManager` installs into, used when `brew --prefix` cannot be consulted. */
 const LINUXBREW_PODMAN: string = '/home/linuxbrew/.linuxbrew/bin/podman';
@@ -76,7 +74,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     resetForTest();
   });
 
-  it('installs podman via Homebrew and runs a container rootfully', async (): Promise<void> => {
+  it('installs podman via Homebrew and meets the minimum version for kind', async (): Promise<void> => {
     const brewPackageManager: BrewPackageManager = new BrewPackageManager();
     if (!(await brewPackageManager.isAvailable())) {
       expect(await brewPackageManager.install(), 'Homebrew bootstrap should succeed').to.be.true;
@@ -92,24 +90,5 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       major > minimumMajor || (major === minimumMajor && minor >= minimumMinor),
       `podman ${major}.${minor} is older than kind's minimum of ${minimumMajor}.${minimumMinor}`,
     ).to.be.true;
-
-    const podmanDirectory: string = path.dirname(podmanPath);
-    // sudo resets the PATH and brew's podman is not on root's PATH, so it is passed explicitly
-    // through `sudo env PATH=…`, the same shape ClusterTaskManager uses to create the kind cluster.
-    // `-n` fails fast rather than hanging on a password prompt; CI runners grant passwordless sudo.
-    const output: string = execFileSync(
-      'sudo',
-      [
-        '-n',
-        'env',
-        `PATH=${podmanDirectory}${path.delimiter}${process.env.PATH}`,
-        'podman',
-        'run',
-        '--rm',
-        HELLO_IMAGE,
-      ],
-      {encoding: 'utf8'},
-    );
-    expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
   });
 }).timeout(600_000);
