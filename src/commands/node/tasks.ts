@@ -543,6 +543,13 @@ export class NodeCommandTasks {
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
     const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
 
+    // When running sequential ACTIVE checks, enforce a shared deadline so the total time
+    // across all nodes is bounded regardless of node count (fixes #5822).
+    const runSequentially: boolean = enableDebugger || status === NodeStatusCodes.ACTIVE;
+    const deadlineMs: number | undefined = runSequentially
+      ? Date.now() + constants.NETWORK_NODE_ACTIVE_TOTAL_DEADLINE_MS
+      : undefined;
+
     const subTasks: {
       title: string;
       task: (context_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>) => Promise<void>;
@@ -578,13 +585,12 @@ export class NodeCommandTasks {
               undefined,
               undefined,
               context,
+              deadlineMs,
             );
           },
         };
       },
     );
-
-    const runSequentially: boolean = enableDebugger || status === NodeStatusCodes.ACTIVE;
 
     return task.newListr(subTasks, {
       concurrent: !runSequentially, // ACTIVE checks include SDK readiness through shared AccountManager state.
@@ -604,6 +610,7 @@ export class NodeCommandTasks {
     delay: number = constants.NETWORK_NODE_ACTIVE_DELAY,
     timeout: number = constants.NETWORK_NODE_ACTIVE_TIMEOUT,
     context?: string,
+    deadlineMs?: number,
   ): Promise<PodReference> {
     const podName: PodName = Templates.renderNetworkPodName(nodeAlias);
     const podReference: PodReference = PodReference.of(namespace, podName);
@@ -618,6 +625,13 @@ export class NodeCommandTasks {
     let attempt: number = 0;
     let success: boolean = false;
     while (attempt < maxAttempts) {
+      // Enforce shared deadline across all sequential node checks (fixes #5822)
+      if (deadlineMs !== undefined && Date.now() > deadlineMs) {
+        throw new SoloErrors.system.timeout(
+          `Node '${nodeAlias}' activeness check timed out after exceeding the shared deadline of ${constants.NETWORK_NODE_ACTIVE_TOTAL_DEADLINE_MS}ms (attempt = ${attempt}/${maxAttempts})`,
+        );
+      }
+
       const controller: AbortController = new AbortController();
 
       const timeoutId: NodeJS.Timeout = setTimeout((): void => {
@@ -726,9 +740,11 @@ export class NodeCommandTasks {
       await sleep(Duration.ofMillis(constants.NETWORK_NODE_GRPC_READINESS_DELAY));
     }
 
-    this.logger.showUser(
-      `node '${nodeAlias}' failed gRPC readiness check ` +
-        `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
+    throw new SoloErrors.component.nodeNotReady(
+      nodeAlias,
+      'gRPC readiness',
+      attempt,
+      constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS,
     );
   }
 

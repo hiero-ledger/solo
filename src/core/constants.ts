@@ -464,6 +464,8 @@ export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+export const NETWORK_NODE_ACTIVE_TOTAL_DEADLINE_MS: number =
+  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TOTAL_DEADLINE_MS') || 600_000; // 10 minutes
 
 // GRPC Healtcheck Checks
 export const NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS: number =
