@@ -36,6 +36,7 @@ import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-fo
 import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
 import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-data-invalid-solo-error.js';
+import {MigrateLegacyLocalConfigError} from './classes/config/migrate-legacy-local-config-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
@@ -315,6 +316,7 @@ export class SoloErrors {
     readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
+    readonly migrateLegacyLocalConfig: typeof MigrateLegacyLocalConfigError;
   } = Object.freeze({
     incompleteLocalConfig: IncompleteLocalConfigError,
     localNotFound: LocalConfigNotFoundSoloError,
@@ -322,6 +324,7 @@ export class SoloErrors {
     remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
+    migrateLegacyLocalConfig: MigrateLegacyLocalConfigError,
   });
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
