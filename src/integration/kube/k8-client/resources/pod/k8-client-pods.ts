@@ -24,7 +24,9 @@ import {K8ClientBase} from '../../k8-client-base.js';
 import {KubeError} from '../../../errors/kube-error.js';
 import {KubeMissingArgumentError} from '../../../errors/kube-missing-argument-error.js';
 import {KubePodNotFoundError} from '../../../errors/kube-pod-not-found-error.js';
+import {KubePodNotReadyError} from '../../../errors/kube-pod-not-ready-error.js';
 import {KubePodCreationFailedError} from '../../../errors/kube-pod-creation-failed-error.js';
+import {KubePodReadinessFailedError} from '../../../errors/kube-pod-readiness-failed-error.js';
 import {KubePodTerminationTimeoutError} from '../../../errors/kube-pod-termination-timeout-error.js';
 import * as constants from '../../../../../core/constants.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
@@ -238,7 +240,10 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     } catch (error: Error | unknown) {
       const errorMessage: string = error instanceof Error ? error.message : String(error);
       this.logger.showUser(`Pod readiness check failed: ${errorMessage}`);
-      throw new KubePodNotFoundError(`pods:${labels.join(',')}`);
+      // Wrap readiness failures in a dedicated error so CI reviewers can see the
+      // namespace/label selector that was being waited on while still preserving
+      // the underlying fatal pod cause for image-pull/startup debugging.
+      throw new KubePodReadinessFailedError(namespace.name, labels, error);
     }
   }
 
@@ -340,6 +345,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
     return new Promise<Pod[]>((resolve, reject): void => {
       let attempts: number = 0;
+      // Newest eligible pod seen on the most recent successful list, so a timeout can report
+      // "found but never ready" instead of the misleading "no pod found".
+      let lastObservedPod: Pod | undefined;
       const fatalErrorStreakByPod: Map<string, {count: number; error: string}> = new Map<
         string,
         {count: number; error: string}
@@ -372,9 +380,16 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
             // When a createdAfter cutoff is provided, skip pods that existed before the
             // cutoff (e.g. a terminating predecessor from a recreate migration).
+            // Kubernetes stores creationTimestamp at second precision (sub-second part is
+            // always 0). A millisecond-precision cutoff would silently exclude a replacement
+            // pod created in the same second; floor to the second boundary minus 1 ms so
+            // any pod timestamped at or after that second is treated as eligible.
+            const createdAfterThreshold: number = createdAfter
+              ? Math.floor(createdAfter.getTime() / 1000) * 1000 - 1
+              : 0;
             const createdAfterEligibleItems: V1Pod[] = createdAfter
               ? sortedItems.filter(
-                  (pod): boolean => (pod.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
+                  (pod): boolean => (pod.metadata?.creationTimestamp?.getTime() || 0) > createdAfterThreshold,
                 )
               : sortedItems;
 
@@ -423,6 +438,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 this.kubeConfig,
                 this.kubectlInstallationDirectory,
               );
+              lastObservedPod = pod;
               if (phases.has(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
                 return resolve([pod]);
               }
@@ -434,6 +450,15 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
         if (++attempts < maxAttempts) {
           setTimeout((): Promise<void> => check(resolve, reject), delay);
+        } else if (lastObservedPod) {
+          return reject(
+            new KubePodNotReadyError(
+              `labels:${labelSelector}`,
+              lastObservedPod.podReference?.name?.toString() ?? '<unknown>',
+              lastObservedPod.phase,
+              lastObservedPod.allContainerStatuses ?? [],
+            ),
+          );
         } else {
           return reject(new KubePodNotFoundError(`labels:${labelSelector}`));
         }

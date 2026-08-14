@@ -21,6 +21,9 @@ import {ConsensusNodeCountRequiredError} from './classes/validation/consensus-no
 import {InvalidOutputFormatError} from './classes/validation/invalid-output-format-error.js';
 import {InvalidPortNumberError} from './classes/validation/invalid-port-number-error.js';
 import {ClusterConnectionFailedError} from './classes/system/cluster-connection-failed-error.js';
+import {ClusterUnreachableError} from './classes/system/cluster-unreachable-error.js';
+import {KindClusterStoppedError} from './classes/system/kind-cluster-stopped-error.js';
+import {ContainerEngineNotRunningError} from './classes/system/container-engine-not-running-error.js';
 import {GitHubApiHttpResponseError} from './classes/system/github-api-http-response-error.js';
 import {GitHubApiRequestFailedError} from './classes/system/github-api-request-failed-error.js';
 import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
@@ -28,9 +31,11 @@ import {GitHubApiResponseParseFailedError} from './classes/system/github-api-res
 import {PortForwardRefreshFailedError} from './classes/system/port-forward-refresh-failed-error.js';
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
+import {IncompleteLocalConfigError} from './classes/config/incomplete-local-config-error.js';
 import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-found-solo-error.js';
 import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
+import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-data-invalid-solo-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
@@ -168,6 +173,7 @@ import {GossipKeySecretRestoreFailedSoloError} from './classes/component/gossip-
 import {TlsKeySecretCreationFailedSoloError} from './classes/component/tls-key-secret-creation-failed-solo-error.js';
 import {TlsKeyGenerationFailedSoloError} from './classes/component/tls-key-generation-failed-solo-error.js';
 import {SigningKeyGenerationFailedSoloError} from './classes/component/signing-key-generation-failed-solo-error.js';
+import {NodeKeyLoadFailedSoloError} from './classes/component/node-key-load-failed-solo-error.js';
 import {GrpcTlsKeyGenerationFailedSoloError} from './classes/component/grpc-tls-key-generation-failed-solo-error.js';
 import {GrpcTlsCertMismatchSoloError} from './classes/component/grpc-tls-cert-mismatch-solo-error.js';
 import {GrpcWebTlsCertMismatchSoloError} from './classes/component/grpc-web-tls-cert-mismatch-solo-error.js';
@@ -236,6 +242,8 @@ import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-m
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
 import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-solo-error.js';
 import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
+import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
+import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -262,6 +270,8 @@ import {GitHubReleaseAssetNotFoundSoloError} from './classes/system/github-relea
 import {HomebrewInstallFailedSoloError} from './classes/system/homebrew-install-failed-solo-error.js';
 import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupported-linux-distribution-solo-error.js';
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
+import {PodmanRuntimeConfigurationFailedSoloError} from './classes/system/podman-runtime-configuration-failed-solo-error.js';
+import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
@@ -298,13 +308,17 @@ import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-
 export class SoloErrors {
   // 1xxx - Configuration: Local/remote config lifecycle
   public static readonly config: {
+    readonly incompleteLocalConfig: typeof IncompleteLocalConfigError;
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
+    readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
   } = Object.freeze({
+    incompleteLocalConfig: IncompleteLocalConfigError,
     localNotFound: LocalConfigNotFoundSoloError,
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
+    remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
   });
@@ -443,6 +457,7 @@ export class SoloErrors {
     readonly tlsKeySecretCreationFailed: typeof TlsKeySecretCreationFailedSoloError;
     readonly tlsKeyGenerationFailed: typeof TlsKeyGenerationFailedSoloError;
     readonly signingKeyGenerationFailed: typeof SigningKeyGenerationFailedSoloError;
+    readonly nodeKeyLoadFailed: typeof NodeKeyLoadFailedSoloError;
     readonly grpcTlsKeyGenerationFailed: typeof GrpcTlsKeyGenerationFailedSoloError;
     readonly grpcTlsCertMismatch: typeof GrpcTlsCertMismatchSoloError;
     readonly grpcWebTlsCertMismatch: typeof GrpcWebTlsCertMismatchSoloError;
@@ -534,6 +549,7 @@ export class SoloErrors {
     tlsKeySecretCreationFailed: TlsKeySecretCreationFailedSoloError,
     tlsKeyGenerationFailed: TlsKeyGenerationFailedSoloError,
     signingKeyGenerationFailed: SigningKeyGenerationFailedSoloError,
+    nodeKeyLoadFailed: NodeKeyLoadFailedSoloError,
     grpcTlsKeyGenerationFailed: GrpcTlsKeyGenerationFailedSoloError,
     grpcTlsCertMismatch: GrpcTlsCertMismatchSoloError,
     grpcWebTlsCertMismatch: GrpcWebTlsCertMismatchSoloError,
@@ -634,6 +650,8 @@ export class SoloErrors {
     readonly backupNoLogFiles: typeof BackupNoLogFilesSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
+    readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
+    readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -708,6 +726,8 @@ export class SoloErrors {
     backupNoLogFiles: BackupNoLogFilesSoloError,
     flagInputFailed: FlagInputFailedSoloError,
     confirmationRequired: ConfirmationRequiredSoloError,
+    valuesFileNotFound: ValuesFileNotFoundSoloError,
+    valuesFileParseFailed: ValuesFileParseFailedSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -718,6 +738,9 @@ export class SoloErrors {
     readonly blockNodesJsonEmpty: typeof BlockNodesJsonEmptySoloError;
     readonly externalBlockNodeNotInRemoteConfig: typeof ExternalBlockNodeNotInRemoteConfigSoloError;
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
+    readonly clusterUnreachable: typeof ClusterUnreachableError;
+    readonly kindClusterStopped: typeof KindClusterStoppedError;
+    readonly containerEngineNotRunning: typeof ContainerEngineNotRunningError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
     readonly githubApiRequestFailed: typeof GitHubApiRequestFailedError;
     readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
@@ -773,6 +796,8 @@ export class SoloErrors {
     readonly homebrewInstallFailed: typeof HomebrewInstallFailedSoloError;
     readonly unsupportedLinuxDistribution: typeof UnsupportedLinuxDistributionSoloError;
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
+    readonly podmanRuntimeConfigurationFailed: typeof PodmanRuntimeConfigurationFailedSoloError;
+    readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
@@ -796,6 +821,9 @@ export class SoloErrors {
     blockNodesJsonEmpty: BlockNodesJsonEmptySoloError,
     externalBlockNodeNotInRemoteConfig: ExternalBlockNodeNotInRemoteConfigSoloError,
     clusterConnectionFailed: ClusterConnectionFailedError,
+    clusterUnreachable: ClusterUnreachableError,
+    kindClusterStopped: KindClusterStoppedError,
+    containerEngineNotRunning: ContainerEngineNotRunningError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
     githubApiRequestFailed: GitHubApiRequestFailedError,
     githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
@@ -851,6 +879,8 @@ export class SoloErrors {
     homebrewInstallFailed: HomebrewInstallFailedSoloError,
     unsupportedLinuxDistribution: UnsupportedLinuxDistributionSoloError,
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
+    podmanRuntimeConfigurationFailed: PodmanRuntimeConfigurationFailedSoloError,
+    podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
