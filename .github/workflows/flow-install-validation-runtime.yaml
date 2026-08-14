@@ -144,6 +144,18 @@ jobs:
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
+          # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
+          # podman invocation so nftables is available when netavark initialises.
+          sudo modprobe nf_tables
+
+          # The runner image's system podman 4.x may have pre-created the default "podman" network
+          # in /var/lib/containers/storage/network/ with firewall_driver = "iptables". Brew's
+          # podman 6.x shares the same rootful graph root and picks up that stored definition,
+          # passing "iptables" to netavark v2.0.0 — which no longer supports it — regardless of
+          # what containers.conf says. Removing it here forces brew's podman to recreate the
+          # network from scratch using our containers.conf (firewall_driver = "nftables").
+          sudo podman network rm --force podman 2>/dev/null || true
+
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $("${BINARY}" --version 2> /dev/null | head -n 1)"
@@ -165,7 +177,14 @@ jobs:
           printf 'unqualified-search-registries = ["docker.io"]\n' |
             sudo tee /etc/containers/registries.conf > /dev/null
 
-          sudo tee /etc/containers/containers.conf > /dev/null << EOF
+          # Write the same config to both the system path and root's user config. The user config
+          # ($HOME/.config/containers/containers.conf → /root/.config/containers/containers.conf)
+          # is the highest-priority source for rootful podman and is never touched by package
+          # managers. Writing only to /etc/containers/containers.conf is not enough: `brew install
+          # podman` overwrites that file during the next step, dropping our firewall_driver setting
+          # and causing netavark v2.0.0 to fall back to iptables — which it no longer supports —
+          # with "Must provide a valid firewall backend, got iptables".
+          CONTAINERS_CONF_CONTENT=$(cat << EOF
           [engine]
           runtime = "crun"
           conmon_path = ["${BREW_PREFIX}/bin/conmon"]
@@ -177,6 +196,10 @@ jobs:
           [network]
           firewall_driver = "nftables"
           EOF
+          )
+          echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
+          sudo mkdir -p /root/.config/containers
+          echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
 
       - name: Validate Homebrew Podman Install
         env:
