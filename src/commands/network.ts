@@ -10,6 +10,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
+import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {Templates} from '../core/templates.js';
 import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
@@ -1022,6 +1023,29 @@ export class NetworkCommand extends BaseCommand {
     return config;
   }
 
+  private async waitForConfigMapDeletion(context: Context, namespace: NamespaceName): Promise<void> {
+    let exists: boolean = await this.k8Factory
+      .getK8(context)
+      .configMaps()
+      .exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+    let attempts: number = 0;
+
+    while (exists && attempts < constants.NETWORK_DESTROY_WAIT_TIMEOUT) {
+      await sleep(Duration.ofSeconds(1));
+
+      exists = await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+      attempts++;
+    }
+
+    if (exists) {
+      throw new SoloErrors.system.timeout(
+        `Timeout waiting for configMap ${constants.SOLO_REMOTE_CONFIGMAP_NAME} to be deleted.`,
+      );
+    }
+  }
+
   private async destroyTask(
     task: SoloListrTaskWrapper<NetworkDestroyContext>,
     namespace: NamespaceName,
@@ -1056,6 +1080,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.allSettled(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          await this.waitForConfigMapDeletion(context, namespace);
         }),
       ),
     );
@@ -1094,6 +1119,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          await this.waitForConfigMapDeletion(context, namespace);
         }),
       );
 
@@ -1232,10 +1258,6 @@ export class NetworkCommand extends BaseCommand {
     }
   }
 
-  private async crdExists(context: string, crdName: string): Promise<boolean> {
-    return await this.k8Factory.getK8(context).crds().ifExists(crdName);
-  }
-
   /**
    * Ensure the PodLogs CRD from Grafana Alloy is installed
    */
@@ -1264,9 +1286,18 @@ export class NetworkCommand extends BaseCommand {
     );
 
     for (const context of contexts as string[]) {
-      const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
-      if (exists) {
-        this.logger.debug(`CRD ${PODLOGS_CRD} already exists in context ${context}`);
+      const podLogsCrdLabels: Record<string, string> | undefined = await this.k8Factory
+        .getK8(context)
+        .crds()
+        .readLabels(PODLOGS_CRD);
+      if (podLogsCrdLabels !== undefined) {
+        SharedClusterResourceReport.show(
+          this.logger,
+          `CRD '${PODLOGS_CRD}'`,
+          context,
+          SharedClusterResourceReport.versionFromLabels(podLogsCrdLabels),
+          `version ${versions.GRAFANA_PODLOGS_CRD_VERSION}`,
+        );
         continue;
       }
 
@@ -1358,18 +1389,32 @@ export class NetworkCommand extends BaseCommand {
     for (const [_, context] of clusterRefs) {
       const chartValues: HelmChartValues = new HelmChartValues();
       let missingCount: number = 0;
+      const foundCrdVersions: Set<string> = new Set<string>();
 
       for (const {key, crd} of CRDS) {
-        const exists: boolean = await this.crdExists(context, crd);
-        if (exists) {
-          chartValues.set(`${key}.enabled`, false);
-        } else {
+        const crdLabels: Record<string, string> | undefined = await this.k8Factory
+          .getK8(context)
+          .crds()
+          .readLabels(crd);
+        if (crdLabels === undefined) {
           missingCount++;
+        } else {
+          chartValues.set(`${key}.enabled`, false);
+          foundCrdVersions.add(SharedClusterResourceReport.versionFromLabels(crdLabels));
         }
       }
 
+      if (foundCrdVersions.size > 0) {
+        SharedClusterResourceReport.show(
+          this.logger,
+          'Prometheus Operator CRDs',
+          context,
+          `${CRDS.length - missingCount} of ${CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
+          `version ${versions.PROMETHEUS_OPERATOR_CRDS_VERSION}`,
+        );
+      }
+
       if (missingCount === 0) {
-        this.logger.info(`All Prometheus Operator CRDs already present in context ${context}; skipping installation.`);
         continue;
       }
 

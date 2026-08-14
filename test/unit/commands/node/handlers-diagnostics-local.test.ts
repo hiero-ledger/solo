@@ -8,6 +8,7 @@ import {NodeCommandHandlers} from '../../../../src/commands/node/handlers.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {DiagnosticsCollector} from '../../../../src/commands/util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../../../../src/commands/util/diagnostics-reporter.js';
+import {GetSoloRemoteConfigMapTask} from '../../../../src/commands/util/get-solo-remote-config-map-task.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type LockManager} from '../../../../src/core/lock/lock-manager.js';
 import {type ConfigManager} from '../../../../src/core/config-manager.js';
@@ -99,6 +100,9 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   let commandActionStub: SinonStub;
   let runDiagnosticsReportStub: SinonStub;
   let defaultK8Stub: SinonStub;
+  let getHelmChartValuesStub: SinonStub;
+  let downloadHieroComponentLogsStub: SinonStub;
+  let getRemoteConfigMapTaskStub: SinonStub;
 
   beforeEach((): void => {
     loggerStub = makeLoggerStub();
@@ -122,12 +126,14 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     const dummyTask: SoloListrTask<object> = {title: 'dummy', task: async (): Promise<void> => {}};
     analyzeStub = sinon.stub().returns(dummyTask);
     initializeStub = sinon.stub().returns(dummyTask);
+    getHelmChartValuesStub = sinon.stub().returns(dummyTask);
+    downloadHieroComponentLogsStub = sinon.stub().returns(dummyTask);
     const tasksStub: NodeCommandTasks = {
       analyzeCollectedDiagnostics: analyzeStub,
       initialize: initializeStub,
       getNodeLogsAndConfigs: sinon.stub().returns(dummyTask),
-      getHelmChartValues: sinon.stub().returns(dummyTask),
-      downloadHieroComponentLogs: sinon.stub().returns(dummyTask),
+      getHelmChartValues: getHelmChartValuesStub,
+      downloadHieroComponentLogs: downloadHieroComponentLogsStub,
       reportActivePortForwards: sinon.stub().returns(dummyTask),
     } as unknown as NodeCommandTasks;
 
@@ -174,6 +180,7 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
 
     commandActionStub = sinon.stub(NodeCommandHandlers.prototype, 'commandAction').resolves();
     runDiagnosticsReportStub = sinon.stub(DiagnosticsReporter, 'runDiagnosticsReport').resolves();
+    getRemoteConfigMapTaskStub = sinon.stub(GetSoloRemoteConfigMapTask, 'getTask').returns(dummyTask);
   });
 
   afterEach((): void => {
@@ -261,6 +268,94 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     expect(remoteConfigConfigMapExistsStub).to.have.been.calledOnce;
     // ...and proceeds with full remote collection when it does.
     expect(initializeStub).to.have.been.calledOnce;
+  });
+
+  it('logs scopes collectors to the selected deployment when --deployment is provided', async (): Promise<void> => {
+    // Cluster is reachable and the ConfigMap exists → full remote collection path.
+    // scopeToSelectedDeployment must be true when --deployment is given, so the
+    // collectors target only that deployment's namespace instead of all namespaces.
+    defaultK8Stub.returns(makeReachableK8());
+
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_LOGS),
+      deployment: 'solo-deployment',
+    } as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.logs(argv);
+
+    expect(result).to.equal(true);
+    expect(collectLocalDiagnosticsStub).to.not.have.been.called;
+    expect(getHelmChartValuesStub).to.have.been.calledOnce;
+    expect(getHelmChartValuesStub.firstCall.args[1]).to.equal(true);
+    expect(downloadHieroComponentLogsStub).to.have.been.calledOnce;
+    expect(downloadHieroComponentLogsStub.firstCall.args[1]).to.equal(true);
+    expect(getRemoteConfigMapTaskStub).to.have.been.calledOnce;
+    expect(getRemoteConfigMapTaskStub.firstCall.args[3]).to.equal(true);
+  });
+
+  it('logs collects from all deployments when --deployment is omitted', async (): Promise<void> => {
+    // Cluster is reachable and the ConfigMap exists → full remote collection path.
+    // scopeToSelectedDeployment must be false when no --deployment flag is present,
+    // so the collectors cover all Solo deployments cluster-wide.
+    defaultK8Stub.returns(makeReachableK8());
+
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_LOGS),
+    } as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.logs(argv);
+
+    expect(result).to.equal(true);
+    expect(collectLocalDiagnosticsStub).to.not.have.been.called;
+    expect(getHelmChartValuesStub).to.have.been.calledOnce;
+    expect(getHelmChartValuesStub.firstCall.args[1]).to.equal(false);
+    expect(downloadHieroComponentLogsStub).to.have.been.calledOnce;
+    expect(downloadHieroComponentLogsStub.firstCall.args[1]).to.equal(false);
+    expect(getRemoteConfigMapTaskStub).to.have.been.calledOnce;
+    expect(getRemoteConfigMapTaskStub.firstCall.args[3]).to.equal(false);
+  });
+
+  it('all scopes collectors to the selected deployment when --deployment is provided', async (): Promise<void> => {
+    // Cluster is reachable and the ConfigMap exists → full remote collection path.
+    // scopeToSelectedDeployment must be true when --deployment is given.
+    defaultK8Stub.returns(makeReachableK8());
+
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_ALL),
+      deployment: 'solo-deployment',
+    } as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.all(argv);
+
+    expect(result).to.equal(true);
+    expect(collectLocalDiagnosticsStub).to.not.have.been.called;
+    expect(getHelmChartValuesStub).to.have.been.calledOnce;
+    expect(getHelmChartValuesStub.firstCall.args[1]).to.equal(true);
+    expect(downloadHieroComponentLogsStub).to.have.been.calledOnce;
+    expect(downloadHieroComponentLogsStub.firstCall.args[1]).to.equal(true);
+    expect(getRemoteConfigMapTaskStub).to.have.been.calledOnce;
+    expect(getRemoteConfigMapTaskStub.firstCall.args[3]).to.equal(true);
+  });
+
+  it('all collects from all deployments when --deployment is omitted', async (): Promise<void> => {
+    // Cluster is reachable and the ConfigMap exists → full remote collection path.
+    // scopeToSelectedDeployment must be false when no --deployment flag is present.
+    defaultK8Stub.returns(makeReachableK8());
+
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_ALL),
+    } as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.all(argv);
+
+    expect(result).to.equal(true);
+    expect(collectLocalDiagnosticsStub).to.not.have.been.called;
+    expect(getHelmChartValuesStub).to.have.been.calledOnce;
+    expect(getHelmChartValuesStub.firstCall.args[1]).to.equal(false);
+    expect(downloadHieroComponentLogsStub).to.have.been.calledOnce;
+    expect(downloadHieroComponentLogsStub.firstCall.args[1]).to.equal(false);
+    expect(getRemoteConfigMapTaskStub).to.have.been.calledOnce;
+    expect(getRemoteConfigMapTaskStub.firstCall.args[3]).to.equal(false);
   });
 
   it('logs collects local diagnostics when the deployment has no remote config ConfigMap', async (): Promise<void> => {

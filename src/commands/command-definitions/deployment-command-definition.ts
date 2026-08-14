@@ -266,7 +266,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               DeploymentCommandDefinition.DIAGNOSTICS_ALL,
-              'Captures logs, configs, and diagnostic artifacts from all consensus nodes and test connections.',
+              'Captures logs, configs, and diagnostics artifacts for all deployments by default, or only the selected deployment when --deployment is provided.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.all,
               NodeFlags.DIAGNOSTICS_CONNECTIONS,
@@ -275,7 +275,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               DeploymentCommandDefinition.DIAGNOSTICS_DEBUG,
-              'Similar to diagnostics all subcommand, but creates a zip archive for easy sharing.',
+              'Same scope as diagnostics all, but creates a zip archive for easy sharing.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.debug,
               NodeFlags.LOGS_FLAGS,
@@ -284,7 +284,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS,
-              'Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes.',
+              'Tests connections to Consensus, Relay, Explorer, Mirror and Block nodes for all deployments by default, or only the selected deployment when --deployment is provided.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.connections,
               NodeFlags.DIAGNOSTICS_CONNECTIONS,
@@ -293,7 +293,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               DeploymentCommandDefinition.DIAGNOSTICS_LOGS,
-              'Get logs and configuration files from consensus node/nodes.',
+              'Gets logs and configuration files for all deployments by default, or only the selected deployment when --deployment is provided.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.logs,
               NodeFlags.LOGS_FLAGS,
@@ -311,7 +311,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               DeploymentCommandDefinition.DIAGNOSTICS_REPORT,
-              'Collect diagnostic logs and create a GitHub issue using the gh CLI.',
+              'Collects diagnostics (scoped by --deployment when provided) and creates a GitHub issue using the gh CLI.',
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.report,
               NodeFlags.REPORT_FLAGS,
