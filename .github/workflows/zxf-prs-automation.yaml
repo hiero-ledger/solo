@@ -72,6 +72,9 @@ jobs:
             // Priority order: P0 is highest, P3 is lowest.
             const PRIORITY_LABELS = ['P0-🔥', 'P1-💎', 'P2-⏭️💎', 'P3-⏭️⏭️💎'];
 
+            // Labels that Dependabot applies by default and should be replaced by our taxonomy.
+            const DEPENDABOT_DEFAULT_LABELS = ['dependencies', 'github_actions', 'javascript'];
+
             async function addLabelIfMissing(prNumber, label, existingLabels) {
               if (!existingLabels.includes(label)) {
                 await github.rest.issues.addLabels({ owner, repo, issue_number: prNumber, labels: [label] });
@@ -184,6 +187,7 @@ jobs:
 
                 const labels = pr.labels.map(l => l.name);
                 const isOpen = !pr.draft;
+                const isDependabot = pr.user.login === 'dependabot[bot]';
 
                 // Feature 1: Merge conflicts → add label and convert to draft.
                 // pr.mergeable is null when GitHub has not yet computed mergeability; skip in that case.
@@ -207,12 +211,33 @@ jobs:
                   await convertToDraft(pr.node_id, prNumber);
                 }
 
+                // Feature 5: Dependabot PRs → assign swirlds-automation, strip default labels, add P2.
+                if (isDependabot) {
+                  const assignees = pr.assignees.map(a => a.login);
+                  if (!assignees.includes('swirlds-automation')) {
+                    await github.rest.issues.addAssignees({
+                      owner, repo, issue_number: prNumber, assignees: ['swirlds-automation'],
+                    });
+                    core.info(`Assigned swirlds-automation to PR #${prNumber}`);
+                  }
+                  for (const label of DEPENDABOT_DEFAULT_LABELS) {
+                    await removeLabelIfPresent(prNumber, label, labels);
+                  }
+                  const hasPriorityLabel = labels.some(l => PRIORITY_LABELS.includes(l));
+                  if (!hasPriorityLabel) {
+                    await addLabelIfMissing(prNumber, 'P2-⏭️💎', labels);
+                  }
+                }
+
                 // Feature 4: Linked issues → propagate highest priority label when none is set.
-                const hasPriorityLabel = labels.some(l => PRIORITY_LABELS.includes(l));
-                if (!hasPriorityLabel) {
-                  const highestPriority = await getLinkedIssuePriority(prNumber, pr.body);
-                  if (highestPriority) {
-                    await addLabelIfMissing(prNumber, highestPriority, labels);
+                // Skipped for Dependabot PRs since P2 is applied directly above.
+                if (!isDependabot) {
+                  const hasPriorityLabel = labels.some(l => PRIORITY_LABELS.includes(l));
+                  if (!hasPriorityLabel) {
+                    const highestPriority = await getLinkedIssuePriority(prNumber, pr.body);
+                    if (highestPriority) {
+                      await addLabelIfMissing(prNumber, highestPriority, labels);
+                    }
                   }
                 }
               } catch (error) {
