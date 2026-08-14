@@ -10,6 +10,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
+import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {Templates} from '../core/templates.js';
 import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
@@ -55,8 +56,6 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type Lock} from '../core/lock/lock.js';
-import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
-import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -166,6 +165,8 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
@@ -904,6 +905,8 @@ export class NetworkCommand extends BaseCommand {
       flags.gcsBucketPrefix,
       flags.nodeAliasesUnparsed,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -959,6 +962,9 @@ export class NetworkCommand extends BaseCommand {
     if (config.domainNames) {
       config.domainNamesMapping = Templates.parseNodeAliasToDomainNameMapping(config.domainNames);
     }
+
+    config.gossipEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.gossipEndpointPort);
+    config.serviceEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.serviceEndpointPort);
 
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
@@ -1017,6 +1023,29 @@ export class NetworkCommand extends BaseCommand {
     return config;
   }
 
+  private async waitForConfigMapDeletion(context: Context, namespace: NamespaceName): Promise<void> {
+    let exists: boolean = await this.k8Factory
+      .getK8(context)
+      .configMaps()
+      .exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+    let attempts: number = 0;
+
+    while (exists && attempts < constants.NETWORK_DESTROY_WAIT_TIMEOUT) {
+      await sleep(Duration.ofSeconds(1));
+
+      exists = await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+      attempts++;
+    }
+
+    if (exists) {
+      throw new SoloErrors.system.timeout(
+        `Timeout waiting for configMap ${constants.SOLO_REMOTE_CONFIGMAP_NAME} to be deleted.`,
+      );
+    }
+  }
+
   private async destroyTask(
     task: SoloListrTaskWrapper<NetworkDestroyContext>,
     namespace: NamespaceName,
@@ -1051,6 +1080,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.allSettled(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          await this.waitForConfigMapDeletion(context, namespace);
         }),
       ),
     );
@@ -1089,6 +1119,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          await this.waitForConfigMapDeletion(context, namespace);
         }),
       );
 
@@ -1227,10 +1258,6 @@ export class NetworkCommand extends BaseCommand {
     }
   }
 
-  private async crdExists(context: string, crdName: string): Promise<boolean> {
-    return await this.k8Factory.getK8(context).crds().ifExists(crdName);
-  }
-
   /**
    * Ensure the PodLogs CRD from Grafana Alloy is installed
    */
@@ -1259,9 +1286,18 @@ export class NetworkCommand extends BaseCommand {
     );
 
     for (const context of contexts as string[]) {
-      const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
-      if (exists) {
-        this.logger.debug(`CRD ${PODLOGS_CRD} already exists in context ${context}`);
+      const podLogsCrdLabels: Record<string, string> | undefined = await this.k8Factory
+        .getK8(context)
+        .crds()
+        .readLabels(PODLOGS_CRD);
+      if (podLogsCrdLabels !== undefined) {
+        SharedClusterResourceReport.show(
+          this.logger,
+          `CRD '${PODLOGS_CRD}'`,
+          context,
+          SharedClusterResourceReport.versionFromLabels(podLogsCrdLabels),
+          `version ${versions.GRAFANA_PODLOGS_CRD_VERSION}`,
+        );
         continue;
       }
 
@@ -1353,18 +1389,32 @@ export class NetworkCommand extends BaseCommand {
     for (const [_, context] of clusterRefs) {
       const chartValues: HelmChartValues = new HelmChartValues();
       let missingCount: number = 0;
+      const foundCrdVersions: Set<string> = new Set<string>();
 
       for (const {key, crd} of CRDS) {
-        const exists: boolean = await this.crdExists(context, crd);
-        if (exists) {
-          chartValues.set(`${key}.enabled`, false);
-        } else {
+        const crdLabels: Record<string, string> | undefined = await this.k8Factory
+          .getK8(context)
+          .crds()
+          .readLabels(crd);
+        if (crdLabels === undefined) {
           missingCount++;
+        } else {
+          chartValues.set(`${key}.enabled`, false);
+          foundCrdVersions.add(SharedClusterResourceReport.versionFromLabels(crdLabels));
         }
       }
 
+      if (foundCrdVersions.size > 0) {
+        SharedClusterResourceReport.show(
+          this.logger,
+          'Prometheus Operator CRDs',
+          context,
+          `${CRDS.length - missingCount} of ${CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
+          `version ${versions.PROMETHEUS_OPERATOR_CRDS_VERSION}`,
+        );
+      }
+
       if (missingCount === 0) {
-        this.logger.info(`All Prometheus Operator CRDs already present in context ${context}; skipping installation.`);
         continue;
       }
 
@@ -1615,7 +1665,6 @@ export class NetworkCommand extends BaseCommand {
             }
           },
         },
-        // TODO: Move the check for load balancer logic to a utility method or class
         {
           title: 'Check for load balancer',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
@@ -1627,34 +1676,19 @@ export class NetworkCommand extends BaseCommand {
               subTasks.push({
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
-                  let attempts: number = 0;
-                  let svc: Service[];
-
-                  while (attempts < constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS) {
-                    svc = await this.k8Factory
+                  try {
+                    await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
-
-                    if (svc && svc.length > 0 && svc[0].status?.loadBalancer?.ingress?.length > 0) {
-                      let shouldContinue: boolean = false;
-                      for (let index: number = 0; index < svc[0].status.loadBalancer.ingress.length; index++) {
-                        const ingress: LoadBalancerIngress = svc[0].status.loadBalancer.ingress[index];
-                        if (!ingress.hostname && !ingress.ip) {
-                          shouldContinue = true; // try again if there is neither a hostname nor an ip
-                          break;
-                        }
-                      }
-                      if (shouldContinue) {
-                        continue;
-                      }
-                      return;
-                    }
-
-                    attempts++;
-                    await sleep(Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS));
+                      .waitForLoadBalancerAddress(
+                        namespace,
+                        Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId),
+                        constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+                        Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+                      );
+                  } catch (error) {
+                    throw new SoloErrors.system.loadBalancerNotFound(error);
                   }
-                  throw new SoloErrors.system.loadBalancerNotFound();
                 },
               });
             }
@@ -1676,7 +1710,7 @@ export class NetworkCommand extends BaseCommand {
             const {namespace, chartDirectory, soloChartVersion, clusterRefs} = config;
 
             // Update the chartValuesMap with the external IP addresses
-            // This regenerates the config.txt and genesis-network.json files with the external IP addresses
+            // This regenerates the genesis-network.json file with the external IP addresses
             config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
             // Perform a helm upgrade for each cluster

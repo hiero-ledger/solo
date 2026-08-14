@@ -60,6 +60,7 @@ export type InitDependenciesOptions = {deps: string[]; createCluster: boolean; u
 export type ReleaseNameData = {
   releaseName: Optional<string>;
   exists: boolean;
+  version?: Optional<string>;
 };
 
 export type Version = string;
@@ -74,3 +75,8 @@ export type ClusterReferenceName = string;
 export type ClusterReferences = Map<ClusterReferenceName, Context>;
 export type PriorityMapping = [blockNodeId: ComponentId, priority: number];
 export type NodeAliasToAddressMapping = Record<NodeAlias, {address: string; port: number}>;
+/**
+ * A port override for a consensus node endpoint. `defaultPort` applies to every consensus node that has no entry in
+ * `nodeAliasToPort`; both are undefined/empty when the user did not supply an override.
+ */
+export type EndpointPortMapping = {defaultPort?: number; nodeAliasToPort: Record<NodeAlias, number>};

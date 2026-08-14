@@ -10,6 +10,8 @@ export class K8ClientContainerStatus implements ContainerStatus {
     public readonly waitingMessage?: string,
     public readonly terminatedReason?: string,
     public readonly terminatedExitCode?: number,
+    public readonly ready?: boolean,
+    public readonly restartCount?: number,
   ) {}
 
   public static from(v1Status: V1ContainerStatus): K8ClientContainerStatus {
@@ -19,6 +21,8 @@ export class K8ClientContainerStatus implements ContainerStatus {
       v1Status.state?.waiting?.message,
       v1Status.state?.terminated?.reason,
       v1Status.state?.terminated?.exitCode,
+      v1Status.ready,
+      v1Status.restartCount,
     );
   }
 }

@@ -11,6 +11,7 @@ import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {showVersionBanner, sleep} from '../core/helpers.js';
+import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {
   type ClusterReferenceName,
@@ -26,7 +27,7 @@ import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
-import {INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
+import {EXPLORER_VERSION, INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Lock} from '../core/lock/lock.js';
@@ -37,6 +38,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
+import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
@@ -59,6 +61,7 @@ interface ExplorerDeployConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   componentImage: Optional<string>;
+  loadBalancerEnabled: boolean;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
@@ -99,6 +102,7 @@ interface ExplorerUpgradeConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   componentImage: Optional<string>;
+  loadBalancerEnabled: boolean;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
@@ -179,6 +183,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.componentImage,
+      flags.loadBalancerEnabled,
       flags.namespace,
       flags.quiet,
       flags.soloChartVersion,
@@ -210,6 +215,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.componentImage,
+      flags.loadBalancerEnabled,
       flags.namespace,
       flags.quiet,
       flags.soloChartVersion,
@@ -239,6 +245,10 @@ export class ExplorerCommand extends BaseCommand {
 
     if (config.enableIngress) {
       chartValues.set('ingress.enabled', true).setLiteral('ingressClassName', config.ingressReleaseName);
+    }
+
+    if (config.loadBalancerEnabled) {
+      chartValues.set('service.type', 'LoadBalancer');
     }
     chartValues.setLiteral('fullnameOverride', `${config.releaseName}-${config.namespace.name}`);
 
@@ -316,13 +326,27 @@ export class ExplorerCommand extends BaseCommand {
         const soloCertManagerChartValues: HelmChartValues = await this.prepareCertManagerChartValues(config);
         // check if CRDs of cert-manager are already installed
         let needInstall: boolean = false;
+        const foundCrdVersions: Set<string> = new Set<string>();
         for (const crd of constants.CERT_MANAGER_CRDS) {
-          const crdExists: boolean = await this.k8Factory.getK8(config.clusterContext).crds().ifExists(crd);
+          const crdLabels: Record<string, string> | undefined = await this.k8Factory
+            .getK8(config.clusterContext)
+            .crds()
+            .readLabels(crd);
 
-          if (!crdExists) {
+          if (crdLabels === undefined) {
             needInstall = true;
             break;
           }
+          foundCrdVersions.add(SharedClusterResourceReport.versionFromLabels(crdLabels));
+        }
+
+        if (!needInstall) {
+          SharedClusterResourceReport.show(
+            this.logger,
+            'cert-manager CRDs',
+            config.clusterContext,
+            `all ${constants.CERT_MANAGER_CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
+          );
         }
 
         if (needInstall) {
@@ -554,6 +578,28 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
+  private checkLoadBalancerIsAssignedTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Check load balancer is assigned',
+      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.loadBalancerEnabled,
+      task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        try {
+          await this.k8Factory
+            .getK8(config.clusterContext)
+            .services()
+            .waitForLoadBalancerAddress(
+              config.namespace,
+              [`app.kubernetes.io/instance=${config.releaseName}`],
+              constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+              Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+            );
+        } catch (error) {
+          throw new SoloErrors.system.loadBalancerNotFound(error);
+        }
+      },
+    };
+  }
+
   private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for explorer',
@@ -732,6 +778,7 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -824,10 +871,22 @@ export class ExplorerCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
+            const currentExplorerVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
+              ComponentTypes.Explorer,
+            );
+
+            config.explorerVersion = UpgradeVersionResolver.resolveFromFlags(
+              this.configManager,
+              [flags.explorerVersion],
+              config.explorerVersion,
+              currentExplorerVersion,
+              EXPLORER_VERSION,
+            );
+
             assertUpgradeVersionNotOlder(
               'Explorer',
               config.explorerVersion,
-              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
+              currentExplorerVersion,
               optionFromFlag(flags.explorerVersion),
             );
 
@@ -845,6 +904,7 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
