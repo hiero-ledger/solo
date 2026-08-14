@@ -239,29 +239,6 @@ export class NodeCommandTasks {
     return gossipFqdnRestricted || Helpers.hasMultipleKubernetesContexts(consensusNodes);
   }
 
-  private static buildRsaAddressBookHistory(consensusNodes: ConsensusNode[], keysDirectory: string): string {
-    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
-    for (const consensusNode of consensusNodes) {
-      const publicKeyFile: string = PathEx.join(
-        keysDirectory,
-        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
-      );
-      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
-      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
-        format: 'der',
-        type: 'spki',
-      }) as Buffer;
-      nodeAddresses.push({
-        RSAPubKey: spkiDer.toString('hex'),
-        nodeId: Templates.nodeIdFromNodeAlias(consensusNode.name),
-      });
-    }
-
-    return JSON.stringify({
-      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
-    });
-  }
-
   private static buildNetworkNodeServiceManifest(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
@@ -3817,7 +3794,7 @@ export class NodeCommandTasks {
               },
             },
             {
-              title: 'Refresh block node RSA bootstrap state',
+              title: 'Refresh block node RSA bootstrap state (restarts block-node pods)',
               skip: (): boolean =>
                 !refreshBlockNodeRsaBootstrapState ||
                 !this.shouldRefreshBlockNodeRsaBootstrapState(context_.config, consensusNodes),
@@ -3836,7 +3813,7 @@ export class NodeCommandTasks {
     nodeListOverride?: string,
   ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
-      title: 'Refresh block node RSA bootstrap state',
+      title: 'Refresh block node RSA bootstrap state (restarts block-node pods)',
       skip: (context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext): boolean =>
         !this.shouldRefreshBlockNodeRsaBootstrapState(
           context_.config,
@@ -3890,7 +3867,7 @@ export class NodeCommandTasks {
     config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
-    const bootstrapJson: string = NodeCommandTasks.buildRsaAddressBookHistory(consensusNodes, config.keysDir);
+    const bootstrapJson: string = Helpers.buildRsaAddressBookJson(consensusNodes, config.keysDir);
     const bootstrapFilePath: string = PathEx.join(config.keysDir, NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE);
     fs.writeFileSync(bootstrapFilePath, bootstrapJson, 'utf8');
 

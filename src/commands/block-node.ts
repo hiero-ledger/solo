@@ -64,7 +64,6 @@ import {BlockNodeDeployedEvent} from '../core/events/event-types/block-node-depl
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import yaml from 'yaml';
 
 interface BlockNodeDeployConfigClass {
@@ -455,25 +454,17 @@ export class BlockNodeCommand extends BaseCommand {
       return undefined;
     }
 
-    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
     for (const consensusNode of consensusNodes) {
-      const alias: NodeAlias = consensusNode.name;
-      const publicKeyFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(alias));
+      const publicKeyFile: string = PathEx.join(
+        keysDirectory,
+        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
+      );
       if (!fs.existsSync(publicKeyFile)) {
         return undefined;
       }
-
-      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
-      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
-        format: 'der',
-        type: 'spki',
-      }) as Buffer;
-      nodeAddresses.push({RSAPubKey: spkiDer.toString('hex'), nodeId: Templates.nodeIdFromNodeAlias(alias)});
     }
 
-    const bootstrapJson: string = JSON.stringify({
-      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
-    });
+    const bootstrapJson: string = Helpers.buildRsaAddressBookJson(consensusNodes, keysDirectory);
     const content: string = yaml.stringify({
       blockNode: {
         initContainers: [

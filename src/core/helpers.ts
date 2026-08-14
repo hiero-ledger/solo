@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import crypto from 'node:crypto';
 import fs, {type Stats} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -135,8 +136,6 @@ export class Helpers {
 
     if (streamMode === 'BLOCKS') {
       Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
-    } else if (streamMode === 'BOTH') {
-      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'true');
     }
   }
 
@@ -618,6 +617,28 @@ export class Helpers {
       return false;
     }
     return streamMode === 'BLOCKS' || streamMode === 'BOTH';
+  }
+
+  public static buildRsaAddressBookJson(consensusNodes: ConsensusNode[], keysDirectory: string): string {
+    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
+    for (const consensusNode of consensusNodes) {
+      const publicKeyFile: string = PathEx.join(
+        keysDirectory,
+        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
+      );
+      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
+      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
+        format: 'der',
+        type: 'spki',
+      }) as Buffer;
+      nodeAddresses.push({
+        RSAPubKey: spkiDer.toString('hex'),
+        nodeId: Templates.nodeIdFromNodeAlias(consensusNode.name),
+      });
+    }
+    return JSON.stringify({
+      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
+    });
   }
 
   /**
