@@ -607,6 +607,19 @@ export class Helpers {
     return consensusNode ? consensusNode.context : undefined;
   }
 
+  public static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
+    const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
+    return contexts.size > 1;
+  }
+
+  public static requiresRsaBootstrap(consensusNodeVersion: string, streamMode: string): boolean {
+    const version: SemanticVersion<string> = new SemanticVersion<string>(consensusNodeVersion);
+    if (version.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      return false;
+    }
+    return streamMode === 'BLOCKS' || streamMode === 'BOTH';
+  }
+
   /**
    * Check if the namespace exists in the context of given consensus nodes
    * @param consensusNodes

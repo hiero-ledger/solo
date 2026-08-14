@@ -79,8 +79,6 @@ export class NodeCommandHandlers extends CommandHandler {
   // CN does not signal when the final block has been flushed to the block node after a freeze.
   // Without this delay, stopNodes races the in-flight blocks and the block node may miss the
   // last block before the freeze boundary, causing a gap in mirror node ingestion.
-  private static readonly FREEZE_BLOCK_STREAM_DRAIN_MILLISECONDS: number = 20_000;
-
   private resolveOutputDirectory(argv: ArgvStruct, fallback: string = ''): string {
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.outputDir) || fallback;
@@ -1255,7 +1253,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-        this.tasks.sleep('Drain block stream after freeze', NodeCommandHandlers.FREEZE_BLOCK_STREAM_DRAIN_MILLISECONDS),
+        this.tasks.drainBlockStreamAfterFreeze(),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],

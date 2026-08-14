@@ -3,6 +3,7 @@
 import {Listr} from 'listr2';
 import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
+  Helpers,
   showVersionBanner,
   sleep,
   withTimeout,
@@ -425,15 +426,10 @@ export class BlockNodeCommand extends BaseCommand {
   }
 
   private shouldConfigureRsaMirrorBootstrapSource(): boolean {
-    const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
-      this.remoteConfig.configuration.versions?.consensusNode?.toString() || versions.HEDERA_PLATFORM_VERSION,
-    );
-    if (consensusNodeVersion.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-      return false;
-    }
-
+    const consensusNodeVersion: string =
+      this.remoteConfig.configuration.versions?.consensusNode?.toString() ?? versions.HEDERA_PLATFORM_VERSION;
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
-    return blockStreamMode === 'BLOCKS' || blockStreamMode === 'BOTH';
+    return Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
   }
 
   private resolveMirrorNodeReleaseName(): string {
@@ -483,7 +479,7 @@ export class BlockNodeCommand extends BaseCommand {
         initContainers: [
           {
             name: 'init-storage-dirs',
-            image: 'busybox',
+            image: 'busybox:1.36.1',
             command: [
               'sh',
               '-c',

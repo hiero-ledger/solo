@@ -292,7 +292,7 @@ export const STOP_FLAGS: CommandFlags = {
 
 export const FREEZE_FLAGS: CommandFlags = {
   required: [],
-  optional: [flags.deployment, flags.quiet],
+  optional: [flags.deployment, flags.quiet, flags.freezeBlockDrainSeconds],
 };
 
 export const START_FLAGS: CommandFlags = {

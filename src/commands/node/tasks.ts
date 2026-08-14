@@ -55,6 +55,7 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
+  Helpers,
   parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
@@ -235,12 +236,7 @@ export class NodeCommandTasks {
   }
 
   private static shouldAvoidGossipFqdn(consensusNodes: ConsensusNode[], gossipFqdnRestricted: boolean): boolean {
-    return gossipFqdnRestricted || NodeCommandTasks.hasMultipleKubernetesContexts(consensusNodes);
-  }
-
-  private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
-    const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
-    return contexts.size > 1;
+    return gossipFqdnRestricted || Helpers.hasMultipleKubernetesContexts(consensusNodes);
   }
 
   private static buildRsaAddressBookHistory(consensusNodes: ConsensusNode[], keysDirectory: string): string {
@@ -3554,7 +3550,7 @@ export class NodeCommandTasks {
           config.consensusNodes,
           gossipFqdnRestricted,
         );
-        const loadBalancerRequired: boolean = NodeCommandTasks.hasMultipleKubernetesContexts(config.consensusNodes);
+        const loadBalancerRequired: boolean = Helpers.hasMultipleKubernetesContexts(config.consensusNodes);
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
 
         if (loadBalancerRequired) {

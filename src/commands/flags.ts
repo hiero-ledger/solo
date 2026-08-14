@@ -513,7 +513,7 @@ export class Flags {
     constName: 'skipNodeStart',
     name: 'skip-node-start',
     definition: {
-      describe: 'Skip starting consensus nodes after staging a network upgrade',
+      describe: 'Skip starting consensus nodes after staging a freeze upgrade',
       defaultValue: false,
       type: 'boolean',
     },
