@@ -208,6 +208,25 @@ TypeScript style guide bans empty or unexplained catch blocks.
 This applies even when the catch body contains statements — the comment documents the *intent*,
 not just the code.
 
+### Pin All Container Image Tags
+
+Every container image reference in this repository — whether in TypeScript source (init-container spec
+objects), shell-script heredocs, Helm values files, or Kubernetes manifests — **must** include an exact
+version tag. Floating tags (`busybox`, `alpine`, `latest`, `stable`) are forbidden because they can pull
+a different image on every deploy without any code change, creating a silent supply-chain risk.
+
+```yaml
+# wrong
+image: busybox
+
+# correct
+image: busybox:1.36.1
+```
+
+The same rule applies to package manager dependencies in `package.json`, Helm chart versions in
+`version.ts`, and any other pinned-version registry: always specify an exact version, never a range
+or mutable alias, unless the project has an explicit policy permitting ranges for that dependency type.
+
 ### Shell Scripts in `.github/` — SPDX Header Required
 
 All shell scripts under `.github/workflows/script/` must include a SPDX license identifier on the

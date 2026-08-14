@@ -461,6 +461,36 @@ cycle is detected and prints the offending chains.
 
 ---
 
+## 23. Pin all container image tags
+
+**What to look for**
+
+- Any `image: busybox`, `image: alpine`, `image: ubuntu`, or other image reference without an explicit
+  version tag (e.g. `busybox` instead of `busybox:1.36.1`).
+- Images pinned only to a mutable tag like `latest`, `stable`, or a branch name.
+- Image references in TypeScript-generated YAML (init-container spec objects in `block-node.ts`,
+  `deploy-argv-builders.ts`, etc.) as well as in shell-script heredocs and Helm values files checked
+  into the repo.
+
+**How to respond — suggestion-block form**
+
+````
+```suggestion
+      image: busybox:1.36.1
+```
+pin to an exact version — floating tags can pull a different image on every deploy (supply-chain risk).
+````
+
+**How to handle pre-existing unpinned images not in the diff**
+
+- Note them in the review summary under Major (not as an inline comment, since GitHub can't anchor
+  comments on unchanged lines).
+- Recommend a follow-up PR that pins them; do not block merge on pre-existing issues.
+
+**Prior precedent:** PR #5358 (`busybox` unpinned in `launch_network.sh` and `block-node.ts`).
+
+---
+
 ## Quick decision aids
 
 **"Should this be a class with statics or a module of functions?"**
