@@ -217,15 +217,18 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       ].join(' '),
     ]);
 
-    // ── Step 5: podman info — initialises libpod without creating a container ───
-    // Use sudo timeout (not Node.js timeout) so SIGKILL is guaranteed and the process
-    // cannot linger as an orphan holding the libpod lock when the next command runs.
-    console.log('[podman-validation] running: sudo podman info (libpod init probe, 30 s timeout)');
+    // ── Step 5: podman version — fast binary check, no libpod init ─────────────
+    // podman info initialises the full libpod runtime (opens db.sql, acquires the
+    // runtime SHM lock) and consistently hangs on this runner. Killing it with SIGKILL
+    // leaves the SQLite WAL/SHM in a dirty state that deadlocks subsequent podman run
+    // invocations. podman version only reads compile-time version constants and never
+    // touches the libpod database or locks, so it cannot corrupt state.
+    console.log('[podman-validation] running: sudo podman version');
     runDiagnostic(
-      'sudo podman info',
+      'sudo podman version',
       'sudo',
-      ['-n', 'timeout', '--kill-after=5', '30', 'env', sudoEnvironmentPath, 'podman', 'info'],
-      40_000,
+      ['-n', 'env', sudoEnvironmentPath, 'podman', 'version'],
+      15_000,
     );
 
     // ── Step 6: podman network ls ────────────────────────────────────────────────
@@ -241,76 +244,61 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // falls back to /usr/local/bin/crun (system crun) which hangs with brew conmon 6.x.
     const brewCrun: string = '/home/linuxbrew/.linuxbrew/bin/crun';
 
-    // ── Step 7: network=none probe with /proc wchan hang diagnostic ──────────────
-    // The hang always occurs within ~1 s of starting (at "No hostname set; container's hostname
-    // will default to runtime default"), before conmon is ever launched. To identify the exact
-    // blocking kernel function, run podman in the background and read /proc/<pid>/wchan after
-    // 10 s (well into the hang window). The wchan value names the kernel function in which the
-    // process is sleeping — e.g. "futex_wait", "security_apparmor_...", "kernfs_fop_write",
-    // "do_sys_openat2" — giving the definitive hang cause without needing strace.
-    console.log('[podman-validation] running network=none wchan diagnostic (25 s)');
+    // ── Step 7: network=none probe with goroutine-dump diagnostic ───────────────
+    // All threads are in S/futex (pure Go-level deadlock, no D-state kernel blocking).
+    // Open fds show: fd3=cpu.max (cgroup read), fd4=db.sql (libpod SQLite state DB).
+    // SIGQUIT triggers Go's built-in goroutine stack dump (GOTRACEBACK=all ensures
+    // every goroutine is included), revealing exactly which goroutines are deadlocked
+    // and on what mutex/channel — the definitive next step for a Go-level deadlock.
+    console.log('[podman-validation] running network=none + SIGQUIT goroutine-dump diagnostic (35 s)');
     runDiagnostic(
-      'sudo podman run --network=none + wchan hang diagnostic',
+      'sudo podman run --network=none + Go goroutine dump (SIGQUIT)',
       'sh',
       [
         '-c',
         [
-          // Start podman in background, capturing stdout + stderr separately.
-          // --cgroups=disabled: skip all container cgroup setup. The cgroupfs manager
-          // deadlocks (Go-level, all threads in S/futex) when it tries to manipulate
-          // the runner's system.slice/hosted-compute-agent.service cgroup hierarchy.
-          `sudo -n env '${sudoEnvironmentPath}' podman --log-level=debug run --rm --network=none`,
+          // GOTRACEBACK=all: include every goroutine in the SIGQUIT stack dump.
+          // --cgroups=disabled: skip container cgroup setup (that deadlock is bypassed;
+          // the remaining deadlock is in the libpod db.sql write).
+          `sudo -n env '${sudoEnvironmentPath}' 'GOTRACEBACK=all' podman --log-level=debug run --rm --network=none`,
           '  --security-opt seccomp=unconfined --security-opt apparmor=unconfined',
           `  --cgroups=disabled --runtime=${brewCrun} ${HELLO_IMAGE} >/tmp/podman-probe-out.txt 2>/tmp/podman-probe-err.txt &`,
           'BG_PID=$!;',
-          // Wait long enough for podman to reach the hang point (image pull + spec generation).
           'sleep 12;',
-          // Find the podman child of sudo (sudo forks + execs env which execs podman in-place).
           'POD_PID=$(pgrep -P "$BG_PID" 2>/dev/null | head -1); [ -z "$POD_PID" ] && POD_PID=$BG_PID;',
           'echo "sudo_pid=$BG_PID podman_pid=$POD_PID";',
-          // wchan: the kernel function the process is blocked in — definitive hang source.
-          'echo "=== wchan (blocking kernel fn) ==="; cat /proc/$POD_PID/wchan 2>/dev/null; echo;',
-          // syscall: the syscall number + arguments at the point of blocking.
-          'echo "=== syscall args ==="; cat /proc/$POD_PID/syscall 2>/dev/null || echo "(process gone)";',
-          // status: confirm process is in D (uninterruptible) or S (sleeping) state.
-          'echo "=== status ==="; cat /proc/$POD_PID/status 2>/dev/null | grep -E "State|Threads" || true;',
-          // kernel stack: the full in-kernel call chain at the hang point.
-          'echo "=== kernel stack ==="; sudo cat /proc/$POD_PID/stack 2>/dev/null || echo "(gone)";',
-          // open fds: which files/sockets are open at the hang point.
+          // Read static state before SIGQUIT kills the process.
           'echo "=== open fds ==="; sudo ls -la /proc/$POD_PID/fd 2>/dev/null | tail -20 || echo "(gone)";',
-          // child processes: conmon or crun forked by podman (if any started before hang).
-          'echo "=== child processes ==="; ps --ppid "$POD_PID" -o pid,comm,wchan= 2>/dev/null || echo "(none)";',
-          // Scan all OS threads for D-state (uninterruptible sleep in kernel). Run 11 showed
-          // the main thread waiting in a futex, meaning the ACTUAL kernel operation is on
-          // another goroutine's thread. D-state threads reveal which kernel subsystem is stuck.
-          'echo "=== thread state scan (D = kernel-blocked goroutine) ===";',
-          'for _tid in $(ls /proc/$POD_PID/task/ 2>/dev/null);',
-          "do _st=$(grep '^State:' /proc/$POD_PID/task/$_tid/status 2>/dev/null | awk '{print $2}');",
-          '_wc=$(cat /proc/$POD_PID/task/$_tid/wchan 2>/dev/null);',
-          'printf "tid=%s st=%s wchan=%s\\n" "$_tid" "$_st" "$_wc";',
-          '[ "$_st" = "D" ] && echo "  > D-state kernel stack:" && sudo cat /proc/$POD_PID/task/$_tid/stack 2>/dev/null;',
-          'done 2>/dev/null || echo "(no tasks — process already finished)";',
-          // Kill and collect output.
-          'sudo kill -TERM $BG_PID $POD_PID 2>/dev/null; sleep 2;',
+          'echo "=== status ==="; cat /proc/$POD_PID/status 2>/dev/null | grep -E "State|Threads" || true;',
+          // SIGQUIT → Go runtime prints all goroutine stacks to stderr then exits.
+          'echo "=== sending SIGQUIT for goroutine dump ===";',
+          'sudo kill -QUIT $BG_PID $POD_PID 2>/dev/null;',
+          'sleep 3;',
+          // Force-kill anything that survived SIGQUIT.
           'sudo kill -KILL $BG_PID $POD_PID 2>/dev/null; wait $BG_PID 2>/dev/null || true;',
-          'echo "=== last 20 debug lines ==="; tail -20 /tmp/podman-probe-err.txt 2>/dev/null;',
+          // The goroutine dump is at the end of podman-probe-err.txt (written on SIGQUIT).
+          'echo "=== last 150 lines (debug log + goroutine dump) ==="; tail -150 /tmp/podman-probe-err.txt 2>/dev/null;',
           'rm -f /tmp/podman-probe-out.txt /tmp/podman-probe-err.txt;',
         ].join(' '),
       ],
-      30_000,
+      40_000,
     );
 
-    // After the network=none probe, clean up any stale container state it may have left behind.
-    // When podman is killed mid-startup it can leave containers in ERROR/RUNNING state in the
-    // sqlite DB and unmounted overlay layers; the next `podman run` then tries to reconcile that
-    // stale state and may hang. Force-removing all containers ensures the final run starts clean.
-    runDiagnostic('post-probe cleanup: remove stale containers + check overlay mounts', 'sh', [
+    // After the probe, wipe the libpod SQLite state DB (db.sql + WAL + SHM files).
+    // The probe is killed mid-transaction via SIGQUIT/SIGKILL, which leaves SQLite's
+    // WAL or shared-memory lock state inconsistent. `podman rm --all --force` would
+    // itself deadlock on that corrupted state. Direct file removal is safe: SQLite
+    // recreates db.sql cleanly on the next open, and images live in the overlay store
+    // (not db.sql), so no image data is lost. Overlay mounts from the killed probe
+    // are also unmounted here so the final run's overlay setup starts clean.
+    runDiagnostic('post-probe cleanup: wipe SQLite state DB + overlay mounts', 'sh', [
       '-c',
       [
-        'echo "--- containers before cleanup ---"; sudo podman ps -a 2>&1 || echo "(failed)";',
         'echo "--- overlay mounts ---"; mount | grep overlay || echo "(none)";',
-        'echo "--- force-remove all containers ---"; sudo podman rm --all --force 2>&1 || echo "(none to remove)";',
-        'echo "--- containers after cleanup ---"; sudo podman ps -a 2>&1 || echo "(failed)";',
+        'sudo umount $(mount | grep " overlay " | awk \'{print $3}\') 2>/dev/null || true;',
+        'echo "--- removing stale libpod db.sql (WAL/SHM dirty from killed probe) ---";',
+        'sudo rm -f /var/lib/containers/storage/db.sql /var/lib/containers/storage/db.sql-wal /var/lib/containers/storage/db.sql-shm;',
+        'echo "--- db.sql after cleanup ---"; ls -la /var/lib/containers/storage/db.* 2>/dev/null || echo "(all cleared — correct)";',
       ].join(' '),
     ]);
 
