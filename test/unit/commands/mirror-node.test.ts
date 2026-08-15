@@ -13,9 +13,11 @@ import * as versions from '../../../version.js';
 import {resetForTest} from '../../test-container.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {type SoloListrTask} from '../../../src/types/index.js';
+import {type ArgvStruct} from '../../../src/types/aliases.js';
 import path from 'node:path';
 import yaml from 'yaml';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
+import {Duration} from '../../../src/core/time/duration.js';
 
 interface MirrorNodeMemoryOverrideConfig {
   mirrorNodeVersion: string;
@@ -87,6 +89,33 @@ interface MirrorNodeSchemaWaitPodsStub {
   waitForReadyStatus: sinon.SinonStub;
 }
 
+interface MirrorNodeChartUpgradeTestConfig {
+  namespace: {name: string};
+  releaseName: string;
+  mirrorNodeChartDirectory?: string;
+  mirrorNodeVersion: string;
+  chartValues: HelmChartValues;
+  clusterContext: string;
+  isChartInstalled: boolean;
+}
+
+interface MirrorNodeChartUpgradeInternal {
+  chartManager: {
+    upgrade: sinon.SinonStub;
+    uninstall: sinon.SinonStub;
+  };
+  upgradeMirrorNodeChart: (config: MirrorNodeChartUpgradeTestConfig, shouldReuseValues: boolean) => Promise<void>;
+}
+
+interface MirrorNodeCommandTrailingCloseInternal {
+  oneShotState: {isActive: () => boolean};
+  taskList: {
+    newTaskList: (...newTaskListParameters: unknown[]) => unknown;
+    registerCloseFunction: (trailingCloseFunction: () => Promise<void>) => void;
+  };
+  accountManager: {close: () => Promise<void>};
+}
+
 type MirrorNodeDatabaseSkip = (context: MirrorNodeDatabaseTaskContext) => boolean;
 
 function getSkipFunction(task: SoloListrTask<MirrorNodeDatabaseTaskContext>): MirrorNodeDatabaseSkip {
@@ -103,6 +132,32 @@ function stubImporterPods(
     getK8: (): {pods: () => MirrorNodeSchemaWaitPodsStub} => ({
       pods: (): MirrorNodeSchemaWaitPodsStub => podsStub,
     }),
+  };
+  return mirrorNodeCommandInternal;
+}
+
+function buildChartUpgradeConfig(isChartInstalled: boolean): MirrorNodeChartUpgradeTestConfig {
+  return {
+    namespace: {name: 'one-shot'},
+    releaseName: 'mirror-1',
+    mirrorNodeVersion: 'v0.159.0',
+    chartValues: new HelmChartValues(),
+    clusterContext: 'kind-kind',
+    isChartInstalled,
+  };
+}
+
+function stubChartUpgrade(command: MirrorNodeCommand): MirrorNodeChartUpgradeInternal {
+  // collapse the retry backoff so the test does not wait for the real delay
+  const ofSecondsStub: sinon.SinonStub = sinon.stub(Duration, 'ofSeconds');
+  ofSecondsStub.callThrough();
+  ofSecondsStub.withArgs(constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS).returns(Duration.ofMillis(1));
+
+  const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal =
+    command as unknown as MirrorNodeChartUpgradeInternal;
+  mirrorNodeCommandInternal.chartManager = {
+    upgrade: sinon.stub().resolves(true),
+    uninstall: sinon.stub().resolves(true),
   };
   return mirrorNodeCommandInternal;
 }
@@ -590,6 +645,78 @@ describe('MirrorNodeCommand unit tests', (): void => {
       await (task.task as (context: MirrorNodeSchemaWaitTaskContext) => Promise<void>)(schemaWaitContext);
 
       expect(podsStub.waitForReadyStatus.called).to.equal(false);
+    });
+  });
+
+  describe('upgradeMirrorNodeChart', (): void => {
+    const transientError: Error = new Error(
+      'Post "https://127.0.0.1:33745/api/v1/namespaces/one-shot/secrets?fieldManager=helm": unexpected EOF',
+    );
+
+    it('retries the chart upgrade after a transient failure and cleans up the fresh install', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal = stubChartUpgrade(mirrorNodeCommand);
+      mirrorNodeCommandInternal.chartManager.upgrade.onFirstCall().rejects(transientError);
+
+      await mirrorNodeCommandInternal.upgradeMirrorNodeChart(buildChartUpgradeConfig(false), false);
+
+      expect(mirrorNodeCommandInternal.chartManager.upgrade.callCount).to.equal(2);
+      expect(mirrorNodeCommandInternal.chartManager.uninstall.callCount).to.equal(1);
+      expect(mirrorNodeCommandInternal.chartManager.uninstall.firstCall.args[1]).to.equal('mirror-1');
+    });
+
+    it('does not uninstall a previously installed release between retries', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal = stubChartUpgrade(mirrorNodeCommand);
+      mirrorNodeCommandInternal.chartManager.upgrade.onFirstCall().rejects(transientError);
+
+      await mirrorNodeCommandInternal.upgradeMirrorNodeChart(buildChartUpgradeConfig(true), true);
+
+      expect(mirrorNodeCommandInternal.chartManager.upgrade.callCount).to.equal(2);
+      expect(mirrorNodeCommandInternal.chartManager.uninstall.called).to.equal(false);
+    });
+
+    it('throws the last error once all attempts are exhausted', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal = stubChartUpgrade(mirrorNodeCommand);
+      mirrorNodeCommandInternal.chartManager.upgrade.rejects(transientError);
+
+      let thrownError: Error | undefined;
+      try {
+        await mirrorNodeCommandInternal.upgradeMirrorNodeChart(buildChartUpgradeConfig(false), false);
+      } catch (error) {
+        thrownError = error as Error;
+      }
+
+      expect(thrownError).to.equal(transientError);
+      expect(mirrorNodeCommandInternal.chartManager.upgrade.callCount).to.equal(
+        constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS,
+      );
+    });
+  });
+
+  describe('upgrade trailing close function', (): void => {
+    it('should tolerate a missing lease when one-shot deactivates before the trailing close runs', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandTrailingCloseInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandTrailingCloseInternal;
+      const isActiveStub: sinon.SinonStub = sinon
+        .stub(mirrorNodeCommandInternal.oneShotState, 'isActive')
+        .returns(true);
+      sinon.stub(mirrorNodeCommandInternal.taskList, 'newTaskList').returns({isRoot: (): boolean => false});
+      let trailingCloseFunction: (() => Promise<void>) | undefined;
+      sinon
+        .stub(mirrorNodeCommandInternal.taskList, 'registerCloseFunction')
+        .callsFake((closeFunction: () => Promise<void>): void => {
+          trailingCloseFunction = closeFunction;
+        });
+      const accountManagerCloseStub: sinon.SinonStub = sinon
+        .stub(mirrorNodeCommandInternal.accountManager, 'close')
+        .resolves();
+
+      expect(await mirrorNodeCommand.upgrade({} as ArgvStruct)).to.equal(true);
+      expect(trailingCloseFunction).to.be.a('function');
+
+      // one-shot deactivates before trailing close functions run, so the release guard must tolerate a missing lease
+      isActiveStub.returns(false);
+      await trailingCloseFunction();
+      expect(accountManagerCloseStub.calledOnce).to.equal(true);
     });
   });
 });

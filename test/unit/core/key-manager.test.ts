@@ -17,6 +17,7 @@ import {type NodeKeyObject} from '../../../src/types/node-key-object.js';
 import {type PrivateKeyAndCertificateObject} from '../../../src/types/private-key-and-certificate-object.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {NodeKeyLoadFailedSoloError} from '../../../src/core/errors/classes/component/node-key-load-failed-solo-error.js';
 
 describe('KeyManager', (): void => {
   const keyManager: KeyManager = container.resolve(InjectTokens.KeyManager);
@@ -109,4 +110,82 @@ describe('KeyManager', (): void => {
 
     fs.rmSync(temporaryDirectory, {recursive: true});
   }).timeout(Duration.ofSeconds(20).toMillis());
+
+  describe('loadNodeKey with corrupt or missing PEM files', (): void => {
+    it('should report a typed error naming the private key file when the PEM is corrupt', async (): Promise<void> => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
+      const nodeAlias: NodeAlias = 'node1';
+
+      const signingKey: NodeKeyObject = await keyManager.generateSigningKey(nodeAlias);
+      await keyManager.storeSigningKey(nodeAlias, signingKey, temporaryDirectory);
+
+      const nodeKeyFiles: PrivateKeyAndCertificateObject = keyManager.prepareNodeKeyFilePaths(
+        nodeAlias,
+        temporaryDirectory,
+      );
+      fs.writeFileSync(nodeKeyFiles.privateKeyFile, '-----BEGIN PRIVATE KEY-----\ntruncated');
+
+      try {
+        await keyManager.loadSigningKey(nodeAlias, temporaryDirectory);
+        expect.fail('expected loadSigningKey to reject');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NodeKeyLoadFailedSoloError);
+        const soloError: NodeKeyLoadFailedSoloError = error as NodeKeyLoadFailedSoloError;
+        expect(soloError.getFormattedCode()).to.equal('SOLO-3093');
+        expect(soloError.message).to.include(nodeKeyFiles.privateKeyFile);
+        expect(soloError.getTroubleshootingSteps()?.join('\n')).to.include('solo keys consensus generate');
+      }
+
+      fs.rmSync(temporaryDirectory, {recursive: true});
+    }).timeout(Duration.ofSeconds(20).toMillis());
+
+    it('should report a typed error naming the certificate file when the PEM is corrupt', async (): Promise<void> => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
+      const nodeAlias: NodeAlias = 'node1';
+
+      const signingKey: NodeKeyObject = await keyManager.generateSigningKey(nodeAlias);
+      await keyManager.storeSigningKey(nodeAlias, signingKey, temporaryDirectory);
+
+      const nodeKeyFiles: PrivateKeyAndCertificateObject = keyManager.prepareNodeKeyFilePaths(
+        nodeAlias,
+        temporaryDirectory,
+      );
+      fs.writeFileSync(nodeKeyFiles.certificateFile, 'not a pem certificate');
+
+      try {
+        await keyManager.loadSigningKey(nodeAlias, temporaryDirectory);
+        expect.fail('expected loadSigningKey to reject');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NodeKeyLoadFailedSoloError);
+        const soloError: NodeKeyLoadFailedSoloError = error as NodeKeyLoadFailedSoloError;
+        expect(soloError.getFormattedCode()).to.equal('SOLO-3093');
+        expect(soloError.message).to.include(nodeKeyFiles.certificateFile);
+        expect(soloError.getTroubleshootingSteps()?.join('\n')).to.include('solo keys consensus generate');
+      }
+
+      fs.rmSync(temporaryDirectory, {recursive: true});
+    }).timeout(Duration.ofSeconds(20).toMillis());
+
+    it('should report a typed error naming the private key file when it is missing', async (): Promise<void> => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
+      const nodeAlias: NodeAlias = 'node1';
+
+      const nodeKeyFiles: PrivateKeyAndCertificateObject = keyManager.prepareNodeKeyFilePaths(
+        nodeAlias,
+        temporaryDirectory,
+      );
+
+      try {
+        await keyManager.loadSigningKey(nodeAlias, temporaryDirectory);
+        expect.fail('expected loadSigningKey to reject');
+      } catch (error) {
+        expect(error).to.be.instanceOf(NodeKeyLoadFailedSoloError);
+        const soloError: NodeKeyLoadFailedSoloError = error as NodeKeyLoadFailedSoloError;
+        expect(soloError.getFormattedCode()).to.equal('SOLO-3093');
+        expect(soloError.message).to.include(nodeKeyFiles.privateKeyFile);
+      }
+
+      fs.rmSync(temporaryDirectory, {recursive: true});
+    });
+  });
 });
