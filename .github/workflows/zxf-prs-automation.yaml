@@ -109,20 +109,26 @@ jobs:
             }
 
             async function checkUnresolvedThreads(prNumber) {
-              const result = await github.graphql(`
-                query($owner: String!, $repo: String!, $number: Int!) {
-                  repository(owner: $owner, name: $repo) {
-                    pullRequest(number: $number) {
-                      reviewThreads(first: 100) {
-                        nodes { isResolved isOutdated }
+              let cursor = null;
+              do {
+                const result = await github.graphql(`
+                  query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+                    repository(owner: $owner, name: $repo) {
+                      pullRequest(number: $number) {
+                        reviewThreads(first: 100, after: $cursor) {
+                          nodes { isResolved isOutdated }
+                          pageInfo { hasNextPage endCursor }
+                        }
                       }
                     }
                   }
-                }
-              `, { owner, repo, number: prNumber });
-              return result.repository.pullRequest.reviewThreads.nodes.some(
-                t => !t.isResolved && !t.isOutdated
-              );
+                `, { owner, repo, number: prNumber, cursor });
+                const { nodes, pageInfo } = result.repository.pullRequest.reviewThreads;
+                if (nodes.some(t => !t.isResolved && !t.isOutdated)) return true;
+                if (!pageInfo.hasNextPage) break;
+                cursor = pageInfo.endCursor;
+              } while (true);
+              return false;
             }
 
             async function getLinkedIssuePriority(prNumber, prBody) {
@@ -145,7 +151,7 @@ jobs:
               const closingNumbers = new Set(closingIssues.map(i => i.number));
 
               // Parse body for "related to #N" patterns not already covered by closing references.
-              const relatedPattern = /(?:related\s+to|relates?\s+to|connected?\s+to|see\s+also)\s+#(\d+)/gi;
+              const relatedPattern = /(?:related\s+to|relates?\s+to|connect(?:ed)?\s+to|see\s+also)\s+#(\d+)/gi;
               const relatedNumbers = new Set();
               let bodyMatch;
               while ((bodyMatch = relatedPattern.exec(prBody ?? '')) !== null) {
@@ -211,7 +217,7 @@ jobs:
                   await convertToDraft(pr.node_id, prNumber);
                 }
 
-                // Feature 5: Dependabot PRs → assign swirlds-automation, strip default labels, add P2.
+                // Feature 4: Dependabot PRs → assign swirlds-automation, strip default labels, add P2.
                 if (isDependabot) {
                   const assignees = pr.assignees.map(a => a.login);
                   if (!assignees.includes('swirlds-automation')) {
@@ -229,7 +235,7 @@ jobs:
                   }
                 }
 
-                // Feature 4: Linked issues → propagate highest priority label when none is set.
+                // Feature 5: Linked issues → propagate highest priority label when none is set.
                 // Skipped for Dependabot PRs since P2 is applied directly above.
                 if (!isDependabot) {
                   const hasPriorityLabel = labels.some(l => PRIORITY_LABELS.includes(l));
@@ -257,9 +263,16 @@ jobs:
               }
             } else {
               // push / schedule / workflow_dispatch — scan all open PRs.
-              const { data: openPRs } = await github.rest.pulls.list({
-                owner, repo, state: 'open', per_page: 100,
-              });
+              let page = 1;
+              const openPRs = [];
+              while (true) {
+                const { data: batch } = await github.rest.pulls.list({
+                  owner, repo, state: 'open', per_page: 100, page,
+                });
+                openPRs.push(...batch);
+                if (batch.length < 100) break;
+                page++;
+              }
               core.info(`Processing ${openPRs.length} open PRs`);
               for (const pr of openPRs) {
                 await processPR(pr.number);
