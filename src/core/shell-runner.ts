@@ -80,10 +80,14 @@ export class ShellRunner {
 
         timedOut = true;
         child.kill();
-        // Destroy the stdio streams so their open file handles do not keep the Node.js
-        // event loop alive after the promise is rejected.  Without this, the parent
-        // process (e.g. Mocha) cannot exit until the child process itself terminates —
-        // which may never happen if the child is stuck — causing multi-hour CI hangs.
+        // Unref the child so Node.js does not wait for it to exit before allowing the event
+        // loop to drain.  kill() sends SIGTERM but the child (or its grandchildren) may linger;
+        // without unref() the libuv process handle keeps the event loop — and thus Mocha —
+        // alive until the OS reaps the process, causing multi-hour CI hangs.
+        child.unref();
+        // Destroy the stdio streams to release the pipe file-descriptor references on our side.
+        // Grandchildren that inherited the write end will receive SIGPIPE on their next write.
+        child.stdin?.destroy();
         child.stdout?.destroy();
         child.stderr?.destroy();
         error.stack = callStack;
