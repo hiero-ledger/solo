@@ -20,6 +20,7 @@ import {
   optionFromFlag,
 } from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
+import {Helpers} from '../../../../core/helpers.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias} from '../../../../types/aliases.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
@@ -60,6 +61,24 @@ export class DeployArgvBuilders {
   public static shouldDeployBlockNode(config: OneShotSingleDeployConfigClass): boolean {
     void config;
     return this.isBlockNodeEnvironmentEnabled();
+  }
+
+  private static shouldSkipMinioSetup(config: OneShotSingleDeployConfigClass): boolean {
+    if (!this.shouldDeployBlockNode(config)) {
+      return false;
+    }
+    const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
+    const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    return blockStreamMode === 'BLOCKS' && Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
+  }
+
+  private static shouldInjectRsaBootstrapValuesFile(config: OneShotSingleDeployConfigClass): boolean {
+    if (!this.shouldDeployBlockNode(config)) {
+      return false;
+    }
+    const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
+    const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    return Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
   }
 
   /**
@@ -113,13 +132,10 @@ export class DeployArgvBuilders {
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const isPerfMode: boolean = constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true';
     const perfValuesFile: string | undefined = isPerfMode ? constants.BLOCK_NODE_MESSAGING_WORKAROUND_FILE : undefined;
-    // Placeholder: inject RSA bootstrap roster into the block node's application-state PVC
-    // via a Helm init-container override when ONE_SHOT_BLOCK_NODE_PERF=true.
-    // BAD_BLOCK_PROOF was observed in runs 28988949642/28991564151 when keyByNodeId was empty
-    // (ExtendedMerkleTreeSession.verifyRsaProof rejected all WRB/RSA blocks).
-    // Currently ONE_SHOT_BLOCK_NODE_PERF=false so this path is inactive; re-enable if
-    // BAD_BLOCK_PROOF reappears with a future block node version.
-    const rsaBootstrapValuesFile: string | undefined = isPerfMode
+    // WRB/RSA blocks require the block node's RSA address book before block 0 is verified.
+    // Mirror can provide it later, but block-node startup must be seeded to avoid BAD_BLOCK_PROOF
+    // on the first block.
+    const rsaBootstrapValuesFile: string | undefined = DeployArgvBuilders.shouldInjectRsaBootstrapValuesFile(config)
       ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(config.cacheDir, config.numberOfConsensusNodes)
       : undefined;
     const blockLocalConfig: AnyObject = {
@@ -181,6 +197,9 @@ export class DeployArgvBuilders {
     // the RSA bootstrap file. Helm replaces list values entirely, so we must include all mounts.
     const content: string = yaml.stringify({
       blockNode: {
+        config: {
+          ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: `http://mirror-${MIRROR_NODE_ID}-restjava:80`,
+        },
         initContainers: [
           {
             name: 'init-storage-dirs',
@@ -446,7 +465,7 @@ export class DeployArgvBuilders {
       argv.push(optionFromFlag(Flags.deployMetricsServer));
     }
 
-    if (this.shouldDeployBlockNode(config)) {
+    if (this.shouldSkipMinioSetup(config)) {
       argv.push(negatedOptionFromFlag(Flags.deployMinio));
     }
 

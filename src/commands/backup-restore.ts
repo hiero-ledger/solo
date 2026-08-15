@@ -1195,8 +1195,7 @@ export class BackupRestoreCommand extends BaseCommand {
   private async restoreDatabaseDump(inputDirectory: string): Promise<void> {
     const databaseDumpPath: string = PathEx.join(inputDirectory, 'database-dump.sql');
     if (!fs.existsSync(databaseDumpPath)) {
-      this.logger.info(`No database dump found at ${databaseDumpPath}; skipping database restore`);
-      return;
+      throw new SoloErrors.validation.backupDatabaseDumpNotFound(databaseDumpPath);
     }
 
     const parametersFromFile: ExternalDatabaseParameters = this.readExternalDatabaseParameters(inputDirectory, true);

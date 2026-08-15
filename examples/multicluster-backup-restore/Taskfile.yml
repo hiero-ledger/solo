@@ -15,6 +15,8 @@ vars:
   # Network Configuration
   NETWORK_SIZE: "2"
   NODE_ALIASES: "node1,node2"
+  # The relay runs on Cluster 2, where only node2's LoadBalancer address is routable.
+  RELAY_NODE_ALIASES: "node2"
   DEPLOYMENT: "external-database-test-deployment"
   NAMESPACE: "external-database-test"
   CLUSTER_NAME: "backup-restore-cluster"
@@ -108,60 +110,16 @@ tasks:
       #    Without it, TSSVerifier returns MISSING_VERIFICATION_DATA for every post-restore
       #    WRAPS block; block N+1 never reaches disk.
       #
-      # CN freeze-block gap (hiero-consensus-node#25389): the freeze block (block N) is
-      # finalized just as CN halts, so it is never streamed to the block node before or after
-      # restore. BN therefore has blocks 0..N-1 from the archive, then N+1, N+2, ... from CN
-      # after restore — block N is permanently absent. The importer DB is restored to
-      # MAX(index)=N-1 and tries to consume block N next; BN cannot provide it, so the
-      # importer stalls indefinitely.
-      #
-      # bridge-import-gap resolves this by reading block N+1's previousHash (= block N's hash)
-      # and patching record_file[N-1].hash to match, allowing the importer to chain from
-      # N-1 directly to N+1 without needing the missing block N. The wait below ensures BN
-      # has received at least one post-restore block (N+1 or higher) before bridge-import-gap
-      # runs, because it needs that block to extract the correct previousHash.
+      # CN 0.75+ waits for pending-block proofs and block-node acknowledgements before
+      # completing freeze shutdown, so the historical freeze-block gap workaround is not
+      # needed here.
+      # Restore/re-keying can still change the first live block's previous hash relative
+      # to the final record_file hash in the backup. CN is running and BN exposes that
+      # block at this point, so align the boundary before verification.
       - cmd: |
-          echo "Waiting for block node to receive blocks above importer's MAX..."
-          IMPORTER_MAX="$({ kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-            env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-            -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tA -c \
-            "SELECT COALESCE(MAX(index),-1) FROM record_file;"; } 2>/dev/null || printf -- '-1')"
-          TARGET=$((IMPORTER_MAX + 1))
-          FOUND=0
-          for i in $(seq 1 96); do
-            BN_TIP=""
-            for CTX_POD in \
-              "kind-solo-e2e-c1:block-node-1-0" \
-              "kind-solo-e2e-c2:block-node-2-0"; do
-              CTX="${CTX_POD%%:*}"
-              POD="${CTX_POD##*:}"
-              TIP=$(kubectl exec "${POD}" -n {{ .NAMESPACE }} --context "${CTX}" -c block-node-server -- \
-                sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' -size +0c 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null) || true
-              if [ -n "${TIP}" ]; then
-                BN_TIP="${TIP}"
-                break
-              fi
-            done
-            if [ -n "${BN_TIP}" ] && [ "${BN_TIP}" -ge "${TARGET}" ]; then
-              echo "Block node tip ${BN_TIP} >= target ${TARGET}"
-              FOUND=1
-              break
-            fi
-            echo "  attempt ${i}: bn_tip=${BN_TIP} target=${TARGET}"
-            sleep 5
-          done
-          if [ "${FOUND}" -ne 1 ]; then
-            echo "Block node did not receive block >= ${TARGET}"
-            exit 1
-          fi
-          if kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-            env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-            -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tA -c \
-            "SELECT to_regclass('public.record_file');" 2>/dev/null | grep -qx record_file; then
-            {{ .SOLO_COMMAND }} config ops bridge-import-gap --deployment {{ .DEPLOYMENT }} --dev
-          else
-            echo "Skipping bridge-import-gap; mirror record_file table is not present"
-          fi
+          $SOLO_COMMAND config ops bridge-import-gap \
+            --deployment {{ .DEPLOYMENT }} \
+            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
       - task: verify
 
   initial-deploy:
@@ -296,7 +254,13 @@ tasks:
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --mirrorNamespace {{ .NAMESPACE }} \
             --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
           echo "📡 Deploying Relay on Cluster 2..."
-          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+          if ! $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .RELAY_NODE_ALIASES }} --quiet-mode --dev \
+            --values-file examples/multicluster-backup-restore/relay-node-values-dual-cluster-minimal.yaml; then
+            echo "Relay deployment failed; collecting Cluster 2 resource diagnostics..."
+            kubectl describe node solo-e2e-c2-control-plane --context kind-solo-e2e-c2 || true
+            kubectl get events -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --sort-by='.lastTimestamp' || true
+            exit 1
+          fi
           echo "✅ Explorer and Relay deployed"
 
       - cmd: echo "✅ Initial deployment completed successfully!"
@@ -381,6 +345,7 @@ tasks:
       DEPLOYMENT: "{{ .DEPLOYMENT }}"
       NAMESPACE: "{{ .NAMESPACE }}"
       NODE_ALIASES: "{{ .NODE_ALIASES }}"
+      RELAY_NODE_ALIASES: "{{ .RELAY_NODE_ALIASES }}"
       POSTGRES_HOST_FQDN: "{{ .POSTGRES_HOST_FQDN }}"
       POSTGRES_USERNAME: "{{ .POSTGRES_USERNAME }}"
       POSTGRES_PASSWORD: "{{ .POSTGRES_PASSWORD }}"
@@ -446,6 +411,20 @@ tasks:
       - cmd: |
           $SOLO_COMMAND config ops restore-db \
             --input-dir {{ .BACKUP_DIR }}
+      # The relay performs an operator-balance check during startup. Starting it against an
+      # empty mirror database leaves the deployment waiting on a 404 response until its
+      # startup timeout expires, which obscures the failed database restore.
+      - cmd: |
+          RECORD_FILE_COUNT="$(kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
+            --context kind-solo-e2e-c2 -- env PGPASSWORD={{ .POSTGRES_PASSWORD }} \
+            psql -U {{ .POSTGRES_USERNAME }} -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tAc \
+            'SELECT COUNT(*) FROM record_file;' 2>/dev/null || true)"
+          if ! echo "${RECORD_FILE_COUNT}" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "Mirror database restore produced no record files (count='${RECORD_FILE_COUNT}')."
+            echo "Refusing to deploy the relay against an empty mirror database."
+            exit 1
+          fi
+          echo "Mirror database restore verified (${RECORD_FILE_COUNT} record files)."
 
   restore-config:
     desc: Restore configuration and state from backup (DB already populated by restore-db)
