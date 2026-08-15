@@ -149,13 +149,36 @@ jobs:
           # podman invocation so nftables is available when netavark initialises.
           sudo modprobe nf_tables
 
-          # The runner image's system podman 4.x may have pre-created the default "podman" network
-          # in /var/lib/containers/storage/network/ with firewall_driver = "iptables". Brew's
-          # podman 6.x shares the same rootful graph root and picks up that stored definition,
-          # passing "iptables" to netavark v2.0.0 — which no longer supports it — regardless of
-          # what containers.conf says. Removing it here forces brew's podman to recreate the
-          # network from scratch using our containers.conf (firewall_driver = "nftables").
-          sudo podman network rm --force podman 2>/dev/null || true
+          # Two problems arise from the system podman 4.x writing to the shared rootful graph root
+          # (/var/lib/containers/storage) before brew podman 6.x ever runs:
+          #
+          #   1. The default "podman" network may be stored with firewall_driver = "iptables". Brew
+          #      podman 6.x shares the same graph root and picks up that definition, passing
+          #      "iptables" to netavark v2.0.0 — which no longer supports it — regardless of what
+          #      containers.conf says.
+          #
+          #   2. Any prior podman invocation (including `podman network rm`) initialises the libpod
+          #      state database (bolt_state.db). Brew podman 6.x opens the same database on its
+          #      first rootful invocation and tries to migrate the system podman's schema. On certain
+          #      runner images this migration hangs indefinitely, stalling `podman run` and kind.
+          #
+          # `podman system reset --force` solves both: it removes all networks (including the
+          # iptables-backed "podman" one) and wipes the libpod database so brew podman 6.x creates a
+          # fresh one with no migration. The explicit rm below is belt-and-suspenders: `system reset`
+          # can leave a schema-only database file that still triggers the migration path.
+          sudo podman system reset --force 2>/dev/null || true
+          sudo rm -rf /var/lib/containers/storage/libpod 2>/dev/null || true
+
+          # Defensive cleanup: flush any PODMAN iptables chains that system podman may have left in
+          # the kernel. On ubuntu-latest the system podman already uses the nftables backend so
+          # these chains are typically absent, but flushing them is harmless and prevents a rare
+          # deadlock where netavark v2.0.0 stalls reconciling nftables state against orphaned chains.
+          for TABLE in filter nat mangle; do
+            for CHAIN in PODMAN "PODMAN-DN" "PODMAN-ISOLATION-1" "PODMAN-ISOLATION-2"; do
+              sudo iptables -t "${TABLE}" -F "${CHAIN}" 2>/dev/null || true
+              sudo iptables -t "${TABLE}" -X "${CHAIN}" 2>/dev/null || true
+            done
+          done
 
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
@@ -201,6 +224,19 @@ jobs:
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
           sudo mkdir -p /root/.config/containers
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
+
+          # Diagnostics: capture the iptables, nftables, and libpod state after cleanup so a future
+          # hang has enough context to determine whether residual rules or a stale database is the cause.
+          echo "=== iptables -t nat -L -n (post-cleanup) ==="
+          sudo iptables -t nat -L -n 2>&1 || true
+          echo "=== iptables -t filter -L -n (post-cleanup) ==="
+          sudo iptables -t filter -L -n 2>&1 || true
+          echo "=== nft list tables (post-cleanup) ==="
+          sudo nft list tables 2>&1 || true
+          echo "=== /var/lib/containers/storage/libpod (should be absent) ==="
+          ls -la /var/lib/containers/storage/libpod 2>&1 || echo "(directory absent — correct)"
+          echo "=== /var/lib/containers/storage/network (should be absent) ==="
+          ls -la /var/lib/containers/storage/network 2>&1 || echo "(directory absent — correct)"
 
       - name: Validate Homebrew Podman Install
         env:
