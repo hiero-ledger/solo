@@ -55,6 +55,7 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
+  Helpers,
   parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
@@ -235,7 +236,7 @@ export class NodeCommandTasks {
   }
 
   private static shouldAvoidGossipFqdn(consensusNodes: ConsensusNode[], gossipFqdnRestricted: boolean): boolean {
-    return gossipFqdnRestricted || NodeCommandTasks.hasMultipleKubernetesContexts(consensusNodes);
+    return gossipFqdnRestricted || Helpers.hasMultipleKubernetesContexts(consensusNodes);
   }
 
   private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
@@ -3554,7 +3555,7 @@ export class NodeCommandTasks {
           config.consensusNodes,
           gossipFqdnRestricted,
         );
-        const loadBalancerRequired: boolean = NodeCommandTasks.hasMultipleKubernetesContexts(config.consensusNodes);
+        const loadBalancerRequired: boolean = Helpers.hasMultipleKubernetesContexts(config.consensusNodes);
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
 
         if (loadBalancerRequired) {
@@ -3821,7 +3822,7 @@ export class NodeCommandTasks {
               },
             },
             {
-              title: 'Refresh block node RSA bootstrap state',
+              title: 'Refresh block node RSA bootstrap state (restarts block-node pods)',
               skip: (): boolean =>
                 !refreshBlockNodeRsaBootstrapState ||
                 !this.shouldRefreshBlockNodeRsaBootstrapState(context_.config, consensusNodes),
@@ -3840,7 +3841,7 @@ export class NodeCommandTasks {
     nodeListOverride?: string,
   ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
-      title: 'Refresh block node RSA bootstrap state',
+      title: 'Refresh block node RSA bootstrap state (restarts block-node pods)',
       skip: (context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext): boolean =>
         !this.shouldRefreshBlockNodeRsaBootstrapState(
           context_.config,
@@ -3894,7 +3895,7 @@ export class NodeCommandTasks {
     config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
-    const bootstrapJson: string = NodeCommandTasks.buildRsaAddressBookHistory(consensusNodes, config.keysDir);
+    const bootstrapJson: string = Helpers.buildRsaAddressBookJson(consensusNodes, config.keysDir);
     const bootstrapFilePath: string = PathEx.join(config.keysDir, NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE);
     fs.writeFileSync(bootstrapFilePath, bootstrapJson, 'utf8');
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import crypto from 'node:crypto';
 import fs, {type Stats} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -605,6 +606,41 @@ export class Helpers {
     }
     const consensusNode: ConsensusNode = consensusNodes.find((node): boolean => node.name === nodeAlias);
     return consensusNode ? consensusNode.context : undefined;
+  }
+
+  public static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
+    const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
+    return contexts.size > 1;
+  }
+
+  public static requiresRsaBootstrap(consensusNodeVersion: string, streamMode: string): boolean {
+    const version: SemanticVersion<string> = new SemanticVersion<string>(consensusNodeVersion);
+    if (version.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      return false;
+    }
+    return streamMode === 'BLOCKS' || streamMode === 'BOTH';
+  }
+
+  public static buildRsaAddressBookJson(consensusNodes: ConsensusNode[], keysDirectory: string): string {
+    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
+    for (const consensusNode of consensusNodes) {
+      const publicKeyFile: string = PathEx.join(
+        keysDirectory,
+        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
+      );
+      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
+      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
+        format: 'der',
+        type: 'spki',
+      }) as Buffer;
+      nodeAddresses.push({
+        RSAPubKey: spkiDer.toString('hex'),
+        nodeId: Templates.nodeIdFromNodeAlias(consensusNode.name),
+      });
+    }
+    return JSON.stringify({
+      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
+    });
   }
 
   /**
