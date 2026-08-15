@@ -240,12 +240,19 @@ jobs:
           # with "Must provide a valid firewall backend, got iptables".
           # events_logger = "file" avoids the journald socket which is slow to initialise on
           # GitHub-hosted runners and causes every podman invocation to stall for 60+ seconds.
+          # cgroup_manager = "cgroupfs" bypasses the systemd D-Bus call that crun makes when
+          # creating a transient cgroup scope for each container. On GitHub-hosted ubuntu-24.04
+          # runners the system D-Bus responds slowly or the runner cgroup hierarchy does not
+          # permit scope creation, causing every `podman run` (and `podman info`) to hang
+          # indefinitely waiting for the dbus reply. With "cgroupfs" crun writes cgroup files
+          # directly into /sys/fs/cgroup/ without any dbus interaction.
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [engine]
           runtime = "crun"
           conmon_path = ["${BREW_PREFIX}/bin/conmon"]
           helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
           events_logger = "file"
+          cgroup_manager = "cgroupfs"
 
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]

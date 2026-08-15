@@ -173,6 +173,18 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       ].join(' '),
     ]);
 
+    // conmon version: must be compatible with brew podman 6.x. Never appeared in prior diagnostics.
+    runDiagnostic('conmon version + cgroup manager + dbus state', 'sh', [
+      '-c',
+      [
+        'echo "conmon:"; /home/linuxbrew/.linuxbrew/bin/conmon --version 2>&1 || echo "(failed)";',
+        'echo "cgroup root:"; cat /proc/1/cgroup 2>&1 | head -5;',
+        'echo "cgroupfs layout:"; ls /sys/fs/cgroup/ 2>&1 | head -10;',
+        'echo "systemd status:"; systemctl is-system-running 2>&1 || true;',
+        'echo "dbus socket:"; ls -la /run/dbus/system_bus_socket 2>&1 || echo "(absent)"',
+      ].join(' '),
+    ]);
+
     // fuse-overlayfs: the system binary at /usr/local/bin/fuse-overlayfs hangs when mounting
     // container rootfs layers with brew podman 6.x. storage.conf must select native overlay
     // (no mount_program) and the overlay/.has-mount-program marker must be absent so podman
