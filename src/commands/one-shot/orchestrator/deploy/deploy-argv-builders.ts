@@ -69,7 +69,7 @@ export class DeployArgvBuilders {
     }
 
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
-    if (consensusNodeVersion.lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+    if (new SemanticVersion<string>(consensusNodeVersion).lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
       return false;
     }
 
@@ -83,7 +83,7 @@ export class DeployArgvBuilders {
     }
 
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
-    if (consensusNodeVersion.lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+    if (new SemanticVersion<string>(consensusNodeVersion).lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
       return false;
     }
 
