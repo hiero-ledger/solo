@@ -80,6 +80,12 @@ export class ShellRunner {
 
         timedOut = true;
         child.kill();
+        // Destroy the stdio streams so their open file handles do not keep the Node.js
+        // event loop alive after the promise is rejected.  Without this, the parent
+        // process (e.g. Mocha) cannot exit until the child process itself terminates —
+        // which may never happen if the child is stuck — causing multi-hour CI hangs.
+        child.stdout?.destroy();
+        child.stderr?.destroy();
         error.stack = callStack;
         reject(error);
       };

@@ -28,7 +28,13 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
   }
 
   public async installPackages(dependencies: string[]): Promise<void> {
-    await this.run('brew', ['install', ...dependencies], {commandProfile: SubprocessCommandProfile.BREW});
+    await this.run('brew', ['install', ...dependencies], {
+      commandProfile: SubprocessCommandProfile.BREW,
+      // Kill brew and surface an error if it produces no output for 2 minutes.
+      // brew install podman has been observed to hang silently for hours on cold
+      // GitHub-hosted runners; the idle timeout makes the hang fail fast instead.
+      idleTimeoutMs: 120_000,
+    });
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
