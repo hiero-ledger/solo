@@ -227,8 +227,11 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     const brewCrun: string = '/home/linuxbrew/.linuxbrew/bin/crun';
 
     // ── Step 7: network=none probe — container runtime without netavark ──────────
-    // If this succeeds but bridge networking (step 8) hangs, the issue is
-    // definitively in netavark's bridge/nftables setup, not the container runtime.
+    // --security-opt seccomp=unconfined: if the system seccomp.json (written for podman 4.x)
+    // blocks a syscall that crun 1.x needs, the process receives SIGTRAP/SIGKILL and hangs
+    // silently. Disabling seccomp here isolates whether the profile is the hang source.
+    // --log-level=debug: capture the last podman/conmon/crun step before the hang so that
+    // if it still hangs we can compare the debug line against the final run (step 8).
     console.log('[podman-validation] running: sudo podman run --network=none (runtime probe, 60 s timeout)');
     runDiagnostic(
       'sudo podman run --network=none (runtime probe)',
@@ -241,9 +244,12 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         'env',
         sudoEnvironmentPath,
         'podman',
+        '--log-level=debug',
         'run',
         '--rm',
         '--network=none',
+        '--security-opt',
+        'seccomp=unconfined',
         `--runtime=${brewCrun}`,
         HELLO_IMAGE,
       ],
@@ -253,6 +259,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // ── Step 8: run the hello container with bridge networking + debug logging ──
     // --log-level=debug prints each internal podman/netavark step so the exact
     // hang point is visible in CI logs even when the process is killed by timeout.
+    // --security-opt seccomp=unconfined: disable the system seccomp profile to rule out
+    // a syscall block in /etc/containers/seccomp.json as the cause of the hang.
     // Uses system `timeout` to guarantee SIGKILL after 130 s.
     // --runtime forces the brew crun; without it podman falls back to the system
     // crun (/usr/local/bin/crun) which hangs inside conmon with brew podman 6.x.
@@ -272,6 +280,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         '--log-level=debug',
         'run',
         '--rm',
+        '--security-opt',
+        'seccomp=unconfined',
         `--runtime=${brewCrun}`,
         HELLO_IMAGE,
       ],
