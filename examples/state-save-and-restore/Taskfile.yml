@@ -377,6 +377,7 @@ tasks:
     cmds:
       - cmd: rm -rf {{ .STATE_SAVE_DIR }}
       - cmd: echo "✅ Saved state files removed"
+
   deploy-block-node:
     desc: Deploy block node so CN v0.74 does not require MinIO-backed stream storage
     cmds:

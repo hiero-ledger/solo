@@ -370,9 +370,9 @@ export class NetworkNodes {
     podName: string,
     requireFreezeRound: boolean,
   ): Promise<void> {
-    const maxAttempts: number = 180;
-    const stablePollsRequired: number = 3;
-    const pollDelay: Duration = Duration.ofSeconds(2);
+    const maxAttempts: number = constants.STATE_DOWNLOAD_STABLE_MAX_ATTEMPTS;
+    const stablePollsRequired: number = constants.STATE_DOWNLOAD_STABLE_POLLS_REQUIRED;
+    const pollDelay: Duration = Duration.ofMillis(constants.STATE_DOWNLOAD_STABLE_DELAY);
     let lastFingerprint: string | undefined;
     let stablePolls: number = 0;
     const scriptName: string = 'wait-for-stable-saved-state.sh';
@@ -389,7 +389,8 @@ export class NetworkNodes {
       `sync ${HEDERA_HAPI_PATH} && chown hedera:hedera ${destinationPath} && chmod 0755 ${destinationPath}`,
     ]);
 
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+    let attempt: number = 0;
+    while (attempt < maxAttempts) {
       try {
         const rawOutput: string = await container.execContainer([
           'bash',
@@ -402,32 +403,30 @@ export class NetworkNodes {
         const output: string = rawOutput.trim();
 
         const [fingerprint, round, kind] = output.split(/\s+/);
-        if (!fingerprint || !round || !kind) {
-          throw new SoloErrors.validation.illegalArgument(`Missing saved state fingerprint for pod ${podName}`);
-        }
+        if (fingerprint && round && kind) {
+          stablePolls = fingerprint === lastFingerprint ? stablePolls + 1 : 1;
+          lastFingerprint = fingerprint;
 
-        stablePolls = fingerprint === lastFingerprint ? stablePolls + 1 : 1;
-        lastFingerprint = fingerprint;
-
-        this.logger.debug(
-          `[state-download] ${podName}: round ${round} (${kind}) stable poll ${stablePolls}/${stablePollsRequired}`,
-        );
-
-        if (kind === 'frozen-fallback') {
-          // A frozen deployment can expose the FROZEN platform status before a
-          // freeze-marked round becomes fully signed on disk. In that case,
-          // export the newest fully signed non-freeze round instead of waiting
-          // indefinitely for a freeze round that may never materialize.
-          this.logger.warn(
-            `[state-download] ${podName}: deployment is FROZEN but no fully signed freeze round exists on disk yet; using the newest fully signed non-freeze round`,
+          this.logger.debug(
+            `[state-download] ${podName}: round ${round} (${kind}) stable poll ${stablePolls}/${stablePollsRequired}`,
           );
-        }
 
-        if (stablePolls >= stablePollsRequired) {
-          // One final sync narrows the gap between the successful probe and the
-          // subsequent zip/copy operation.
-          await container.execContainer('sync');
-          return;
+          if (kind === 'frozen-fallback') {
+            // A frozen deployment can expose the FROZEN platform status before a
+            // freeze-marked round becomes fully signed on disk. In that case,
+            // export the newest fully signed non-freeze round instead of waiting
+            // indefinitely for a freeze round that may never materialize.
+            this.logger.warn(
+              `[state-download] ${podName}: deployment is FROZEN but no fully signed freeze round exists on disk yet; using the newest fully signed non-freeze round`,
+            );
+          }
+
+          if (stablePolls >= stablePollsRequired) {
+            // One final sync narrows the gap between the successful probe and the
+            // subsequent zip/copy operation.
+            await container.execContainer('sync');
+            return;
+          }
         }
       } catch (error) {
         // The script exits non-zero until a qualifying signed round exists or the
@@ -435,13 +434,17 @@ export class NetworkNodes {
         this.logger.debug(`[state-download] ${podName}: saved state not stable yet`, error);
       }
 
+      attempt++;
       await sleep(pollDelay);
     }
 
-    throw new SoloErrors.validation.illegalArgument(
+    throw new SoloErrors.component.nodeNotReady(
+      podName,
       requireFreezeRound
-        ? `Timed out waiting for a stable fully signed saved state on pod ${podName}. The deployment is frozen, but no signed round became stable on disk.`
-        : `Timed out waiting for a stable fully signed saved state on pod ${podName}. Stop or freeze the node and retry state download.`,
+        ? 'showing a stable, fully signed freeze state on disk (the deployment is frozen, but no signed round has become stable yet)'
+        : 'showing a stable, fully signed saved state on disk (stop or freeze the node and retry state download)',
+      attempt,
+      maxAttempts,
     );
   }
 

@@ -1196,14 +1196,11 @@ export class NodeCommandHandlers extends CommandHandler {
       startTasks.push(
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.enablePortForwarding(true),
-        this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
-        this.tasks.enablePortForwarding(true),
         this.tasks.emitNodeStartedEvent(),
         this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        this.tasks.emitNodeStartedEvent(),
       );
     }
 
