@@ -311,6 +311,16 @@ jobs:
           key: helm-chart-deps-${{ runner.os }}-${{ hashFiles('version.ts') }}
           restore-keys: helm-chart-deps-${{ runner.os }}-
 
+      - name: Install Helm
+        if: ${{ !cancelled() && !failure() }}
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+
+      - name: Install Kind
+        if: ${{ !cancelled() && !failure() }}
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          install_only: true
+
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
