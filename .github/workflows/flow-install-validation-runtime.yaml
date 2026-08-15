@@ -185,6 +185,20 @@ jobs:
           sudo podman system reset --force 2>/dev/null || true
           sudo rm -rf /var/lib/containers/storage/libpod 2>/dev/null || true
 
+          # The system podman 4.x writes /var/lib/containers/storage/overlay/.has-mount-program
+          # which signals to every subsequent podman invocation that the overlay storage was
+          # initialised with a fuse-overlayfs mount program. `podman system reset` clears
+          # containers/images/networks but does NOT remove the overlay storage directory, so
+          # the marker persists. When brew podman 6.x sees it, it picks up the system
+          # fuse-overlayfs (/usr/local/bin/fuse-overlayfs) which hangs indefinitely when
+          # mounting container rootfs layers — blocking every `podman run`, `podman info`, and
+          # `podman pull`. Rootful podman can use the kernel's native overlay without
+          # fuse-overlayfs (root has the necessary mount privileges), so wiping the overlay
+          # storage directory and writing a storage.conf with no mount_program gives it a
+          # clean slate that avoids fuse-overlayfs entirely.
+          sudo rm -rf /var/lib/containers/storage/overlay 2>/dev/null || true
+          sudo rm -rf /var/lib/containers/storage/overlay-layers 2>/dev/null || true
+
           # Defensive cleanup: flush any PODMAN iptables chains that system podman may have left in
           # the kernel. On ubuntu-latest the system podman already uses the nftables backend so
           # these chains are typically absent, but flushing them is harmless and prevents a rare
@@ -243,6 +257,15 @@ jobs:
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
           sudo mkdir -p /root/.config/containers
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
+
+          # storage.conf: force native kernel overlay by omitting mount_program. The user
+          # config (/root/.config/containers/storage.conf) takes highest precedence for rootful
+          # podman and is not touched by `brew install podman`, so writing both paths is
+          # belt-and-suspenders. Without this, podman reads the system default storage.conf
+          # (which points mount_program at /usr/local/bin/fuse-overlayfs) and hangs.
+          STORAGE_CONF_CONTENT=$(printf '[storage]\ndriver = "overlay"\n')
+          echo "${STORAGE_CONF_CONTENT}" | sudo tee /etc/containers/storage.conf > /dev/null
+          echo "${STORAGE_CONF_CONTENT}" | sudo tee /root/.config/containers/storage.conf > /dev/null
 
           # Diagnostics: capture the iptables, nftables, and libpod state after cleanup so a future
           # hang has enough context to determine whether residual rules or a stale database is the cause.

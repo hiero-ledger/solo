@@ -173,6 +173,23 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       ].join(' '),
     ]);
 
+    // fuse-overlayfs: the system binary at /usr/local/bin/fuse-overlayfs hangs when mounting
+    // container rootfs layers with brew podman 6.x. storage.conf must select native overlay
+    // (no mount_program) and the overlay/.has-mount-program marker must be absent so podman
+    // does not revert to fuse-overlayfs. Both are set up in the workflow's Normalize step.
+    runDiagnostic('fuse-overlayfs binaries + storage.conf + overlay marker', 'sh', [
+      '-c',
+      [
+        'for p in /usr/bin/fuse-overlayfs /usr/local/bin/fuse-overlayfs /home/linuxbrew/.linuxbrew/bin/fuse-overlayfs; do',
+        '  if [ -x "$p" ]; then echo "$p: $($p --version 2>&1 | head -n1)"; else echo "$p: not found"; fi;',
+        'done;',
+        'echo "--- /etc/containers/storage.conf ---"; sudo cat /etc/containers/storage.conf 2>&1 || echo "(absent)";',
+        'echo "--- /root/.config/containers/storage.conf ---"; sudo cat /root/.config/containers/storage.conf 2>&1 || echo "(absent)";',
+        'echo "--- overlay/.has-mount-program ---"; sudo ls -la /var/lib/containers/storage/overlay/.has-mount-program 2>&1 || echo "(absent — correct)";',
+        'echo "--- overlay storage layout ---"; sudo ls -la /var/lib/containers/storage/overlay/ 2>&1 || echo "(absent)"',
+      ].join(' '),
+    ]);
+
     // ── Step 5: podman info — initialises libpod without creating a container ───
     // Use sudo timeout (not Node.js timeout) so SIGKILL is guaranteed and the process
     // cannot linger as an orphan holding the libpod lock when the next command runs.
