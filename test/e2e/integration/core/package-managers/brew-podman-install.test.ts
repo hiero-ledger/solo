@@ -158,9 +158,31 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       '/opt/podman-helpers/netavark --version 2>&1; /opt/podman-helpers/aardvark-dns --version 2>&1',
     ]);
 
+    // crun: verify which binary podman will actually use. The system crun (typically at
+    // /usr/bin/crun or /usr/local/bin/crun) is an older version incompatible with the OCI
+    // bundle that brew podman 6.x generates — it hangs inside conmon waiting for a ready
+    // signal that the old runtime never sends. The brew crun must be present and selected.
+    runDiagnostic('crun binaries (system vs brew — must match containers.conf)', 'sh', [
+      '-c',
+      [
+        'for p in /usr/bin/crun /usr/local/bin/crun /home/linuxbrew/.linuxbrew/bin/crun; do',
+        '  if [ -x "$p" ]; then echo "$p: $($p --version 2>&1 | head -n1)"; else echo "$p: not found"; fi;',
+        'done;',
+        'echo "find brew crun:"; find /home/linuxbrew/.linuxbrew -name "crun" -type f 2>/dev/null || echo "(none)";',
+        'echo "root PATH crun:"; sudo env PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin which crun 2>&1 || echo "(not found)"',
+      ].join(' '),
+    ]);
+
     // ── Step 5: podman info — initialises libpod without creating a container ───
-    console.log('[podman-validation] running: sudo podman info (libpod init probe, 60 s timeout)');
-    runDiagnostic('sudo podman info', 'sudo', ['-n', 'env', sudoEnvironmentPath, 'podman', 'info'], 60_000);
+    // Use sudo timeout (not Node.js timeout) so SIGKILL is guaranteed and the process
+    // cannot linger as an orphan holding the libpod lock when the next command runs.
+    console.log('[podman-validation] running: sudo podman info (libpod init probe, 30 s timeout)');
+    runDiagnostic(
+      'sudo podman info',
+      'sudo',
+      ['-n', 'timeout', '--kill-after=5', '30', 'env', sudoEnvironmentPath, 'podman', 'info'],
+      40_000,
+    );
 
     // ── Step 6: podman network ls ────────────────────────────────────────────────
     console.log('[podman-validation] running: sudo podman network ls (30 s timeout)');
@@ -170,6 +192,10 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       ['-n', 'env', sudoEnvironmentPath, 'podman', 'network', 'ls'],
       30_000,
     );
+
+    // Brew crun path: containers.conf points here; if the file is absent podman silently
+    // falls back to /usr/local/bin/crun (system crun) which hangs with brew conmon 6.x.
+    const brewCrun: string = '/home/linuxbrew/.linuxbrew/bin/crun';
 
     // ── Step 7: network=none probe — container runtime without netavark ──────────
     // If this succeeds but bridge networking (step 8) hangs, the issue is
@@ -189,6 +215,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         'run',
         '--rm',
         '--network=none',
+        `--runtime=${brewCrun}`,
         HELLO_IMAGE,
       ],
       75_000,
@@ -198,6 +225,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // --log-level=debug prints each internal podman/netavark step so the exact
     // hang point is visible in CI logs even when the process is killed by timeout.
     // Uses system `timeout` to guarantee SIGKILL after 130 s.
+    // --runtime forces the brew crun; without it podman falls back to the system
+    // crun (/usr/local/bin/crun) which hangs inside conmon with brew podman 6.x.
     console.log(
       '[podman-validation] running: sudo timeout --kill-after=10 120 podman run --log-level=debug --rm quay.io/podman/hello',
     );
@@ -214,6 +243,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         '--log-level=debug',
         'run',
         '--rm',
+        `--runtime=${brewCrun}`,
         HELLO_IMAGE,
       ],
       {encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 150_000},

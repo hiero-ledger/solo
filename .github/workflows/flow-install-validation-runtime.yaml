@@ -224,11 +224,14 @@ jobs:
           # podman` overwrites that file during the next step, dropping our firewall_driver setting
           # and causing netavark v2.0.0 to fall back to iptables — which it no longer supports —
           # with "Must provide a valid firewall backend, got iptables".
+          # events_logger = "file" avoids the journald socket which is slow to initialise on
+          # GitHub-hosted runners and causes every podman invocation to stall for 60+ seconds.
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [engine]
           runtime = "crun"
           conmon_path = ["${BREW_PREFIX}/bin/conmon"]
           helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
+          events_logger = "file"
 
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]
