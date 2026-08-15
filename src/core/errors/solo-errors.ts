@@ -242,6 +242,7 @@ import {BackupZipFileRequiredSoloError} from './classes/validation/backup-zip-fi
 import {BackupInputPathNotFoundSoloError} from './classes/validation/backup-input-path-not-found-solo-error.js';
 import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-must-be-zip-solo-error.js';
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
+import {BackupDatabaseDumpNotFoundSoloError} from './classes/validation/backup-database-dump-not-found-solo-error.js';
 import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-solo-error.js';
 import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
@@ -654,6 +655,7 @@ export class SoloErrors {
     readonly backupInputPathNotFound: typeof BackupInputPathNotFoundSoloError;
     readonly backupInputMustBeZip: typeof BackupInputMustBeZipSoloError;
     readonly backupNoLogFiles: typeof BackupNoLogFilesSoloError;
+    readonly backupDatabaseDumpNotFound: typeof BackupDatabaseDumpNotFoundSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
@@ -730,6 +732,7 @@ export class SoloErrors {
     backupInputPathNotFound: BackupInputPathNotFoundSoloError,
     backupInputMustBeZip: BackupInputMustBeZipSoloError,
     backupNoLogFiles: BackupNoLogFilesSoloError,
+    backupDatabaseDumpNotFound: BackupDatabaseDumpNotFoundSoloError,
     flagInputFailed: FlagInputFailedSoloError,
     confirmationRequired: ConfirmationRequiredSoloError,
     valuesFileNotFound: ValuesFileNotFoundSoloError,
