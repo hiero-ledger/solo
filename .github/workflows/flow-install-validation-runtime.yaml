@@ -158,6 +158,12 @@ jobs:
           # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
           # podman invocation so nftables is available when netavark initialises.
           sudo modprobe nf_tables
+          # br_netfilter is required for bridge traffic to pass through netfilter hooks; without it
+          # sysctl net.bridge.bridge-nf-call-* are absent and container bridge routing may stall.
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.ipv4.ip_forward=1
+          sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+          sudo sysctl -w net.bridge.bridge-nf-call-ip6tables=1
 
           # Two problems arise from the system podman 4.x writing to the shared rootful graph root
           # (/var/lib/containers/storage) before brew podman 6.x ever runs:

@@ -128,25 +128,19 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     const sudoEnvironmentPath: string = `PATH=${podmanDirectory}${path.delimiter}${process.env.PATH}`;
 
     // ── Step 4: kernel / firewall diagnostics ───────────────────────────────────
-    // Run before any podman invocation so that we know the state of the system
-    // when the potential hang occurs — each block is independently timed out so
-    // one hung diagnostic does not block the rest.
-    // nf_tables refcount: Docker's iptables-nft backend (nft_compat) holds the netlink mutex.
-    // If the refcount on nf_tables is high (Docker is running), netavark will deadlock.
-    // The workflow stops Docker before this test; the refcount should be near 0 here.
-    runDiagnostic('kernel modules — nf_tables refcount (should be near 0; high means Docker is contending)', 'sh', [
+    // nf_tables refcount: should be near 0 after stopping Docker + nft flush ruleset.
+    runDiagnostic('kernel modules — nf_tables / br_netfilter / veth refcounts', 'sh', [
       '-c',
-      'lsmod | grep -E "nf_tables|ip_tables|iptable_|nft_compat|docker" | sort || echo "(no matching modules)"',
+      'lsmod | grep -E "nf_tables|ip_tables|iptable_|nft_compat|br_netfilter|^veth" | sort || echo "(no matching modules)"',
     ]);
-    // Tables here should be empty — Docker's ip/ip6 tables (security, nat, filter) must be gone.
-    // If Docker tables are still present, netavark will deadlock when trying to transact into them.
-    runDiagnostic('nftables tables (pre-run — should be empty after nft flush ruleset)', 'sudo', [
-      'nft',
-      'list',
-      'tables',
-    ]);
+    // Tables must be empty — any residual Docker ip/ip6 tables cause netavark to deadlock.
+    runDiagnostic('nftables tables (pre-run — must be empty)', 'sudo', ['nft', 'list', 'tables']);
     runDiagnostic('iptables filter chains (pre-run)', 'sudo', ['iptables', '-L', '-n', '--line-numbers']);
     runDiagnostic('iptables nat chains (pre-run)', 'sudo', ['iptables', '-t', 'nat', '-L', '-n']);
+    runDiagnostic('sysctl ip_forward + bridge nf-call flags', 'sh', [
+      '-c',
+      'sysctl net.ipv4.ip_forward; sysctl net.bridge.bridge-nf-call-iptables 2>/dev/null || echo "(br_netfilter not loaded)"; sysctl net.bridge.bridge-nf-call-ip6tables 2>/dev/null || true',
+    ]);
     runDiagnostic('/var/lib/containers/storage layout', 'sudo', [
       'find',
       '/var/lib/containers/storage',
@@ -159,15 +153,16 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       'cat',
       '/root/.config/containers/containers.conf',
     ]);
+    runDiagnostic('helper binaries (netavark / aardvark-dns versions)', 'sh', [
+      '-c',
+      '/opt/podman-helpers/netavark --version 2>&1; /opt/podman-helpers/aardvark-dns --version 2>&1',
+    ]);
 
     // ── Step 5: podman info — initialises libpod without creating a container ───
-    // If this hangs it points to a libpod database migration issue.
-    // If it succeeds, the hang (if any) is specific to network setup in podman run.
     console.log('[podman-validation] running: sudo podman info (libpod init probe, 60 s timeout)');
     runDiagnostic('sudo podman info', 'sudo', ['-n', 'env', sudoEnvironmentPath, 'podman', 'info'], 60_000);
 
-    // ── Step 6: podman network ls — lists networks without creating a container ─
-    // If this hangs but podman info succeeded, the issue is in netavark init.
+    // ── Step 6: podman network ls ────────────────────────────────────────────────
     console.log('[podman-validation] running: sudo podman network ls (30 s timeout)');
     runDiagnostic(
       'sudo podman network ls',
@@ -176,15 +171,52 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       30_000,
     );
 
-    // ── Step 7: run the hello container ────────────────────────────────────────
-    // Uses system `timeout` as the outer command so that SIGKILL is guaranteed
-    // after 130 s regardless of whether sudo or podman responds to SIGTERM.
-    // Node's execFileSync timeout (150 s) is a belt-and-suspenders backstop only.
-    console.log('[podman-validation] running: sudo timeout --kill-after=10 120 podman run --rm quay.io/podman/hello');
+    // ── Step 7: network=none probe — container runtime without netavark ──────────
+    // If this succeeds but bridge networking (step 8) hangs, the issue is
+    // definitively in netavark's bridge/nftables setup, not the container runtime.
+    console.log('[podman-validation] running: sudo podman run --network=none (runtime probe, 60 s timeout)');
+    runDiagnostic(
+      'sudo podman run --network=none (runtime probe)',
+      'sudo',
+      [
+        '-n',
+        'timeout',
+        '--kill-after=10',
+        '60',
+        'env',
+        sudoEnvironmentPath,
+        'podman',
+        'run',
+        '--rm',
+        '--network=none',
+        HELLO_IMAGE,
+      ],
+      75_000,
+    );
+
+    // ── Step 8: run the hello container with bridge networking + debug logging ──
+    // --log-level=debug prints each internal podman/netavark step so the exact
+    // hang point is visible in CI logs even when the process is killed by timeout.
+    // Uses system `timeout` to guarantee SIGKILL after 130 s.
+    console.log(
+      '[podman-validation] running: sudo timeout --kill-after=10 120 podman run --log-level=debug --rm quay.io/podman/hello',
+    );
     const output: string = execFileSync(
       'sudo',
-      ['-n', 'timeout', '--kill-after=10', '120', 'env', sudoEnvironmentPath, 'podman', 'run', '--rm', HELLO_IMAGE],
-      {encoding: 'utf8', timeout: 150_000},
+      [
+        '-n',
+        'timeout',
+        '--kill-after=10',
+        '120',
+        'env',
+        sudoEnvironmentPath,
+        'podman',
+        '--log-level=debug',
+        'run',
+        '--rm',
+        HELLO_IMAGE,
+      ],
+      {encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 150_000},
     );
     console.log('[podman-validation] podman run completed successfully');
     expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
