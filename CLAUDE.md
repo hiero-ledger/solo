@@ -242,7 +242,7 @@ export class BackupDatabaseDumpNotFoundSoloError extends SoloError {
 3. **Register and throw** via `SoloErrors.<category>` in `src/core/errors/solo-errors.ts`:
 
 ```typescript
-// in SoloErrors.validation:
+// call site:
 throw new SoloErrors.validation.backupDatabaseDumpNotFound(dumpPath);
 ```
 

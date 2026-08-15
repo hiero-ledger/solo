@@ -488,7 +488,7 @@ cycle is detected and prints the offending chains.
 
 ---
 
-## 24. Pin all container image tags
+## 24. Pin all container image tags and package.json dependencies
 
 **What to look for**
 
@@ -498,6 +498,7 @@ cycle is detected and prints the offending chains.
 - Image references in TypeScript-generated YAML (init-container spec objects in `block-node.ts`,
   `deploy-argv-builders.ts`, etc.) as well as in shell-script heredocs and Helm values files checked
   into the repo.
+- Any `package.json` dependency with a floating version (e.g., `^1.2.3`, `~1.2.3`, `*`, or no version at all).
 
 **How to respond — suggestion-block form**
 
