@@ -30,9 +30,11 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
   public async installPackages(dependencies: string[]): Promise<void> {
     await this.run('brew', ['install', ...dependencies], {
       commandProfile: SubprocessCommandProfile.BREW,
-      // Kill brew and surface an error if it produces no output for 2 minutes.
-      // brew install podman has been observed to hang silently for hours on cold
-      // GitHub-hosted runners; the idle timeout makes the hang fail fast instead.
+      // brew install podman has been observed to hang for hours on cold GitHub-hosted runners.
+      // It produces output sporadically (resetting an idle timer), so a hard wall-clock cap is
+      // needed.  10 minutes is generous for a typical install; the idle timeout handles a
+      // completely silent hang before the wall-clock cap fires.
+      timeoutMs: 600_000,
       idleTimeoutMs: 120_000,
     });
   }
