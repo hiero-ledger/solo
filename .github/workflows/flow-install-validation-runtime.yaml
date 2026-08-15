@@ -145,6 +145,20 @@ jobs:
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
+          # Docker's iptables-nft backend (nft_compat) holds netlink transaction locks while the
+          # daemon is running. Netavark v2.0.0 writes nftables rules into the same ip/ip6 tables
+          # that Docker created; competing for the same netlink mutex causes netavark to stall
+          # indefinitely when setting up the container bridge network. This job uses the podman
+          # provider for kind and does not need Docker, so it is stopped here. Flushing Docker's
+          # chains removes the nft_compat rules so the reference count drops and the lock is gone.
+          sudo systemctl stop docker.socket docker 2>/dev/null || true
+          for TABLE in filter nat mangle; do
+            for CHAIN in DOCKER "DOCKER-USER" "DOCKER-ISOLATION-1" "DOCKER-ISOLATION-2"; do
+              sudo iptables -t "${TABLE}" -F "${CHAIN}" 2>/dev/null || true
+              sudo iptables -t "${TABLE}" -X "${CHAIN}" 2>/dev/null || true
+            done
+          done
+
           # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
           # podman invocation so nftables is available when netavark initialises.
           sudo modprobe nf_tables

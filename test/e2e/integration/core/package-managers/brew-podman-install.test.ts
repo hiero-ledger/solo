@@ -131,9 +131,12 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // Run before any podman invocation so that we know the state of the system
     // when the potential hang occurs — each block is independently timed out so
     // one hung diagnostic does not block the rest.
-    runDiagnostic('kernel modules (nf_tables / iptables)', 'sh', [
+    // nf_tables refcount: Docker's iptables-nft backend (nft_compat) holds the netlink mutex.
+    // If the refcount on nf_tables is high (Docker is running), netavark will deadlock.
+    // The workflow stops Docker before this test; the refcount should be near 0 here.
+    runDiagnostic('kernel modules — nf_tables refcount (should be near 0; high means Docker is contending)', 'sh', [
       '-c',
-      'lsmod | grep -E "nf_tables|ip_tables|iptable_" | sort || echo "(no matching modules)"',
+      'lsmod | grep -E "nf_tables|ip_tables|iptable_|nft_compat|docker" | sort || echo "(no matching modules)"',
     ]);
     runDiagnostic('nftables tables (pre-run)', 'sudo', ['nft', 'list', 'tables']);
     runDiagnostic('iptables filter chains (pre-run)', 'sudo', ['iptables', '-L', '-n', '--line-numbers']);
