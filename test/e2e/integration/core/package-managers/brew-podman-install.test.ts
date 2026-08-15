@@ -185,6 +185,21 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       ].join(' '),
     ]);
 
+    // AppArmor: Ubuntu 24.04 has AppArmor enabled. When seccomp=unconfined is set, podman applies
+    // an AppArmor profile during spec generation before launching conmon. If AppArmor enforcement
+    // stalls (e.g. kernel module busy or profile missing), podman hangs silently before conmon
+    // starts — the last debug line is "No hostname set; container's hostname will default to
+    // runtime default". apparmor_profile = "unconfined" in containers.conf bypasses this; this
+    // diagnostic confirms AppArmor's state to verify the bypass is effective.
+    runDiagnostic('AppArmor status + podman/crun profiles (may explain pre-conmon hang)', 'sh', [
+      '-c',
+      [
+        'echo "aa-status summary:"; sudo aa-status 2>&1 | head -20 || echo "(aa-status unavailable)";',
+        'echo "podman AppArmor profile:"; sudo aa-status 2>&1 | grep -E "podman|crun|conmon" || echo "(none matching)";',
+        'echo "AppArmor mode:"; cat /sys/kernel/security/apparmor/profiles 2>/dev/null | wc -l || echo "(unavailable)";',
+      ].join(' '),
+    ]);
+
     // fuse-overlayfs: the system binary at /usr/local/bin/fuse-overlayfs hangs when mounting
     // container rootfs layers with brew podman 6.x. storage.conf must select native overlay
     // (no mount_program) and the overlay/.has-mount-program marker must be absent so podman
@@ -230,6 +245,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // --security-opt seccomp=unconfined: if the system seccomp.json (written for podman 4.x)
     // blocks a syscall that crun 1.x needs, the process receives SIGTRAP/SIGKILL and hangs
     // silently. Disabling seccomp here isolates whether the profile is the hang source.
+    // --security-opt apparmor=unconfined: Ubuntu 24.04 AppArmor enforcement stalls during
+    // container spec generation before conmon starts; disabling it bypasses that hang.
     // --log-level=debug: capture the last podman/conmon/crun step before the hang so that
     // if it still hangs we can compare the debug line against the final run (step 8).
     console.log('[podman-validation] running: sudo podman run --network=none (runtime probe, 60 s timeout)');
@@ -250,17 +267,35 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         '--network=none',
         '--security-opt',
         'seccomp=unconfined',
+        '--security-opt',
+        'apparmor=unconfined',
         `--runtime=${brewCrun}`,
         HELLO_IMAGE,
       ],
       75_000,
     );
 
+    // After the network=none probe, clean up any stale container state it may have left behind.
+    // When podman is killed mid-startup it can leave containers in ERROR/RUNNING state in the
+    // sqlite DB and unmounted overlay layers; the next `podman run` then tries to reconcile that
+    // stale state and may hang. Force-removing all containers ensures the final run starts clean.
+    runDiagnostic('post-probe cleanup: remove stale containers + check overlay mounts', 'sh', [
+      '-c',
+      [
+        'echo "--- containers before cleanup ---"; sudo podman ps -a 2>&1 || echo "(failed)";',
+        'echo "--- overlay mounts ---"; mount | grep overlay || echo "(none)";',
+        'echo "--- force-remove all containers ---"; sudo podman rm --all --force 2>&1 || echo "(none to remove)";',
+        'echo "--- containers after cleanup ---"; sudo podman ps -a 2>&1 || echo "(failed)";',
+      ].join(' '),
+    ]);
+
     // ── Step 8: run the hello container with bridge networking + debug logging ──
     // --log-level=debug prints each internal podman/netavark step so the exact
     // hang point is visible in CI logs even when the process is killed by timeout.
     // --security-opt seccomp=unconfined: disable the system seccomp profile to rule out
     // a syscall block in /etc/containers/seccomp.json as the cause of the hang.
+    // --security-opt apparmor=unconfined: bypass AppArmor profile enforcement; Ubuntu 24.04
+    // AppArmor stalls during container spec generation before conmon starts.
     // Uses system `timeout` to guarantee SIGKILL after 130 s.
     // --runtime forces the brew crun; without it podman falls back to the system
     // crun (/usr/local/bin/crun) which hangs inside conmon with brew podman 6.x.
@@ -282,6 +317,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         '--rm',
         '--security-opt',
         'seccomp=unconfined',
+        '--security-opt',
+        'apparmor=unconfined',
         `--runtime=${brewCrun}`,
         HELLO_IMAGE,
       ],

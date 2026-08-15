@@ -246,10 +246,20 @@ jobs:
           # permit scope creation, causing every `podman run` (and `podman info`) to hang
           # indefinitely waiting for the dbus reply. With "cgroupfs" crun writes cgroup files
           # directly into /sys/fs/cgroup/ without any dbus interaction.
+          # apparmor_profile = "unconfined" in [containers]: Ubuntu 24.04 has AppArmor enabled.
+          # When seccomp is bypassed, podman applies an AppArmor profile to the container process
+          # during spec generation. On GitHub-hosted runners the AppArmor enforcement context or
+          # profile loading stalls, causing podman to hang before conmon is ever started. Setting
+          # this to "unconfined" skips AppArmor label application and unblocks the container start.
+          # conmon_path is omitted: helper_binaries_dir includes ${BREW_PREFIX}/bin which contains
+          # the brew conmon. Explicit conmon_path shadowed the brew conmon with a version mismatch
+          # in some environments; letting helper_binaries_dir resolve it is more robust.
           CONTAINERS_CONF_CONTENT=$(cat << EOF
+          [containers]
+          apparmor_profile = "unconfined"
+
           [engine]
           runtime = "crun"
-          conmon_path = ["${BREW_PREFIX}/bin/conmon"]
           helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
           events_logger = "file"
           cgroup_manager = "cgroupfs"
