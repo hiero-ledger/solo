@@ -82,6 +82,10 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
         verbose: true,
         commandProfile: SubprocessCommandProfile.BREW,
         environmentVariablesToAppend: {NONINTERACTIVE: '1'},
+        // The install script runs `brew update` internally via git fetch; that network operation
+        // can hang silently for many minutes on cold GitHub-hosted runners.  Kill and surface an
+        // error if no output is seen for 2 minutes.
+        idleTimeoutMs: 120_000,
       });
     } finally {
       // Remove the whole temp directory created by mkdtempSync, not just the script file.
