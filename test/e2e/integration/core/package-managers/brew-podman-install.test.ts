@@ -277,6 +277,16 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           'echo "=== open fds ==="; sudo ls -la /proc/$POD_PID/fd 2>/dev/null | tail -20 || echo "(gone)";',
           // child processes: conmon or crun forked by podman (if any started before hang).
           'echo "=== child processes ==="; ps --ppid "$POD_PID" -o pid,comm,wchan= 2>/dev/null || echo "(none)";',
+          // Scan all OS threads for D-state (uninterruptible sleep in kernel). Run 11 showed
+          // the main thread waiting in a futex, meaning the ACTUAL kernel operation is on
+          // another goroutine's thread. D-state threads reveal which kernel subsystem is stuck.
+          'echo "=== thread state scan (D = kernel-blocked goroutine) ===";',
+          'for _tid in $(ls /proc/$POD_PID/task/ 2>/dev/null);',
+          "do _st=$(grep '^State:' /proc/$POD_PID/task/$_tid/status 2>/dev/null | awk '{print $2}');",
+          '_wc=$(cat /proc/$POD_PID/task/$_tid/wchan 2>/dev/null);',
+          'printf "tid=%s st=%s wchan=%s\\n" "$_tid" "$_st" "$_wc";',
+          '[ "$_st" = "D" ] && echo "  > D-state kernel stack:" && sudo cat /proc/$POD_PID/task/$_tid/stack 2>/dev/null;',
+          'done 2>/dev/null || echo "(no tasks — process already finished)";',
           // Kill and collect output.
           'sudo kill -TERM $BG_PID $POD_PID 2>/dev/null; sleep 2;',
           'sudo kill -KILL $BG_PID $POD_PID 2>/dev/null; wait $BG_PID 2>/dev/null || true;',

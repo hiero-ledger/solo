@@ -257,6 +257,7 @@ jobs:
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [containers]
           apparmor_profile = "unconfined"
+          cgroup_parent = "/podman"
 
           [engine]
           runtime = "crun"
@@ -275,6 +276,23 @@ jobs:
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
           sudo mkdir -p /root/.config/containers
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
+
+          # Pre-create /sys/fs/cgroup/podman at the cgroup root so podman's cgroupfs manager
+          # can create container cgroups OUTSIDE the runner's own
+          # system.slice/hosted-compute-agent.service/ hierarchy. On GitHub-hosted ubuntu-24.04
+          # runners that cgroup is a cgroupv2 leaf already occupied by the runner process.
+          # Creating child cgroups within it violates the cgroupv2 "no internal process" rule
+          # and causes a kernel-level block (observable as a Go futex wait with an open fd to
+          # hosted-compute-agent.service/cpu.max). Setting cgroup_parent = "/podman" in
+          # containers.conf above directs all podman cgroup creation here instead.
+          sudo mkdir -p /sys/fs/cgroup/podman
+          ROOT_CTRL=$(cat /sys/fs/cgroup/cgroup.subtree_control 2>/dev/null || true)
+          if [ -n "${ROOT_CTRL}" ]; then
+            PLUS_CTRL=$(echo "${ROOT_CTRL}" | tr ' ' '\n' | sed 's/^/+/' | tr '\n' ' ')
+            echo "${PLUS_CTRL}" | sudo tee /sys/fs/cgroup/podman/cgroup.subtree_control > /dev/null 2>&1 || true
+          fi
+          echo "=== /sys/fs/cgroup/podman/cgroup.subtree_control ==="
+          cat /sys/fs/cgroup/podman/cgroup.subtree_control 2>/dev/null || echo "(empty — controllers not set)"
 
           # storage.conf: force native kernel overlay by omitting mount_program. The user
           # config (/root/.config/containers/storage.conf) takes highest precedence for rootful
