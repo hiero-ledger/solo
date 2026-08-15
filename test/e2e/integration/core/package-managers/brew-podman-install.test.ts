@@ -256,9 +256,12 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         '-c',
         [
           // Start podman in background, capturing stdout + stderr separately.
+          // --cgroups=disabled: skip all container cgroup setup. The cgroupfs manager
+          // deadlocks (Go-level, all threads in S/futex) when it tries to manipulate
+          // the runner's system.slice/hosted-compute-agent.service cgroup hierarchy.
           `sudo -n env '${sudoEnvironmentPath}' podman --log-level=debug run --rm --network=none`,
           '  --security-opt seccomp=unconfined --security-opt apparmor=unconfined',
-          `  --runtime=${brewCrun} ${HELLO_IMAGE} >/tmp/podman-probe-out.txt 2>/tmp/podman-probe-err.txt &`,
+          `  --cgroups=disabled --runtime=${brewCrun} ${HELLO_IMAGE} >/tmp/podman-probe-out.txt 2>/tmp/podman-probe-err.txt &`,
           'BG_PID=$!;',
           // Wait long enough for podman to reach the hang point (image pull + spec generation).
           'sleep 12;',
@@ -318,11 +321,15 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // a syscall block in /etc/containers/seccomp.json as the cause of the hang.
     // --security-opt apparmor=unconfined: bypass AppArmor profile enforcement; Ubuntu 24.04
     // AppArmor stalls during container spec generation before conmon starts.
+    // --cgroups=disabled: bypass all container cgroup setup. The cgroupfs manager
+    // deadlocks (pure Go-level futex wait, all threads S/wchan=0) when it attempts to
+    // manipulate the GitHub Actions runner's system.slice/hosted-compute-agent.service
+    // cgroup hierarchy. Disabling cgroup setup bypasses this deadlock entirely.
     // Uses system `timeout` to guarantee SIGKILL after 130 s.
     // --runtime forces the brew crun; without it podman falls back to the system
     // crun (/usr/local/bin/crun) which hangs inside conmon with brew podman 6.x.
     console.log(
-      '[podman-validation] running: sudo timeout --kill-after=10 120 podman run --log-level=debug --rm quay.io/podman/hello',
+      '[podman-validation] running: sudo timeout --kill-after=10 120 podman run --log-level=debug --cgroups=disabled --rm quay.io/podman/hello',
     );
     const output: string = execFileSync(
       'sudo',
@@ -341,6 +348,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         'seccomp=unconfined',
         '--security-opt',
         'apparmor=unconfined',
+        '--cgroups=disabled',
         `--runtime=${brewCrun}`,
         HELLO_IMAGE,
       ],
