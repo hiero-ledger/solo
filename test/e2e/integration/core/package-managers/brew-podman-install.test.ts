@@ -138,7 +138,13 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       '-c',
       'lsmod | grep -E "nf_tables|ip_tables|iptable_|nft_compat|docker" | sort || echo "(no matching modules)"',
     ]);
-    runDiagnostic('nftables tables (pre-run)', 'sudo', ['nft', 'list', 'tables']);
+    // Tables here should be empty — Docker's ip/ip6 tables (security, nat, filter) must be gone.
+    // If Docker tables are still present, netavark will deadlock when trying to transact into them.
+    runDiagnostic('nftables tables (pre-run — should be empty after nft flush ruleset)', 'sudo', [
+      'nft',
+      'list',
+      'tables',
+    ]);
     runDiagnostic('iptables filter chains (pre-run)', 'sudo', ['iptables', '-L', '-n', '--line-numbers']);
     runDiagnostic('iptables nat chains (pre-run)', 'sudo', ['iptables', '-t', 'nat', '-L', '-n']);
     runDiagnostic('/var/lib/containers/storage layout', 'sudo', [

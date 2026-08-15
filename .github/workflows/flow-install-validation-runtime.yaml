@@ -145,19 +145,15 @@ jobs:
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
-          # Docker's iptables-nft backend (nft_compat) holds netlink transaction locks while the
-          # daemon is running. Netavark v2.0.0 writes nftables rules into the same ip/ip6 tables
-          # that Docker created; competing for the same netlink mutex causes netavark to stall
-          # indefinitely when setting up the container bridge network. This job uses the podman
-          # provider for kind and does not need Docker, so it is stopped here. Flushing Docker's
-          # chains removes the nft_compat rules so the reference count drops and the lock is gone.
+          # Docker's iptables-nft backend creates kernel nftables tables (ip/ip6 nat, filter,
+          # security) with nft_compat flags. These tables persist in the kernel after Docker
+          # stops; stopping Docker alone does not remove them. Netavark v2.0.0 uses native
+          # nftables batch transactions and cannot atomically transact rules into tables that
+          # already carry nft_compat flags — the transaction stalls indefinitely. `nft flush
+          # ruleset` wipes all nftables state from the kernel so netavark gets a clean slate.
+          # This job uses the podman provider for kind and does not need Docker at all.
           sudo systemctl stop docker.socket docker 2>/dev/null || true
-          for TABLE in filter nat mangle; do
-            for CHAIN in DOCKER "DOCKER-USER" "DOCKER-ISOLATION-1" "DOCKER-ISOLATION-2"; do
-              sudo iptables -t "${TABLE}" -F "${CHAIN}" 2>/dev/null || true
-              sudo iptables -t "${TABLE}" -X "${CHAIN}" 2>/dev/null || true
-            done
-          done
+          sudo nft flush ruleset 2>/dev/null || true
 
           # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
           # podman invocation so nftables is available when netavark initialises.
