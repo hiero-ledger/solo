@@ -237,13 +237,6 @@ jobs:
           Write-Host "Linux patches hostPath: $linuxPatchesPath"
           "SOLO_KIND_CLUSTER_CONFIG_FILE=$renderedConfig" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Solo Init
-        shell: pwsh
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
-          npm run solo -- init --dev
-
       - name: One-Shot Single Deploy
         shell: pwsh
         timeout-minutes: 70

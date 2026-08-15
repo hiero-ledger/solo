@@ -54,9 +54,6 @@ tasks:
       # Set kubectl context
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
-      # Solo init
-      - cmd: $SOLO_COMMAND init
-
       # Solo cluster-ref config connect
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
 
