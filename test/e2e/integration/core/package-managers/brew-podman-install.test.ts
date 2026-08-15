@@ -241,38 +241,50 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // falls back to /usr/local/bin/crun (system crun) which hangs with brew conmon 6.x.
     const brewCrun: string = '/home/linuxbrew/.linuxbrew/bin/crun';
 
-    // ── Step 7: network=none probe — container runtime without netavark ──────────
-    // --security-opt seccomp=unconfined: if the system seccomp.json (written for podman 4.x)
-    // blocks a syscall that crun 1.x needs, the process receives SIGTRAP/SIGKILL and hangs
-    // silently. Disabling seccomp here isolates whether the profile is the hang source.
-    // --security-opt apparmor=unconfined: Ubuntu 24.04 AppArmor enforcement stalls during
-    // container spec generation before conmon starts; disabling it bypasses that hang.
-    // --log-level=debug: capture the last podman/conmon/crun step before the hang so that
-    // if it still hangs we can compare the debug line against the final run (step 8).
-    console.log('[podman-validation] running: sudo podman run --network=none (runtime probe, 60 s timeout)');
+    // ── Step 7: network=none probe with /proc wchan hang diagnostic ──────────────
+    // The hang always occurs within ~1 s of starting (at "No hostname set; container's hostname
+    // will default to runtime default"), before conmon is ever launched. To identify the exact
+    // blocking kernel function, run podman in the background and read /proc/<pid>/wchan after
+    // 10 s (well into the hang window). The wchan value names the kernel function in which the
+    // process is sleeping — e.g. "futex_wait", "security_apparmor_...", "kernfs_fop_write",
+    // "do_sys_openat2" — giving the definitive hang cause without needing strace.
+    console.log('[podman-validation] running network=none wchan diagnostic (25 s)');
     runDiagnostic(
-      'sudo podman run --network=none (runtime probe)',
-      'sudo',
+      'sudo podman run --network=none + wchan hang diagnostic',
+      'sh',
       [
-        '-n',
-        'timeout',
-        '--kill-after=10',
-        '60',
-        'env',
-        sudoEnvironmentPath,
-        'podman',
-        '--log-level=debug',
-        'run',
-        '--rm',
-        '--network=none',
-        '--security-opt',
-        'seccomp=unconfined',
-        '--security-opt',
-        'apparmor=unconfined',
-        `--runtime=${brewCrun}`,
-        HELLO_IMAGE,
+        '-c',
+        [
+          // Start podman in background, capturing stdout + stderr separately.
+          `sudo -n env '${sudoEnvironmentPath}' podman --log-level=debug run --rm --network=none`,
+          '  --security-opt seccomp=unconfined --security-opt apparmor=unconfined',
+          `  --runtime=${brewCrun} ${HELLO_IMAGE} >/tmp/podman-probe-out.txt 2>/tmp/podman-probe-err.txt &`,
+          'BG_PID=$!;',
+          // Wait long enough for podman to reach the hang point (image pull + spec generation).
+          'sleep 12;',
+          // Find the podman child of sudo (sudo forks + execs env which execs podman in-place).
+          'POD_PID=$(pgrep -P "$BG_PID" 2>/dev/null | head -1); [ -z "$POD_PID" ] && POD_PID=$BG_PID;',
+          'echo "sudo_pid=$BG_PID podman_pid=$POD_PID";',
+          // wchan: the kernel function the process is blocked in — definitive hang source.
+          'echo "=== wchan (blocking kernel fn) ==="; cat /proc/$POD_PID/wchan 2>/dev/null; echo;',
+          // syscall: the syscall number + arguments at the point of blocking.
+          'echo "=== syscall args ==="; cat /proc/$POD_PID/syscall 2>/dev/null || echo "(process gone)";',
+          // status: confirm process is in D (uninterruptible) or S (sleeping) state.
+          'echo "=== status ==="; cat /proc/$POD_PID/status 2>/dev/null | grep -E "State|Threads" || true;',
+          // kernel stack: the full in-kernel call chain at the hang point.
+          'echo "=== kernel stack ==="; sudo cat /proc/$POD_PID/stack 2>/dev/null || echo "(gone)";',
+          // open fds: which files/sockets are open at the hang point.
+          'echo "=== open fds ==="; sudo ls -la /proc/$POD_PID/fd 2>/dev/null | tail -20 || echo "(gone)";',
+          // child processes: conmon or crun forked by podman (if any started before hang).
+          'echo "=== child processes ==="; ps --ppid "$POD_PID" -o pid,comm,wchan= 2>/dev/null || echo "(none)";',
+          // Kill and collect output.
+          'sudo kill -TERM $BG_PID $POD_PID 2>/dev/null; sleep 2;',
+          'sudo kill -KILL $BG_PID $POD_PID 2>/dev/null; wait $BG_PID 2>/dev/null || true;',
+          'echo "=== last 20 debug lines ==="; tail -20 /tmp/podman-probe-err.txt 2>/dev/null;',
+          'rm -f /tmp/podman-probe-out.txt /tmp/podman-probe-err.txt;',
+        ].join(' '),
       ],
-      75_000,
+      30_000,
     );
 
     // After the network=none probe, clean up any stale container state it may have left behind.
