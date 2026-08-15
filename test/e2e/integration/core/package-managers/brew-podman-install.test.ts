@@ -66,6 +66,21 @@ function readPodmanVersion(podmanPath: string): [number, number] {
   return [Number(match[1]), Number(match[2])];
 }
 
+/**
+ * Runs a shell diagnostic command and prints its output with a label prefix. Failures are
+ * swallowed so that a broken diagnostic never masks the real test failure.
+ */
+function runDiagnostic(label: string, command: string, arguments_: string[], timeoutMs: number = 15_000): void {
+  console.log(`[podman-validation] === ${label} ===`);
+  try {
+    const output: string = execFileSync(command, arguments_, {encoding: 'utf8', timeout: timeoutMs});
+    console.log(output.trim() || '(no output)');
+  } catch (error: unknown) {
+    // best-effort diagnostic; swallow failures so the test result is not obscured
+    console.log(`(failed: ${error instanceof Error ? error.message : String(error)})`);
+  }
+}
+
 // eslint-disable-next-line prefer-arrow-callback
 describe('BrewPackageManager podman runtime validation', function (this: Mocha.Suite): void {
   before(function (this: Mocha.Context): void {
@@ -77,43 +92,92 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
   });
 
   it('installs podman via Homebrew and runs a container rootfully', async (): Promise<void> => {
+    // ── Step 1: Homebrew ────────────────────────────────────────────────────────
+    console.log('[podman-validation] checking if Homebrew is available');
     const brewPackageManager: BrewPackageManager = new BrewPackageManager();
-    if (!(await brewPackageManager.isAvailable())) {
+    if (await brewPackageManager.isAvailable()) {
+      console.log('[podman-validation] Homebrew already available');
+    } else {
+      console.log('[podman-validation] Homebrew not found — installing');
       expect(await brewPackageManager.install(), 'Homebrew bootstrap should succeed').to.be.true;
+      console.log('[podman-validation] Homebrew install complete');
     }
-    await brewPackageManager.installPackages(['podman']);
 
+    // ── Step 2: podman via brew ─────────────────────────────────────────────────
+    console.log('[podman-validation] running: brew install podman');
+    await brewPackageManager.installPackages(['podman']);
+    console.log('[podman-validation] brew install podman complete');
+
+    // ── Step 3: verify binary ───────────────────────────────────────────────────
     const podmanPath: string = resolvePodmanPath();
+    console.log(`[podman-validation] resolved podman binary: ${podmanPath}`);
     expect(fs.existsSync(podmanPath), `brew install podman should have produced ${podmanPath}`).to.be.true;
 
     const [major, minor]: [number, number] = readPodmanVersion(podmanPath);
     const [minimumMajor, minimumMinor]: [number, number] = MINIMUM_PODMAN_VERSION;
+    console.log(
+      `[podman-validation] podman version: ${major}.${minor} (minimum required: ${minimumMajor}.${minimumMinor})`,
+    );
     expect(
       major > minimumMajor || (major === minimumMajor && minor >= minimumMinor),
       `podman ${major}.${minor} is older than kind's minimum of ${minimumMajor}.${minimumMinor}`,
     ).to.be.true;
 
     const podmanDirectory: string = path.dirname(podmanPath);
-    // sudo resets the PATH and brew's podman is not on root's PATH, so it is passed explicitly
-    // through `sudo env PATH=…`, the same shape ClusterTaskManager uses to create the kind cluster.
-    // `-n` fails fast rather than hanging on a password prompt; CI runners grant passwordless sudo.
-    // timeout prevents a hung `podman run` from blocking the Node.js event loop indefinitely.
-    // execFileSync is synchronous, so Mocha's .timeout() cannot interrupt it — only the
-    // child-process-level timeout can. 120 s is generous; the hello image pull + run typically
-    // takes under 10 s. On expiry the signal is sent to sudo, which propagates to podman.
+    // sudo resets PATH; brew's podman is not on root's PATH so it is passed explicitly.
+    const sudoEnvironmentPath: string = `PATH=${podmanDirectory}${path.delimiter}${process.env.PATH}`;
+
+    // ── Step 4: kernel / firewall diagnostics ───────────────────────────────────
+    // Run before any podman invocation so that we know the state of the system
+    // when the potential hang occurs — each block is independently timed out so
+    // one hung diagnostic does not block the rest.
+    runDiagnostic('kernel modules (nf_tables / iptables)', 'sh', [
+      '-c',
+      'lsmod | grep -E "nf_tables|ip_tables|iptable_" | sort || echo "(no matching modules)"',
+    ]);
+    runDiagnostic('nftables tables (pre-run)', 'sudo', ['nft', 'list', 'tables']);
+    runDiagnostic('iptables filter chains (pre-run)', 'sudo', ['iptables', '-L', '-n', '--line-numbers']);
+    runDiagnostic('iptables nat chains (pre-run)', 'sudo', ['iptables', '-t', 'nat', '-L', '-n']);
+    runDiagnostic('/var/lib/containers/storage layout', 'sudo', [
+      'find',
+      '/var/lib/containers/storage',
+      '-maxdepth',
+      '2',
+      '-ls',
+    ]);
+    runDiagnostic('/etc/containers/containers.conf (effective)', 'sudo', ['cat', '/etc/containers/containers.conf']);
+    runDiagnostic('/root/.config/containers/containers.conf (root user config)', 'sudo', [
+      'cat',
+      '/root/.config/containers/containers.conf',
+    ]);
+
+    // ── Step 5: podman info — initialises libpod without creating a container ───
+    // If this hangs it points to a libpod database migration issue.
+    // If it succeeds, the hang (if any) is specific to network setup in podman run.
+    console.log('[podman-validation] running: sudo podman info (libpod init probe, 60 s timeout)');
+    runDiagnostic('sudo podman info', 'sudo', ['-n', 'env', sudoEnvironmentPath, 'podman', 'info'], 60_000);
+
+    // ── Step 6: podman network ls — lists networks without creating a container ─
+    // If this hangs but podman info succeeded, the issue is in netavark init.
+    console.log('[podman-validation] running: sudo podman network ls (30 s timeout)');
+    runDiagnostic(
+      'sudo podman network ls',
+      'sudo',
+      ['-n', 'env', sudoEnvironmentPath, 'podman', 'network', 'ls'],
+      30_000,
+    );
+
+    // ── Step 7: run the hello container ────────────────────────────────────────
+    // Uses system `timeout` as the outer command so that SIGKILL is guaranteed
+    // after 130 s regardless of whether sudo or podman responds to SIGTERM.
+    // Node's execFileSync timeout (150 s) is a belt-and-suspenders backstop only.
+    console.log('[podman-validation] running: sudo timeout --kill-after=10 120 podman run --rm quay.io/podman/hello');
     const output: string = execFileSync(
       'sudo',
-      [
-        '-n',
-        'env',
-        `PATH=${podmanDirectory}${path.delimiter}${process.env.PATH}`,
-        'podman',
-        'run',
-        '--rm',
-        HELLO_IMAGE,
-      ],
-      {encoding: 'utf8', timeout: 120_000},
+      ['-n', 'timeout', '--kill-after=10', '120', 'env', sudoEnvironmentPath, 'podman', 'run', '--rm', HELLO_IMAGE],
+      {encoding: 'utf8', timeout: 150_000},
     );
+    console.log('[podman-validation] podman run completed successfully');
     expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
   });
 }).timeout(600_000);

@@ -243,6 +243,37 @@ jobs:
           SOLO_PODMAN_RUNTIME_VALIDATION: 'true'
         run: task test-podman-runtime-validation
 
+      - name: Post-Test Diagnostics
+        if: always()
+        run: |
+          BREW_PODMAN='/home/linuxbrew/.linuxbrew/bin/podman'
+          echo "=== running processes (podman / netavark / conmon) ==="
+          ps aux | grep -E "podman|netavark|conmon|aardvark" | grep -v grep || echo "(none)"
+
+          echo "=== kernel modules (nf_tables / iptables) ==="
+          lsmod | grep -E "nf_tables|ip_tables|iptable_" | sort || echo "(no matching modules)"
+
+          echo "=== nftables tables (post-test) ==="
+          sudo nft list tables 2>&1 || echo "(nft unavailable)"
+
+          echo "=== iptables filter (post-test) ==="
+          sudo iptables -L -n 2>&1 || echo "(iptables unavailable)"
+
+          echo "=== iptables nat (post-test) ==="
+          sudo iptables -t nat -L -n 2>&1 || echo "(iptables nat unavailable)"
+
+          echo "=== /var/lib/containers/storage layout (post-test) ==="
+          sudo find /var/lib/containers/storage -maxdepth 3 -ls 2>&1 | head -60 || echo "(directory absent)"
+
+          echo "=== brew podman version (post-test) ==="
+          "${BREW_PODMAN}" --version 2>&1 || echo "(brew podman not found)"
+
+          echo "=== sudo podman info (post-test, 30 s timeout) ==="
+          sudo timeout 30 env "PATH=/home/linuxbrew/.linuxbrew/bin:${PATH}" podman info 2>&1 || echo "(podman info failed or timed out)"
+
+          echo "=== sudo podman network ls (post-test, 15 s timeout) ==="
+          sudo timeout 15 env "PATH=/home/linuxbrew/.linuxbrew/bin:${PATH}" podman network ls 2>&1 || echo "(podman network ls failed or timed out)"
+
       - name: Resolve Pinned Versions and Podman Path
         id: runtime
         run: |
