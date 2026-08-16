@@ -486,8 +486,11 @@ jobs:
           # since our own Delete step already ran first).
           BREW_PODMAN='/home/linuxbrew/.linuxbrew/bin/podman'
           sudo "${BREW_PODMAN}" system service --time=0 unix:///var/run/docker.sock &
-          # Give the service a moment to bind the socket before the kind-action runs.
+          # Give the service a moment to bind the socket, then make it world-accessible.
+          # The kind-action cleanup runs as the non-root runner user and gets "permission denied"
+          # if the socket is owned by root with 0600 permissions (the podman default).
           sleep 2
+          sudo chmod 666 /var/run/docker.sock
           ls -la /var/run/docker.sock 2>/dev/null || echo "warning: docker socket not yet visible"
 
       - name: Setup Kind
