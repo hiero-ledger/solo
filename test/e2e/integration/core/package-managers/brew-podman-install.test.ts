@@ -126,18 +126,43 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // --runroot is the per-session runtime directory (sockets, conmon PIDs); isolated for the same
     // reason.  Neither path affects the registry, containers.conf, or any production-code path.
     //
-    // --cgroup-manager=cgroupfs is passed on the command line (overriding containers.conf) to bypass
-    // the default systemd cgroup manager, which issues a dbus call to systemd for cgroup delegation
-    // at startup.  That dbus call hangs on GitHub-hosted runners and blocks every podman invocation
-    // including podman-info.  cgroupfs manages cgroups directly without any systemd/dbus interaction.
+    // --cgroup-manager=cgroupfs bypasses systemd cgroup delegation (the default "systemd" manager
+    // makes a dbus call at startup that hangs on GitHub-hosted runners).
+    //
+    // --storage-driver=vfs bypasses the overlay driver, which also requires mount syscalls that
+    // can hang on some runner configurations.
     const podmanStorageArguments: string[] = [
       '--root=/tmp/podman-brew-storage',
       '--runroot=/tmp/podman-brew-runroot',
       '--cgroup-manager=cgroupfs',
-      // vfs bypasses the overlay driver entirely; on GitHub-hosted runners the overlay
-      // initialisation (test-mount at startup) may also hang, so use vfs to rule it out.
       '--storage-driver=vfs',
     ];
+
+    // The brew-built conmon binary hangs when executed on GitHub-hosted runners (even for
+    // conmon --version). Podman calls conmon --version during podman-info and forks conmon
+    // to monitor every container start, so a hanging brew conmon blocks both podman-info
+    // and podman-run. The CI setup step installs the apt conmon package (protocol-compatible
+    // with brew podman 6.x) and writes a containers.conf that lists it first, but brew
+    // install podman overwrites /etc/containers/containers.conf with its own version.
+    // Passing --conmon explicitly overrides containers.conf entirely, making the test
+    // resilient to however brew configures the system.
+    const systemConmonCandidates: string[] = ['/usr/bin/conmon', '/usr/libexec/podman/conmon'];
+    for (const candidate of systemConmonCandidates) {
+      if (fs.existsSync(candidate)) {
+        try {
+          const conmonVersion: string = execFileSync(candidate, ['--version'], {
+            encoding: 'utf8',
+            timeout: 5000,
+            killSignal: 'SIGKILL',
+          });
+          console.log('[conmon]', `using ${candidate}: ${conmonVersion.trim()}`);
+          podmanStorageArguments.push(`--conmon=${candidate}`);
+          break;
+        } catch {
+          // candidate hangs or fails — try the next one
+        }
+      }
+    }
 
     // Emit podman info with debug logging so the last operation before any hang is visible
     // in CI logs. --log-level=debug is on the podman global flags, before the subcommand.

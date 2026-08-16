@@ -84,6 +84,15 @@ jobs:
           # whose PodmanDependencyManager downloads from api.github.com/repos/containers/podman/releases
           # — and each archive is checked against the sha256sum asset published with that release, so a
           # bad or tampered download fails this step rather than being installed.
+          # Install the system conmon package. The ubuntu-latest runner image does not include
+          # conmon by default — it is not a dependency of the pre-installed podman 4.x package
+          # in this image. `brew install podman` ships its own conmon in the brew prefix, but
+          # that brew-built binary hangs when executed on GitHub-hosted runners (even for
+          # conmon --version), causing every podman invocation that forks conmon (podman-info,
+          # podman-run) to block until SIGKILL. The apt conmon package (2.x) is
+          # protocol-compatible with brew podman 6.x and executes without hanging.
+          sudo apt-get install -y --no-install-recommends conmon
+
           HELPER_VERSION='v2.0.0'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
@@ -209,8 +218,15 @@ jobs:
           EOF
           )
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
+          # Write to both the runner's home config (HOME=/home/runner, which Ubuntu's sudo keeps
+          # by default via env_keep) and root's config (HOME=/root, for strict sudo env_reset).
+          # `brew install podman` overwrites /etc/containers/containers.conf with its own version
+          # (which only lists brew conmon), so this user-level config — never touched by brew —
+          # is the only reliable path for our custom conmon_path to survive the brew install step.
           sudo mkdir -p /root/.config/containers
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /root/.config/containers/containers.conf > /dev/null
+          mkdir -p /home/runner/.config/containers
+          echo "${CONTAINERS_CONF_CONTENT}" > /home/runner/.config/containers/containers.conf
 
       - name: Validate Homebrew Podman Install
         env:
