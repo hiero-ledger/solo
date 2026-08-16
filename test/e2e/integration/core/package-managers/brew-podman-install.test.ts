@@ -224,12 +224,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // invocations. podman version only reads compile-time version constants and never
     // touches the libpod database or locks, so it cannot corrupt state.
     console.log('[podman-validation] running: sudo podman version');
-    runDiagnostic(
-      'sudo podman version',
-      'sudo',
-      ['-n', 'env', sudoEnvironmentPath, 'podman', 'version'],
-      15_000,
-    );
+    runDiagnostic('sudo podman version', 'sudo', ['-n', 'env', sudoEnvironmentPath, 'podman', 'version'], 15_000);
 
     // ── Step 6: podman network ls ────────────────────────────────────────────────
     console.log('[podman-validation] running: sudo podman network ls (30 s timeout)');
@@ -245,21 +240,21 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     const brewCrun: string = '/home/linuxbrew/.linuxbrew/bin/crun';
 
     // ── Step 7: network=none probe with goroutine-dump diagnostic ───────────────
-    // All threads are in S/futex (pure Go-level deadlock, no D-state kernel blocking).
-    // Open fds show: fd3=cpu.max (cgroup read), fd4=db.sql (libpod SQLite state DB).
-    // SIGQUIT triggers Go's built-in goroutine stack dump (GOTRACEBACK=all ensures
-    // every goroutine is included), revealing exactly which goroutines are deadlocked
-    // and on what mutex/channel — the definitive next step for a Go-level deadlock.
-    console.log('[podman-validation] running network=none + SIGQUIT goroutine-dump diagnostic (35 s)');
+    // Observed behaviour across runs 11–14:
+    //   • fd3=cpu.max open even with --cgroups=disabled (cgroupfs manager init)
+    //   • fd4=db.sql open (libpod SQLite state DB opened after cgroup manager init)
+    //   • All background libpod goroutines idle (shutdown, startWorker, eventForwarder…)
+    //   • Goroutine 1 (main) in futex — the only hung goroutine, never conmon-spawning
+    //   • tail -150 cuts off goroutine 1 because debug log fills the beginning of the dump
+    // This run extracts goroutine 1 directly via grep+sed, adds per-thread wchan via
+    // `ps -L`, and captures kernel stacks for any D-state (kernel-blocking) threads.
+    console.log('[podman-validation] running network=none + SIGQUIT goroutine-dump diagnostic (45 s)');
     runDiagnostic(
-      'sudo podman run --network=none + Go goroutine dump (SIGQUIT)',
+      'sudo podman run --network=none + goroutine-dump (SIGQUIT)',
       'sh',
       [
         '-c',
         [
-          // GOTRACEBACK=all: include every goroutine in the SIGQUIT stack dump.
-          // --cgroups=disabled: skip container cgroup setup (that deadlock is bypassed;
-          // the remaining deadlock is in the libpod db.sql write).
           `sudo -n env '${sudoEnvironmentPath}' 'GOTRACEBACK=all' podman --log-level=debug run --rm --network=none`,
           '  --security-opt seccomp=unconfined --security-opt apparmor=unconfined',
           `  --cgroups=disabled --runtime=${brewCrun} ${HELLO_IMAGE} >/tmp/podman-probe-out.txt 2>/tmp/podman-probe-err.txt &`,
@@ -267,81 +262,104 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           'sleep 12;',
           'POD_PID=$(pgrep -P "$BG_PID" 2>/dev/null | head -1); [ -z "$POD_PID" ] && POD_PID=$BG_PID;',
           'echo "sudo_pid=$BG_PID podman_pid=$POD_PID";',
-          // Read static state before SIGQUIT kills the process.
           'echo "=== open fds ==="; sudo ls -la /proc/$POD_PID/fd 2>/dev/null | tail -20 || echo "(gone)";',
           'echo "=== status ==="; cat /proc/$POD_PID/status 2>/dev/null | grep -E "State|Threads" || true;',
-          // SIGQUIT → Go runtime prints all goroutine stacks to stderr then exits.
+          // Per-thread wait-channel via ps -L: shows whether any thread is D-state (kernel blocking).
+          'echo "=== all threads wchan/state ==="; ps -L -o tid,stat,wchan --no-headers -p $POD_PID 2>/dev/null || echo "(ps failed)";',
+          // Kernel stack for any D-state thread (D = uninterruptible kernel wait).
+          'echo "=== D-state thread kernel stacks ===";',
+          "for TID in $(ps -L -o tid,stat --no-headers -p $POD_PID 2>/dev/null | awk '$2~/^D/{print $1}'); do",
+          '  echo "--- tid=$TID ---"; sudo cat /proc/$POD_PID/task/$TID/stack 2>/dev/null;',
+          'done;',
+          // SIGQUIT → Go runtime prints all goroutine stacks to stderr (GOTRACEBACK=all).
           'echo "=== sending SIGQUIT for goroutine dump ===";',
           'sudo kill -QUIT $BG_PID $POD_PID 2>/dev/null;',
           'sleep 3;',
-          // Force-kill anything that survived SIGQUIT.
           'sudo kill -KILL $BG_PID $POD_PID 2>/dev/null; wait $BG_PID 2>/dev/null || true;',
-          // The goroutine dump is at the end of podman-probe-err.txt (written on SIGQUIT).
-          'echo "=== last 150 lines (debug log + goroutine dump) ==="; tail -150 /tmp/podman-probe-err.txt 2>/dev/null;',
+          // Goroutine 1 is printed FIRST in the SIGQUIT dump (before all other goroutines).
+          // The debug log fills the file, so tail -N misses it. grep+sed extracts it directly.
+          // Show 250 lines from goroutine 1 to capture goroutine 1 + any low-ID sibling goroutines.
+          'echo "=== goroutine 1 stack (main goroutine) ===";',
+          'DUMP_LINE=$(grep -n "^goroutine 1 " /tmp/podman-probe-err.txt 2>/dev/null | tail -1 | cut -d: -f1);',
+          'if [ -n "$DUMP_LINE" ]; then',
+          '  sed -n "${DUMP_LINE},$((DUMP_LINE+250))p" /tmp/podman-probe-err.txt 2>/dev/null;',
+          'else',
+          '  echo "(goroutine 1 not found in dump — debug tail)"; tail -80 /tmp/podman-probe-err.txt 2>/dev/null;',
+          'fi;',
           'rm -f /tmp/podman-probe-out.txt /tmp/podman-probe-err.txt;',
         ].join(' '),
       ],
-      40_000,
+      55_000,
     );
 
-    // After the probe, wipe the libpod SQLite state DB (db.sql + WAL + SHM files).
-    // The probe is killed mid-transaction via SIGQUIT/SIGKILL, which leaves SQLite's
-    // WAL or shared-memory lock state inconsistent. `podman rm --all --force` would
-    // itself deadlock on that corrupted state. Direct file removal is safe: SQLite
-    // recreates db.sql cleanly on the next open, and images live in the overlay store
-    // (not db.sql), so no image data is lost. Overlay mounts from the killed probe
-    // are also unmounted here so the final run's overlay setup starts clean.
-    runDiagnostic('post-probe cleanup: wipe SQLite state DB + overlay mounts', 'sh', [
+    // After the probe, wipe the libpod SQLite state DB, WAL/SHM, and c/storage lock
+    // files. The probe is SIGQUIT/SIGKILL'd mid-transaction; SQLite WAL state becomes
+    // inconsistent. c/storage lock files record the dead probe's PID — if Linux reuses
+    // that PID before Step 8 runs, the lock-file implementation may treat the reused
+    // process as a live lock holder and spin forever. Deleting these files lets Step 8
+    // start with clean, uncontended state. Images in overlay-images/ are unaffected.
+    runDiagnostic('post-probe cleanup: wipe SQLite DB, WAL, and storage lock files', 'sh', [
       '-c',
       [
         'echo "--- overlay mounts ---"; mount | grep overlay || echo "(none)";',
         'sudo umount $(mount | grep " overlay " | awk \'{print $3}\') 2>/dev/null || true;',
-        'echo "--- removing stale libpod db.sql (WAL/SHM dirty from killed probe) ---";',
+        'echo "--- removing stale db.sql + WAL/SHM ---";',
         'sudo rm -f /var/lib/containers/storage/db.sql /var/lib/containers/storage/db.sql-wal /var/lib/containers/storage/db.sql-shm;',
-        'echo "--- db.sql after cleanup ---"; ls -la /var/lib/containers/storage/db.* 2>/dev/null || echo "(all cleared — correct)";',
+        'echo "--- removing c/storage lock files (stale PID after SIGKILL) ---";',
+        'sudo rm -f /var/lib/containers/storage/overlay-images/images.lock',
+        '  /var/lib/containers/storage/overlay-layers/layers.lock',
+        '  /var/lib/containers/storage/overlay-containers/containers.lock;',
+        'echo "--- state after cleanup ---";',
+        'ls -la /var/lib/containers/storage/db.* 2>/dev/null || echo "(db files cleared — correct)";',
+        'ls -la /var/lib/containers/storage/overlay-*/*.lock 2>/dev/null || echo "(lock files cleared — correct)";',
       ].join(' '),
     ]);
 
-    // ── Step 8: run the hello container with bridge networking + debug logging ──
-    // --log-level=debug prints each internal podman/netavark step so the exact
-    // hang point is visible in CI logs even when the process is killed by timeout.
-    // --security-opt seccomp=unconfined: disable the system seccomp profile to rule out
-    // a syscall block in /etc/containers/seccomp.json as the cause of the hang.
-    // --security-opt apparmor=unconfined: bypass AppArmor profile enforcement; Ubuntu 24.04
-    // AppArmor stalls during container spec generation before conmon starts.
-    // --cgroups=disabled: bypass all container cgroup setup. The cgroupfs manager
-    // deadlocks (pure Go-level futex wait, all threads S/wchan=0) when it attempts to
-    // manipulate the GitHub Actions runner's system.slice/hosted-compute-agent.service
-    // cgroup hierarchy. Disabling cgroup setup bypasses this deadlock entirely.
-    // Uses system `timeout` to guarantee SIGKILL after 130 s.
-    // --runtime forces the brew crun; without it podman falls back to the system
-    // crun (/usr/local/bin/crun) which hangs inside conmon with brew podman 6.x.
+    // ── Step 8: final podman run with goroutine dump at 20 s if still hung ───────
+    // Runs podman in background so a SIGQUIT can be sent at 20 s to capture goroutine
+    // 1's stack while the process is alive — the key data missing from the probe dump
+    // (probe's goroutine 1 was cut off by file ordering; Step 8 captures it cleanly).
+    // After the dump, the 120 s timeout kills the process. exit propagates the failure.
     console.log(
-      '[podman-validation] running: sudo timeout --kill-after=10 120 podman run --log-level=debug --cgroups=disabled --rm quay.io/podman/hello',
+      '[podman-validation] running: sudo timeout --kill-after=10 120 podman run (with SIGQUIT at 20 s if hung)',
     );
-    const output: string = execFileSync(
-      'sudo',
-      [
-        '-n',
-        'timeout',
-        '--kill-after=10',
-        '120',
-        'env',
-        sudoEnvironmentPath,
-        'podman',
-        '--log-level=debug',
-        'run',
-        '--rm',
-        '--security-opt',
-        'seccomp=unconfined',
-        '--security-opt',
-        'apparmor=unconfined',
-        '--cgroups=disabled',
-        `--runtime=${brewCrun}`,
-        HELLO_IMAGE,
-      ],
-      {encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 150_000},
-    );
+    const step8Shell: string = [
+      // Background run; stderr to file for goroutine-dump extraction.
+      `sudo -n env '${sudoEnvironmentPath}' GOTRACEBACK=all timeout --kill-after=10 120`,
+      '  podman --log-level=debug run --rm',
+      '  --security-opt seccomp=unconfined --security-opt apparmor=unconfined',
+      `  --cgroups=disabled --runtime=${brewCrun} ${HELLO_IMAGE}`,
+      '  >/tmp/s8-stdout.txt 2>/tmp/s8-stderr.txt &',
+      'S8_BG=$!;',
+      // At 20 s: thread wchan scan + SIGQUIT goroutine dump if still running.
+      'sleep 20;',
+      'if kill -0 $S8_BG 2>/dev/null; then',
+      '  S8_PID=$(pgrep -x podman 2>/dev/null | head -1); [ -z "$S8_PID" ] && S8_PID=$S8_BG;',
+      '  echo "[step8-diag] still running at 20 s — podman_pid=$S8_PID";',
+      '  echo "[step8-diag] threads:"; ps -L -o tid,stat,wchan --no-headers -p $S8_PID 2>/dev/null;',
+      '  echo "[step8-diag] D-state stacks:";',
+      "  for TID in $(ps -L -o tid,stat --no-headers -p $S8_PID 2>/dev/null | awk '$2~/^D/{print $1}'); do",
+      '    echo "--- tid=$TID ---"; sudo cat /proc/$S8_PID/task/$TID/stack 2>/dev/null;',
+      '  done;',
+      '  sudo kill -QUIT $S8_BG $S8_PID 2>/dev/null; sleep 3;',
+      '  DL=$(grep -n "^goroutine 1 " /tmp/s8-stderr.txt 2>/dev/null | tail -1 | cut -d: -f1);',
+      '  if [ -n "$DL" ]; then',
+      '    echo "=== step8 goroutine 1 ==="; sed -n "${DL},$((DL+80))p" /tmp/s8-stderr.txt 2>/dev/null;',
+      '  else',
+      '    echo "=== step8 debug tail ==="; tail -30 /tmp/s8-stderr.txt 2>/dev/null;',
+      '  fi;',
+      'fi;',
+      'wait $S8_BG; S8_EXIT=$?;',
+      // cat stdout last — execFileSync captures it; we check it for "Podman".
+      'cat /tmp/s8-stdout.txt 2>/dev/null;',
+      'rm -f /tmp/s8-stdout.txt /tmp/s8-stderr.txt;',
+      'exit $S8_EXIT;',
+    ].join(' ');
+    const output: string = execFileSync('sh', ['-c', step8Shell], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 150_000,
+    });
     console.log('[podman-validation] podman run completed successfully');
     expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
   });
