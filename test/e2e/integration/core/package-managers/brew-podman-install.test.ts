@@ -188,26 +188,6 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       }
     }
 
-    // Emit podman info with debug logging so the last operation before any hang is visible
-    // in CI logs. --log-level=debug is on the podman global flags, before the subcommand.
-    try {
-      const podmanInfoOutput: string = execFileSync(
-        'sudo',
-        [...sudoEnvironmentArguments, 'podman', '--log-level=debug', ...podmanStorageArguments, 'info'],
-        {encoding: 'utf8', timeout: 30_000, killSignal: 'SIGKILL'},
-      );
-      console.log('[podman info]', podmanInfoOutput.slice(0, 2000));
-    } catch (podmanInfoError: unknown) {
-      const infoError: Record<string, unknown> = podmanInfoError as Record<string, unknown>;
-      console.log('[podman info failed]', String(infoError['message'] ?? podmanInfoError));
-      console.log('[podman info stdout]', String(infoError['stdout'] ?? '(empty)').slice(0, 1000));
-      // Show the LAST 5000 chars so the debug lines right before the hang are visible
-      // (the first N chars are early init messages that always succeed; the hang occurs
-      // somewhere after OCI runtime selection, which appears near the end of the log).
-      const stderrContent: string = String(infoError['stderr'] ?? '(empty)');
-      console.log('[podman info stderr (last 5000)]', stderrContent.slice(-5000));
-    }
-
     // Pull the image before the timed `podman run` so the 60-second window is spent only on
     // container start and execution, not on the network round-trip from quay.io. On cold
     // GitHub-hosted runners the image download can consume the entire 60-second budget,
@@ -237,6 +217,9 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     //                       fine but crun's subsequent cgroup operations block). Note:
     //                       podman 6.x requires a private PID namespace when cgroups are
     //                       disabled, so --pid=host cannot be combined with this flag.
+    // --no-hosts          — skip /etc/hosts creation; podman resolves "host.containers.internal"
+    //                       for the hosts file and that DNS lookup can take up to 60 seconds on
+    //                       GitHub-hosted runners where the hostname is not in /etc/hosts.
     // seccomp=unconfined  — skip seccomp filter installation (seccomp syscall hangs)
     // apparmor=unconfined — skip AppArmor profile loading (aa_change_onexec hangs)
     //
@@ -259,6 +242,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           '--uts=host',
           '--userns=host',
           '--cgroups=disabled',
+          '--no-hosts',
           '--security-opt',
           'seccomp=unconfined',
           '--security-opt',
