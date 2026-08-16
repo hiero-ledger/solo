@@ -43,7 +43,7 @@ env:
 jobs:
   podman-runtime-validation:
     name: 'Install Validation (Podman Runtime)'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -285,14 +285,6 @@ jobs:
           version: ${{ steps.runtime.outputs.kind-version }}
 
       - name: Create Kind Cluster With Podman
-        # brew podman 6.x on ubuntu-latest runners hangs during container creation
-        # (podman run hangs after OCI spec generation regardless of flags applied).
-        # This blocks kind cluster creation, which uses `podman run -d` internally.
-        # The 15-minute timeout prevents the entire 30-minute job from being consumed.
-        # continue-on-error allows the cleanup step and job to complete even when kind hangs.
-        # Tracked by hiero-ledger/solo#5836 for follow-up fix of the brew podman run hang.
-        continue-on-error: true
-        timeout-minutes: 15
         env:
           PODMAN_DIRECTORY: ${{ steps.runtime.outputs.podman-directory }}
           KIND_NODE_IMAGE: ${{ steps.runtime.outputs.kind-node-image }}
