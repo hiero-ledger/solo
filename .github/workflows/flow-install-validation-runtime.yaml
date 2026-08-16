@@ -182,6 +182,17 @@ jobs:
           # iptables-backed "podman" one) and wipes the libpod database so brew podman 6.x creates a
           # fresh one with no migration. The explicit rm below is belt-and-suspenders: `system reset`
           # can leave a schema-only database file that still triggers the migration path.
+          #
+          # SHM lock pre-cleanup: libpod uses a mmap'd file at /run/libpod/locks that stores a pool
+          # of POSIX semaphores protected by a global sem_t allocation mutex. If any previous podman
+          # process is SIGKILL'd while inside allocate_semaphore() (the C function that holds that
+          # mutex), the mutex stays permanently locked — it is a non-robust sem_t with no
+          # PTHREAD_MUTEX_ROBUST semantics, so it survives process death. Every subsequent podman run
+          # that tries to create a container blocks in _Cfunc_allocate_semaphore() forever. podman
+          # system reset does NOT recreate this file, so the corruption persists across CI runs.
+          # Deleting it here forces the next podman invocation to create a fresh file with an
+          # unlocked mutex. This must happen BEFORE system reset so that reset itself uses a clean SHM.
+          sudo rm -f /run/libpod/locks 2>/dev/null || true
           sudo podman system reset --force 2>/dev/null || true
           sudo rm -rf /var/lib/containers/storage/libpod 2>/dev/null || true
 

@@ -292,26 +292,34 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       55_000,
     );
 
-    // After the probe, wipe the libpod SQLite state DB, WAL/SHM, and c/storage lock
-    // files. The probe is SIGQUIT/SIGKILL'd mid-transaction; SQLite WAL state becomes
-    // inconsistent. c/storage lock files record the dead probe's PID — if Linux reuses
-    // that PID before Step 8 runs, the lock-file implementation may treat the reused
-    // process as a live lock holder and spin forever. Deleting these files lets Step 8
-    // start with clean, uncontended state. Images in overlay-images/ are unaffected.
-    runDiagnostic('post-probe cleanup: wipe SQLite DB, WAL, and storage lock files', 'sh', [
+    // After the probe, delete the libpod SHM lock file and the SQLite state DB.
+    //
+    // ROOT CAUSE (confirmed by goroutine 1 stack in run 15):
+    //   libpod uses a mmap'd file at /run/libpod/locks containing a pool of POSIX
+    //   semaphores protected by a global sem_t allocation mutex. When the probe is
+    //   SIGKILL'd while inside allocate_semaphore() (which holds that mutex), the mutex
+    //   stays permanently locked — sem_t has no PTHREAD_MUTEX_ROBUST semantics, so the
+    //   dead owner is never detected. Every subsequent podman run blocks indefinitely in
+    //   libpod/lock/shm._Cfunc_allocate_semaphore() at the sem_wait() inside that C fn.
+    //
+    //   Deleting /run/libpod/locks causes the next podman invocation to create a fresh
+    //   file with an unlocked mutex, breaking the deadlock.
+    //
+    // db.sql is also deleted: the probe was SIGQUIT/SIGKILL'd mid-transaction, leaving
+    // SQLite WAL state inconsistent. Direct removal is safe — images live in overlay-
+    // images/, not db.sql, so no image data is lost.
+    runDiagnostic('post-probe cleanup: wipe SHM locks + SQLite DB + overlay mounts', 'sh', [
       '-c',
       [
         'echo "--- overlay mounts ---"; mount | grep overlay || echo "(none)";',
         'sudo umount $(mount | grep " overlay " | awk \'{print $3}\') 2>/dev/null || true;',
+        // THE CRITICAL FIX: delete the libpod SHM lock file so Step 8 gets a fresh mutex.
+        'echo "--- removing libpod SHM lock (corrupted by SIGKILL during allocate_semaphore) ---";',
+        'sudo rm -f /run/libpod/locks;',
+        'ls -la /run/libpod/locks 2>/dev/null || echo "(SHM lock cleared — correct)";',
         'echo "--- removing stale db.sql + WAL/SHM ---";',
         'sudo rm -f /var/lib/containers/storage/db.sql /var/lib/containers/storage/db.sql-wal /var/lib/containers/storage/db.sql-shm;',
-        'echo "--- removing c/storage lock files (stale PID after SIGKILL) ---";',
-        'sudo rm -f /var/lib/containers/storage/overlay-images/images.lock',
-        '  /var/lib/containers/storage/overlay-layers/layers.lock',
-        '  /var/lib/containers/storage/overlay-containers/containers.lock;',
-        'echo "--- state after cleanup ---";',
         'ls -la /var/lib/containers/storage/db.* 2>/dev/null || echo "(db files cleared — correct)";',
-        'ls -la /var/lib/containers/storage/overlay-*/*.lock 2>/dev/null || echo "(lock files cleared — correct)";',
       ].join(' '),
     ]);
 
