@@ -302,8 +302,9 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     //   dead owner is never detected. Every subsequent podman run blocks indefinitely in
     //   libpod/lock/shm._Cfunc_allocate_semaphore() at the sem_wait() inside that C fn.
     //
-    //   Deleting /run/libpod/locks causes the next podman invocation to create a fresh
-    //   file with an unlocked mutex, breaking the deadlock.
+    //   lock_type = "file" in containers.conf is the primary fix: file locks are
+    //   automatically released by the kernel on process death, so no corruption is
+    //   possible. The rm below is belt-and-suspenders for any residual SHM.
     //
     // db.sql is also deleted: the probe was SIGQUIT/SIGKILL'd mid-transaction, leaving
     // SQLite WAL state inconsistent. Direct removal is safe — images live in overlay-
@@ -311,11 +312,13 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     runDiagnostic('post-probe cleanup: wipe SHM locks + SQLite DB + overlay mounts', 'sh', [
       '-c',
       [
+        'echo "--- /dev/shm before cleanup ---"; ls -la /dev/shm/ 2>/dev/null;',
+        'echo "--- /run/libpod/locks before cleanup ---"; ls -la /run/libpod/locks 2>/dev/null || echo "(absent)";',
         'echo "--- overlay mounts ---"; mount | grep overlay || echo "(none)";',
         'sudo umount $(mount | grep " overlay " | awk \'{print $3}\') 2>/dev/null || true;',
-        // THE CRITICAL FIX: delete the libpod SHM lock file so Step 8 gets a fresh mutex.
-        'echo "--- removing libpod SHM lock (corrupted by SIGKILL during allocate_semaphore) ---";',
-        'sudo rm -f /run/libpod/locks;',
+        'echo "--- removing libpod SHM lock (belt-and-suspenders; lock_type=file is primary fix) ---";',
+        'sudo rm -f /run/libpod/locks 2>/dev/null || true;',
+        "sudo find /dev/shm -name 'libpod*' -delete 2>/dev/null || true;",
         'ls -la /run/libpod/locks 2>/dev/null || echo "(SHM lock cleared — correct)";',
         'echo "--- removing stale db.sql + WAL/SHM ---";',
         'sudo rm -f /var/lib/containers/storage/db.sql /var/lib/containers/storage/db.sql-wal /var/lib/containers/storage/db.sql-shm;',

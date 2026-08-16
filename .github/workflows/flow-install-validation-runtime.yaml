@@ -193,7 +193,17 @@ jobs:
           # Deleting it here forces the next podman invocation to create a fresh file with an
           # unlocked mutex. This must happen BEFORE system reset so that reset itself uses a clean SHM.
           sudo rm -f /run/libpod/locks 2>/dev/null || true
+          sudo find /dev/shm -name 'libpod*' -delete 2>/dev/null || true
           sudo podman system reset --force 2>/dev/null || true
+          # Delete the SHM lock file again: podman system reset creates a new /run/libpod/locks
+          # and may be SIGKILL'd while inside allocate_semaphore() holding the global sem_t
+          # mutex, leaving the new file's mutex permanently locked. The || true above swallows
+          # the kill signal exit code and execution continues with a corrupted new SHM. Deleting
+          # it here ensures the first real podman invocation (the probe / Step 8) creates a
+          # genuinely fresh, unlocked SHM. lock_type = "file" in containers.conf is the primary
+          # fix; this rm is belt-and-suspenders in case lock_type is not honoured.
+          sudo rm -f /run/libpod/locks 2>/dev/null || true
+          sudo find /dev/shm -name 'libpod*' -delete 2>/dev/null || true
           sudo rm -rf /var/lib/containers/storage/libpod 2>/dev/null || true
 
           # The system podman 4.x writes /var/lib/containers/storage/overlay/.has-mount-program
@@ -275,6 +285,7 @@ jobs:
           helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
           events_logger = "file"
           cgroup_manager = "cgroupfs"
+          lock_type = "file"
 
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]
@@ -308,6 +319,10 @@ jobs:
           ls -la /var/lib/containers/storage/libpod 2>&1 || echo "(directory absent — correct)"
           echo "=== /var/lib/containers/storage/network (should be absent) ==="
           ls -la /var/lib/containers/storage/network 2>&1 || echo "(directory absent — correct)"
+          echo "=== /run/libpod/locks (should be absent) ==="
+          ls -la /run/libpod/locks 2>&1 || echo "(absent — correct)"
+          echo "=== /dev/shm (libpod objects should be absent) ==="
+          ls -la /dev/shm/ 2>&1 | grep libpod || echo "(no libpod objects in /dev/shm — correct)"
 
       - name: Validate Homebrew Podman Install
         env:
