@@ -78,19 +78,15 @@ jobs:
           # the same version skew as the system crun described in the next step, except there is no
           # brew binary to point at, so a matching pair is fetched here instead.
           #
-          # 1.17.x is the last 1.x release line before netavark 2.0.0 dropped iptables support
-          # (June 2026). Podman 6.1.0 creates networks with firewall_driver = "iptables" by
-          # default (containers.conf [network] firewall_driver = "nftables" is not applied
-          # to auto-created or explicitly-created networks in this version). Netavark 2.0.0
-          # rejects iptables entirely, making every podman run fail with "Must provide a valid
-          # firewall backend, got iptables". Netavark 1.17.x understands podman 6.x's network-
-          # options payload format (avoids the old "invalid type: sequence, expected a map" error
-          # that the system podman 4.x-era /usr/lib/podman/netavark produces) while still
-          # accepting the iptables firewall driver. Pins must move together when brew podman
-          # major changes to a release line that fixes the firewall_driver config regression.
-          # netavark and aardvark-dns version together but may lag by a patch release.
-          NETAVARK_VERSION='v1.17.2'
-          AARDVARK_DNS_VERSION='v1.17.1'
+          # v2.0.0 is the only netavark release compatible with podman 6.x's network-options
+          # wire format. Podman 6.x changed the format from a map to a sequence; 1.17.x
+          # (and all earlier 1.x) rejected it with "invalid type: sequence, expected a map".
+          # Only 2.0.0 can parse the new format. However, 2.0.0 also dropped iptables
+          # support: containers with firewall_driver = "iptables" fail with "Must provide
+          # a valid firewall backend, got iptables". The safety-net step below pre-creates
+          # all needed bridge networks (podman, kind) with firewall_driver=nftables before
+          # kind runs, so netavark 2.0.0 always receives a valid nftables config.
+          HELPER_VERSION='v2.0.0'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
           # A dedicated directory: nothing is written into the brew prefix or the system podman
@@ -98,11 +94,6 @@ jobs:
           sudo mkdir -p "${HELPER_DIRECTORY}"
 
           for HELPER in netavark aardvark-dns; do
-            if [[ "${HELPER}" == "netavark" ]]; then
-              HELPER_VERSION="${NETAVARK_VERSION}"
-            else
-              HELPER_VERSION="${AARDVARK_DNS_VERSION}"
-            fi
             RELEASE_URL="https://github.com/containers/${HELPER}/releases/download/${HELPER_VERSION}"
             DOWNLOAD_DIRECTORY="$(mktemp -d)"
 
@@ -315,10 +306,9 @@ jobs:
           # and picks up the system-packaged conmon which is too old for brew podman 6.x.
           # firewall_driver = "nftables" in [network]: kept for documentation/intent — in
           # podman 6.1.0 this field is not applied to auto-created or explicitly-created
-          # networks; the actual enforcement is by using netavark 1.17.x (which accepts iptables)
-          # rather than 2.0.0 (which rejects it). When a future podman release fixes the
-          # firewall_driver regression, this setting will take effect and the netavark pin
-          # can be upgraded back to 2.0.0.
+          # networks. The actual enforcement is in the "Pre-create Podman Networks With nftables
+          # for Kind" step below, which patches db.sql directly and pre-creates the "kind"
+          # network with the correct driver before kind runs.
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [containers]
           apparmor_profile = "unconfined"
@@ -404,44 +394,111 @@ jobs:
           echo "=== sudo podman network ls (post-test, 15 s timeout) ==="
           sudo timeout 15 env "PATH=/home/linuxbrew/.linuxbrew/bin:${PATH}" podman network ls 2>&1 || echo "(podman network ls failed or timed out)"
 
-      - name: Ensure Podman Bridge Network Uses nftables
+      - name: Pre-create Podman Networks With nftables for Kind
         run: |
-          # Safety net: confirm that the default "podman" bridge network carries
-          # firewall_driver = nftables (or absent, which netavark 2.0.0 also accepts).
-          # If it still has "iptables" — despite the normalize step deleting storage/networks/
-          # — we delete and recreate it before kind runs.  A stale iptables config causes
-          # "Must provide a valid firewall backend, got iptables" when kind attaches containers
-          # to the bridge network.
+          # Netavark 2.0.0 (required for podman 6.x wire format) rejects firewall_driver=iptables.
+          # Podman 6.1.0 creates bridge networks with firewall_driver=iptables by default because
+          # the containers.conf [network] firewall_driver field is not applied to new networks in
+          # this version (bug). We work around it by pre-creating the two networks kind uses
+          # — "podman" (default) and "kind" (per-cluster) — with explicit firewall_driver=nftables
+          # via --opt. If --opt firewall_driver=nftables is unsupported by podman 6.1.0, we patch
+          # the network's entry in db.sql directly via sqlite3 as a fallback.
+          # kind's podman provider calls ensureNetwork(name) which is a no-op when the network
+          # already exists, so pre-creating both networks here prevents kind from creating them
+          # with the wrong driver at cluster-creation time.
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           BREW_PODMAN="${BREW_PREFIX}/bin/podman"
           BREW_ENV="PATH=${BREW_PREFIX}/bin:${PATH}"
+          DB='/var/lib/containers/storage/db.sql'
 
-          echo "=== /var/lib/containers/storage/networks (netavark persistent configs) ==="
-          sudo find /var/lib/containers/storage/networks/ -ls 2>/dev/null | head -30 || echo "(absent)"
+          echo "=== db.sql network rows before recreation ==="
+          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
+            || echo "(sqlite3 failed or table absent)"
 
-          echo "=== podman network inspect podman ==="
-          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1 \
-            | tee /tmp/podman-net-inspect.txt || true
+          echo "=== podman network inspect podman (pre-recreation) ==="
+          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1 || true
 
-          if grep -q '"firewall_driver": *"iptables"' /tmp/podman-net-inspect.txt 2>/dev/null; then
-            echo "=== WARN: firewall_driver=iptables detected — wiping and recreating ==="
-            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network rm -f podman 2>/dev/null || true
-            sudo rm -rf /var/lib/containers/storage/networks/ 2>/dev/null || true
-            sudo rm -f /var/lib/containers/storage/db.sql \
-                       /var/lib/containers/storage/db.sql-wal \
-                       /var/lib/containers/storage/db.sql-shm 2>/dev/null || true
-            sudo rm -rf /run/containers/networks/ 2>/dev/null || true
-            # Explicit create so containers.conf firewall_driver = "nftables" is applied to the
-            # new network record rather than relying on auto-creation during libpod init.
+          # --- Recreate default "podman" network with firewall_driver=nftables ---
+          echo "=== removing and recreating podman network with firewall_driver=nftables ==="
+          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network rm -f podman 2>/dev/null || true
+          sudo rm -rf /var/lib/containers/storage/networks/ 2>/dev/null || true
+          sudo rm -f "${DB}" "${DB}-wal" "${DB}-shm" 2>/dev/null || true
+          sudo rm -rf /run/containers/networks/ 2>/dev/null || true
+
+          # Try explicit --opt firewall_driver=nftables (supported in containers/common >= 0.65)
+          if ! sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create \
+              --driver bridge --opt firewall_driver=nftables podman 2>&1; then
+            echo "=== --opt firewall_driver=nftables rejected; falling back to plain create ==="
             sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create --driver bridge podman 2>&1 || true
-            echo "=== podman network inspect podman (after recreation) ==="
-            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1 || true
-          else
-            echo "=== podman bridge network OK (nftables or absent — acceptable) ==="
           fi
 
-          echo "=== podman network ls ==="
+          echo "=== podman network inspect podman (after recreation) ==="
+          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1
+
+          echo "=== db.sql podman network options (post-recreation) ==="
+          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
+            || echo "(sqlite3 failed)"
+
+          # Patch db.sql directly: ensure options.firewall_driver = "nftables" for ALL networks.
+          # This is belt-and-suspenders in case --opt was rejected and the plain create stored
+          # no options (or stored iptables). SQLite JSON functions are available in SQLite >= 3.38.
+          echo "=== patching db.sql: setting firewall_driver=nftables on all bridge networks ==="
+          sudo sqlite3 "${DB}" "
+            UPDATE Networks
+            SET json = json_set(
+              CASE
+                WHEN json_extract(json, '$.options') IS NULL
+                THEN json_set(json, '$.options', json('{}'))
+                ELSE json
+              END,
+              '$.options.firewall_driver', 'nftables'
+            )
+            WHERE json_extract(json, '$.driver') = 'bridge';
+          " 2>/dev/null && echo "(db.sql patched)" || echo "(sqlite3 patch failed — may not be needed)"
+
+          echo "=== db.sql network options after patch ==="
+          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
+            || echo "(sqlite3 failed)"
+
+          # --- Pre-create "kind" network that kind v0.29.0 uses for all clusters ---
+          # kind's podman provider calls ensureNetwork("kind") which skips creation when the
+          # network already exists. Pre-creating it with nftables prevents kind from creating it
+          # with the iptables default. kind uses 172.18.0.0/16 by default.
+          echo "=== pre-creating kind network with firewall_driver=nftables ==="
+          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network rm -f kind 2>/dev/null || true
+          if ! sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create \
+              --driver bridge \
+              --subnet 172.18.0.0/16 \
+              --gateway 172.18.0.1 \
+              --opt firewall_driver=nftables \
+              kind 2>&1; then
+            echo "=== --opt rejected; trying plain create ==="
+            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create \
+              --driver bridge \
+              --subnet 172.18.0.0/16 \
+              --gateway 172.18.0.1 \
+              kind 2>&1 || true
+          fi
+
+          # Patch "kind" network in db.sql too
+          sudo sqlite3 "${DB}" "
+            UPDATE Networks
+            SET json = json_set(
+              CASE
+                WHEN json_extract(json, '$.options') IS NULL
+                THEN json_set(json, '$.options', json('{}'))
+                ELSE json
+              END,
+              '$.options.firewall_driver', 'nftables'
+            )
+            WHERE name = 'kind';
+          " 2>/dev/null && echo "(kind network patched in db.sql)" || echo "(patch failed)"
+
+          echo "=== final podman network ls ==="
           sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network ls 2>&1 || true
+          echo "=== db.sql final network options ==="
+          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
+            || echo "(sqlite3 failed)"
 
       - name: Resolve Pinned Versions and Podman Path
         id: runtime
