@@ -226,13 +226,14 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // policies and proper network isolation:
     //
     // --network=host      — skip network namespace creation (clone(CLONE_NEWNET) hangs)
-    // --pid=host          — skip PID namespace creation (clone(CLONE_NEWPID) hangs)
     // --ipc=host          — skip IPC namespace creation (clone(CLONE_NEWIPC) hangs)
     // --uts=host          — skip UTS namespace creation (clone(CLONE_NEWUTS) hangs)
     // --userns=host       — skip user namespace mapping (uid/gid remapping hangs)
-    // --cgroups=disabled  — skip all cgroup operations (cgroupfs mkdir/write hangs on
-    //                       GitHub-hosted runners where the runner's cgroupv2 subtree
-    //                       has limited delegation; crun still runs the container process)
+    // --cgroups=disabled  — skip crun's cgroup phase (cgroupfs write hangs on
+    //                       GitHub-hosted runners; podman's own cgroup setup completes
+    //                       fine but crun's subsequent cgroup operations block). Note:
+    //                       podman 6.x requires a private PID namespace when cgroups are
+    //                       disabled, so --pid=host cannot be combined with this flag.
     // seccomp=unconfined  — skip seccomp filter installation (seccomp syscall hangs)
     // apparmor=unconfined — skip AppArmor profile loading (aa_change_onexec hangs)
     //
@@ -251,7 +252,6 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           '--rm',
           '--pull=never',
           '--network=host',
-          '--pid=host',
           '--ipc=host',
           '--uts=host',
           '--userns=host',
