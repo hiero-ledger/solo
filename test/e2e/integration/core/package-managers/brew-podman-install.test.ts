@@ -108,7 +108,10 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         '--rm',
         HELLO_IMAGE,
       ],
-      {encoding: 'utf8'},
+      // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
+      // Without a timeout, a hung `podman run` (e.g. stalled image pull) freezes mocha
+      // indefinitely; no timers, no --exit, and no async timeout can interrupt it.
+      {encoding: 'utf8', timeout: 60_000},
     );
     expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
   });

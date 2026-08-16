@@ -109,7 +109,7 @@ export class ShellRunner {
       }
 
       const resetIdleTimeout: () => void = (): void => {
-        if (idleTimeoutMs === undefined) {
+        if (idleTimeoutMs === undefined || timedOut) {
           return;
         }
 
