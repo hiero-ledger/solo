@@ -193,7 +193,7 @@ jobs:
           events_logger = "none"
           # cgroupfs bypasses systemd cgroup delegation (the default "systemd" manager makes a
           # dbus call to ask systemd to delegate a cgroup slice at startup — that call hangs on
-          # GitHub-hosted runners and blocks every podman invocation, including `podman info`).
+          # GitHub-hosted runners and blocks every podman invocation, including podman-info).
           cgroup_manager = "cgroupfs"
 
           [engine.runtimes]
