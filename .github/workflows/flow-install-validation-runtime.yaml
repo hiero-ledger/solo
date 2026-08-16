@@ -476,6 +476,20 @@ jobs:
           echo "podman-directory=${PODMAN_DIRECTORY}" >> "$GITHUB_OUTPUT"
           "${PODMAN_DIRECTORY}/podman" --version
 
+      - name: Expose Podman as Docker Socket
+        run: |
+          # helm/kind-action's post-cleanup step probes unix:///var/run/docker.sock to delete
+          # any clusters it created.  We stopped the Docker daemon in the Normalize step so the
+          # socket is gone, causing the cleanup to fail and the job to turn red even though all
+          # real steps passed.  Expose the rootful Podman REST API on the same socket path so
+          # the action's cleanup can connect and exit cleanly (it will find no clusters to delete
+          # since our own Delete step already ran first).
+          BREW_PODMAN='/home/linuxbrew/.linuxbrew/bin/podman'
+          sudo "${BREW_PODMAN}" system service --time=0 unix:///var/run/docker.sock &
+          # Give the service a moment to bind the socket before the kind-action runs.
+          sleep 2
+          ls -la /var/run/docker.sock 2>/dev/null || echo "warning: docker socket not yet visible"
+
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
