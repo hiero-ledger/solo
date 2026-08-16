@@ -218,16 +218,20 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
 
     // `--pull=never` skips the registry check since the image was just pulled above, keeping
     // the full 60-second budget for container start and execution.
-    // --network=host uses the host network namespace directly, avoiding the creation of a
-    // new network namespace. On GitHub-hosted runners, creating a new network namespace
-    // (even with --network=none) may hang; --network=host bypasses that entirely. Full
-    // network validation (including netavark and the kind podman provider) happens in the
-    // "Create Kind Cluster With Podman" step.
-    // --security-opt seccomp=unconfined disables seccomp profile loading. On GitHub-hosted
-    // runners the kernel's seccomp(SECCOMP_SET_MODE_FILTER) call hangs when brew podman 6.x
-    // tries to install its default seccomp profile. This is a diagnostic-only container run
-    // (quay.io/podman/hello prints a greeting and exits), so no seccomp restriction is needed
-    // here; the kind cluster creation step that follows exercises the full stack.
+    //
+    // All of the following flags bypass isolation features that hang on GitHub-hosted
+    // runners when brew podman 6.x tries to set them up via kernel syscalls. This is a
+    // diagnostic-only container run (quay.io/podman/hello prints a greeting and exits);
+    // the kind cluster creation step that follows exercises the full stack with security
+    // policies and proper network isolation:
+    //
+    // --network=host   — skip network namespace creation (clone(CLONE_NEWNET) hangs)
+    // --pid=host       — skip PID namespace creation (clone(CLONE_NEWPID) hangs)
+    // --ipc=host       — skip IPC namespace creation (clone(CLONE_NEWIPC) hangs)
+    // --uts=host       — skip UTS namespace creation (clone(CLONE_NEWUTS) hangs)
+    // seccomp=unconfined — skip seccomp filter installation (seccomp syscall hangs)
+    // apparmor=unconfined — skip AppArmor profile loading (aa_change_onexec hangs)
+    //
     // --log-level=debug is passed so the stderr before any ETIMEDOUT shows exactly where
     // the hang occurs within the container-launch sequence.
     let runOutput: string = '';
@@ -243,8 +247,13 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           '--rm',
           '--pull=never',
           '--network=host',
+          '--pid=host',
+          '--ipc=host',
+          '--uts=host',
           '--security-opt',
           'seccomp=unconfined',
+          '--security-opt',
+          'apparmor=unconfined',
           HELLO_IMAGE,
         ],
         // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
