@@ -125,7 +125,16 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // because the two versions write incompatible lock or metadata files into the same directory.
     // --runroot is the per-session runtime directory (sockets, conmon PIDs); isolated for the same
     // reason.  Neither path affects the registry, containers.conf, or any production-code path.
-    const podmanStorageArguments: string[] = ['--root=/tmp/podman-brew-storage', '--runroot=/tmp/podman-brew-runroot'];
+    //
+    // --cgroup-manager=cgroupfs is passed on the command line (overriding containers.conf) to bypass
+    // the default systemd cgroup manager, which issues a dbus call to systemd for cgroup delegation
+    // at startup.  That dbus call hangs on GitHub-hosted runners and blocks every podman invocation
+    // including podman-info.  cgroupfs manages cgroups directly without any systemd/dbus interaction.
+    const podmanStorageArguments: string[] = [
+      '--root=/tmp/podman-brew-storage',
+      '--runroot=/tmp/podman-brew-runroot',
+      '--cgroup-manager=cgroupfs',
+    ];
 
     // Emit podman info so the storage driver, OCI runtime, and conmon path are visible in CI logs
     // if the subsequent run fails — captured in the error object's stdout/stderr properties.
