@@ -122,13 +122,19 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         'podman',
         'run',
         '--rm',
+        // Skip network setup: the hello container does not need network access, and on
+        // cold GitHub-hosted runners the default podman network (backed by netavark +
+        // nftables) takes long enough to initialise that rootful `podman run` exceeds
+        // our 60-second timeout.  Full network validation — including netavark and the
+        // podman provider — happens in the "Create Kind Cluster With Podman" step.
+        '--network=none',
         HELLO_IMAGE,
       ],
       // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
-      // Without a hard kill, a hung `podman run` (e.g. stalled image pull) freezes mocha
-      // indefinitely: timeout: 60_000 sends SIGTERM to sudo, but sudo waits for podman before
-      // exiting, and a stuck podman ignores SIGTERM; killSignal: 'SIGKILL' makes the OS kill
-      // sudo immediately so waitpid() returns and the event loop unblocks within 60 seconds.
+      // Without a hard kill, a hung `podman run` freezes mocha indefinitely: timeout: 60_000
+      // sends SIGTERM to sudo, but sudo waits for podman before exiting, and a stuck podman
+      // ignores SIGTERM; killSignal: 'SIGKILL' makes the OS kill sudo immediately so
+      // waitpid() returns and the event loop unblocks within 60 seconds.
       {encoding: 'utf8', timeout: 60_000, killSignal: 'SIGKILL'},
     );
     expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
