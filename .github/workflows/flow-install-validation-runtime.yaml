@@ -205,6 +205,25 @@ jobs:
           sudo rm -f /run/libpod/locks 2>/dev/null || true
           sudo find /dev/shm -name 'libpod*' -delete 2>/dev/null || true
           sudo rm -rf /var/lib/containers/storage/libpod 2>/dev/null || true
+          # Delete the SQLite state DB that brew podman 6.x uses. podman system reset (run
+          # by system podman 4.x above) migrates the 4.x CNI-format "podman" network into
+          # this DB with firewall_driver = "iptables". Brew podman 6.x (netavark backend)
+          # then serves this stale iptables config to netavark v2.0.0 which rejects it with
+          # "Must provide a valid firewall backend, got iptables". Deleting db.sql forces
+          # brew podman 6.x to create a fresh default "podman" network on first run using the
+          # firewall_driver = "nftables" from containers.conf.
+          sudo rm -f /var/lib/containers/storage/db.sql \
+                     /var/lib/containers/storage/db.sql-wal \
+                     /var/lib/containers/storage/db.sql-shm 2>/dev/null || true
+          # Delete CNI network config files: system podman 4.x writes CNI configs here after
+          # system reset; brew podman 6.x may read them during migration and import the
+          # iptables-backed "podman" network definition into db.sql before containers.conf
+          # can take effect.
+          sudo rm -rf /etc/cni/net.d/ 2>/dev/null || true
+          # Delete the netavark runtime network configs written during any prior CI run.
+          # These live in tmpfs and survive process restarts within the same job; they are
+          # re-created from db.sql on next podman invocation, so deleting both is safe.
+          sudo rm -rf /run/containers/networks/ 2>/dev/null || true
 
           # The system podman 4.x writes /var/lib/containers/storage/overlay/.has-mount-program
           # which signals to every subsequent podman invocation that the overlay storage was
