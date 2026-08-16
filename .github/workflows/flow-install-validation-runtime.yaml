@@ -257,40 +257,6 @@ jobs:
           # still hasn't exited, guaranteeing the step ends even for unkillable child processes.
           timeout --kill-after=30s 25m task test-podman-runtime-validation
 
-      - name: Diagnose Brew Podman Run From Bash
-        if: always()
-        continue-on-error: true
-        run: |
-          # Diagnostic-only: tests whether brew podman can run a container when invoked
-          # directly from bash (vs. through Node.js/mocha). Results guide the next fix
-          # iteration: if bash succeeds where Node fails, the issue is FD inheritance in
-          # execFileSync; if bash also fails, the hang is infrastructure-level.
-          BREW_PODMAN="/home/linuxbrew/.linuxbrew/bin/podman"
-          if [[ ! -x "${BREW_PODMAN}" ]]; then
-            echo "brew podman not installed yet; skipping run diagnostic"
-            exit 0
-          fi
-
-          PODMAN_PATH="/home/linuxbrew/.linuxbrew/bin:${PATH}"
-          STORAGE_ARGS="--root=/tmp/podman-brew-storage --runroot=/tmp/podman-brew-runroot --cgroup-manager=cgroupfs"
-          RUN_ARGS="--rm --pull=never --network=host --ipc=host --uts=host --userns=host --no-hosts --security-opt seccomp=unconfined --security-opt apparmor=unconfined"
-
-          echo "=== [DIAG] Pulling image (overlay storage) ==="
-          timeout 60 sudo env "PATH=${PODMAN_PATH}" "${BREW_PODMAN}" ${STORAGE_ARGS} \
-            pull --quiet quay.io/podman/hello || echo "[DIAG] pull: exit $?"
-
-          echo "=== [DIAG] bash podman run (overlay, cgroupfs, all bypass flags, 30s timeout) ==="
-          timeout 30 sudo env "PATH=${PODMAN_PATH}" "${BREW_PODMAN}" ${STORAGE_ARGS} \
-            run ${RUN_ARGS} quay.io/podman/hello \
-            && echo "[DIAG] SAME-FLAGS bash podman run: SUCCESS" \
-            || echo "[DIAG] SAME-FLAGS bash podman run: FAILED (exit: $?)"
-
-          echo "=== [DIAG] bash podman run (NO flags, 30s timeout) ==="
-          timeout 30 sudo env "PATH=${PODMAN_PATH}" "${BREW_PODMAN}" \
-            run --rm quay.io/podman/hello \
-            && echo "[DIAG] NO-FLAGS bash podman run: SUCCESS" \
-            || echo "[DIAG] NO-FLAGS bash podman run: FAILED (exit: $?)"
-
       - name: Resolve Pinned Versions and Podman Path
         id: runtime
         run: |
