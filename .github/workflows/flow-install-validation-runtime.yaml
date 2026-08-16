@@ -174,7 +174,7 @@ jobs:
           # start; it will recreate the directory on first use.
           sudo rm -rf /run/libpod
 
-          for BINARY in /usr/bin/crun /usr/local/bin/crun /usr/bin/conmon /usr/libexec/podman/conmon "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
+          for BINARY in /usr/bin/runc /usr/bin/crun /usr/local/bin/crun /usr/bin/conmon /usr/libexec/podman/conmon "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $(timeout 5 "${BINARY}" --version 2>/dev/null | head -n 1 || echo '(hung or failed)')"
             else
@@ -224,11 +224,11 @@ jobs:
           tmp_dir = "/tmp/podman-brew-tmp"
 
           [engine.runtimes]
-          # /usr/bin/crun is the system crun from apt (confirmed working on ubuntu-latest).
-          # /usr/local/bin/crun, which podman's built-in search finds first when brew crun
-          # fails validation, may hang when executed. Listing /usr/bin/crun first ensures
-          # brew podman 6.x uses a known-working runtime for both the validation harness
-          # and the kind cluster creation step.
+          # /usr/bin/runc is the reference OCI runtime (part of docker/containerd on
+          # ubuntu-latest). It is listed first and used by the test harness when present.
+          # /usr/bin/crun is the system crun from apt; /usr/local/bin/crun hangs on
+          # GitHub-hosted runners and is intentionally omitted here.
+          runc = ["/usr/bin/runc"]
           crun = ["/usr/bin/crun", "${BREW_PREFIX}/bin/crun"]
 
           [network]

@@ -164,10 +164,13 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       }
     }
 
-    // Similarly, /usr/local/bin/crun (podman's first built-in search path) may hang on
-    // GitHub-hosted runners. /usr/bin/crun (from apt) is confirmed working. Passing
-    // --runtime overrides the OCI runtime regardless of what containers.conf specifies.
-    const systemCrunCandidates: string[] = ['/usr/bin/crun'];
+    // /usr/local/bin/crun (podman's first built-in search path) hangs on GitHub-hosted
+    // runners during container creation (mount namespace / conmon handshake). /usr/bin/runc
+    // is the reference OCI runtime installed as part of docker/containerd on ubuntu-latest
+    // and is tried first because it has better compatibility with the restricted kernel
+    // environment on these runners. /usr/bin/crun is the apt crun fallback.
+    // Passing --runtime overrides the OCI runtime regardless of what containers.conf says.
+    const systemCrunCandidates: string[] = ['/usr/bin/runc', '/usr/bin/crun'];
     for (const candidate of systemCrunCandidates) {
       if (fs.existsSync(candidate)) {
         try {
