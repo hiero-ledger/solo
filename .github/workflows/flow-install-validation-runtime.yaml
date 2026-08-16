@@ -116,20 +116,33 @@ jobs:
             "${HELPER_DIRECTORY}/${HELPER}" --version
           done
 
-          # Wrap the real netavark binary so every netavark invocation — from `podman run`,
-          # `podman start`, and kind's container setup — has its stdin JSON patched before
-          # reaching netavark.real. Podman 6.1.0 hardcodes firewall_driver=iptables in the
-          # network-setup JSON it passes to netavark on stdin, regardless of containers.conf
-          # [network] firewall_driver and regardless of --opt flags (which netavark 2.0.0
-          # rejects as "unsupported bridge network option"). The wrapper is the only intercept
-          # point that covers all call paths without requiring sqlite3 or per-network patching.
+          # Wrap the real netavark binary to force nftables. Two intercept points are used:
+          #   1. /run/containers/networks/*.json — runtime configs podman writes before calling
+          #      netavark; patched in-place before forwarding to netavark.real.
+          #   2. stdin — the SetupRequest JSON podman pipes to netavark; sed-patched in the pipe.
+          # Both are needed because podman 6.1.0 sets firewall_driver=iptables (or absent →
+          # iptables default) in multiple locations and netavark 2.0.0 rejects iptables.
+          # Diagnostics are written to /tmp/netavark-wrapper.log for post-test inspection.
           sudo mv "${HELPER_DIRECTORY}/netavark" "${HELPER_DIRECTORY}/netavark.real"
           sudo tee "${HELPER_DIRECTORY}/netavark" > /dev/null << 'NETAVARK_WRAPPER'
           #!/bin/bash
           # SPDX-License-Identifier: Apache-2.0
-          # Patch firewall_driver=iptables→nftables before forwarding to netavark.real.
-          # Podman 6.1.0 sends iptables regardless of containers.conf; netavark 2.0.0 rejects it.
-          sed 's|"firewall_driver"[[:space:]]*:[[:space:]]*"iptables"|"firewall_driver":"nftables"|g' | /opt/podman-helpers/netavark.real "$@"
+          # Force nftables: patch runtime network configs and stdin before calling netavark.real.
+          LOG=/tmp/netavark-wrapper.log
+          echo "$(date -u +%H:%M:%S) args: $*" >> "$LOG" 2>&1
+
+          # 1. Patch /run/containers/networks/*.json (podman writes firewall_driver=iptables here)
+          for f in /run/containers/networks/*.json; do
+            [ -f "$f" ] || continue
+            echo "  file $f before: $(grep -o '"firewall_driver"[^,}]*' "$f" || echo '(no firewall_driver field)')" >> "$LOG" 2>&1
+            sed -i 's|"firewall_driver"[[:space:]]*:[[:space:]]*"iptables"|"firewall_driver":"nftables"|g' "$f" 2>/dev/null || true
+          done
+
+          # 2. Read stdin, log it, patch, forward to netavark.real
+          STDIN=$(cat)
+          echo "  stdin first 400: ${STDIN:0:400}" >> "$LOG" 2>&1
+          PATCHED=$(printf '%s' "$STDIN" | sed 's|"firewall_driver"[[:space:]]*:[[:space:]]*"iptables"|"firewall_driver":"nftables"|g')
+          printf '%s' "$PATCHED" | /opt/podman-helpers/netavark.real "$@"
           NETAVARK_WRAPPER
           sudo chmod 0755 "${HELPER_DIRECTORY}/netavark"
           echo "=== netavark wrapper installed ==="
@@ -414,6 +427,13 @@ jobs:
 
           echo "=== sudo podman network ls (post-test, 15 s timeout) ==="
           sudo timeout 15 env "PATH=/home/linuxbrew/.linuxbrew/bin:${PATH}" podman network ls 2>&1 || echo "(podman network ls failed or timed out)"
+
+          echo "=== netavark wrapper log (args + stdin for each invocation) ==="
+          sudo cat /tmp/netavark-wrapper.log 2>/dev/null || echo "(no wrapper log — wrapper was not called or log absent)"
+
+          echo "=== /run/containers/networks (runtime configs at test end) ==="
+          sudo ls -la /run/containers/networks/ 2>/dev/null || echo "(directory absent)"
+          sudo find /run/containers/networks -name '*.json' -exec sh -c 'echo "--- $1 ---"; cat "$1"' _ {} \; 2>/dev/null || true
 
       - name: Pre-create Kind Network for Cluster
         run: |
