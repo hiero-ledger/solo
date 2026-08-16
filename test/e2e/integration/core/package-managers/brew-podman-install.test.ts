@@ -198,19 +198,14 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // `--pull=never` skips the registry check since the image was just pulled above, keeping
     // the full 60-second budget for container start and execution.
     //
-    // All of the following flags bypass isolation features that hang on GitHub-hosted
-    // runners when brew podman 6.x tries to set them up via kernel syscalls. This is a
-    // diagnostic-only container run (quay.io/podman/hello prints a greeting and exits);
-    // the kind cluster creation step that follows exercises the full stack with security
-    // policies and proper network isolation:
+    // --privileged grants all capabilities including CAP_SYS_ADMIN, which the OCI runtime
+    // needs to mount /proc inside the container's new PID+mount namespace. The default
+    // (non-privileged) capability set omits CAP_SYS_ADMIN, which can cause the mount to
+    // stall on GitHub-hosted runners where seccomp/AppArmor are already disabled but the
+    // capability check is still enforced. kind uses --privileged for the same reason.
     //
-    // --network=host      — skip network namespace creation (clone(CLONE_NEWNET) hangs)
-    // --ipc=host          — skip IPC namespace creation (clone(CLONE_NEWIPC) hangs)
-    // --uts=host          — skip UTS namespace creation (clone(CLONE_NEWUTS) hangs)
-    // --userns=host       — skip user namespace mapping (uid/gid remapping hangs)
-    // --no-hosts          — skip /etc/hosts creation and host.containers.internal lookup
-    // seccomp=unconfined  — skip seccomp filter installation
-    // apparmor=unconfined — skip AppArmor profile loading
+    // --no-hosts skips /etc/hosts creation and the host.containers.internal DNS lookup.
+    // --network=host, --ipc=host, --uts=host, --userns=host reduce namespace creation work.
     //
     // --log-level=debug is passed so the stderr before any ETIMEDOUT shows exactly where
     // the hang occurs within the container-launch sequence.
@@ -226,15 +221,12 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           'run',
           '--rm',
           '--pull=never',
+          '--privileged',
           '--network=host',
           '--ipc=host',
           '--uts=host',
           '--userns=host',
           '--no-hosts',
-          '--security-opt',
-          'seccomp=unconfined',
-          '--security-opt',
-          'apparmor=unconfined',
           HELLO_IMAGE,
         ],
         // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
