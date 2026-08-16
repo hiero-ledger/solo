@@ -113,15 +113,33 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // sudo resets the PATH and brew's podman is not on root's PATH, so it is passed explicitly
     // through `sudo env PATH=…`, the same shape ClusterTaskManager uses to create the kind cluster.
     // `-n` fails fast rather than hanging on a password prompt; CI runners grant passwordless sudo.
+    const sudoEnvironmentArguments: string[] = [
+      '-n',
+      'env',
+      `PATH=${podmanDirectory}${path.delimiter}${process.env.PATH}`,
+    ];
+
+    // Pull the image before the timed `podman run` so the 60-second window is spent only on
+    // container start and execution, not on the network round-trip from quay.io. On cold
+    // GitHub-hosted runners the image download can consume the entire 60-second budget,
+    // leaving no time for the container to start. `--quiet` suppresses the per-layer progress
+    // lines that would otherwise scroll past; the pull either succeeds or is killed.
+    execFileSync('sudo', [...sudoEnvironmentArguments, 'podman', 'pull', '--quiet', HELLO_IMAGE], {
+      encoding: 'utf8',
+      timeout: 120_000,
+      killSignal: 'SIGKILL',
+    });
+
+    // `--pull=never` skips the registry check since the image was just pulled above, keeping
+    // the full 60-second budget for container start and execution.
     const output: string = execFileSync(
       'sudo',
       [
-        '-n',
-        'env',
-        `PATH=${podmanDirectory}${path.delimiter}${process.env.PATH}`,
+        ...sudoEnvironmentArguments,
         'podman',
         'run',
         '--rm',
+        '--pull=never',
         // Skip network setup: the hello container does not need network access, and on
         // cold GitHub-hosted runners the default podman network (backed by netavark +
         // nftables) takes long enough to initialise that rootful `podman run` exceeds
