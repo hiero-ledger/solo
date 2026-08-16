@@ -86,8 +86,8 @@ jobs:
           # a valid firewall backend, got iptables". Podman 6.1.0 sends iptables regardless
           # of containers.conf and podman network create --opt firewall_driver=nftables is
           # rejected by netavark 2.0.0 as an "unsupported bridge network option". The wrapper
-          # below intercepts netavark's stdin JSON and patches firewall_driver=iptables to
-          # nftables before forwarding to the real binary, covering every netavark call path.
+          # below intercepts every netavark invocation and injects --firewall-driver nftables
+          # as a CLI flag, bypassing netavark 2.0.0's auto-detection (which selects iptables).
           HELPER_VERSION='v2.0.0'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
@@ -117,12 +117,12 @@ jobs:
           done
 
           # Wrap the real netavark binary to force nftables on every invocation.
-          # Run 26 confirmed: jq correctly injects firewall_driver=nftables into stdin's
-          # network_info.*.options (options_before=null, options_after={"firewall_driver":
-          # "nftables"}), BUT netavark 2.0.0 ignores this field entirely. It auto-detects
-          # the firewall backend and picks iptables, then fails its own "must not be iptables"
-          # validation. Fix: netavark 2.0.0 has a --firewall-driver global CLI flag; inject
-          # it before forwarding $@ to netavark.real to bypass the auto-detection.
+          # Netavark 2.0.0 ignores network_info.*.options.firewall_driver in its stdin JSON
+          # entirely — it auto-detects the firewall backend at startup and selects iptables,
+          # then fails its own "must not be iptables" validation since iptables support was
+          # removed in 2.0.0. The --firewall-driver global CLI flag is the correct API to
+          # override the auto-detection; the containers.conf firewall_driver = "nftables"
+          # setting is not honoured by podman 6.1.0 for auto-created or pre-created networks.
           # Log file is pre-created with world-writable permissions so the wrapper can
           # write regardless of which uid podman runs it as.
           sudo touch /tmp/netavark-wrapper.log
@@ -439,10 +439,10 @@ jobs:
       - name: Pre-create Kind Network for Cluster
         run: |
           # kind v0.29.0's podman provider calls ensureNetwork("kind") which is a no-op when
-          # the "kind" network already exists. Pre-creating it here prevents kind from creating
-          # it at cluster-creation time with iptables defaults. If pre-creation fails, the
-          # netavark wrapper installed in the first step patches firewall_driver=iptables→nftables
-          # transparently when kind's containers are attached to the network.
+          # the "kind" network already exists. Pre-creating it here avoids a race where kind
+          # creates the network at cluster-creation time before the netavark wrapper has had a
+          # chance to intercept. The wrapper's --firewall-driver nftables flag covers any
+          # netavark call regardless, so pre-creation is belt-and-suspenders.
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           BREW_PODMAN="${BREW_PREFIX}/bin/podman"
           BREW_ENV="PATH=${BREW_PREFIX}/bin:${PATH}"
