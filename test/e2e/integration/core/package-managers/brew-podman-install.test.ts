@@ -134,19 +134,25 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       '--root=/tmp/podman-brew-storage',
       '--runroot=/tmp/podman-brew-runroot',
       '--cgroup-manager=cgroupfs',
+      // vfs bypasses the overlay driver entirely; on GitHub-hosted runners the overlay
+      // initialisation (test-mount at startup) may also hang, so use vfs to rule it out.
+      '--storage-driver=vfs',
     ];
 
-    // Emit podman info so the storage driver, OCI runtime, and conmon path are visible in CI logs
-    // if the subsequent run fails — captured in the error object's stdout/stderr properties.
+    // Emit podman info with debug logging so the last operation before any hang is visible
+    // in CI logs. --log-level=debug is on the podman global flags, before the subcommand.
     try {
       const podmanInfoOutput: string = execFileSync(
         'sudo',
-        [...sudoEnvironmentArguments, 'podman', ...podmanStorageArguments, 'info'],
+        [...sudoEnvironmentArguments, 'podman', '--log-level=debug', ...podmanStorageArguments, 'info'],
         {encoding: 'utf8', timeout: 30_000, killSignal: 'SIGKILL'},
       );
       console.log('[podman info]', podmanInfoOutput.slice(0, 2000));
     } catch (podmanInfoError: unknown) {
-      console.log('[podman info failed]', podmanInfoError);
+      const infoError: Record<string, unknown> = podmanInfoError as Record<string, unknown>;
+      console.log('[podman info failed]', String(infoError['message'] ?? podmanInfoError));
+      console.log('[podman info stdout]', String(infoError['stdout'] ?? '(empty)').slice(0, 1000));
+      console.log('[podman info stderr]', String(infoError['stderr'] ?? '(empty)').slice(0, 2000));
     }
 
     // Pull the image before the timed `podman run` so the 60-second window is spent only on
