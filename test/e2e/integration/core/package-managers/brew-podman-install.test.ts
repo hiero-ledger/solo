@@ -197,18 +197,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
 
     // `--pull=never` skips the registry check since the image was just pulled above, keeping
     // the full 60-second budget for container start and execution.
-    //
-    // --privileged grants all capabilities including CAP_SYS_ADMIN, which the OCI runtime
-    // needs to mount /proc inside the container's new PID+mount namespace. The default
-    // (non-privileged) capability set omits CAP_SYS_ADMIN, which can cause the mount to
-    // stall on GitHub-hosted runners where seccomp/AppArmor are already disabled but the
-    // capability check is still enforced. kind uses --privileged for the same reason.
-    //
-    // --no-hosts skips /etc/hosts creation and the host.containers.internal DNS lookup.
     // --network=host, --ipc=host, --uts=host, --userns=host reduce namespace creation work.
-    //
-    // --log-level=debug is passed so the stderr before any ETIMEDOUT shows exactly where
-    // the hang occurs within the container-launch sequence.
     let runOutput: string = '';
     try {
       runOutput = execFileSync(
@@ -216,17 +205,14 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         [
           ...sudoEnvironmentArguments,
           'podman',
-          '--log-level=debug',
           ...podmanStorageArguments,
           'run',
           '--rm',
           '--pull=never',
-          '--privileged',
           '--network=host',
           '--ipc=host',
           '--uts=host',
           '--userns=host',
-          '--no-hosts',
           HELLO_IMAGE,
         ],
         // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
