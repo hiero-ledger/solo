@@ -119,16 +119,37 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       `PATH=${podmanDirectory}${path.delimiter}${process.env.PATH}`,
     ];
 
+    // Use an isolated storage root so brew podman 6.x never touches the /var/lib/containers/storage
+    // that was initialised by the system podman 4.x (via `podman network rm` in the CI setup step).
+    // Sharing that storage causes podman 6.x to hang during container-layer initialisation, likely
+    // because the two versions write incompatible lock or metadata files into the same directory.
+    // --runroot is the per-session runtime directory (sockets, conmon PIDs); isolated for the same
+    // reason.  Neither path affects the registry, containers.conf, or any production-code path.
+    const podmanStorageArguments: string[] = ['--root=/tmp/podman-brew-storage', '--runroot=/tmp/podman-brew-runroot'];
+
+    // Emit podman info so the storage driver, OCI runtime, and conmon path are visible in CI logs
+    // if the subsequent run fails — captured in the error object's stdout/stderr properties.
+    try {
+      const podmanInfoOutput: string = execFileSync(
+        'sudo',
+        [...sudoEnvironmentArguments, 'podman', ...podmanStorageArguments, 'info'],
+        {encoding: 'utf8', timeout: 30_000, killSignal: 'SIGKILL'},
+      );
+      console.log('[podman info]', podmanInfoOutput.slice(0, 2000));
+    } catch (podmanInfoError: unknown) {
+      console.log('[podman info failed]', podmanInfoError);
+    }
+
     // Pull the image before the timed `podman run` so the 60-second window is spent only on
     // container start and execution, not on the network round-trip from quay.io. On cold
     // GitHub-hosted runners the image download can consume the entire 60-second budget,
     // leaving no time for the container to start. `--quiet` suppresses the per-layer progress
     // lines that would otherwise scroll past; the pull either succeeds or is killed.
-    execFileSync('sudo', [...sudoEnvironmentArguments, 'podman', 'pull', '--quiet', HELLO_IMAGE], {
-      encoding: 'utf8',
-      timeout: 120_000,
-      killSignal: 'SIGKILL',
-    });
+    execFileSync(
+      'sudo',
+      [...sudoEnvironmentArguments, 'podman', ...podmanStorageArguments, 'pull', '--quiet', HELLO_IMAGE],
+      {encoding: 'utf8', timeout: 120_000, killSignal: 'SIGKILL'},
+    );
 
     // `--pull=never` skips the registry check since the image was just pulled above, keeping
     // the full 60-second budget for container start and execution.
@@ -137,6 +158,7 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       [
         ...sudoEnvironmentArguments,
         'podman',
+        ...podmanStorageArguments,
         'run',
         '--rm',
         '--pull=never',
