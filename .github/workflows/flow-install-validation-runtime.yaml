@@ -157,9 +157,9 @@ jobs:
           # network from scratch using our containers.conf (firewall_driver = "nftables").
           sudo podman network rm --force podman 2>/dev/null || true
 
-          for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
+          for BINARY in /usr/bin/crun /usr/bin/conmon /usr/libexec/podman/conmon "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
-              echo "${BINARY}: $("${BINARY}" --version 2> /dev/null | head -n 1)"
+              echo "${BINARY}: $(timeout 5 "${BINARY}" --version 2>/dev/null | head -n 1 || echo '(hung or failed)')"
             else
               echo "${BINARY}: not present"
             fi
@@ -188,12 +188,17 @@ jobs:
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [engine]
           runtime = "crun"
-          conmon_path = ["${BREW_PREFIX}/bin/conmon"]
+          # System conmon (from Ubuntu's apt conmon package) must come first: the brew-built
+          # conmon hangs on GitHub-hosted runners when executed, even for conmon --version.
+          # Podman calls conmon --version during info and forks it to monitor every container
+          # start, so a hanging conmon blocks podman-info and every podman-run invocation.
+          # The system conmon 2.x (pre-installed with apt podman 4.x) is protocol-compatible
+          # with brew podman 6.x and executes without hanging.
+          conmon_path = ["/usr/bin/conmon", "/usr/libexec/podman/conmon", "${BREW_PREFIX}/bin/conmon"]
           helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
           events_logger = "none"
           # cgroupfs bypasses systemd cgroup delegation (the default "systemd" manager makes a
-          # dbus call to ask systemd to delegate a cgroup slice at startup — that call hangs on
-          # GitHub-hosted runners and blocks every podman invocation, including podman-info).
+          # dbus call to ask systemd to delegate a cgroup slice at startup).
           cgroup_manager = "cgroupfs"
 
           [engine.runtimes]
