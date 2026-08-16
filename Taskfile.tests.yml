@@ -74,7 +74,7 @@ tasks:
       - "{{ .test_prefix }}=\"Mocha Podman Runtime Validation Tests\"
         {{ .reporter_prefix }}='coverage/podman-runtime-validation'
         {{ .mocha_bin }} 'test/e2e/integration/core/package-managers/brew-podman-install.test.ts'
-        {{ .reporter_options_prefix }}-podman-runtime-validation.xml --timeout 600000"
+        {{ .reporter_options_prefix }}-podman-runtime-validation.xml --timeout 600000 --exit"
 
   test-e2e-leases:
     desc: "Runs E2E lease tests with coverage and generates reports in coverage/e2e-leases"

@@ -79,6 +79,14 @@ export class ShellRunner {
         }
 
         timedOut = true;
+        // Clear both timers: the one that fired has already executed, but the sibling
+        // (idle vs. wall-clock) is still pending and would keep the event loop alive.
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+        if (idleTimeoutHandle) {
+          clearTimeout(idleTimeoutHandle);
+        }
         child.kill();
         // Unref the child so Node.js does not wait for it to exit before allowing the event
         // loop to drain.  kill() sends SIGTERM but the child (or its grandchildren) may linger;
