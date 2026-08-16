@@ -333,14 +333,20 @@ jobs:
           # conmon_path must explicitly point at brew conmon. Without it, podman 6.x walks its
           # built-in search list first (/usr/local/lib/podman/conmon, /usr/lib/podman/conmon)
           # and picks up the system-packaged conmon which is too old for brew podman 6.x.
+          # log_driver = "k8s-file" in [containers]: kind runs `podman logs -f` after starting
+          # the node container. With events_logger="file" (non-journald), using --follow on a
+          # journald-logged container fails: "using --follow with the journald --log-driver but
+          # without the journald --events-backend (file) is not supported". Forcing k8s-file
+          # (file-based container logging) makes podman logs -f work with any events backend.
           # firewall_driver = "nftables" in [network]: kept for documentation/intent — in
           # podman 6.1.0 this field is not applied to auto-created or explicitly-created
           # networks (bug). The actual enforcement is the netavark wrapper installed in the
-          # previous step, which patches the firewall_driver value in the stdin JSON for
-          # every netavark invocation.
+          # previous step, which injects --firewall-driver nftables as a CLI flag on every
+          # netavark invocation, bypassing the auto-detection that selects iptables.
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [containers]
           apparmor_profile = "unconfined"
+          log_driver = "k8s-file"
 
           [engine]
           runtime = "crun"
