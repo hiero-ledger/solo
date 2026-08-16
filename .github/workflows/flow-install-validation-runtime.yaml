@@ -256,6 +256,10 @@ jobs:
           # Homebrew — formulas must live inside a tap directory.  `brew tap-new` creates a local
           # tap backed by a git repo, and placing the formula inside it satisfies Homebrew's
           # tap-membership requirement while keeping the install entirely self-contained.
+          # `brew tap-new` runs `git commit` internally; the runner has no global git identity
+          # configured, so we set a throwaway identity just for this step.
+          git config --global user.email "ci@solo" || true
+          git config --global user.name "Solo CI" || true
           "${BREW}" tap-new local/pins
           FORMULA_DIR="$("${BREW}" --repository local/pins)/Formula"
           mkdir -p "${FORMULA_DIR}"
