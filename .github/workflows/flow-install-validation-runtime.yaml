@@ -190,6 +190,12 @@ jobs:
           runtime = "crun"
           conmon_path = ["${BREW_PREFIX}/bin/conmon"]
           helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
+          # Disable the journald events backend: rootful podman on GitHub-hosted runners tries to
+          # connect to the systemd journal (via dbus) when emitting container lifecycle events
+          # (container.create, container.init, container.start).  That dbus connection hangs
+          # indefinitely when the socket is unavailable, blocking the entire `podman run` call.
+          # "none" drops events on the floor — acceptable for a CI validation run.
+          events_logger = "none"
 
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]
