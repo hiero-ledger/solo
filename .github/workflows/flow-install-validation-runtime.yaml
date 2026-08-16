@@ -169,6 +169,17 @@ jobs:
           # start; it will recreate the directory on first use.
           sudo rm -rf /run/libpod
 
+          # Clear the legacy podman 4.x graph root so brew podman 6.x starts with a clean
+          # storage. The "podman network rm" call above (a system podman 4.x invocation)
+          # initialises /var/lib/containers/storage with v4-format lock files, metadata, and
+          # database entries. Brew podman 6.x shares the same rootful graph root by default
+          # and hangs during container-layer initialisation when kind runs "podman run" to
+          # create the node container — it tries to read or lock those v4-format files and
+          # never returns. The mocha test avoids this by passing --root=/tmp/podman-brew-storage
+          # (isolated storage); kind does not offer an equivalent flag, so the only reliable
+          # fix is removing the legacy storage before brew podman 6.x ever touches it.
+          sudo rm -rf /var/lib/containers
+
           for BINARY in /usr/bin/runc /usr/bin/crun /usr/local/bin/crun /usr/bin/conmon /usr/libexec/podman/conmon "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $(timeout 5 "${BINARY}" --version 2>/dev/null | head -n 1 || echo '(hung or failed)')"
@@ -320,6 +331,15 @@ jobs:
           KIND_NODE_IMAGE: ${{ steps.runtime.outputs.kind-node-image }}
         run: |
           RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "$(command -v kind)"):${PATH}"
+
+          # Quick diagnostic: verify that rootful podman responds promptly and surfaces the
+          # containers.conf we wrote in the normalize step. If this hangs, the problem is
+          # in podman startup (storage, conmon, or cgroup initialisation), not in kind itself.
+          echo "=== sudo podman info (30 s timeout) ==="
+          if ! timeout 30 sudo env "PATH=${RUNTIME_PATH}" podman info; then
+            echo "::warning::podman info did not complete within 30 s — storage or conmon may still be blocking"
+          fi
+          echo "=== podman info complete ==="
 
           # Same invocation shape as ClusterTaskManager: kind runs rootfully (PodmanMode.ROOTFUL on
           # Linux) and sudo resets the PATH, so podman and kind are passed through `sudo env`.
