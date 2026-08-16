@@ -39,6 +39,10 @@ permissions:
 
 env:
   CLUSTER_NAME: solo-install-validation
+  # Force brew to resolve formulas from the local git tap (homebrew/core) rather than the
+  # JSON API.  This allows the pre-install step to substitute the 6.0.2 formula file, and
+  # makes the subsequent `brew install podman` in the mocha test a no-op (already installed).
+  HOMEBREW_NO_INSTALL_FROM_API: '1'
 
 jobs:
   podman-runtime-validation:
@@ -252,25 +256,23 @@ jobs:
           # Update this pin (and verify in CI) when podman 6.2.0 or a fixed 6.1.x is released.
           NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           BREW=/home/linuxbrew/.linuxbrew/bin/brew
-          # `brew install <url>` and `brew install /local/path.rb` are both rejected in modern
-          # Homebrew — formulas must live inside a tap directory.  `brew tap-new` creates a local
-          # tap backed by a git repo, and placing the formula inside it satisfies Homebrew's
-          # tap-membership requirement while keeping the install entirely self-contained.
-          # `brew tap-new` runs `git commit` internally; the runner has no global git identity
-          # configured, so we set a throwaway identity just for this step.
-          git config --global user.email "ci@solo" || true
-          git config --global user.name "Solo CI" || true
-          "${BREW}" tap-new local/pins
-          FORMULA_DIR="$("${BREW}" --repository local/pins)/Formula"
-          mkdir -p "${FORMULA_DIR}"
+          # Add linuxbrew to PATH for subsequent steps so BrewPackageManager.isAvailable()
+          # returns true and the mocha test skips re-installing Homebrew.
+          echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
+          # With HOMEBREW_NO_INSTALL_FROM_API=1 (set at the job level), brew resolves formulas
+          # from the local homebrew/core git tap instead of the JSON API.  This lets us replace
+          # the podman formula file with the 6.0.2 version so that `brew install podman` (both
+          # here and in the subsequent mocha test) always resolves to 6.0.2, never 6.1.0.
+          # homebrew/core is cloned at --depth=1 (~150 MB) and then the single formula file is
+          # swapped out — no full git history download needed.
+          "${BREW}" tap homebrew/core
+          CORE_PATH="$("${BREW}" --repository homebrew/core)"
           curl -fsSL \
             "https://raw.githubusercontent.com/Homebrew/homebrew-core/7644fe05a721/Formula/p/podman.rb" \
-            -o "${FORMULA_DIR}/podman.rb"
-          # Install podman 6.0.2 via our local tap.  The bottle URL in that formula revision still
-          # resolves on Homebrew's CDN, so this downloads the pre-built binary, not source.
-          "${BREW}" install local/pins/podman
-          # Pin so that the mocha test's `brew install podman` (which resolves through
-          # homebrew/core API and would pick up 6.1.0) cannot upgrade the already-installed binary.
+            -o "${CORE_PATH}/Formula/p/podman.rb"
+          # Install podman 6.0.2: brew reads the local formula (which we just replaced) and
+          # downloads the pre-built bottle from Homebrew's CDN.
+          "${BREW}" install podman
           "${BREW}" pin podman
           echo "Pinned: $("${BREW}" list podman --versions)"
 
