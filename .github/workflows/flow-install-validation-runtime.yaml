@@ -117,12 +117,11 @@ jobs:
           done
 
           # Wrap the real netavark binary to force nftables on every invocation.
-          # Run 24 diagnostics showed: /run/containers/networks/ has no .json files when
-          # netavark is called; the stdin JSON has options=null (no firewall_driver key).
-          # Netavark 2.0.0 defaults absent options.firewall_driver → "iptables" internally
-          # and then fails its own validation. jq injects firewall_driver=nftables into
-          # the network_info options even when the field is absent or null. sed is the
-          # fallback if jq is not available or the JSON structure differs from expected.
+          # Run 25 confirmed: netavark IS called (log shows setup call + stdin). jq injection
+          # into stdin's network_info was applied but still "got iptables". Run 26 adds:
+          #  (a) diagnostic logging of network_info.*.options before/after jq (confirm patch)
+          #  (b) config-dir file patching before calling netavark.real (belt-and-suspenders
+          #      in case netavark reads firewall_driver from --config dir files, not stdin)
           # Log file is pre-created with world-writable permissions so the wrapper can
           # write regardless of which uid podman runs it as.
           sudo touch /tmp/netavark-wrapper.log
@@ -131,16 +130,39 @@ jobs:
           sudo tee "${HELPER_DIRECTORY}/netavark" > /dev/null << 'NETAVARK_WRAPPER'
           #!/bin/bash
           # SPDX-License-Identifier: Apache-2.0
-          # Force nftables: inject firewall_driver=nftables into stdin JSON and forward.
-          # Podman 6.1.0 sends options=null; netavark 2.0.0 defaults absent → iptables.
+          # Force nftables: patch both --config dir files AND stdin before forwarding.
           LOG=/tmp/netavark-wrapper.log
           echo "$(date -u +%H:%M:%S) uid=$(id -u) args: $*" >> "$LOG" 2>/dev/null || true
 
-          STDIN=$(cat)
-          echo "  stdin first 300: ${STDIN:0:300}" >> "$LOG" 2>/dev/null || true
+          # ---- Patch --config directory files (netavark may read firewall_driver from there)
+          CONFIG_DIR=""
+          PREV_ARG=""
+          for ARG in "$@"; do
+            [ "$PREV_ARG" = "--config" ] && CONFIG_DIR="$ARG"
+            PREV_ARG="$ARG"
+          done
+          if [ -n "$CONFIG_DIR" ] && [ -d "$CONFIG_DIR" ]; then
+            echo "  config_dir=$CONFIG_DIR files: $(ls "$CONFIG_DIR"/*.json 2>/dev/null | tr '\n' ' ' || echo '(none)')" >> "$LOG" 2>/dev/null || true
+            for F in "$CONFIG_DIR"/*.json; do
+              [ -f "$F" ] || continue
+              BEFORE=$(jq '.options' "$F" 2>/dev/null || echo '(jq-fail)')
+              AFTER_JSON=$(jq '.options.firewall_driver = "nftables"' "$F" 2>/dev/null)
+              if [ -n "$AFTER_JSON" ]; then
+                printf '%s\n' "$AFTER_JSON" > "$F"
+                echo "  patched $F: options was $BEFORE → now has firewall_driver=nftables" >> "$LOG" 2>/dev/null || true
+              fi
+            done
+          else
+            echo "  config_dir='$CONFIG_DIR' (absent or not a dir)" >> "$LOG" 2>/dev/null || true
+          fi
 
-          # Inject firewall_driver=nftables into network_info options via jq.
-          # jq sets .value.options.firewall_driver even when options is null or absent.
+          # ---- Patch stdin (belt-and-suspenders: netavark may read options from network_info)
+          STDIN=$(cat)
+
+          # Log what network_info.*.options looks like BEFORE patching
+          OPTIONS_BEFORE=$(printf '%s' "$STDIN" | jq '[.network_info // {} | to_entries[] | {(.key): .value.options}] | add // {}' 2>/dev/null || echo '(jq-fail)')
+          echo "  options_before: $OPTIONS_BEFORE" >> "$LOG" 2>/dev/null || true
+
           PATCHED=$(printf '%s' "$STDIN" | jq '
             if .network_info then
               .network_info |= with_entries(.value.options.firewall_driver = "nftables")
@@ -149,12 +171,20 @@ jobs:
             else . end
           ' 2>/dev/null)
 
+          # Log what network_info.*.options looks like AFTER patching
+          OPTIONS_AFTER=$(printf '%s' "$PATCHED" | jq '[.network_info // {} | to_entries[] | {(.key): .value.options}] | add // {}' 2>/dev/null || echo '(jq-fail)')
+          echo "  options_after:  $OPTIONS_AFTER" >> "$LOG" 2>/dev/null || true
+
           # Fallback: sed replacement if jq failed or produced empty output
           if [ -z "$PATCHED" ]; then
+            echo "  jq produced empty output, falling back to sed" >> "$LOG" 2>/dev/null || true
             PATCHED=$(printf '%s' "$STDIN" | sed 's|"firewall_driver"[[:space:]]*:[[:space:]]*"iptables"|"firewall_driver":"nftables"|g')
           fi
 
           printf '%s' "$PATCHED" | /opt/podman-helpers/netavark.real "$@"
+          EXIT_CODE=$?
+          echo "  netavark.real exit=$EXIT_CODE" >> "$LOG" 2>/dev/null || true
+          exit $EXIT_CODE
           NETAVARK_WRAPPER
           sudo chmod 0755 "${HELPER_DIRECTORY}/netavark"
           echo "=== netavark wrapper installed ==="
