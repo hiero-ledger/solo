@@ -252,16 +252,21 @@ jobs:
           # Update this pin (and verify in CI) when podman 6.2.0 or a fixed 6.1.x is released.
           NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           BREW=/home/linuxbrew/.linuxbrew/bin/brew
-          # `brew install <url>` is not supported in modern Homebrew (it treats the URL as a tap
-          # formula name).  Downloading the .rb file first and passing the local path works because
-          # brew identifies the formula from the Ruby class name inside the file ("Podman"),
-          # not from the filename or path.
-          FORMULA_FILE="$(mktemp --suffix=.rb)"
+          # `brew install <url>` and `brew install /local/path.rb` are both rejected in modern
+          # Homebrew — formulas must live inside a tap directory.  `brew tap-new` creates a local
+          # tap backed by a git repo, and placing the formula inside it satisfies Homebrew's
+          # tap-membership requirement while keeping the install entirely self-contained.
+          "${BREW}" tap-new local/pins
+          FORMULA_DIR="$("${BREW}" --repository local/pins)/Formula"
+          mkdir -p "${FORMULA_DIR}"
           curl -fsSL \
             "https://raw.githubusercontent.com/Homebrew/homebrew-core/7644fe05a721/Formula/p/podman.rb" \
-            -o "${FORMULA_FILE}"
-          "${BREW}" install "${FORMULA_FILE}"
-          rm -f "${FORMULA_FILE}"
+            -o "${FORMULA_DIR}/podman.rb"
+          # Install podman 6.0.2 via our local tap.  The bottle URL in that formula revision still
+          # resolves on Homebrew's CDN, so this downloads the pre-built binary, not source.
+          "${BREW}" install local/pins/podman
+          # Pin so that the mocha test's `brew install podman` (which resolves through
+          # homebrew/core API and would pick up 6.1.0) cannot upgrade the already-installed binary.
           "${BREW}" pin podman
           echo "Pinned: $("${BREW}" list podman --versions)"
 
