@@ -166,7 +166,15 @@ jobs:
           # network from scratch using our containers.conf (firewall_driver = "nftables").
           sudo podman network rm --force podman 2>/dev/null || true
 
-          for BINARY in /usr/bin/crun /usr/bin/conmon /usr/libexec/podman/conmon "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
+          # /run/libpod is podman's runtime tmp dir (shared across all rootful invocations
+          # regardless of --runroot). The system podman 4.x that just ran "network rm" above
+          # may have left lock files, pid files, or a v4-format database in that directory.
+          # Brew podman 6.x uses the same path and can hang trying to parse a v4-format file
+          # or acquire a lock whose PID is stale. Removing it here gives brew podman a clean
+          # start; it will recreate the directory on first use.
+          sudo rm -rf /run/libpod
+
+          for BINARY in /usr/bin/crun /usr/local/bin/crun /usr/bin/conmon /usr/libexec/podman/conmon "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
               echo "${BINARY}: $(timeout 5 "${BINARY}" --version 2>/dev/null | head -n 1 || echo '(hung or failed)')"
             else
@@ -201,17 +209,27 @@ jobs:
           # conmon hangs on GitHub-hosted runners when executed, even for conmon --version.
           # Podman calls conmon --version during info and forks it to monitor every container
           # start, so a hanging conmon blocks podman-info and every podman-run invocation.
-          # The system conmon 2.x (pre-installed with apt podman 4.x) is protocol-compatible
-          # with brew podman 6.x and executes without hanging.
+          # The system conmon 2.x (installed via apt) is protocol-compatible with brew podman
+          # 6.x and executes without hanging.
           conmon_path = ["/usr/bin/conmon", "/usr/libexec/podman/conmon", "${BREW_PREFIX}/bin/conmon"]
           helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
           events_logger = "none"
           # cgroupfs bypasses systemd cgroup delegation (the default "systemd" manager makes a
           # dbus call to ask systemd to delegate a cgroup slice at startup).
           cgroup_manager = "cgroupfs"
+          # Use an isolated tmp dir so brew podman 6.x never shares /run/libpod with the
+          # system podman 4.x. They use different database formats and lock semantics; sharing
+          # /run/libpod causes brew podman to hang trying to read or lock v4-format files
+          # left by the "sudo podman network rm" call in this step.
+          tmp_dir = "/tmp/podman-brew-tmp"
 
           [engine.runtimes]
-          crun = ["${BREW_PREFIX}/bin/crun"]
+          # /usr/bin/crun is the system crun from apt (confirmed working on ubuntu-latest).
+          # /usr/local/bin/crun, which podman's built-in search finds first when brew crun
+          # fails validation, may hang when executed. Listing /usr/bin/crun first ensures
+          # brew podman 6.x uses a known-working runtime for both the validation harness
+          # and the kind cluster creation step.
+          crun = ["/usr/bin/crun", "${BREW_PREFIX}/bin/crun"]
 
           [network]
           firewall_driver = "nftables"

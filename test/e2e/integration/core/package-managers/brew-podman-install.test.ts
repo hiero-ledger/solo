@@ -164,6 +164,27 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       }
     }
 
+    // Similarly, /usr/local/bin/crun (podman's first built-in search path) may hang on
+    // GitHub-hosted runners. /usr/bin/crun (from apt) is confirmed working. Passing
+    // --runtime overrides the OCI runtime regardless of what containers.conf specifies.
+    const systemCrunCandidates: string[] = ['/usr/bin/crun'];
+    for (const candidate of systemCrunCandidates) {
+      if (fs.existsSync(candidate)) {
+        try {
+          const crunVersion: string = execFileSync(candidate, ['--version'], {
+            encoding: 'utf8',
+            timeout: 5000,
+            killSignal: 'SIGKILL',
+          });
+          console.log('[crun]', `using ${candidate}: ${crunVersion.trim()}`);
+          podmanStorageArguments.push(`--runtime=${candidate}`);
+          break;
+        } catch {
+          // candidate hangs or fails — try the next one
+        }
+      }
+    }
+
     // Emit podman info with debug logging so the last operation before any hang is visible
     // in CI logs. --log-level=debug is on the podman global flags, before the subcommand.
     try {
@@ -177,7 +198,11 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
       const infoError: Record<string, unknown> = podmanInfoError as Record<string, unknown>;
       console.log('[podman info failed]', String(infoError['message'] ?? podmanInfoError));
       console.log('[podman info stdout]', String(infoError['stdout'] ?? '(empty)').slice(0, 1000));
-      console.log('[podman info stderr]', String(infoError['stderr'] ?? '(empty)').slice(0, 2000));
+      // Show the LAST 5000 chars so the debug lines right before the hang are visible
+      // (the first N chars are early init messages that always succeed; the hang occurs
+      // somewhere after OCI runtime selection, which appears near the end of the log).
+      const stderrContent: string = String(infoError['stderr'] ?? '(empty)');
+      console.log('[podman info stderr (last 5000)]', stderrContent.slice(-5000));
     }
 
     // Pull the image before the timed `podman run` so the 60-second window is spent only on
