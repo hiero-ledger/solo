@@ -206,12 +206,10 @@ jobs:
           sudo find /dev/shm -name 'libpod*' -delete 2>/dev/null || true
           sudo rm -rf /var/lib/containers/storage/libpod 2>/dev/null || true
           # Delete the SQLite state DB that brew podman 6.x uses. podman system reset (run
-          # by system podman 4.x above) migrates the 4.x CNI-format "podman" network into
-          # this DB with firewall_driver = "iptables". Brew podman 6.x (netavark backend)
-          # then serves this stale iptables config to netavark v2.0.0 which rejects it with
-          # "Must provide a valid firewall backend, got iptables". Deleting db.sql forces
-          # brew podman 6.x to create a fresh default "podman" network on first run using the
-          # firewall_driver = "nftables" from containers.conf.
+          # by system podman 4.x above) may have migrated the 4.x CNI-format network state into
+          # this DB; removing it prevents brew podman from replaying a stale schema migration.
+          # NOTE: deleting db.sql alone is NOT sufficient to fix the iptables issue — the
+          # authoritative network config lives in storage/networks/ (deleted below), not in db.sql.
           sudo rm -f /var/lib/containers/storage/db.sql \
                      /var/lib/containers/storage/db.sql-wal \
                      /var/lib/containers/storage/db.sql-shm 2>/dev/null || true
@@ -220,9 +218,19 @@ jobs:
           # iptables-backed "podman" network definition into db.sql before containers.conf
           # can take effect.
           sudo rm -rf /etc/cni/net.d/ 2>/dev/null || true
+          # Delete the persistent netavark network config directory. Each network is stored as
+          # a JSON file here (e.g. storage/networks/podman.json) with its driver settings,
+          # including firewall_driver. System podman 4.x initialises this directory with
+          # firewall_driver = "iptables"; brew podman 6.x reads the existing JSON files
+          # directly — even after db.sql is deleted — and re-uses the stored iptables setting.
+          # This is why deleting only db.sql was insufficient: same network ID (2f259bab93aa)
+          # appeared across runs because the same podman.json file was being read each time.
+          # Removing storage/networks/ forces brew podman to create a fresh default "podman"
+          # network whose firewall_driver is absent (netavark 2.0.0 defaults absent to nftables).
+          sudo rm -rf /var/lib/containers/storage/networks/ 2>/dev/null || true
           # Delete the netavark runtime network configs written during any prior CI run.
           # These live in tmpfs and survive process restarts within the same job; they are
-          # re-created from db.sql on next podman invocation, so deleting both is safe.
+          # re-created from storage/networks/ on next podman invocation, so deleting both is safe.
           sudo rm -rf /run/containers/networks/ 2>/dev/null || true
 
           # The system podman 4.x writes /var/lib/containers/storage/overlay/.has-mount-program
@@ -336,8 +344,8 @@ jobs:
           sudo nft list tables 2>&1 || true
           echo "=== /var/lib/containers/storage/libpod (should be absent) ==="
           ls -la /var/lib/containers/storage/libpod 2>&1 || echo "(directory absent — correct)"
-          echo "=== /var/lib/containers/storage/network (should be absent) ==="
-          ls -la /var/lib/containers/storage/network 2>&1 || echo "(directory absent — correct)"
+          echo "=== /var/lib/containers/storage/networks (should be absent) ==="
+          ls -la /var/lib/containers/storage/networks 2>&1 || echo "(directory absent — correct)"
           echo "=== /run/libpod/locks (should be absent) ==="
           ls -la /run/libpod/locks 2>&1 || echo "(absent — correct)"
           echo "=== /dev/shm (libpod objects should be absent) ==="
@@ -378,6 +386,45 @@ jobs:
 
           echo "=== sudo podman network ls (post-test, 15 s timeout) ==="
           sudo timeout 15 env "PATH=/home/linuxbrew/.linuxbrew/bin:${PATH}" podman network ls 2>&1 || echo "(podman network ls failed or timed out)"
+
+      - name: Ensure Podman Bridge Network Uses nftables
+        run: |
+          # Safety net: confirm that the default "podman" bridge network carries
+          # firewall_driver = nftables (or absent, which netavark 2.0.0 also accepts).
+          # If it still has "iptables" — despite the normalize step deleting storage/networks/
+          # — we delete and recreate it before kind runs.  A stale iptables config causes
+          # "Must provide a valid firewall backend, got iptables" when kind attaches containers
+          # to the bridge network.
+          BREW_PREFIX='/home/linuxbrew/.linuxbrew'
+          BREW_PODMAN="${BREW_PREFIX}/bin/podman"
+          BREW_ENV="PATH=${BREW_PREFIX}/bin:${PATH}"
+
+          echo "=== /var/lib/containers/storage/networks (netavark persistent configs) ==="
+          sudo find /var/lib/containers/storage/networks/ -ls 2>/dev/null | head -30 || echo "(absent)"
+
+          echo "=== podman network inspect podman ==="
+          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1 \
+            | tee /tmp/podman-net-inspect.txt || true
+
+          if grep -q '"firewall_driver": *"iptables"' /tmp/podman-net-inspect.txt 2>/dev/null; then
+            echo "=== WARN: firewall_driver=iptables detected — wiping and recreating ==="
+            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network rm -f podman 2>/dev/null || true
+            sudo rm -rf /var/lib/containers/storage/networks/ 2>/dev/null || true
+            sudo rm -f /var/lib/containers/storage/db.sql \
+                       /var/lib/containers/storage/db.sql-wal \
+                       /var/lib/containers/storage/db.sql-shm 2>/dev/null || true
+            sudo rm -rf /run/containers/networks/ 2>/dev/null || true
+            # Explicit create so containers.conf firewall_driver = "nftables" is applied to the
+            # new network record rather than relying on auto-creation during libpod init.
+            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create --driver bridge podman 2>&1 || true
+            echo "=== podman network inspect podman (after recreation) ==="
+            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1 || true
+          else
+            echo "=== podman bridge network OK (nftables or absent — acceptable) ==="
+          fi
+
+          echo "=== podman network ls ==="
+          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network ls 2>&1 || true
 
       - name: Resolve Pinned Versions and Podman Path
         id: runtime

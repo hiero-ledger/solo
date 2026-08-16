@@ -323,6 +323,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         'echo "--- removing stale db.sql + WAL/SHM ---";',
         'sudo rm -f /var/lib/containers/storage/db.sql /var/lib/containers/storage/db.sql-wal /var/lib/containers/storage/db.sql-shm;',
         'ls -la /var/lib/containers/storage/db.* 2>/dev/null || echo "(db files cleared — correct)";',
+        'echo "--- removing netavark network config dir (prevents stale iptables config re-read) ---";',
+        'sudo rm -rf /var/lib/containers/storage/networks/ /run/containers/networks/ 2>/dev/null || true;',
       ].join(' '),
     ]);
 
