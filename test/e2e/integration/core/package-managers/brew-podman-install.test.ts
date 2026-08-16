@@ -218,30 +218,43 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
 
     // `--pull=never` skips the registry check since the image was just pulled above, keeping
     // the full 60-second budget for container start and execution.
-    const output: string = execFileSync(
-      'sudo',
-      [
-        ...sudoEnvironmentArguments,
-        'podman',
-        ...podmanStorageArguments,
-        'run',
-        '--rm',
-        '--pull=never',
-        // Skip network setup: the hello container does not need network access, and on
-        // cold GitHub-hosted runners the default podman network (backed by netavark +
-        // nftables) takes long enough to initialise that rootful `podman run` exceeds
-        // our 60-second timeout.  Full network validation — including netavark and the
-        // podman provider — happens in the "Create Kind Cluster With Podman" step.
-        '--network=none',
-        HELLO_IMAGE,
-      ],
-      // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
-      // Without a hard kill, a hung `podman run` freezes mocha indefinitely: timeout: 60_000
-      // sends SIGTERM to sudo, but sudo waits for podman before exiting, and a stuck podman
-      // ignores SIGTERM; killSignal: 'SIGKILL' makes the OS kill sudo immediately so
-      // waitpid() returns and the event loop unblocks within 60 seconds.
-      {encoding: 'utf8', timeout: 60_000, killSignal: 'SIGKILL'},
-    );
-    expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
+    // --network=host uses the host network namespace directly, avoiding the creation of a
+    // new network namespace. On GitHub-hosted runners, creating a new network namespace
+    // (even with --network=none) may hang; --network=host bypasses that entirely. Full
+    // network validation (including netavark and the kind podman provider) happens in the
+    // "Create Kind Cluster With Podman" step.
+    // --log-level=debug is passed so the stderr before any ETIMEDOUT shows exactly where
+    // the hang occurs within the container-launch sequence.
+    let runOutput: string = '';
+    try {
+      runOutput = execFileSync(
+        'sudo',
+        [
+          ...sudoEnvironmentArguments,
+          'podman',
+          '--log-level=debug',
+          ...podmanStorageArguments,
+          'run',
+          '--rm',
+          '--pull=never',
+          '--network=host',
+          HELLO_IMAGE,
+        ],
+        // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
+        // Without a hard kill, a hung `podman run` freezes mocha indefinitely: timeout: 60_000
+        // sends SIGTERM to sudo, but sudo waits for podman before exiting, and a stuck podman
+        // ignores SIGTERM; killSignal: 'SIGKILL' makes the OS kill sudo immediately so
+        // waitpid() returns and the event loop unblocks within 60 seconds.
+        {encoding: 'utf8', timeout: 60_000, killSignal: 'SIGKILL'},
+      );
+    } catch (runError: unknown) {
+      const error: Record<string, unknown> = runError as Record<string, unknown>;
+      console.log('[podman run failed]', String(error['message'] ?? runError));
+      console.log('[podman run stdout]', String(error['stdout'] ?? '(empty)').slice(0, 1000));
+      const runStderr: string = String(error['stderr'] ?? '(empty)');
+      console.log('[podman run stderr (last 5000)]', runStderr.slice(-5000));
+      throw runError;
+    }
+    expect(runOutput, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
   });
 }).timeout(600_000);
