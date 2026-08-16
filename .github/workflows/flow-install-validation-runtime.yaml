@@ -252,8 +252,16 @@ jobs:
           # Update this pin (and verify in CI) when podman 6.2.0 or a fixed 6.1.x is released.
           NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           BREW=/home/linuxbrew/.linuxbrew/bin/brew
-          "${BREW}" install \
-            "https://raw.githubusercontent.com/Homebrew/homebrew-core/7644fe05a721/Formula/p/podman.rb"
+          # `brew install <url>` is not supported in modern Homebrew (it treats the URL as a tap
+          # formula name).  Downloading the .rb file first and passing the local path works because
+          # brew identifies the formula from the Ruby class name inside the file ("Podman"),
+          # not from the filename or path.
+          FORMULA_FILE="$(mktemp --suffix=.rb)"
+          curl -fsSL \
+            "https://raw.githubusercontent.com/Homebrew/homebrew-core/7644fe05a721/Formula/p/podman.rb" \
+            -o "${FORMULA_FILE}"
+          "${BREW}" install "${FORMULA_FILE}"
+          rm -f "${FORMULA_FILE}"
           "${BREW}" pin podman
           echo "Pinned: $("${BREW}" list podman --versions)"
 
