@@ -223,6 +223,11 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // (even with --network=none) may hang; --network=host bypasses that entirely. Full
     // network validation (including netavark and the kind podman provider) happens in the
     // "Create Kind Cluster With Podman" step.
+    // --security-opt seccomp=unconfined disables seccomp profile loading. On GitHub-hosted
+    // runners the kernel's seccomp(SECCOMP_SET_MODE_FILTER) call hangs when brew podman 6.x
+    // tries to install its default seccomp profile. This is a diagnostic-only container run
+    // (quay.io/podman/hello prints a greeting and exits), so no seccomp restriction is needed
+    // here; the kind cluster creation step that follows exercises the full stack.
     // --log-level=debug is passed so the stderr before any ETIMEDOUT shows exactly where
     // the hang occurs within the container-launch sequence.
     let runOutput: string = '';
@@ -238,6 +243,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           '--rm',
           '--pull=never',
           '--network=host',
+          '--security-opt',
+          'seccomp=unconfined',
           HELLO_IMAGE,
         ],
         // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
