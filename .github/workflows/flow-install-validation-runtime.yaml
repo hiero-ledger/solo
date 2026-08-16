@@ -78,29 +78,27 @@ jobs:
           # the same version skew as the system crun described in the next step, except there is no
           # brew binary to point at, so a matching pair is fetched here instead.
           #
-          # v2.0.0 is the release line that pairs with podman 6.x. Homebrew tracks podman's latest, so
-          # this pin has to move whenever the brew podman major moves. The binaries come from the
-          # upstream containers/* GitHub releases — the same provenance Solo itself uses for podman,
-          # whose PodmanDependencyManager downloads from api.github.com/repos/containers/podman/releases
-          # — and each archive is checked against the sha256sum asset published with that release, so a
-          # bad or tampered download fails this step rather than being installed.
-          # Install the system conmon package. The ubuntu-latest runner image does not include
-          # conmon by default — it is not a dependency of the pre-installed podman 4.x package
-          # in this image. `brew install podman` ships its own conmon in the brew prefix, but
-          # that brew-built binary hangs when executed on GitHub-hosted runners (even for
-          # conmon --version), causing every podman invocation that forks conmon (podman-info,
-          # podman-run) to block until SIGKILL. The apt conmon package (2.x) is
-          # protocol-compatible with brew podman 6.x and executes without hanging.
-          sudo apt-get install -y --no-install-recommends conmon
-
-          HELPER_VERSION='v2.0.0'
+          # Helper version matrix.  netavark and aardvark-dns must be protocol-compatible with the
+          # brew podman version (tracked via `brew info podman`).  v2.x pairs with podman 6.x but
+          # requires GLIBC_2.39 (ubuntu-24.04).  The ubuntu-22.04 runner ships GLIBC_2.35, so
+          # v1.14.x (the newest 1.x line whose binary only requires GLIBC_2.34) is used instead.
+          # Versions were verified with:
+          #   objdump -p <binary> | grep GLIBC | awk '{print $NF}' | sort -V | tail -1
+          # Bump both pins together whenever the brew podman major version changes, confirming
+          # the chosen pair runs on the runner's GLIBC before committing.
+          declare -A HELPER_VERSIONS=( [netavark]=v1.14.1 [aardvark-dns]=v1.14.0 )
           HELPER_DIRECTORY='/opt/podman-helpers'
+
+          # Install the system conmon package. The brew-built conmon hangs even for --version on
+          # GitHub-hosted runners; the apt package (protocol-compatible with brew podman 6.x) works.
+          sudo apt-get install -y --no-install-recommends conmon
 
           # A dedicated directory: nothing is written into the brew prefix or the system podman
           # directories, both of which belong to package managers that will overwrite them.
           sudo mkdir -p "${HELPER_DIRECTORY}"
 
           for HELPER in netavark aardvark-dns; do
+            HELPER_VERSION="${HELPER_VERSIONS[${HELPER}]}"
             RELEASE_URL="https://github.com/containers/${HELPER}/releases/download/${HELPER_VERSION}"
             DOWNLOAD_DIRECTORY="$(mktemp -d)"
 
@@ -154,7 +152,7 @@ jobs:
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
-          # netavark v2.0.0 only supports nftables. Ensure the kernel module is loaded before any
+          # netavark 1.14.x only supports nftables. Ensure the kernel module is loaded before any
           # podman invocation so nftables is available when netavark initialises.
           sudo modprobe nf_tables
 
