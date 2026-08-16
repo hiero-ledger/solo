@@ -78,13 +78,19 @@ jobs:
           # the same version skew as the system crun described in the next step, except there is no
           # brew binary to point at, so a matching pair is fetched here instead.
           #
-          # v2.0.0 is the release line that pairs with podman 6.x. Homebrew tracks podman's latest, so
-          # this pin has to move whenever the brew podman major moves. The binaries come from the
-          # upstream containers/* GitHub releases — the same provenance Solo itself uses for podman,
-          # whose PodmanDependencyManager downloads from api.github.com/repos/containers/podman/releases
-          # — and each archive is checked against the sha256sum asset published with that release, so a
-          # bad or tampered download fails this step rather than being installed.
-          HELPER_VERSION='v2.0.0'
+          # 1.17.x is the last 1.x release line before netavark 2.0.0 dropped iptables support
+          # (June 2026). Podman 6.1.0 creates networks with firewall_driver = "iptables" by
+          # default (containers.conf [network] firewall_driver = "nftables" is not applied
+          # to auto-created or explicitly-created networks in this version). Netavark 2.0.0
+          # rejects iptables entirely, making every podman run fail with "Must provide a valid
+          # firewall backend, got iptables". Netavark 1.17.x understands podman 6.x's network-
+          # options payload format (avoids the old "invalid type: sequence, expected a map" error
+          # that the system podman 4.x-era /usr/lib/podman/netavark produces) while still
+          # accepting the iptables firewall driver. Pins must move together when brew podman
+          # major changes to a release line that fixes the firewall_driver config regression.
+          # netavark and aardvark-dns version together but may lag by a patch release.
+          NETAVARK_VERSION='v1.17.2'
+          AARDVARK_DNS_VERSION='v1.17.1'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
           # A dedicated directory: nothing is written into the brew prefix or the system podman
@@ -92,6 +98,11 @@ jobs:
           sudo mkdir -p "${HELPER_DIRECTORY}"
 
           for HELPER in netavark aardvark-dns; do
+            if [[ "${HELPER}" == "netavark" ]]; then
+              HELPER_VERSION="${NETAVARK_VERSION}"
+            else
+              HELPER_VERSION="${AARDVARK_DNS_VERSION}"
+            fi
             RELEASE_URL="https://github.com/containers/${HELPER}/releases/download/${HELPER_VERSION}"
             DOWNLOAD_DIRECTORY="$(mktemp -d)"
 
@@ -302,6 +313,12 @@ jobs:
           # conmon_path must explicitly point at brew conmon. Without it, podman 6.x walks its
           # built-in search list first (/usr/local/lib/podman/conmon, /usr/lib/podman/conmon)
           # and picks up the system-packaged conmon which is too old for brew podman 6.x.
+          # firewall_driver = "nftables" in [network]: kept for documentation/intent — in
+          # podman 6.1.0 this field is not applied to auto-created or explicitly-created
+          # networks; the actual enforcement is by using netavark 1.17.x (which accepts iptables)
+          # rather than 2.0.0 (which rejects it). When a future podman release fixes the
+          # firewall_driver regression, this setting will take effect and the netavark pin
+          # can be upgraded back to 2.0.0.
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [containers]
           apparmor_profile = "unconfined"
