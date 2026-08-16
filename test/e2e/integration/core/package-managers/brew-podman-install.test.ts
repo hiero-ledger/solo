@@ -225,11 +225,15 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // the kind cluster creation step that follows exercises the full stack with security
     // policies and proper network isolation:
     //
-    // --network=host   — skip network namespace creation (clone(CLONE_NEWNET) hangs)
-    // --pid=host       — skip PID namespace creation (clone(CLONE_NEWPID) hangs)
-    // --ipc=host       — skip IPC namespace creation (clone(CLONE_NEWIPC) hangs)
-    // --uts=host       — skip UTS namespace creation (clone(CLONE_NEWUTS) hangs)
-    // seccomp=unconfined — skip seccomp filter installation (seccomp syscall hangs)
+    // --network=host      — skip network namespace creation (clone(CLONE_NEWNET) hangs)
+    // --pid=host          — skip PID namespace creation (clone(CLONE_NEWPID) hangs)
+    // --ipc=host          — skip IPC namespace creation (clone(CLONE_NEWIPC) hangs)
+    // --uts=host          — skip UTS namespace creation (clone(CLONE_NEWUTS) hangs)
+    // --userns=host       — skip user namespace mapping (uid/gid remapping hangs)
+    // --cgroups=disabled  — skip all cgroup operations (cgroupfs mkdir/write hangs on
+    //                       GitHub-hosted runners where the runner's cgroupv2 subtree
+    //                       has limited delegation; crun still runs the container process)
+    // seccomp=unconfined  — skip seccomp filter installation (seccomp syscall hangs)
     // apparmor=unconfined — skip AppArmor profile loading (aa_change_onexec hangs)
     //
     // --log-level=debug is passed so the stderr before any ETIMEDOUT shows exactly where
@@ -250,6 +254,8 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
           '--pid=host',
           '--ipc=host',
           '--uts=host',
+          '--userns=host',
+          '--cgroups=disabled',
           '--security-opt',
           'seccomp=unconfined',
           '--security-opt',
