@@ -83,9 +83,11 @@ jobs:
           # (and all earlier 1.x) rejected it with "invalid type: sequence, expected a map".
           # Only 2.0.0 can parse the new format. However, 2.0.0 also dropped iptables
           # support: containers with firewall_driver = "iptables" fail with "Must provide
-          # a valid firewall backend, got iptables". The safety-net step below pre-creates
-          # all needed bridge networks (podman, kind) with firewall_driver=nftables before
-          # kind runs, so netavark 2.0.0 always receives a valid nftables config.
+          # a valid firewall backend, got iptables". Podman 6.1.0 sends iptables regardless
+          # of containers.conf and podman network create --opt firewall_driver=nftables is
+          # rejected by netavark 2.0.0 as an "unsupported bridge network option". The wrapper
+          # below intercepts netavark's stdin JSON and patches firewall_driver=iptables to
+          # nftables before forwarding to the real binary, covering every netavark call path.
           HELPER_VERSION='v2.0.0'
           HELPER_DIRECTORY='/opt/podman-helpers'
 
@@ -113,6 +115,25 @@ jobs:
             sudo install --mode 0755 "${DOWNLOAD_DIRECTORY}/${HELPER}" "${HELPER_DIRECTORY}/${HELPER}"
             "${HELPER_DIRECTORY}/${HELPER}" --version
           done
+
+          # Wrap the real netavark binary so every netavark invocation — from `podman run`,
+          # `podman start`, and kind's container setup — has its stdin JSON patched before
+          # reaching netavark.real. Podman 6.1.0 hardcodes firewall_driver=iptables in the
+          # network-setup JSON it passes to netavark on stdin, regardless of containers.conf
+          # [network] firewall_driver and regardless of --opt flags (which netavark 2.0.0
+          # rejects as "unsupported bridge network option"). The wrapper is the only intercept
+          # point that covers all call paths without requiring sqlite3 or per-network patching.
+          sudo mv "${HELPER_DIRECTORY}/netavark" "${HELPER_DIRECTORY}/netavark.real"
+          sudo tee "${HELPER_DIRECTORY}/netavark" > /dev/null << 'NETAVARK_WRAPPER'
+          #!/bin/bash
+          # SPDX-License-Identifier: Apache-2.0
+          # Patch firewall_driver=iptables→nftables before forwarding to netavark.real.
+          # Podman 6.1.0 sends iptables regardless of containers.conf; netavark 2.0.0 rejects it.
+          sed 's|"firewall_driver"[[:space:]]*:[[:space:]]*"iptables"|"firewall_driver":"nftables"|g' | /opt/podman-helpers/netavark.real "$@"
+          NETAVARK_WRAPPER
+          sudo chmod 0755 "${HELPER_DIRECTORY}/netavark"
+          echo "=== netavark wrapper installed ==="
+          cat "${HELPER_DIRECTORY}/netavark"
 
       - name: Normalize System Container Configuration
         run: |
@@ -306,9 +327,9 @@ jobs:
           # and picks up the system-packaged conmon which is too old for brew podman 6.x.
           # firewall_driver = "nftables" in [network]: kept for documentation/intent — in
           # podman 6.1.0 this field is not applied to auto-created or explicitly-created
-          # networks. The actual enforcement is in the "Pre-create Podman Networks With nftables
-          # for Kind" step below, which patches db.sql directly and pre-creates the "kind"
-          # network with the correct driver before kind runs.
+          # networks (bug). The actual enforcement is the netavark wrapper installed in the
+          # previous step, which patches the firewall_driver value in the stdin JSON for
+          # every netavark invocation.
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [containers]
           apparmor_profile = "unconfined"
@@ -394,111 +415,26 @@ jobs:
           echo "=== sudo podman network ls (post-test, 15 s timeout) ==="
           sudo timeout 15 env "PATH=/home/linuxbrew/.linuxbrew/bin:${PATH}" podman network ls 2>&1 || echo "(podman network ls failed or timed out)"
 
-      - name: Pre-create Podman Networks With nftables for Kind
+      - name: Pre-create Kind Network for Cluster
         run: |
-          # Netavark 2.0.0 (required for podman 6.x wire format) rejects firewall_driver=iptables.
-          # Podman 6.1.0 creates bridge networks with firewall_driver=iptables by default because
-          # the containers.conf [network] firewall_driver field is not applied to new networks in
-          # this version (bug). We work around it by pre-creating the two networks kind uses
-          # — "podman" (default) and "kind" (per-cluster) — with explicit firewall_driver=nftables
-          # via --opt. If --opt firewall_driver=nftables is unsupported by podman 6.1.0, we patch
-          # the network's entry in db.sql directly via sqlite3 as a fallback.
-          # kind's podman provider calls ensureNetwork(name) which is a no-op when the network
-          # already exists, so pre-creating both networks here prevents kind from creating them
-          # with the wrong driver at cluster-creation time.
+          # kind v0.29.0's podman provider calls ensureNetwork("kind") which is a no-op when
+          # the "kind" network already exists. Pre-creating it here prevents kind from creating
+          # it at cluster-creation time with iptables defaults. If pre-creation fails, the
+          # netavark wrapper installed in the first step patches firewall_driver=iptables→nftables
+          # transparently when kind's containers are attached to the network.
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
           BREW_PODMAN="${BREW_PREFIX}/bin/podman"
           BREW_ENV="PATH=${BREW_PREFIX}/bin:${PATH}"
-          DB='/var/lib/containers/storage/db.sql'
 
-          echo "=== db.sql network rows before recreation ==="
-          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
-            || echo "(sqlite3 failed or table absent)"
-
-          echo "=== podman network inspect podman (pre-recreation) ==="
-          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1 || true
-
-          # --- Recreate default "podman" network with firewall_driver=nftables ---
-          echo "=== removing and recreating podman network with firewall_driver=nftables ==="
-          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network rm -f podman 2>/dev/null || true
-          sudo rm -rf /var/lib/containers/storage/networks/ 2>/dev/null || true
-          sudo rm -f "${DB}" "${DB}-wal" "${DB}-shm" 2>/dev/null || true
-          sudo rm -rf /run/containers/networks/ 2>/dev/null || true
-
-          # Try explicit --opt firewall_driver=nftables (supported in containers/common >= 0.65)
-          if ! sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create \
-              --driver bridge --opt firewall_driver=nftables podman 2>&1; then
-            echo "=== --opt firewall_driver=nftables rejected; falling back to plain create ==="
-            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create --driver bridge podman 2>&1 || true
-          fi
-
-          echo "=== podman network inspect podman (after recreation) ==="
-          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network inspect podman 2>&1
-
-          echo "=== db.sql podman network options (post-recreation) ==="
-          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
-            || echo "(sqlite3 failed)"
-
-          # Patch db.sql directly: ensure options.firewall_driver = "nftables" for ALL networks.
-          # This is belt-and-suspenders in case --opt was rejected and the plain create stored
-          # no options (or stored iptables). SQLite JSON functions are available in SQLite >= 3.38.
-          echo "=== patching db.sql: setting firewall_driver=nftables on all bridge networks ==="
-          sudo sqlite3 "${DB}" "
-            UPDATE Networks
-            SET json = json_set(
-              CASE
-                WHEN json_extract(json, '$.options') IS NULL
-                THEN json_set(json, '$.options', json('{}'))
-                ELSE json
-              END,
-              '$.options.firewall_driver', 'nftables'
-            )
-            WHERE json_extract(json, '$.driver') = 'bridge';
-          " 2>/dev/null && echo "(db.sql patched)" || echo "(sqlite3 patch failed — may not be needed)"
-
-          echo "=== db.sql network options after patch ==="
-          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
-            || echo "(sqlite3 failed)"
-
-          # --- Pre-create "kind" network that kind v0.29.0 uses for all clusters ---
-          # kind's podman provider calls ensureNetwork("kind") which skips creation when the
-          # network already exists. Pre-creating it with nftables prevents kind from creating it
-          # with the iptables default. kind uses 172.18.0.0/16 by default.
-          echo "=== pre-creating kind network with firewall_driver=nftables ==="
           sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network rm -f kind 2>/dev/null || true
-          if ! sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create \
-              --driver bridge \
-              --subnet 172.18.0.0/16 \
-              --gateway 172.18.0.1 \
-              --opt firewall_driver=nftables \
-              kind 2>&1; then
-            echo "=== --opt rejected; trying plain create ==="
-            sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create \
-              --driver bridge \
-              --subnet 172.18.0.0/16 \
-              --gateway 172.18.0.1 \
-              kind 2>&1 || true
-          fi
+          sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network create \
+            --driver bridge \
+            --subnet 172.18.0.0/16 \
+            --gateway 172.18.0.1 \
+            kind 2>&1 || echo "(kind network pre-create failed — netavark wrapper covers it)"
 
-          # Patch "kind" network in db.sql too
-          sudo sqlite3 "${DB}" "
-            UPDATE Networks
-            SET json = json_set(
-              CASE
-                WHEN json_extract(json, '$.options') IS NULL
-                THEN json_set(json, '$.options', json('{}'))
-                ELSE json
-              END,
-              '$.options.firewall_driver', 'nftables'
-            )
-            WHERE name = 'kind';
-          " 2>/dev/null && echo "(kind network patched in db.sql)" || echo "(patch failed)"
-
-          echo "=== final podman network ls ==="
+          echo "=== podman network ls ==="
           sudo env "${BREW_ENV}" timeout 15 "${BREW_PODMAN}" network ls 2>&1 || true
-          echo "=== db.sql final network options ==="
-          sudo sqlite3 "${DB}" "SELECT name, json_extract(json,'$.options') FROM Networks;" 2>/dev/null \
-            || echo "(sqlite3 failed)"
 
       - name: Resolve Pinned Versions and Podman Path
         id: runtime
