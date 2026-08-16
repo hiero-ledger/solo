@@ -205,7 +205,13 @@ jobs:
       - name: Validate Homebrew Podman Install
         env:
           SOLO_PODMAN_RUNTIME_VALIDATION: 'true'
-        run: task test-podman-runtime-validation
+        run: |
+          # Shell-level timeout as defence-in-depth: even if Node.js/mocha hangs with a live
+          # handle that prevents event-loop drain (e.g. tsx esbuild service), the outer
+          # `timeout --kill-after` ensures the step always terminates within a bounded time.
+          # --kill-after=30s sends SIGKILL 30 s after the initial SIGTERM if the process group
+          # still hasn't exited, guaranteeing the step ends even for unkillable child processes.
+          timeout --kill-after=30s 25m task test-podman-runtime-validation
 
       - name: Resolve Pinned Versions and Podman Path
         id: runtime

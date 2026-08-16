@@ -46,7 +46,13 @@ const LINUXBREW_PODMAN: string = '/home/linuxbrew/.linuxbrew/bin/podman';
 function resolvePodmanPath(): string {
   const candidates: string[] = [];
   try {
-    const brewPrefix: string = execFileSync('brew', ['--prefix', 'podman'], {encoding: 'utf8'}).trim();
+    // Short timeout + SIGKILL: `brew --prefix` is a local filesystem lookup and should be instant;
+    // a hang here would block the event loop just like the podman run call below.
+    const brewPrefix: string = execFileSync('brew', ['--prefix', 'podman'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      killSignal: 'SIGKILL',
+    }).trim();
     candidates.push(path.join(brewPrefix, 'bin', 'podman'));
   } catch {
     // brew is not resolvable from this process; fall through to the fixed linuxbrew prefix.
@@ -54,13 +60,23 @@ function resolvePodmanPath(): string {
   candidates.push(LINUXBREW_PODMAN);
   return (
     candidates.find((candidate: string): boolean => fs.existsSync(candidate)) ??
-    execFileSync('sh', ['-c', 'command -v podman'], {encoding: 'utf8'}).trim()
+    execFileSync('sh', ['-c', 'command -v podman'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      killSignal: 'SIGKILL',
+    }).trim()
   );
 }
 
 /** Parses the `[major, minor]` of the `X.Y.Z` version reported by the given podman binary. */
 function readPodmanVersion(podmanPath: string): [number, number] {
-  const output: string = execFileSync(podmanPath, ['--version'], {encoding: 'utf8'});
+  // Short timeout + SIGKILL: `podman --version` should return instantly; if it hangs it would
+  // block the event loop the same way as the podman run call below.
+  const output: string = execFileSync(podmanPath, ['--version'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+    killSignal: 'SIGKILL',
+  });
   const match: RegExpMatchArray | null = output.match(/(\d+)\.(\d+)\.(\d+)/);
   expect(match, `podman --version should report an X.Y.Z version, got: ${output}`).to.not.be.null;
   return [Number(match[1]), Number(match[2])];
@@ -109,9 +125,11 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
         HELLO_IMAGE,
       ],
       // execFileSync is synchronous — it blocks the event loop entirely while the child runs.
-      // Without a timeout, a hung `podman run` (e.g. stalled image pull) freezes mocha
-      // indefinitely; no timers, no --exit, and no async timeout can interrupt it.
-      {encoding: 'utf8', timeout: 60_000},
+      // Without a hard kill, a hung `podman run` (e.g. stalled image pull) freezes mocha
+      // indefinitely: timeout: 60_000 sends SIGTERM to sudo, but sudo waits for podman before
+      // exiting, and a stuck podman ignores SIGTERM; killSignal: 'SIGKILL' makes the OS kill
+      // sudo immediately so waitpid() returns and the event loop unblocks within 60 seconds.
+      {encoding: 'utf8', timeout: 60_000, killSignal: 'SIGKILL'},
     );
     expect(output, `${HELLO_IMAGE} should print its greeting`).to.contain('Podman');
   });
