@@ -193,6 +193,10 @@ export class K8ClientConfigMaps implements ConfigMaps {
             name,
             namespace: namespace.name,
             body: patch,
+            // Helm v4 uses SSA with fieldManager="helm". Setting the same manager here
+            // prevents "conflict with node-fetch" errors when helm upgrade re-applies
+            // ConfigMaps that Solo has written to via merge-patch.
+            fieldManager: 'helm',
           },
           setHeaderOptions('Content-Type', PatchStrategy.MergePatch),
         );
