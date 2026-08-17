@@ -69,10 +69,6 @@ export class DeployArgvBuilders {
     }
 
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
-    if (new SemanticVersion<string>(consensusNodeVersion).lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-      return false;
-    }
-
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
     return blockStreamMode === 'BLOCKS' && Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
   }
@@ -83,10 +79,6 @@ export class DeployArgvBuilders {
     }
 
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
-    if (new SemanticVersion<string>(consensusNodeVersion).lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-      return false;
-    }
-
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
     return Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
   }
