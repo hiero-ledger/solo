@@ -220,6 +220,7 @@ import {DomainNameParseFailedSoloError} from './classes/validation/domain-name-p
 import {UnknownTemplateDependencySoloError} from './classes/validation/unknown-template-dependency-solo-error.js';
 import {NoConsensusNodesFoundSoloError} from './classes/validation/no-consensus-nodes-found-solo-error.js';
 import {ServiceTypeMismatchSoloError} from './classes/validation/service-type-mismatch-solo-error.js';
+import {StorageClassNotFoundSoloError} from './classes/validation/storage-class-not-found-solo-error.js';
 import {BackupConfigNotFoundSoloError} from './classes/validation/backup-config-not-found-solo-error.js';
 import {BackupConfigInvalidSoloError} from './classes/validation/backup-config-invalid-solo-error.js';
 import {BackupConfigReadFailedSoloError} from './classes/validation/backup-config-read-failed-solo-error.js';
@@ -620,6 +621,7 @@ export class SoloErrors {
     readonly unknownTemplateDependency: typeof UnknownTemplateDependencySoloError;
     readonly noConsensusNodesFound: typeof NoConsensusNodesFoundSoloError;
     readonly serviceTypeMismatch: typeof ServiceTypeMismatchSoloError;
+    readonly storageClassNotFound: typeof StorageClassNotFoundSoloError;
     readonly backupConfigNotFound: typeof BackupConfigNotFoundSoloError;
     readonly backupConfigInvalid: typeof BackupConfigInvalidSoloError;
     readonly backupConfigReadFailed: typeof BackupConfigReadFailedSoloError;
@@ -694,6 +696,7 @@ export class SoloErrors {
     unknownTemplateDependency: UnknownTemplateDependencySoloError,
     noConsensusNodesFound: NoConsensusNodesFoundSoloError,
     serviceTypeMismatch: ServiceTypeMismatchSoloError,
+    storageClassNotFound: StorageClassNotFoundSoloError,
     backupConfigNotFound: BackupConfigNotFoundSoloError,
     backupConfigInvalid: BackupConfigInvalidSoloError,
     backupConfigReadFailed: BackupConfigReadFailedSoloError,

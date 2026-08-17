@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
-import {SoloError} from './errors/solo-error.js';
+import {StorageClassNotFoundSoloError} from './errors/classes/validation/storage-class-not-found-solo-error.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8} from '../integration/kube/k8.js';
@@ -64,10 +64,7 @@ export class StorageClassHelper {
       const available: string = storageClasses
         .map((storageClass: StorageClass): string => storageClass.name)
         .join(', ');
-      throw new SoloError(
-        `StorageClass '${userSuppliedClass}' not found in cluster.` +
-          (available ? ` Available classes: ${available}` : ' No StorageClasses are installed.'),
-      );
+      throw new StorageClassNotFoundSoloError(userSuppliedClass, available);
     }
     return userSuppliedClass;
   }
