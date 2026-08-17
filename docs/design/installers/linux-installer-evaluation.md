@@ -73,6 +73,17 @@ No cross-compilation, no language runtimes, no registry authentication.
 
 Universal. Any POSIX shell + `tar` + the chosen compression binary (`gzip` ships in every base image). Covers all nine distributions in the matrix with one artifact and no package-manager coupling.
 
+**Upgrade path**
+
+No built-in upgrade mechanism. A new release requires the user to download and re-run the latest `.run` file, which overwrites `/opt/solo/` in place.
+
+Solo already ships `VersionUpdateNotifier` (`src/core/version-update-notifier.ts`), a post-command banner that detects when a newer version is available. It currently checks the npm registry (`https://registry.npmjs.org/@hashgraph/solo/latest`) and caches the result for 24 hours in `~/.solo/cache/update-check.json`. For a makeself-installed binary two small adaptations are needed:
+
+1. **Endpoint:** switch to the GitHub Releases API (`https://api.github.com/repos/hiero-ledger/solo/releases/latest`) — the same endpoint `EdgeVersionFetcher` already uses for component version detection.
+2. **Banner message:** detect the install method by checking the binary path for an `/opt/solo/` prefix (the same approach `HomebrewDeprecationNotifier` uses to detect a Cellar path) and show a `.run` download URL rather than npm upgrade instructions.
+
+A full `solo upgrade` self-update command — download the new `.run` to a temp path, execute it as a subprocess, exit — is the longer-term option and maps to the "self-upgrade capability" item in #5714.
+
 **Prior art**
 
 NMT (Hedera Network Management Terminal) distributes its Linux release via makeself, providing a reference implementation the team can draw from directly.
@@ -99,6 +110,10 @@ Low to medium. `appimagetool` must run on a Linux x86_64 host (or ARM64 for that
 **Distribution target breadth**
 
 Universal for glibc-based distributions (≥ 2.17). Does not run natively on Alpine (musl libc); Alpine users would need a compatibility layer. Coverage is therefore incomplete across the nine-distribution matrix.
+
+**Upgrade path**
+
+AppImage has a native delta-update protocol (`AppImageUpdate` / zsync): the `.AppImage` file can download only the changed blocks of a new release and patch itself in-place. However, because AppImage has no install lifecycle, this only updates the portable file — it cannot re-run a post-install hook or update resources installed to the system. The upgrade mechanism is self-contained within the AppImage paradigm, which is incompatible with Solo's requirements.
 
 **Ruling out AppImage**
 
@@ -128,6 +143,10 @@ High when building both formats independently. `dpkg-deb` or `debhelper` is requ
 
 Neither format covers Arch Linux or Alpine Linux natively, requiring additional work for those distributions.
 
+**Upgrade path**
+
+With a hosted repository, package manager upgrades work natively: `apt upgrade solo` / `dnf upgrade solo`. Users who added the Solo repository during initial install get upgrades automatically through normal system update flows (`apt update && apt upgrade`, `dnf upgrade`). Without a hosted repository, upgrade is manual — re-download the new `.deb` or `.rpm` and reinstall.
+
 **Distribution target breadth**
 
 Partial. `.deb` covers Ubuntu and Debian; `.rpm` covers Fedora, Rocky, AlmaLinux, Oracle Linux, and openSUSE. Arch requires an AUR package (community-maintained). Alpine uses `apk` — a third format requiring separate tooling. Full nine-distribution coverage needs three or four package formats.
@@ -155,6 +174,10 @@ Medium. A single `gem install fpm` step adds Ruby to the CI environment. After t
 
 FPM supports `deb`, `rpm`, `apk`, and `pacman` output types, meaning all nine distributions in the matrix can be covered from one tool.
 
+**Upgrade path**
+
+Same as native .deb/.rpm: `apt upgrade solo` / `dnf upgrade solo` with a hosted repository, or manual re-download without one. Because FPM also generates `apk` and `pacman` packages, Arch and Alpine users get the same package-manager upgrade story if those repositories are hosted.
+
 **Distribution target breadth**
 
 Full — equivalent to the nine-distribution matrix — if all four output types (`deb`, `rpm`, `apk`, `pacman`) are generated. Without a hosted repository per format, users still install via local file, but all distributions are reachable.
@@ -175,6 +198,7 @@ Full — equivalent to the nine-distribution matrix — if all four output types
 | **Repository infrastructure** | Not needed | Not needed | Required for best UX | Required for best UX |
 | **NMT precedent** | Yes | No | No | No |
 | **Build dependencies** | Shell + tar | appimagetool | dpkg-deb + rpmbuild | Ruby + fpm gem |
+| **Upgrade path** | Re-run new `.run` + version-check banner | AppImageUpdate delta patch (incompatible with lifecycle) | `apt upgrade` / `dnf upgrade` (requires hosted repo) | Same as .deb/.rpm |
 
 ---
 
