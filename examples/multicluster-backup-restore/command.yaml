@@ -53,9 +53,11 @@ relay:
   - --cluster-ref
   - solo-e2e-c2
   - --node-aliases
-  - ${NODE_ALIASES}
+  - ${RELAY_NODE_ALIASES}
   - --quiet-mode
   - --dev
+  - --values-file
+  - relay-node-values-dual-cluster-minimal.yaml
 # Re-applied at restore time so service.spec.loadBalancerIP is rendered into the
 # chart with the same values as the original deploy. MetalLB honors loadBalancerIP,
 # so the new cluster comes up with the same LB IPs the saved roster expects.
