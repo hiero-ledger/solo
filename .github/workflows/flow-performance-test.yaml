@@ -202,30 +202,33 @@ jobs:
           }
           trap cleanup SIGTERM SIGINT
 
-          # API poller: polls this job's own status every 30 s and sends SIGTERM
-          # to the main shell when GitHub no longer reports it in_progress.
-          # Self-hosted runners do not deliver SIGTERM to step scripts directly,
-          # so this is the only reliable way to detect workflow cancellation.
-          # The run-level updated_at field is NOT a cancellation signal: any
-          # sibling job transition in a multi-job run (e.g. the nightly extended
-          # tests) bumps it, which made this job SIGTERM its own healthy task
-          # (see hiero-ledger/solo#5432). The job is identified by RUNNER_NAME,
-          # which is unique per ephemeral ARC runner pod.
+          # API poller: polls this workflow RUN's status every 30 s and sends
+          # SIGTERM to the main shell when GitHub reports the run cancelled or
+          # completed. Self-hosted (ARC) runners do not terminate the running
+          # step on cancellation — the job otherwise runs every step to full
+          # completion even after the run is cancelled (hiero-ledger/solo#5813) —
+          # so this API poll is the only reliable way to react to cancellation.
+          #
+          # The signal is the RUN's status/conclusion, NOT the job's own
+          # in_progress count: the job hosting this poller is itself always
+          # in_progress while the step runs, so counting in_progress jobs could
+          # never reach 0 and the poller never fired (#5813). The run's
+          # status/conclusion, by contrast, flip to completed/cancelled as soon
+          # as a cancel is requested, and — unlike the run-level updated_at
+          # timestamp — do not change when a sibling job transitions in a
+          # multi-job run such as the nightly extended tests (#5432).
           # GITHUB_TOKEN is passed explicitly via step env (self-hosted runners
           # do not auto-expose it as a shell variable).
-          _own_job_in_progress_count() {
+          _run_cancelled_or_completed() {
             local _api="${GITHUB_API_URL:-https://api.github.com}"
-            # Without a runner identity the job cannot be found; report unknown, never 0.
-            [[ -z "${RUNNER_NAME}" ]] && { echo ""; return; }
             curl -sf \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
-              | jq -r --arg runner "${RUNNER_NAME}" \
-                  '[.jobs[] | select(.runner_name == $runner and .status == "in_progress")] | length' 2>/dev/null \
+              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              | jq -r 'if (.status == "completed" or .conclusion == "cancelled") then "stop" else "run" end' 2>/dev/null \
               || echo ""
           }
-          echo "Cancellation poller watching job status for runner: ${RUNNER_NAME}"
+          echo "Cancellation poller watching run status for run: ${GITHUB_RUN_ID}"
 
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
@@ -237,19 +240,19 @@ jobs:
 
           # Start poller AFTER TASK_PID is set.
           api_cancel_poller() {
-            local zero_readings=0
+            local stop_readings=0
             while true; do
               sleep 30
-              current="$(_own_job_in_progress_count)"
+              current="$(_run_cancelled_or_completed)"
               # An empty reading is an API failure, which is not evidence of cancellation.
-              if [[ "${current}" == "0" ]]; then
-                zero_readings=$((zero_readings + 1))
+              if [[ "${current}" == "stop" ]]; then
+                stop_readings=$((stop_readings + 1))
               else
-                zero_readings=0
+                stop_readings=0
               fi
               # Require two consecutive confirmations to guard against a stale API read.
-              if (( zero_readings >= 2 )); then
-                echo "=== API poller: job no longer in_progress, signalling main shell ==="
+              if (( stop_readings >= 2 )); then
+                echo "=== API poller: run cancelled or completed, signalling main shell ==="
                 kill -TERM $$ 2>/dev/null || true
                 return
               fi
