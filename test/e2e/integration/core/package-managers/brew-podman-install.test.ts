@@ -126,11 +126,18 @@ describe('BrewPackageManager podman runtime validation', function (this: Mocha.S
     // --runroot is the per-session runtime directory (sockets, conmon PIDs); isolated for the same
     // reason.  Neither path affects the registry, containers.conf, or any production-code path.
     //
+    // --tmpdir isolates the libpod state tmp directory from the path containers.conf names
+    // (/tmp/podman-brew-tmp, shared with the "Create Kind Cluster With Podman" step). When this
+    // test's `podman run` is killed by SIGKILL on timeout, podman does not clean up that directory,
+    // leaving stale lock files that cause the next `sudo podman info` (in the kind cluster step)
+    // to hang indefinitely waiting to acquire a lock whose PID no longer exists.
+    //
     // --cgroup-manager=cgroupfs bypasses systemd cgroup delegation (the default "systemd" manager
     // makes a dbus call at startup that hangs on GitHub-hosted runners).
     const podmanStorageArguments: string[] = [
       '--root=/tmp/podman-brew-storage',
       '--runroot=/tmp/podman-brew-runroot',
+      '--tmpdir=/tmp/podman-brew-mocha-tmp',
       '--cgroup-manager=cgroupfs',
     ];
 

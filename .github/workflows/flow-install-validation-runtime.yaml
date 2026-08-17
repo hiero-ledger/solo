@@ -332,9 +332,18 @@ jobs:
         run: |
           RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "$(command -v kind)"):${PATH}"
 
-          # Quick diagnostic: verify that rootful podman responds promptly and surfaces the
-          # containers.conf we wrote in the normalize step. If this hangs, the problem is
-          # in podman startup (storage, conmon, or cgroup initialisation), not in kind itself.
+          # The validate step's `podman run` is killed by SIGKILL on timeout, leaving stale
+          # lock files in the containers.conf tmp_dir (/tmp/podman-brew-tmp). The validate
+          # step passes --tmpdir=/tmp/podman-brew-mocha-tmp to isolate its own state, but as
+          # belt-and-suspenders we also remove the shared tmp_dir here so that the first
+          # rootful `podman info` (below) and `kind create cluster` start with a clean slate.
+          # Without this, `sudo podman info` hangs indefinitely waiting to acquire a lock
+          # whose PID no longer exists — confirmed by the 30 s diagnostic timeout firing.
+          sudo rm -rf /tmp/podman-brew-tmp
+
+          # Diagnostic: verify that rootful podman responds promptly and surfaces the
+          # containers.conf we wrote in the normalize step. A hang here means the problem is
+          # in podman startup (storage, conmon, or tmp-dir locking), not in kind itself.
           echo "=== sudo podman info (30 s timeout) ==="
           if ! timeout 30 sudo env "PATH=${RUNTIME_PATH}" podman info; then
             echo "::warning::podman info did not complete within 30 s — storage or conmon may still be blocking"
