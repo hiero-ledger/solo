@@ -210,7 +210,11 @@ jobs:
           # with "Must provide a valid firewall backend, got iptables".
           CONTAINERS_CONF_CONTENT=$(cat << EOF
           [engine]
-          runtime = "crun"
+          # Use runc (the reference OCI runtime at /usr/bin/runc) rather than "crun". When the
+          # name "crun" is used, podman resolves it via its built-in fallback path list which
+          # includes /usr/local/bin/crun (runner image version 1.28). That binary hangs during
+          # the libpod state refresh. /usr/bin/runc never hangs and is ABI-compatible with kind.
+          runtime = "runc"
           # System conmon (from Ubuntu's apt conmon package) must come first: the brew-built
           # conmon hangs on GitHub-hosted runners when executed, even for conmon --version.
           # Podman calls conmon --version during info and forks it to monitor every container
@@ -348,6 +352,13 @@ jobs:
           # Clear any stale state from the mocha test (uses isolated paths, but belt-and-suspenders).
           sudo rm -rf /tmp/podman-brew-tmp /run/libpod /run/containers
 
+          # Pre-create the libpod "alive" file. When tmp_dir/alive exists libpod skips its
+          # "system restart" state refresh, which calls `netavark reload` to tear down stale
+          # networks. Netavark hangs indefinitely on this runner/kernel combination. Since we
+          # just cleared all state, there are no stale networks or containers to refresh anyway.
+          sudo mkdir -p /tmp/podman-brew-tmp
+          sudo touch /tmp/podman-brew-tmp/alive
+
           # Diagnostic: verify that rootful podman responds promptly and surfaces the
           # containers.conf we wrote in the normalize step. --log-level=debug shows exactly
           # which conmon path, config files, and subsystems are used so we can pinpoint hangs.
@@ -361,6 +372,11 @@ jobs:
           # directories so kind's first podman invocation starts with a completely clean slate.
           sudo pkill -KILL -x podman 2>/dev/null || true
           sudo rm -rf /tmp/podman-brew-tmp /run/libpod /run/containers
+
+          # Re-create the alive file after the final state wipe so kind's first podman
+          # invocation also bypasses the netavark-reload state refresh.
+          sudo mkdir -p /tmp/podman-brew-tmp
+          sudo touch /tmp/podman-brew-tmp/alive
 
           # Same invocation shape as ClusterTaskManager: kind runs rootfully (PodmanMode.ROOTFUL on
           # Linux) and sudo resets the PATH, so podman and kind are passed through `sudo env`.
