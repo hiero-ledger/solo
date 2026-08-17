@@ -178,6 +178,32 @@ FPM supports `deb`, `rpm`, `apk`, and `pacman` output types, meaning all nine di
 
 Same as native .deb/.rpm: `apt upgrade solo` / `dnf upgrade solo` with a hosted repository, or manual re-download without one. Because FPM also generates `apk` and `pacman` packages, Arch and Alpine users get the same package-manager upgrade story if those repositories are hosted.
 
+**Repository hosting**
+
+APT and YUM/DNF repositories are static file trees — `apt` expects a signed `Packages.gz` + `Release`/`InRelease`; `dnf` expects a `repodata/` directory with `repomd.xml`. Three options are viable for Solo:
+
+- **JFrog Artifactory (recommended):** Solo already publishes npm packages to JFrog, which natively supports Debian and RPM repository types. Adding a `debian` and `rpm` repository to the same instance requires no new infrastructure; the release workflow uploads the package alongside the npm tarball.
+
+- **GitHub Pages:** A CI job generates the repository metadata after each release and pushes it to a `gh-pages` branch. GitHub Pages serves the static files. This is GitHub-native and used by projects like Tailscale, but requires maintaining the metadata generation step in CI.
+
+- **GitHub Releases only (no repository):** Upload `.deb` and `.rpm` as release assets. Users install with `apt install ./solo.deb` or `dnf install ./solo.rpm` (local file). `apt upgrade` / `dnf upgrade` do not work — upgrade stays manual. This gives native package format UX at install time without the repository infrastructure overhead.
+
+Once a repository is configured, users add it once during initial setup:
+
+```sh
+# Debian/Ubuntu
+curl -fsSL https://<repo-host>/solo/apt/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/solo.gpg
+echo "deb [signed-by=/usr/share/keyrings/solo.gpg] https://<repo-host>/solo/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/solo.list
+sudo apt update && sudo apt install solo
+
+# Fedora/RHEL-family
+sudo curl -fsSL -o /etc/yum.repos.d/solo.repo https://<repo-host>/solo/rpm/solo.repo
+sudo dnf install solo
+```
+
+Subsequent upgrades are handled by the package manager with no user intervention beyond `apt upgrade` or `dnf upgrade`.
+
 **Distribution target breadth**
 
 Full — equivalent to the nine-distribution matrix — if all four output types (`deb`, `rpm`, `apk`, `pacman`) are generated. Without a hosted repository per format, users still install via local file, but all distributions are reachable.
