@@ -161,13 +161,13 @@ jobs:
           # network from scratch using our containers.conf (firewall_driver = "nftables").
           sudo podman network rm --force podman 2>/dev/null || true
 
-          # /run/libpod is podman's runtime tmp dir (shared across all rootful invocations
-          # regardless of --runroot). The system podman 4.x that just ran "network rm" above
-          # may have left lock files, pid files, or a v4-format database in that directory.
-          # Brew podman 6.x uses the same path and can hang trying to parse a v4-format file
-          # or acquire a lock whose PID is stale. Removing it here gives brew podman a clean
-          # start; it will recreate the directory on first use.
-          sudo rm -rf /run/libpod
+          # /run/libpod is the tmp_dir for rootful podman 4.x; /run/containers/storage is its
+          # RunRoot (per-session sockets and lock files). The system podman 4.x that just ran
+          # "network rm" above may have left lock files, pid files, or v4-format databases in
+          # both directories. Brew podman 6.x uses the same paths by default and hangs trying
+          # to parse v4-format files or acquire locks whose PIDs are stale. Removing both
+          # directories here gives brew podman a clean start; it recreates them on first use.
+          sudo rm -rf /run/libpod /run/containers
 
           # Clear the legacy podman 4.x graph root so brew podman 6.x starts with a clean
           # storage. The "podman network rm" call above (a system podman 4.x invocation)
@@ -345,10 +345,19 @@ jobs:
           # containers.conf we wrote in the normalize step. A hang here means the problem is
           # in podman startup (storage, conmon, or tmp-dir locking), not in kind itself.
           echo "=== sudo podman info (30 s timeout) ==="
-          if ! timeout 30 sudo env "PATH=${RUNTIME_PATH}" podman info; then
+          if ! timeout 30 sudo env "PATH=${RUNTIME_PATH}" podman info --log-level=info 2>&1; then
             echo "::warning::podman info did not complete within 30 s — storage or conmon may still be blocking"
           fi
           echo "=== podman info complete ==="
+
+          # `timeout 30` above sends SIGTERM to sudo/podman when the timer fires. Podman may
+          # ignore SIGTERM while blocked in a futex (lock-wait) and continue running as an
+          # orphan, still holding the tmp_dir lock. Kill any residual podman processes and
+          # clear the tmp_dir so the subsequent `kind create cluster` → `podman pull` does not
+          # block on the same stale lock indefinitely. Also clear the RunRoot in case the
+          # killed invocation left stale sockets or pid files there.
+          sudo pkill -KILL -x podman 2>/dev/null || true
+          sudo rm -rf /tmp/podman-brew-tmp /run/libpod /run/containers
 
           # Same invocation shape as ClusterTaskManager: kind runs rootfully (PodmanMode.ROOTFUL on
           # Linux) and sudo resets the PATH, so podman and kind are passed through `sudo env`.
