@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../errors/solo-errors.js';
-import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
+import {type AnyObject, type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
-import {type CommandDefinition} from '../../types/index.js';
+import {type CommandDefinition, type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlags} from '../../types/flag-types.js';
 import {Flags as flags} from '../../commands/flags.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
-import {ListrContext, ListrRendererValue} from 'listr2';
+import {Listr, type ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../constants.js';
 import {SpinnerListrOptions} from '../spinner-listr-options.js';
 import {type Deprecation} from '../../types/deprecation.js';
@@ -60,21 +60,14 @@ export class Subcommand {
       return;
     }
 
-    const taskItems: any[] = [
-      {
-        title: 'Pre-flight: check Docker Desktop containerd setting',
-        task: async (): Promise<void> => {
-          const result: ReturnType<typeof BaseCommand.checkDockerDesktopContainerdSetting> =
-            BaseCommand.checkDockerDesktopContainerdSetting();
-          if (result.containerdSnapshotterEnabled && result.warningMessage) {
-            this.logger.warn(result.warningMessage);
-          }
-        },
-      },
+    const taskItems: SoloListrTask<AnyObject>[] = [
+      BaseCommand.dockerDesktopPreflightTask(this.logger),
       {
         title: 'Check dependencies',
-        task: (_: ListrContext, task: any): any => {
-          const subTasks: any[] = this.depManager.taskCheckDependencies(this.dependencies);
+        task: async (_: AnyObject, task: SoloListrTaskWrapper<AnyObject>): Promise<unknown> => {
+          const subTasks: SoloListrTask<AnyObject>[] = this.depManager.taskCheckDependencies<AnyObject>(
+            this.dependencies,
+          );
           return task.newListr(subTasks, {
             concurrent: true,
             rendererOptions: {
@@ -98,7 +91,7 @@ export class Subcommand {
       taskItems.push(...this.clusterTaskManager.setupLocalClusterTasks(useSmallMemoryCluster));
     }
 
-    const tasks: any = this.taskList.newTaskList(
+    const tasks: Listr<AnyObject, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
       taskItems,
       collapseTasks ? SpinnerListrOptions.build(true) : constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -107,7 +100,7 @@ export class Subcommand {
     if (this.taskList.parentTaskListMap.size === 0) {
       try {
         await tasks.run();
-      } catch (error: Error | any) {
+      } catch (error) {
         throw new SoloErrors.system.dependencyInstallFailed('dependencies', error);
       }
     }

@@ -120,6 +120,7 @@ export class InjectTokens {
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
+  public static InitCommandDefinition: symbol = Symbol.for('InitCommandDefinition');
   public static ClusterReferenceCommandDefinition: symbol = Symbol.for('ClusterReferenceCommandDefinition');
   public static ConsensusCommandDefinition: symbol = Symbol.for('ConsensusCommandDefinition');
   public static DeploymentCommandDefinition: symbol = Symbol.for('DeploymentCommandDefinition');

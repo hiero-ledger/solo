@@ -33,6 +33,8 @@ import {FilePermissions} from '../business/utils/file-permissions.js';
 
 @injectable()
 export class Middlewares {
+  private static hasShownDevSystemFileLists: boolean = false;
+
   public constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
@@ -65,20 +67,27 @@ export class Middlewares {
       const cacheDirectory: string =
         (this.configManager.getFlag<string>(flags.cacheDir) as string) || (constants.SOLO_CACHE_DIR as string);
 
+      const directories: string[] = [
+        constants.SOLO_HOME_DIR as string,
+        constants.SOLO_LOGS_DIR as string,
+        cacheDirectory,
+        constants.SOLO_VALUES_DIR as string,
+      ];
+
       const tasks: Listr<ListrContext, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
         [
           {
             title: 'Setup home directory and cache',
             task: (): void => {
-              for (const directoryPath of [
-                constants.SOLO_HOME_DIR as string,
-                constants.SOLO_LOGS_DIR as string,
-                cacheDirectory,
-                constants.SOLO_VALUES_DIR as string,
-              ]) {
+              for (const directoryPath of directories) {
                 if (!fs.existsSync(directoryPath)) {
-                  fs.mkdirSync(directoryPath, {recursive: true});
+                  try {
+                    fs.mkdirSync(directoryPath, {recursive: true});
+                  } catch (error) {
+                    throw new SoloErrors.system.directoryCreationFailed(error);
+                  }
                 }
+                this.logger.debug(`OK: setup directory: ${directoryPath}`);
               }
             },
           },
@@ -92,6 +101,7 @@ export class Middlewares {
           {
             title: `Copy templates in '${cacheDirectory}'`,
             task: (): void => {
+              let directoryCreated: boolean = false;
               const directoryName: string = 'templates';
               const sourceDirectory: string = PathEx.safeJoinWithBaseDirConfinement(
                 constants.RESOURCES_DIR as string,
@@ -103,12 +113,35 @@ export class Middlewares {
 
               const destinationDirectory: string = PathEx.join(cacheDirectory, directoryName);
               if (!fs.existsSync(destinationDirectory)) {
+                directoryCreated = true;
                 fs.mkdirSync(destinationDirectory, {recursive: true});
               }
 
               fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
               // cpSync preserves the packaged source mode (0755) and bypasses the process umask.
               FilePermissions.restrictTreeToOwner(destinationDirectory);
+
+              if (argv.debug && !Middlewares.hasShownDevSystemFileLists) {
+                this.logger.showList('Home Directories', directories);
+                Middlewares.hasShownDevSystemFileLists = true;
+              }
+
+              if (directoryCreated) {
+                this.logger.showUser(
+                  chalk.grey(
+                    '\n***************************************************************************************',
+                  ),
+                );
+                this.logger.showUser(
+                  chalk.grey(
+                    `Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: ${constants.SOLO_HOME_DIR as string}\n` +
+                      "If a full reset is needed, delete the directory or relevant sub-directories before running 'solo'.",
+                  ),
+                );
+                this.logger.showUser(
+                  chalk.grey('***************************************************************************************'),
+                );
+              }
             },
           },
         ],

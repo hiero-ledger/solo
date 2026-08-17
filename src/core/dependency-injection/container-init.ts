@@ -103,6 +103,7 @@ import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
 import {ROOT_DIR} from '../constants.js';
 import {CacheCommandDefinition} from '../../commands/command-definitions/cache-command-definition.js';
+import {InitCommandDefinition} from '../../commands/init/init-command-definition.js';
 import {CacheCommand} from '../../commands/cache.js';
 import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
 import {DockerClient} from '../../integration/container-engine/docker-client.js';
@@ -219,6 +220,7 @@ export class Container {
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),
+      new SingletonContainer(InjectTokens.InitCommandDefinition, InitCommandDefinition),
       new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
       new SingletonContainer(InjectTokens.ClusterReferenceCommandDefinition, ClusterReferenceCommandDefinition),
       new SingletonContainer(InjectTokens.ConsensusCommandDefinition, ConsensusCommandDefinition),

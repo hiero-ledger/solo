@@ -5,6 +5,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type CommandDefinition} from '../types/index.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {BlockCommandDefinition} from './command-definitions/block-command-definition.js';
+import {InitCommandDefinition} from './init/init-command-definition.js';
 import {ClusterReferenceCommandDefinition} from './command-definitions/cluster-reference-command-definition.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 import {MirrorCommandDefinition} from './command-definitions/mirror-command-definition.js';
@@ -28,6 +29,7 @@ export class Commands {
     @inject(InjectTokens.BackupRestoreCommandDefinition)
     private readonly backupRestore?: BackupRestoreCommandDefinition,
     @inject(InjectTokens.BlockCommandDefinition) private readonly block?: BlockCommandDefinition,
+    @inject(InjectTokens.InitCommandDefinition) private readonly initCommand?: InitCommandDefinition,
     @inject(InjectTokens.ClusterReferenceCommandDefinition)
     private readonly cluster?: ClusterReferenceCommandDefinition,
     @inject(InjectTokens.ConsensusCommandDefinition) private readonly consensus?: ConsensusCommandDefinition,
@@ -43,6 +45,7 @@ export class Commands {
   ) {
     this.backupRestore = patchInject(backupRestore, InjectTokens.BackupRestoreCommandDefinition, this.constructor.name);
     this.block = patchInject(block, InjectTokens.BlockCommandDefinition, this.constructor.name);
+    this.initCommand = patchInject(initCommand, InjectTokens.InitCommandDefinition, this.constructor.name);
     this.cluster = patchInject(cluster, InjectTokens.ClusterReferenceCommandDefinition, this.constructor.name);
     this.consensus = patchInject(consensus, InjectTokens.ConsensusCommandDefinition, this.constructor.name);
     this.deployment = patchInject(deployment, InjectTokens.DeploymentCommandDefinition, this.constructor.name);
@@ -64,6 +67,7 @@ export class Commands {
       this.consensus.getCommandDefinition(),
       this.deployment.getCommandDefinition(),
       this.explorer.getCommandDefinition(),
+      this.initCommand.getCommandDefinition(),
       this.keys.getCommandDefinition(),
       this.ledger.getCommandDefinition(),
       this.mirror.getCommandDefinition(),
