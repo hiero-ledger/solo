@@ -13,6 +13,7 @@ import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/con
 import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {Templates} from '../core/templates.js';
 import {
+  Helpers,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
   resolveValidJsonFilePath,
@@ -1001,9 +1002,20 @@ export class NetworkCommand extends BaseCommand {
 
         return blockNodeMapLength > 0 || externalBlockNodeMapLength > 0;
       });
-    // CN >= 0.74 can stream blocks directly to a block node. Without a deployed block node,
-    // keep using record streams via MinIO so mirror/importer and relay still have a source.
-    config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured);
+    const blockStreamMode: string = Helpers.getBlockStreamModeForConsensusVersion(
+      config.releaseTag,
+      blockNodeConfigured,
+      config.tssEnabled,
+    );
+    // CN >= 0.74 can stream blocks directly to a block node. If the effective stream
+    // mode is forced back to BOTH/RECORDS for compatibility, keep MinIO enabled so
+    // record uploaders and mirror importer use the same source.
+    config.minioEnabled = !(
+      tssByDefaultSupported &&
+      config.tssEnabled &&
+      blockNodeConfigured &&
+      blockStreamMode === 'BLOCKS'
+    );
 
     config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
@@ -1945,6 +1957,7 @@ export class NetworkCommand extends BaseCommand {
                   this.k8Factory,
                   false,
                   this.remoteConfig.configuration.versions.consensusNode,
+                  this.remoteConfig.configuration.state.tssEnabled,
                 );
               }
             } catch (error) {
