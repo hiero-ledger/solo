@@ -191,30 +191,28 @@ dispatching into Solo and awaiting an async result. Candidate mechanisms (design
 
 ### 6.6 End-to-end run (mirror-node PR example)
 
-```mermaid
-sequenceDiagram
-    participant CI as Mirror-node CI (PR)
-    participant TCK as Solo TCK (composite Action)
-    participant Solo as solo CLI (subprocess)
-    participant K8s as Kind cluster
-    participant Net as Mirror REST / JSON-RPC
+```text
+Actors:  CI   = Mirror-node CI (PR)           Solo = solo CLI (subprocess)
+         TCK  = Solo TCK (composite Action)    K8s  = Kind cluster
+         Net  = Mirror REST / JSON-RPC
 
-    Note over CI: PR opens; CI builds the branch image
-    CI->>TCK: invoke (candidate image, solo-version)
-    TCK->>K8s: create Kind cluster
-    TCK->>K8s: kind load candidate image
-    TCK->>Solo: subprocess: solo ... deploy (use local image)
-    Solo->>K8s: deploy network (CN, MN, relay, ...)
-    K8s-->>Solo: pods scheduled
-    Solo-->>TCK: exit 0
+Setup — PR opens; CI builds the branch image
+   1. CI   ->  TCK  : invoke (candidate image, solo-version)
+   2. TCK  ->  K8s  : create Kind cluster
+   3. TCK  ->  K8s  : kind load candidate image
+   4. TCK  ->  Solo : subprocess `solo ... deploy` (use local image)
+   5. Solo ->  K8s  : deploy network (CN, MN, relay, ...)
+   6. K8s  --> Solo : pods scheduled
+   7. Solo --> TCK  : exit 0
 
-    Note over TCK,Net: Black-box verification — never trusts solo's word
-    TCK->>K8s: kubectl: are pods Ready?
-    TCK->>Net: submit HCS tx (SDK), then GET mirror REST
-    Net-->>TCK: tx visible / JSON-RPC reachable
-    TCK->>Solo: subprocess: solo ... destroy (teardown)
+Black-box verification — never trusts solo's word
+   8. TCK  ->  K8s  : kubectl — are pods Ready?
+   9. TCK  ->  Net  : submit HCS tx (SDK), then GET mirror REST
+  10. Net  --> TCK  : tx visible / JSON-RPC reachable
+  11. TCK  ->  Solo : subprocess `solo ... destroy` (teardown)
 
-    TCK-->>CI: pass / fail (exit code) — synchronous, blocks the PR
+Result
+  12. TCK  --> CI   : pass / fail (exit code) — synchronous, blocks the PR
 ```
 
 The candidate (mirror node) runs as the **branch build**; the other components resolve per §6.3. The
