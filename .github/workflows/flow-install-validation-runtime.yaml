@@ -242,7 +242,12 @@ jobs:
           crun = ["/usr/bin/crun", "${BREW_PREFIX}/bin/crun"]
 
           [network]
-          firewall_driver = "nftables"
+          # "none" disables nftables/iptables rule setup in netavark. On the current
+          # GitHub-hosted runner kernel (6.17.0-1022-azure), netavark v2.0.0 hangs
+          # indefinitely during nftables initialisation; "none" bypasses that path.
+          # The kind test cluster only needs in-cluster networking (no internet-facing
+          # container traffic), so the missing NAT rules are not a correctness issue.
+          firewall_driver = "none"
           EOF
           )
           echo "${CONTAINERS_CONF_CONTENT}" | sudo tee /etc/containers/containers.conf > /dev/null
@@ -359,12 +364,18 @@ jobs:
           sudo mkdir -p /tmp/podman-brew-tmp
           sudo touch /tmp/podman-brew-tmp/alive
 
+          # Diagnostic: test netavark directly (5 s timeout). If this hangs, any podman
+          # invocation that triggers network setup will also hang regardless of other settings.
+          echo "=== netavark --version (5 s timeout) ==="
+          timeout 5 sudo /opt/podman-helpers/netavark --version 2>&1 || \
+            echo "::warning::netavark hung or failed; firewall_driver=none should bypass this"
+
           # Diagnostic: verify that rootful podman responds promptly and surfaces the
           # containers.conf we wrote in the normalize step. --log-level=debug shows exactly
           # which conmon path, config files, and subsystems are used so we can pinpoint hangs.
-          echo "=== sudo podman info (45 s timeout, debug log) ==="
-          if ! timeout 45 sudo env "PATH=${RUNTIME_PATH}" podman info --log-level=debug 2>&1; then
-            echo "::warning::podman info did not complete within 45 s — see debug log above"
+          echo "=== sudo podman info (20 s timeout, debug log) ==="
+          if ! timeout 20 sudo env "PATH=${RUNTIME_PATH}" podman info --log-level=debug 2>&1; then
+            echo "::warning::podman info did not complete within 20 s — see debug log above"
           fi
           echo "=== podman info complete ==="
 
