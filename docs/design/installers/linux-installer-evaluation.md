@@ -271,26 +271,39 @@ curl -fsSL -o solo.run \
 
 ## Recommendation
 
-**Use makeself for the initial Linux installer (#5725).**
+**Use makeself for the initial Linux installer (#5725), with FPM as the planned v2.**
 
-makeself satisfies all three core requirements:
+### Why makeself for v1
 
-- **Post-install hook:** the setup script runs immediately after extraction and can invoke `solo cache image pull`.
-- **Uninstall:** an uninstall script is bundled into the payload and installed to a known path (e.g., `/opt/solo/uninstall.sh`) during setup.
-- **CI simplicity:** one shell script, no language runtimes or external registries; a single `makeself` invocation produces the `.run` artifact.
+The initial evaluation favoured makeself partly because FPM "requires repository infrastructure." That framing has since weakened: JFrog Artifactory is already in use for npm publishing and natively supports Debian and RPM repository types, so no new infrastructure would need to be stood up.
 
-The universal distro coverage (one artifact for all nine distributions in the validation matrix) eliminates the combinatorial testing and format-maintenance burden that native packages introduce. The NMT team's existing makeself pipeline provides a reference implementation to base the Solo build on.
+The reason makeself remains the right call for v1 has therefore shifted:
 
-The main drawback — no package-manager integration — is acceptable for Solo's audience: developers setting up private Hiero networks who are comfortable running a shell script. It is consistent with the pattern used by widely-distributed developer tools (JetBrains installers, Rust's `rustup-init.sh`, Docker Desktop's `.run` archive on older distributions).
+**makeself ships faster.** Moving to FPM + JFrog requires configuring new repository types in Artifactory, setting up GPG signing per package format, adding multiple publish steps to the release workflow, and writing user-facing repo registration instructions. That is real work that would delay #5725 without changing what Solo does.
 
-### Future path to native packages
+**First-install UX favours makeself.** With makeself the user runs one command:
+```sh
+curl -fsSL -o solo.run https://github.com/hiero-ledger/solo/releases/latest/download/solo-linux-x86_64.run
+chmod +x solo.run && sudo ./solo.run
+```
+With FPM + a hosted repository, first install requires registering a GPG key, adding an apt/dnf source, running `apt update`, then installing — four steps before Solo is usable. The upgrade story is better, but the onboarding story is worse.
 
-If the team later invests in repository infrastructure (e.g., via the existing JFrog Artifactory instance, which already supports apt and rpm repositories), FPM is the recommended tool for generating `.deb`, `.rpm`, `apk`, and `pacman` packages from a single source. FPM's output-type flag and lifecycle-hook flags map cleanly onto the makeself install/uninstall scripts, making migration low-effort once the repository hosting is ready.
+**The upgrade gap is bridgeable.** The existing `VersionUpdateNotifier` already notifies users when a newer version is available after every command. With two small adaptations (switch the endpoint from the npm registry to the GitHub Releases API, and adjust the banner to show a `.run` download URL), makeself users get notified automatically. A `solo upgrade` self-update command closes the remaining gap and is a natural follow-on issue.
+
+**All nine distros with one artifact.** makeself requires no per-distro build or publish step, eliminating combinatorial CI complexity and format-maintenance surface.
+
+**NMT precedent.** The NMT team uses makeself for their Linux distribution, providing a working reference the team can draw from directly.
+
+### Why FPM is the right v2
+
+FPM's advantage is the upgrade story: `apt upgrade solo` / `dnf upgrade solo` works automatically after one-time repo registration, with no user action beyond normal system updates. For a pre-1.0 tool that ships breaking changes regularly, automatic package-manager upgrades are meaningfully better than manual re-runs. Since JFrog already supports Debian and RPM repository types, the infrastructure is available when the team is ready to invest in the publish workflow.
+
+FPM's lifecycle hooks and install layout map directly onto the makeself install/uninstall scripts, so migration from v1 to v2 is a CI and publish-workflow change, not a re-architecture of the installer itself.
 
 ### Alternatives ruled out
 
 - **AppImage:** no install/uninstall lifecycle; cannot run post-install hooks without an outer wrapper.
-- **Raw .deb/.rpm:** two independent build pipelines, incomplete distro coverage (Arch and Alpine excluded), requires repository hosting for best UX.
+- **Raw .deb/.rpm:** two independent build pipelines, incomplete distro coverage (Arch and Alpine excluded natively), and the same repository infrastructure requirement as FPM without FPM's multi-format convenience.
 
 ---
 
