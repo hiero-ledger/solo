@@ -576,6 +576,7 @@ export class NodeCommandConfigs {
       deployment: this.configManager.getFlag(flags.deployment),
       consensusNodes: this.remoteConfig.getConsensusNodes(),
       contexts: this.remoteConfig.getContexts(),
+      freezeBlockDrainSeconds: this.configManager.getFlag<number>(flags.freezeBlockDrainSeconds),
     } as NodeFreezeConfigClass;
 
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);

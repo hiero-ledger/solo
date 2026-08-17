@@ -8,7 +8,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   REMOTE_CONFIGS_MISMATCH: 'SOLO-1004',
   INCOMPLETE_LOCAL_CONFIG: 'SOLO-1005',
   REMOTE_CONFIG_DATA_INVALID: 'SOLO-1006',
-  REMOTE_CONFIG_MISSING_ON_KIND_CLUSTER: 'SOLO-1007',
+  MIGRATE_LEGACY_LOCAL_CONFIG: 'SOLO-1007',
+  REMOTE_CONFIG_MISSING_ON_KIND_CLUSTER: 'SOLO-1008',
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
   CREATE_DEPLOYMENT: 'SOLO-2001',
@@ -217,6 +218,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CONFIRMATION_REQUIRED: 'SOLO-4077',
   VALUES_FILE_NOT_FOUND: 'SOLO-4078',
   VALUES_FILE_PARSE_FAILED: 'SOLO-4079',
+  BACKUP_DATABASE_DUMP_NOT_FOUND: 'SOLO-4080',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
