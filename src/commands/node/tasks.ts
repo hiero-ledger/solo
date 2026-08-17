@@ -1678,6 +1678,20 @@ export class NodeCommandTasks {
             '-c',
             `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
+
+          // The restored state carries the address book of the network it was captured on; this tells the
+          // consensus node to adopt the roster of the network it is now running on instead. The archived
+          // copy is preferred because the live one may have been rewritten since setup. `-p` keeps the
+          // source's hedera ownership — this runs as root, and a root-owned copy is unreadable by the node.
+          await container.execContainer([
+            'bash',
+            '-c',
+            `if [ -f ${ConsensusNodePathTemplates.ARCHIVE_GENESIS_NETWORK_JSON} ]; then ` +
+              `cp -p ${ConsensusNodePathTemplates.ARCHIVE_GENESIS_NETWORK_JSON} ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}; ` +
+              `elif [ -f ${ConsensusNodePathTemplates.GENESIS_NETWORK_JSON} ]; then ` +
+              `cp -p ${ConsensusNodePathTemplates.GENESIS_NETWORK_JSON} ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}; ` +
+              `else echo "ERROR: no address book to derive ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON} from" >&2; exit 1; fi`,
+          ]);
         }
       },
       skip,
