@@ -48,7 +48,7 @@ jobs:
   podman-runtime-validation:
     name: 'Install Validation (Podman Runtime)'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
@@ -332,30 +332,33 @@ jobs:
         run: |
           RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "$(command -v kind)"):${PATH}"
 
-          # The validate step's `podman run` is killed by SIGKILL on timeout, leaving stale
-          # lock files in the containers.conf tmp_dir (/tmp/podman-brew-tmp). The validate
-          # step passes --tmpdir=/tmp/podman-brew-mocha-tmp to isolate its own state, but as
-          # belt-and-suspenders we also remove the shared tmp_dir here so that the first
-          # rootful `podman info` (below) and `kind create cluster` start with a clean slate.
-          # Without this, `sudo podman info` hangs indefinitely waiting to acquire a lock
-          # whose PID no longer exists — confirmed by the 30 s diagnostic timeout firing.
-          sudo rm -rf /tmp/podman-brew-tmp
+          # Dump the containers.conf files that rootful podman will read, so we can verify our
+          # custom conmon_path and tmp_dir settings survive the brew install step.
+          echo "=== /root/.config/containers/containers.conf ==="
+          sudo cat /root/.config/containers/containers.conf 2>/dev/null || echo "(not present)"
+          echo "=== /etc/containers/containers.conf ==="
+          sudo cat /etc/containers/containers.conf 2>/dev/null || echo "(not present)"
+
+          # Verify that the apt conmon (/usr/bin/conmon) is callable by root without hanging.
+          # Brew's conmon 2.2.x hangs even for --version on GitHub-hosted runners; if this
+          # check fails, something has replaced /usr/bin/conmon with the brew binary.
+          echo "=== apt conmon --version (5 s timeout) ==="
+          timeout 5 sudo /usr/bin/conmon --version 2>&1 || echo "::warning::apt conmon timed out or failed as root"
+
+          # Clear any stale state from the mocha test (uses isolated paths, but belt-and-suspenders).
+          sudo rm -rf /tmp/podman-brew-tmp /run/libpod /run/containers
 
           # Diagnostic: verify that rootful podman responds promptly and surfaces the
-          # containers.conf we wrote in the normalize step. A hang here means the problem is
-          # in podman startup (storage, conmon, or tmp-dir locking), not in kind itself.
-          echo "=== sudo podman info (30 s timeout) ==="
-          if ! timeout 30 sudo env "PATH=${RUNTIME_PATH}" podman info --log-level=info 2>&1; then
-            echo "::warning::podman info did not complete within 30 s — storage or conmon may still be blocking"
+          # containers.conf we wrote in the normalize step. --log-level=debug shows exactly
+          # which conmon path, config files, and subsystems are used so we can pinpoint hangs.
+          echo "=== sudo podman info (45 s timeout, debug log) ==="
+          if ! timeout 45 sudo env "PATH=${RUNTIME_PATH}" podman info --log-level=debug 2>&1; then
+            echo "::warning::podman info did not complete within 45 s — see debug log above"
           fi
           echo "=== podman info complete ==="
 
-          # `timeout 30` above sends SIGTERM to sudo/podman when the timer fires. Podman may
-          # ignore SIGTERM while blocked in a futex (lock-wait) and continue running as an
-          # orphan, still holding the tmp_dir lock. Kill any residual podman processes and
-          # clear the tmp_dir so the subsequent `kind create cluster` → `podman pull` does not
-          # block on the same stale lock indefinitely. Also clear the RunRoot in case the
-          # killed invocation left stale sockets or pid files there.
+          # Kill any orphan podman left by the timed-out diagnostic and clear all known state
+          # directories so kind's first podman invocation starts with a completely clean slate.
           sudo pkill -KILL -x podman 2>/dev/null || true
           sudo rm -rf /tmp/podman-brew-tmp /run/libpod /run/containers
 
