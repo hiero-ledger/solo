@@ -1,0 +1,134 @@
+version: 3
+
+env:
+  # Runs from source by default so the example exercises the working tree. `npm run solo` would run the
+  # compiled dist/, which is only as current as the last build — a stale dist silently tests old behaviour.
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      elif [ "${USE_BUILT_VERSION}" = "true" ]; then
+        echo "npm run solo --silent --"
+      else
+        echo "npm run solo-test --silent --"
+      fi
+
+vars:
+  NODE_ALIASES: 'node1'
+
+  CLUSTER_NAME: 'state-transplant-cluster'
+  CLUSTER_REF: 'kind-state-transplant-cluster'
+  CONTEXT: 'kind-state-transplant-cluster'
+
+  # The network the state is taken from.
+  SOURCE_DEPLOYMENT: 'transplant-source'
+  SOURCE_NAMESPACE: 'transplant-source'
+
+  # The network the state is transplanted into. Its keys are generated separately, so its roster differs
+  # from the one embedded in the source network's state — that difference is what the override file resolves.
+  TARGET_DEPLOYMENT: 'transplant-target'
+  TARGET_NAMESPACE: 'transplant-target'
+
+  STATE_DIR: '{{ .USER_WORKING_DIR }}/saved-state'
+
+  # solo honours SOLO_HOME; downloaded state lands under <that>/logs/<namespace>/.
+  SOLO_USER_DIR: '{{ default (printf "%s/.solo" (env "HOME")) (env "SOLO_HOME") }}'
+
+tasks:
+  default:
+    desc: Deploy a source network, transplant its state into a freshly keyed network, and verify the override
+    cmds:
+      - task: clean
+      - task: create-cluster
+      - task: init-solo
+      - task: deploy-source
+      - task: save-state
+      - task: deploy-target
+      - task: transplant
+      - task: verify
+      - cmd: echo ""
+      - cmd: echo "Run 'task destroy' to clean up."
+
+  clean:
+    desc: Remove leftovers from a previous run so the workflow can start again
+    cmds:
+      # Every command is best-effort: on a first run there is nothing to remove, and a half-finished run may
+      # have left any subset of these behind.
+      - |
+        if kind get clusters 2>/dev/null | grep -qx "{{ .CLUSTER_NAME }}"; then
+          kubectl config use-context "{{ .CONTEXT }}" >/dev/null 2>&1 || true
+          kubectl delete namespace {{ .SOURCE_NAMESPACE }} {{ .TARGET_NAMESPACE }} \
+            --ignore-not-found --timeout=180s || true
+        fi
+      - ${SOLO_COMMAND} deployment config delete --deployment {{ .SOURCE_DEPLOYMENT }} -q >/dev/null 2>&1 || true
+      - ${SOLO_COMMAND} deployment config delete --deployment {{ .TARGET_DEPLOYMENT }} -q >/dev/null 2>&1 || true
+      - rm -rf "{{ .STATE_DIR }}"
+      - cmd: echo "cleaned previous run state"
+
+  create-cluster:
+    desc: Create the Kind cluster if it does not already exist
+    cmds:
+      - |
+        if ! kind get clusters 2>/dev/null | grep -qx "{{ .CLUSTER_NAME }}"; then
+          kind create cluster --name "{{ .CLUSTER_NAME }}"
+        fi
+        kubectl config use-context "{{ .CONTEXT }}"
+
+  init-solo:
+    desc: Initialize solo and install the cluster-level charts
+    cmds:
+      - ${SOLO_COMMAND} init -q
+      - ${SOLO_COMMAND} cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }} -q
+      - ${SOLO_COMMAND} cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }} -q
+
+  deploy-source:
+    desc: Deploy and start the network the state will be captured from
+    cmds:
+      - ${SOLO_COMMAND} deployment config create --deployment {{ .SOURCE_DEPLOYMENT }} --namespace {{ .SOURCE_NAMESPACE }} -q
+      - ${SOLO_COMMAND} deployment cluster attach --deployment {{ .SOURCE_DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --num-consensus-nodes 1 -q
+      - ${SOLO_COMMAND} keys consensus generate --deployment {{ .SOURCE_DEPLOYMENT }} --gossip-keys --tls-keys -q
+      - ${SOLO_COMMAND} consensus network deploy --deployment {{ .SOURCE_DEPLOYMENT }} -q
+      - ${SOLO_COMMAND} consensus node setup --deployment {{ .SOURCE_DEPLOYMENT }} -q
+      - ${SOLO_COMMAND} consensus node start --deployment {{ .SOURCE_DEPLOYMENT }} -q
+
+  save-state:
+    desc: Freeze the source network and download its signed state
+    cmds:
+      # A running node writes state continuously; without the freeze the archive cannot be zipped cleanly.
+      - ${SOLO_COMMAND} consensus network freeze --deployment {{ .SOURCE_DEPLOYMENT }} -q
+      - ${SOLO_COMMAND} consensus state download --node-aliases {{ .NODE_ALIASES }} --deployment {{ .SOURCE_DEPLOYMENT }} -q
+      - mkdir -p "{{ .STATE_DIR }}"
+      - |
+        zip=$(ls -t "{{ .SOLO_USER_DIR }}"/logs/{{ .SOURCE_NAMESPACE }}/*-state.zip 2>/dev/null | head -1)
+        if [ -z "$zip" ]; then
+          echo "no state archive under {{ .SOLO_USER_DIR }}/logs/{{ .SOURCE_NAMESPACE }}" >&2
+          echo "SOLO_HOME=${SOLO_HOME:-<unset>}" >&2
+          exit 1
+        fi
+        cp "$zip" "{{ .STATE_DIR }}/source-state.zip"
+        echo "captured $(wc -c <"{{ .STATE_DIR }}/source-state.zip" | tr -d ' ') bytes"
+
+  deploy-target:
+    desc: Deploy a second network with its own keys, stopping before start
+    cmds:
+      - ${SOLO_COMMAND} deployment config create --deployment {{ .TARGET_DEPLOYMENT }} --namespace {{ .TARGET_NAMESPACE }} -q
+      - ${SOLO_COMMAND} deployment cluster attach --deployment {{ .TARGET_DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REF }} --num-consensus-nodes 1 -q
+      - ${SOLO_COMMAND} keys consensus generate --deployment {{ .TARGET_DEPLOYMENT }} --gossip-keys --tls-keys -q
+      - ${SOLO_COMMAND} consensus network deploy --deployment {{ .TARGET_DEPLOYMENT }} -q
+      - ${SOLO_COMMAND} consensus node setup --deployment {{ .TARGET_DEPLOYMENT }} -q
+
+  transplant:
+    desc: Start the target network from the source network's state
+    cmds:
+      - ${SOLO_COMMAND} consensus node start --deployment {{ .TARGET_DEPLOYMENT }} --state-file "{{ .STATE_DIR }}/source-state.zip"
+
+  verify:
+    desc: Assert the consensus node consumed the generated override-network.json
+    cmds:
+      - bash {{ .TASKFILE_DIR }}/scripts/verify-override-network.sh {{ .TARGET_NAMESPACE }} {{ .SOURCE_NAMESPACE }}
+
+  destroy:
+    desc: Delete the Kind cluster and the saved state
+    cmds:
+      - kind delete cluster --name "{{ .CLUSTER_NAME }}"
+      - rm -rf "{{ .STATE_DIR }}"

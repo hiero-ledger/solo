@@ -1678,19 +1678,45 @@ export class NodeCommandTasks {
             '-c',
             `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
+        }
+      },
+      skip,
+    };
+  }
 
-          // The restored state carries the address book of the network it was captured on; this tells the
-          // consensus node to adopt the roster of the network it is now running on instead. The archived
-          // copy is preferred because the live one may have been rewritten since setup. `-p` keeps the
-          // source's hedera ownership — this runs as root, and a root-owned copy is unreadable by the node.
+  /**
+   * A restored state carries the address book of the network it was captured on, which would have this
+   * network's nodes gossiping to the wrong endpoints with mismatched certificates. `override-network.json`
+   * tells the consensus node to use the roster generated here instead.
+   */
+  public installOverrideNetworkJson(skip: SkipCheck | boolean): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Install override-network.json',
+      task: async ({config}): Promise<void> => {
+        // Written to the cache rather than the staging directory: `node start` does not take the flags that
+        // populate `config.stagingDir`, so it is undefined here. The file only has to exist long enough to
+        // be copied into each pod.
+        const overrideNetworkJson: string = await this.generateNetworkJson(
+          constants.OVERRIDE_NETWORK_FILE,
+          config.namespace,
+          config.consensusNodes,
+          constants.SOLO_CACHE_DIR,
+        );
+
+        for (const nodeAlias of config.nodeAliases) {
+          const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const container: Container = this.k8Factory
+            .getK8(kubeContext)
+            .containers()
+            .readByRef(ContainerReference.of(config.podRefs[nodeAlias], constants.ROOT_CONTAINER));
+
+          await container.copyTo(overrideNetworkJson, ConsensusNodePathTemplates.DATA_CONFIG);
+
+          // copyTo lands the file as root; the node runs as hedera and would otherwise be denied access.
           await container.execContainer([
             'bash',
             '-c',
-            `if [ -f ${ConsensusNodePathTemplates.ARCHIVE_GENESIS_NETWORK_JSON} ]; then ` +
-              `cp -p ${ConsensusNodePathTemplates.ARCHIVE_GENESIS_NETWORK_JSON} ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}; ` +
-              `elif [ -f ${ConsensusNodePathTemplates.GENESIS_NETWORK_JSON} ]; then ` +
-              `cp -p ${ConsensusNodePathTemplates.GENESIS_NETWORK_JSON} ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}; ` +
-              `else echo "ERROR: no address book to derive ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON} from" >&2; exit 1; fi`,
+            `chown hedera:hedera ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}`,
           ]);
         }
       },
@@ -1806,7 +1832,8 @@ export class NodeCommandTasks {
           );
         }
         if (isGenesis) {
-          await this.generateGenesisNetworkJson(
+          await this.generateNetworkJson(
+            constants.GENESIS_NETWORK_FILE,
             config.namespace,
             config.consensusNodes,
             config.stagingDir,
@@ -2086,14 +2113,20 @@ export class NodeCommandTasks {
    * @param gossipEndpointPortMapping - port overrides for the gossip endpoints
    * @param serviceEndpointPortMapping - port overrides for the gRPC service endpoints
    */
-  private async generateGenesisNetworkJson(
+  /**
+   * Writes the address book describing the network as it exists right now — endpoints, admin keys and
+   * weights are read from the live remote config and service map, so the result reflects any nodes added or
+   * updated since genesis. `genesis-network.json` and `override-network.json` share this format.
+   */
+  private async generateNetworkJson(
+    fileName: string,
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
     stagingDirectory: string,
     domainNamesMapping?: Record<NodeAlias, string>,
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
-  ): Promise<void> {
+  ): Promise<string> {
     const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap: Map<NodeAlias, NetworkNodeServices> = await this.accountManager.getNodeServiceMap(
       namespace,
@@ -2118,8 +2151,9 @@ export class NodeCommandTasks {
       serviceEndpointPortMapping,
     );
 
-    const genesisNetworkJson: string = PathEx.join(stagingDirectory, 'genesis-network.json');
-    fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
+    const networkJson: string = PathEx.join(stagingDirectory, fileName);
+    fs.writeFileSync(networkJson, genesisNetworkData.toJSON());
+    return networkJson;
   }
 
   public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
