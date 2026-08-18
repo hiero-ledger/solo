@@ -87,14 +87,32 @@ keys, labels, Helm-values schema, image entrypoints, expected env vars, CLI beha
 
 ## 4. Consumers
 
-| Consumer | Compatibility risk the TCK protects against |
-| --- | --- |
-| **hiero-consensus-node** | A CN PR breaking Solo's ability to deploy/operate a network |
-| **hiero-mirror-node** | An MN PR breaking Solo deployment for record-/block-stream consumers |
-| **hiero-block-node** | A BN PR breaking Solo deployment when a block node is in the network |
-| **hiero-json-rpc-relay** | A Relay PR breaking Solo deployment for JSON-RPC consumers |
-| **Hiero JS SDK** | A JS SDK PR breaking Solo's own SDK-dependent internal logic (library, not deployed component) |
-| **hiero-ledger/solo (self)** | A Solo PR breaking compatibility with currently supported component versions |
+The TCK protects each consumer from a set of compatibility risks:
+
+- **hiero-consensus-node**
+  - the default settings that CN ships with do not break the ability to deploy or operate the network
+  - new requirements shipping before Solo is enhanced with those requirements
+  - new requirements that break older CN versions, properly version gated in Solo
+  - deprecated/old settings that cause errors — should be ignored, version gated, with updates to Solo
+  - new CN configurations that must integrate correctly, added to Solo and version gated
+  - increased memory/cpu footprint requirements
+- **hiero-mirror-node**
+  - breaking existing Solo MN configuration defaults when enhancements are made
+  - MN version dependency without Solo version gates
+  - Solo defaults need to be adjusted
+  - increased memory/cpu footprint requirements
+- **hiero-block-node**
+  - breaking with older versions of BN — Solo may need version gate logic and proper version collision handling
+  - requiring new BN configurations as the Solo defaults
+  - increased memory/cpu footprint requirements
+- **hiero-json-rpc-relay**
+  - a Relay PR breaking Solo deployment for JSON-RPC consumers
+- **Hiero JS SDK** (a library Solo depends on, not a deployed component)
+  - deprecated calls being removed but not updated in Solo
+  - call signature changes
+  - connection changes
+- **hiero-ledger/solo (self)**
+  - a Solo PR breaking compatibility with currently supported component versions
 
 ## 5. Current state
 
