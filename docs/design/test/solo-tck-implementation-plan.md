@@ -135,10 +135,11 @@ on any unhealthy channel.
 
 **Why.** A lightweight mem/stability smoke (~5–15 min), not a perf suite. See design §9.
 
-**Scope.** Reuse the existing ~30-minute perf tests and sample the tracked mem/cpu values ~5 minutes
-in, rather than building new perf infra. Fail on resource-requirement violations.
+**Scope.** Reuse the load types the existing perf tests exercise (that suite runs several load types at
+roughly 5 minutes each), but run each for a shorter window (~1 minute each) — rather than building new
+perf infra or sampling a single long run at a fixed point. Fail on resource-requirement violations.
 
-**Acceptance criteria.** Reports mem/cpu at the sampled point against Solo's resource requirements.
+**Acceptance criteria.** Reports mem/cpu for each shortened load type against Solo's resource requirements.
 
 ---
 

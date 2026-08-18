@@ -80,10 +80,11 @@ keys, labels, Helm-values schema, image entrypoints, expected env vars, CLI beha
   smoke (~5–15 min) is in scope (§9).
 - **Not** a replacement for Solo's own unit/integration tests.
 - **Not** a workload generator (NLG/chewie stay out).
-- **Not** coverage for **Hiero Explorer** — a UI-only repo with no Solo/Kubernetes in CI; adding a TCK
-  job there is negligible gain. Explorer compatibility is verified implicitly by Solo's standard-topology
-  runs (which deploy Explorer). *(This reverses the earlier draft, which treated Explorer as a first-class
-  target.)*
+- **Not** a coverage layer for the **Hiero Explorer UI** — a UI-only repo with no Solo/Kubernetes in CI;
+  adding a dedicated TCK job there is negligible gain. However, Explorer's **server API is in scope** as a
+  verification channel: where Explorer is deployed, the TCK hits its REST endpoints to confirm Explorer is
+  connecting correctly to the mirror node. *(This reverses the earlier draft, which treated the Explorer UI
+  as a first-class target.)*
 
 ## 4. Consumers
 
@@ -274,8 +275,9 @@ often broke Solo — not chosen structurally.
 ## 9. Mini-performance check
 
 A lightweight memory-footprint / stability smoke (~5–15 min), not a full perf suite. Rather than build
-new perf infrastructure, **reuse the existing ~30-minute perf tests and sample the tracked mem/cpu
-values ~5 minutes in** — that gets close to a bounded signal without new tooling.
+new perf infrastructure, **reuse the load types the existing perf suite exercises** (it runs several
+load types at roughly 5 minutes each) but **run each for a shorter window (~1 minute each)** — a bounded
+signal without new tooling. (Not a single long run sampled at a fixed point.)
 
 ## 10. Open questions
 
