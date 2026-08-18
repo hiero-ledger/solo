@@ -84,10 +84,6 @@ Solo already ships `VersionUpdateNotifier` (`src/core/version-update-notifier.ts
 
 A full `solo upgrade` self-update command — download the new `.run` to a temp path, execute it as a subprocess, exit — is the longer-term option and maps to the "self-upgrade capability" item in #5714.
 
-**Prior art**
-
-NMT (Hedera Network Management Terminal) distributes its Linux release via makeself, providing a reference implementation the team can draw from directly.
-
 ---
 
 ### 2. AppImage
@@ -222,7 +218,6 @@ Full — equivalent to the nine-distribution matrix — if all four output types
 | **CI complexity** | Very low | Low–medium | High | Medium |
 | **Distro coverage** | All 9 (one artifact) | 8/9 (no Alpine) | 7/9 (no Arch, no Alpine) | All 9 (4 output types) |
 | **Repository infrastructure** | Not needed | Not needed | Required for best UX | Required for best UX |
-| **NMT precedent** | Yes | No | No | No |
 | **Build dependencies** | Shell + tar | appimagetool | dpkg-deb + rpmbuild | Ruby + fpm gem |
 | **Upgrade path** | Re-run new `.run` + version-check banner | AppImageUpdate delta patch (incompatible with lifecycle) | `apt upgrade` / `dnf upgrade` (requires hosted repo) | Same as .deb/.rpm |
 
@@ -271,27 +266,22 @@ curl -fsSL -o solo.run \
 
 ## Recommendation
 
-**Use makeself.**
+**Use FPM.**
 
-**First-install UX favours makeself.** The user runs one command:
-```sh
-curl -fsSL -o solo.run https://github.com/hiero-ledger/solo/releases/latest/download/solo-linux-x86_64.run
-chmod +x solo.run && sudo ./solo.run
-```
-With FPM + a hosted repository, first install requires registering a GPG key, adding an apt/dnf source, and running `apt update` before Solo is usable — more steps for a worse onboarding experience, even if the upgrade story is better.
+**Native package manager integration.** FPM produces `.deb`, `.rpm`, `apk`, and `pacman` packages from a single tool, covering all nine target distributions. Users install and upgrade through familiar system tooling — `apt upgrade solo` / `dnf upgrade solo` — with no manual download steps after initial setup.
 
-**The upgrade gap is bridgeable.** The existing `VersionUpdateNotifier` already notifies users when a newer version is available after every command. With two small adaptations (switch the endpoint from the npm registry to the GitHub Releases API, and adjust the banner to show a `.run` download URL), makeself users are notified automatically. A `solo upgrade` self-update command closes the remaining gap and is a natural follow-on issue from #5714.
+**Upgrade story is significantly better.** With a hosted repository, upgrades are handled automatically through normal system update flows (`apt update && apt upgrade`, `dnf upgrade`). Solo already publishes npm packages to JFrog Artifactory, which natively supports Debian and RPM repository types — adding the hosted repositories requires no new infrastructure.
 
-**All nine distros with one artifact.** makeself requires no per-distro build or publish step, eliminating combinatorial CI complexity and format-maintenance surface.
+**All nine distros from one tool.** A single `gem install fpm` step in CI, then one FPM invocation per output format. This is substantially less maintenance surface than separate `.deb` and `.rpm` build pipelines, and Arch and Alpine users get the same package-manager upgrade story via `apk` and `pacman` outputs.
 
-**NMT precedent.** The NMT team uses makeself for their Linux distribution, providing a working reference the team can draw from directly.
+**First-install UX trade-off.** Adding the Solo apt/dnf repository requires a one-time GPG key registration and source list entry before `apt install solo` / `dnf install solo`. This is more steps than a single `curl | run` command, but it is the standard Linux package installation pattern users already understand and it pays off on every subsequent upgrade.
 
 ### Alternatives ruled out
 
 - **AppImage:** no install/uninstall lifecycle; cannot run post-install hooks without an outer wrapper.
-- **FPM:** better upgrade story (`apt upgrade solo` / `dnf upgrade solo`) but worse first-install UX, higher CI complexity, and four output formats to maintain and publish. JFrog Artifactory already supports Debian and RPM repository types so the infrastructure is available, but the onboarding cost does not justify the upgrade benefit for Solo's audience.
+- **makeself:** simpler first-install UX but no package manager integration; upgrades require manual re-download and re-run; `VersionUpdateNotifier` can notify but cannot automate the upgrade.
 - **Raw .deb/.rpm:** two independent build pipelines, incomplete distro coverage (Arch and Alpine excluded natively), and the same repository infrastructure requirement as FPM without FPM's multi-format convenience.
 
 ---
 
-*Last updated: 2026-08-17*
+*Last updated: 2026-08-18*
