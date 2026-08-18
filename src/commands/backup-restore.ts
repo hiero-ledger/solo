@@ -450,6 +450,12 @@ export class BackupRestoreCommand extends BaseCommand {
                 clusterNodeAliases,
                 statesDirectory,
                 allNodesFrozen ? DeploymentPhase.FROZEN : undefined,
+                // This backup/restore workflow resumes the restored network as a live, active
+                // deployment rather than leaving it frozen, so any preconsensus event beyond the
+                // selected round (e.g. the freeze transaction the network reaches moments later)
+                // must be trimmed; otherwise replaying it on restart pins the node in
+                // FREEZE_COMPLETE instead of ACTIVE.
+                true,
               );
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
