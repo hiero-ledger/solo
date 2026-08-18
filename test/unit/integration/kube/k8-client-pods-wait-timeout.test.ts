@@ -21,6 +21,7 @@ interface RawPodFixture {
   };
   readonly spec: {
     readonly containers: {readonly name: string}[];
+    readonly volumes?: {readonly name: string; readonly persistentVolumeClaim?: {readonly claimName: string}}[];
   };
   readonly status: {
     phase?: string;
@@ -46,14 +47,45 @@ function buildUnreadyRunningPod(): RawPodFixture {
   };
 }
 
+/** A pod stuck in Pending whose only volume is a PersistentVolumeClaim that never binds. */
+function buildPendingPodWithPvcVolume(): RawPodFixture {
+  return {
+    metadata: {
+      name: 'network-node1-0',
+      namespace: 'solo',
+      creationTimestamp: new Date(),
+    },
+    spec: {
+      containers: [{name: 'root-container'}],
+      volumes: [{name: 'data', persistentVolumeClaim: {claimName: 'hgcapp-data-saved-network-node1-0'}}],
+    },
+    status: {
+      phase: 'Pending',
+      containerStatuses: [],
+    },
+  };
+}
+
 describe('K8ClientPods wait timeout errors', (): void => {
   let listNamespacedPodStub: SinonStub;
+  let listNamespacedPersistentVolumeClaimStub: SinonStub;
+  let listNamespacedEventStub: SinonStub;
   let pods: K8ClientPods;
 
   beforeEach((): void => {
     resetForTest();
     listNamespacedPodStub = sinon.stub();
-    pods = new K8ClientPods({listNamespacedPod: listNamespacedPodStub} as never, {} as never, '');
+    listNamespacedPersistentVolumeClaimStub = sinon.stub().resolves({items: []});
+    listNamespacedEventStub = sinon.stub().resolves({items: []});
+    pods = new K8ClientPods(
+      {
+        listNamespacedPod: listNamespacedPodStub,
+        listNamespacedPersistentVolumeClaim: listNamespacedPersistentVolumeClaimStub,
+        listNamespacedEvent: listNamespacedEventStub,
+      } as never,
+      {} as never,
+      '',
+    );
   });
 
   afterEach((): void => {
@@ -109,6 +141,53 @@ describe('K8ClientPods wait timeout errors', (): void => {
     }
   });
 
+  it('waitForRunningPhase includes a PVC/event diagnostic when the pod is stuck on an unbound volume', async (): Promise<void> => {
+    listNamespacedPodStub.resolves({items: [buildPendingPodWithPvcVolume()]});
+    listNamespacedPersistentVolumeClaimStub.resolves({
+      items: [{metadata: {name: 'hgcapp-data-saved-network-node1-0'}, status: {phase: 'Pending'}}],
+    });
+    listNamespacedEventStub.resolves({
+      items: [
+        {
+          reason: 'FailedMount',
+          involvedObject: {name: 'hgcapp-data-saved-network-node1-0'},
+          message: 'MountVolume.SetUp failed for volume "pvc-1234" : mount failed: exit status 32',
+        },
+      ],
+    });
+
+    try {
+      await pods.waitForRunningPhase(NamespaceName.of('solo'), ['app.kubernetes.io/name=network-node'], 2, 0);
+      expect.fail('Expected waitForRunningPhase to reject');
+    } catch (error: Error | unknown) {
+      expect(error).to.be.instanceOf(KubePodNotReadyError);
+      const notReadyError: KubePodNotReadyError = error as KubePodNotReadyError;
+      expect(notReadyError.volumeMountDiagnostic).to.include('hgcapp-data-saved-network-node1-0" is Pending');
+      expect(notReadyError.volumeMountDiagnostic).to.include('event FailedMount: MountVolume.SetUp failed');
+      expect(notReadyError.message).to.include('volume mount diagnostic');
+    }
+  });
+
+  it('waitForRunningPhase omits the diagnostic when the pod has no PVC-backed volumes', async (): Promise<void> => {
+    listNamespacedPodStub.resolves({items: [buildUnreadyRunningPod()]});
+
+    try {
+      await pods.waitForRunningPhase(
+        NamespaceName.of('solo'),
+        ['app.kubernetes.io/name=relay'],
+        2,
+        0,
+        (): boolean => false,
+      );
+      expect.fail('Expected waitForRunningPhase to reject');
+    } catch (error: Error | unknown) {
+      expect(error).to.be.instanceOf(KubePodNotReadyError);
+      expect((error as KubePodNotReadyError).volumeMountDiagnostic).to.be.undefined;
+      expect(listNamespacedPersistentVolumeClaimStub).to.not.have.been.called;
+      expect(listNamespacedEventStub).to.not.have.been.called;
+    }
+  });
+
   it('KubeErrorTranslator maps KubePodNotReadyError to PodNotReadySoloError with the pod details', (): void => {
     const kubeError: KubePodNotReadyError = new KubePodNotReadyError('labels:app=relay', 'relay-1-x', 'Running', [
       {name: 'relay', ready: false, restartCount: 2, waitingReason: 'CrashLoopBackOff'},
@@ -120,5 +199,20 @@ describe('K8ClientPods wait timeout errors', (): void => {
     expect(translated.message).to.include('relay-1-x');
     expect(translated.message).to.include('phase: Running');
     expect(translated.message).to.include('waiting: CrashLoopBackOff');
+  });
+
+  it('KubeErrorTranslator forwards the volume mount diagnostic to PodNotReadySoloError', (): void => {
+    const kubeError: KubePodNotReadyError = new KubePodNotReadyError(
+      'labels:app=network-node',
+      'network-node1-0',
+      'Pending',
+      [],
+      'PVC "hgcapp-data-saved-network-node1-0" is Pending; event FailedMount: mount failed: exit status 32',
+    );
+
+    const translated: SoloError | undefined = KubeErrorTranslator.tryTranslate(kubeError);
+
+    expect(translated.message).to.include('volume mount diagnostic');
+    expect(translated.message).to.include('hgcapp-data-saved-network-node1-0" is Pending');
   });
 });

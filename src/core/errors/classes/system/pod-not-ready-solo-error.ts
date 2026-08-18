@@ -18,17 +18,28 @@ export class PodNotReadySoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
-  public constructor(podName: string, resource: string, phase: string, containerSummary: string, cause?: Error) {
+  public constructor(
+    podName: string,
+    resource: string,
+    phase: string,
+    containerSummary: string,
+    cause?: Error,
+    volumeMountDiagnostic?: string,
+  ) {
     super(
       {
         message:
           `Pod ${podName} matched ${resource} but did not become ready before the timeout` +
-          ` [phase: ${phase ?? 'Unknown'}${containerSummary ? `; containers: ${containerSummary}` : ''}]`,
+          ` [phase: ${phase ?? 'Unknown'}${containerSummary ? `; containers: ${containerSummary}` : ''}]` +
+          (volumeMountDiagnostic ? ` [volume mount diagnostic: ${volumeMountDiagnostic}]` : ''),
         code: ErrorCodeRegistry.POD_NOT_READY,
         troubleshootingSteps:
           'Describe the pod for probe failures and events: kubectl describe pod -n <namespace> <podName>\n' +
           'Check container logs, including the previous run: kubectl logs -n <namespace> <podName> --previous\n' +
           'If the readiness probe checks a dependency (e.g. a mirror node or database), verify that dependency is healthy\n' +
+          (volumeMountDiagnostic
+            ? 'Check PVC/PV binding and volume attach events: kubectl get pvc -n <namespace>; kubectl describe pvc -n <namespace> <pvcName>\n'
+            : '') +
           'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
