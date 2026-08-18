@@ -14,6 +14,9 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {type ChartManager} from '../../core/chart-manager.js';
+import {SharedClusterResourceReport} from '../../core/shared-cluster-resource-report.js';
+import {type ReleaseItem} from '../../integration/helm/model/release/release-item.js';
+import {type ClusterRole} from '../../integration/kube/resources/rbac/cluster-role.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
 import {type ClusterChecks} from '../../core/cluster-checks.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
@@ -63,10 +66,16 @@ export class ClusterCommandTasks {
   }
 
   public async installMinioOperatorChart(clusterSetupNamespace: NamespaceName, context: Context): Promise<void> {
-    const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
+    const existingMinioOperator: ReleaseNameData = await this.findMinioOperator(context);
 
-    if (isMinioInstalled) {
-      this.logger.showUserUnlessOneShot(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
+    if (existingMinioOperator.exists) {
+      SharedClusterResourceReport.show(
+        this.logger,
+        'MinIO Operator',
+        context,
+        `Helm release '${existingMinioOperator.releaseName}' (${SharedClusterResourceReport.formatVersion(existingMinioOperator.version)})`,
+        `version ${versions.MINIO_OPERATOR_VERSION} as release '${constants.MINIO_OPERATOR_RELEASE_NAME}'`,
+      );
       return;
     }
 
@@ -263,14 +272,20 @@ export class ClusterCommandTasks {
       task: async (context_): Promise<void> => {
         const clusterSetupNamespace: NamespaceName = context_.config.clusterSetupNamespace;
 
-        const isPrometheusInstalled: boolean = await this.chartManager.isChartInstalled(
+        const installedPrometheus: ReleaseItem | undefined = await this.chartManager.getInstalledRelease(
           clusterSetupNamespace,
           constants.PROMETHEUS_RELEASE_NAME,
           context_.config.context,
         );
 
-        if (isPrometheusInstalled) {
-          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart already installed, skipping');
+        if (installedPrometheus) {
+          SharedClusterResourceReport.show(
+            this.logger,
+            `Prometheus Stack Helm release '${constants.PROMETHEUS_RELEASE_NAME}'`,
+            context_.config.context,
+            `chart ${installedPrometheus.chart} in namespace '${installedPrometheus.namespace}'`,
+            `chart version ${versions.PROMETHEUS_STACK_VERSION}`,
+          );
         } else {
           try {
             await this.chartManager.install(
@@ -306,14 +321,20 @@ export class ClusterCommandTasks {
     return {
       title: 'Install metrics-server chart',
       task: async ({config: {context}}): Promise<void> => {
-        const isMetricsServerInstalled: boolean = await this.chartManager.isChartInstalled(
+        const installedMetricsServer: ReleaseItem | undefined = await this.chartManager.getInstalledRelease(
           constants.METRICS_SERVER_NAMESPACE,
           constants.METRICS_SERVER_RELEASE_NAME,
           context,
         );
 
-        if (isMetricsServerInstalled) {
-          this.logger.showUserUnlessOneShot('⏭️  metrics-server chart already installed, skipping');
+        if (installedMetricsServer) {
+          SharedClusterResourceReport.show(
+            this.logger,
+            `metrics-server Helm release '${constants.METRICS_SERVER_RELEASE_NAME}'`,
+            context,
+            `chart ${installedMetricsServer.chart} in namespace '${installedMetricsServer.namespace}'`,
+            versions.METRICS_SERVER_VERSION ? `chart version ${versions.METRICS_SERVER_VERSION}` : undefined,
+          );
           return;
         }
 
@@ -353,15 +374,24 @@ export class ClusterCommandTasks {
         const k8: K8 = this.k8Factory.getK8(context_.config.context);
 
         // Check if ClusterRole already exists using Kubernetes JavaScript API
-        let podMonitorRoleExists: boolean = false;
+        let existingPodMonitorRole: ClusterRole | undefined;
         try {
-          podMonitorRoleExists = await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+          existingPodMonitorRole = await k8.rbac().readClusterRole(constants.POD_MONITOR_ROLE);
         } catch (error) {
           throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
         }
-        if (podMonitorRoleExists) {
-          this.logger.showUserUnlessOneShot(
-            `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
+        if (existingPodMonitorRole) {
+          const ownership: string = Object.entries(constants.SOLO_CLUSTER_ROLE_LABELS).every(
+            ([labelKey, labelValue]: [string, string]): boolean =>
+              existingPodMonitorRole.labels?.[labelKey] === labelValue,
+          )
+            ? 'a ClusterRole carrying the Solo ownership label'
+            : 'a ClusterRole without the Solo ownership label (created outside Solo)';
+          SharedClusterResourceReport.show(
+            this.logger,
+            `ClusterRole '${constants.POD_MONITOR_ROLE}'`,
+            context_.config.context,
+            ownership,
           );
           return;
         }
@@ -382,7 +412,7 @@ export class ClusterCommandTasks {
                 verbs: ['create'],
               },
             ],
-            {'solo.hedera.com/type': 'cluster-role'},
+            constants.SOLO_CLUSTER_ROLE_LABELS,
           );
           this.logger.showUserUnlessOneShot(
             `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,

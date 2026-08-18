@@ -35,6 +35,8 @@ import {IncompleteLocalConfigError} from './classes/config/incomplete-local-conf
 import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-found-solo-error.js';
 import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
+import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-data-invalid-solo-error.js';
+import {MigrateLegacyLocalConfigError} from './classes/config/migrate-legacy-local-config-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
@@ -240,6 +242,7 @@ import {BackupZipFileRequiredSoloError} from './classes/validation/backup-zip-fi
 import {BackupInputPathNotFoundSoloError} from './classes/validation/backup-input-path-not-found-solo-error.js';
 import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-must-be-zip-solo-error.js';
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
+import {BackupDatabaseDumpNotFoundSoloError} from './classes/validation/backup-database-dump-not-found-solo-error.js';
 import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-solo-error.js';
 import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
@@ -272,6 +275,7 @@ import {HomebrewInstallFailedSoloError} from './classes/system/homebrew-install-
 import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupported-linux-distribution-solo-error.js';
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {PodmanRuntimeConfigurationFailedSoloError} from './classes/system/podman-runtime-configuration-failed-solo-error.js';
+import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
@@ -311,14 +315,18 @@ export class SoloErrors {
     readonly incompleteLocalConfig: typeof IncompleteLocalConfigError;
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
+    readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
+    readonly migrateLegacyLocalConfig: typeof MigrateLegacyLocalConfigError;
   } = Object.freeze({
     incompleteLocalConfig: IncompleteLocalConfigError,
     localNotFound: LocalConfigNotFoundSoloError,
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
+    remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
+    migrateLegacyLocalConfig: MigrateLegacyLocalConfigError,
   });
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
@@ -648,6 +656,7 @@ export class SoloErrors {
     readonly backupInputPathNotFound: typeof BackupInputPathNotFoundSoloError;
     readonly backupInputMustBeZip: typeof BackupInputMustBeZipSoloError;
     readonly backupNoLogFiles: typeof BackupNoLogFilesSoloError;
+    readonly backupDatabaseDumpNotFound: typeof BackupDatabaseDumpNotFoundSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
@@ -725,6 +734,7 @@ export class SoloErrors {
     backupInputPathNotFound: BackupInputPathNotFoundSoloError,
     backupInputMustBeZip: BackupInputMustBeZipSoloError,
     backupNoLogFiles: BackupNoLogFilesSoloError,
+    backupDatabaseDumpNotFound: BackupDatabaseDumpNotFoundSoloError,
     flagInputFailed: FlagInputFailedSoloError,
     confirmationRequired: ConfirmationRequiredSoloError,
     valuesFileNotFound: ValuesFileNotFoundSoloError,
@@ -799,6 +809,7 @@ export class SoloErrors {
     readonly unsupportedLinuxDistribution: typeof UnsupportedLinuxDistributionSoloError;
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
     readonly podmanRuntimeConfigurationFailed: typeof PodmanRuntimeConfigurationFailedSoloError;
+    readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
@@ -881,6 +892,7 @@ export class SoloErrors {
     unsupportedLinuxDistribution: UnsupportedLinuxDistributionSoloError,
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
     podmanRuntimeConfigurationFailed: PodmanRuntimeConfigurationFailedSoloError,
+    podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
