@@ -62,6 +62,19 @@ describe('Values file parser', (): void => {
     expect(thrownError.cause).to.be.instanceof(Error);
   });
 
+  it('should tell the user that a values file starting with a brace is held to JSON rules', (): void => {
+    let thrownError: ValuesFileParseFailedSoloError | undefined;
+
+    try {
+      ValuesFileParser.parse(valuesFilePath, '{hedera: {nodeId: 0}}');
+    } catch (error) {
+      thrownError = error as ValuesFileParseFailedSoloError;
+    }
+
+    const troubleshootingSteps: ReadonlyArray<string> = thrownError.getTroubleshootingSteps() ?? [];
+    expect(troubleshootingSteps.join('\n')).to.contain('parsed as strict JSON');
+  });
+
   it('should tell the user how to regenerate the offending values file', (): void => {
     let thrownError: ValuesFileParseFailedSoloError | undefined;
 

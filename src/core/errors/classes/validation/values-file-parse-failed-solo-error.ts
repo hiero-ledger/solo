@@ -21,6 +21,8 @@ export class ValuesFileParseFailedSoloError extends SoloError {
         code: ErrorCodeRegistry.VALUES_FILE_PARSE_FAILED,
         troubleshootingSteps:
           `Open ${valuesFilePath} and correct the syntax reported above\n` +
+          "Values files starting with '{' are parsed as strict JSON; a YAML flow mapping that starts with '{' must " +
+          'be rewritten in block style or have all of its keys and string values quoted\n' +
           `Regenerate a cached values file by deleting it and re-running the command: rm ${valuesFilePath}\n` +
           'Cached values files live under the solo home directory (default ~/.solo) and are rewritten on the next run',
       },
