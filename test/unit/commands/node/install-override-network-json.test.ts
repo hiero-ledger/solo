@@ -111,4 +111,26 @@ describe('installOverrideNetworkJson', (): void => {
     const skip: () => boolean = (): boolean => true;
     expect(tasks.installOverrideNetworkJson(skip).skip).to.equal(skip);
   });
+
+  // The predicate `consensus node start` supplies. Getting this wrong installed an override on every state
+  // restore, which broke the state-save-and-restore example: replacing the roster in a network's own state
+  // forces a roster transition the consensus node cannot replay past.
+  describe('the skip predicate used by consensus node start', (): void => {
+    const skipPredicate = ({config}: {config: {transplant?: boolean; stateFile: string}}): boolean =>
+      !config.transplant || config.stateFile.length === 0;
+
+    it('runs only when a transplant is asked for and a state is supplied', (): void => {
+      expect(skipPredicate({config: {transplant: true, stateFile: '/tmp/state.zip'}})).to.be.false;
+    });
+
+    it('skips a restore of the network own state, which must keep the roster in that state', (): void => {
+      expect(skipPredicate({config: {transplant: false, stateFile: '/tmp/state.zip'}})).to.be.true;
+      expect(skipPredicate({config: {stateFile: '/tmp/state.zip'}})).to.be.true;
+    });
+
+    it('skips a plain start, where there is no state to override anything for', (): void => {
+      expect(skipPredicate({config: {transplant: true, stateFile: ''}})).to.be.true;
+      expect(skipPredicate({config: {stateFile: ''}})).to.be.true;
+    });
+  });
 });

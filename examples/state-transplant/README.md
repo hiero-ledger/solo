@@ -5,11 +5,11 @@ network — the "network transplant" process.
 
 ## What it does
 
-* Deploys a network (the source) and starts it
-* Freezes the source network and downloads its signed state
-* Deploys a second network (the target) with **its own separately generated keys**
-* Starts the target network from the source network's state
-* Verifies that the consensus node adopted the target network's roster
+- Deploys a network (the source) and starts it
+- Freezes the source network and downloads its signed state
+- Deploys a second network (the target) with **its own separately generated keys**
+- Starts the target network from the source network's state
+- Verifies that the consensus node adopted the target network's roster
 
 ## Why the keys matter
 
@@ -22,15 +22,20 @@ Solo resolves this by writing `override-network.json` into `data/config`, where 
 it. The file describes the roster the target network is actually running with, and it is generated from the
 live deployment rather than a snapshot, so it stays correct when nodes are added or updated.
 
+This only happens when you ask for it, with `--transplant` on `consensus node start`. That matters: restoring
+a network's own state must leave the roster in the state alone, and replacing it there forces a roster
+transition the consensus node cannot replay past. `--transplant` is the statement that the state came from
+somewhere else.
+
 Because this example generates the target network's keys independently, its roster genuinely differs from the
 one in the state. The target reaching a healthy running state is therefore only possible if the override was
 written, readable, and consumed — which is what makes the verification meaningful rather than vacuous.
 
 ## Prerequisites
 
-* Docker or Podman
-* `kind`, `kubectl`, `helm`
-* Roughly 10-15 minutes and enough resources for two single-node networks
+- Docker or Podman
+- `kind`, `kubectl`, `helm`
+- Roughly 10-15 minutes and enough resources for two single-node networks
 
 ## Usage
 
@@ -65,9 +70,9 @@ By default the example runs Solo **from source**, so it exercises your working t
 compiled output under `dist/` is only as current as your last build, and running a stale `dist/` silently
 tests old behaviour while appearing to succeed.
 
-* default — runs from source (`npm run solo-test`)
-* `USE_BUILT_VERSION=true` — runs the compiled `dist/` (run `task build` at the repo root first)
-* `USE_RELEASED_VERSION=true` — runs the published `@hashgraph/solo` package
+- default — runs from source (`npm run solo-test`)
+- `USE_BUILT_VERSION=true` — runs the compiled `dist/` (run `task build` at the repo root first)
+- `USE_RELEASED_VERSION=true` — runs the published `@hashgraph/solo` package
 
 ## What `task verify` checks
 
@@ -85,9 +90,9 @@ Assertion 1 is the load-bearing one. Note that the consensus node **moves** the 
 
 ## Notes
 
-* The source network must be frozen before its state is downloaded. A running node writes state files
+- The source network must be frozen before its state is downloaded. A running node writes state files
   continuously and the archive cannot be zipped cleanly while that happens.
-* `solo one-shot single destroy` removes the Kind cluster, and `solo consensus network destroy` removes the
+- `solo one-shot single destroy` removes the Kind cluster, and `solo consensus network destroy` removes the
   cluster-level charts, the remote config and the generated keys. This example avoids both and uses
   `task destroy` instead.
-* The downloaded state is written under `$SOLO_HOME/logs/<namespace>/`, which is not always `~/.solo`.
+- The downloaded state is written under `$SOLO_HOME/logs/<namespace>/`, which is not always `~/.solo`.

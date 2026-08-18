@@ -120,7 +120,9 @@ tasks:
   transplant:
     desc: Start the target network from the source network's state
     cmds:
-      - ${SOLO_COMMAND} consensus node start --deployment {{ .TARGET_DEPLOYMENT }} --state-file "{{ .STATE_DIR }}/source-state.zip"
+      # --transplant is what asks solo to install this network's roster as override-network.json. Without it
+      # the state's own roster is left in place, which is correct when restoring a network's own state.
+      - ${SOLO_COMMAND} consensus node start --deployment {{ .TARGET_DEPLOYMENT }} --transplant --state-file "{{ .STATE_DIR }}/source-state.zip"
 
   verify:
     desc: Assert the consensus node consumed the generated override-network.json
