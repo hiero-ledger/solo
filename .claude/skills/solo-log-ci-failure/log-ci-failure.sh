@@ -83,19 +83,36 @@ ARTIFACTS_JSON=$(gh api "repos/hiero-ledger/solo/actions/runs/${RUN_ID}/artifact
   || echo '{"artifacts":[]}')
 
 JOB_SLUG=$(echo "$JOB_NAME" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//;s/-$//')
+# Score = size of the (deduplicated) token intersection between the job slug
+# and the artifact name, both normalized the same way (lowercase, non-alnum
+# runs -> "-") first. Two bugs made the original formula pick unrelated
+# artifacts in multi-job runs: (1) it split only on "-", so underscore/mixed-
+# case names (e.g. "E2E_Integration_Tests_Coverage_Report") never shared a
+# token with the slug; (2) it flattened slug+name tokens into one list and
+# counted *any* repeated value, which also fires when a token merely repeats
+# within the artifact name itself (e.g. "e2e" and "test" both appear twice in
+# "e2e_test_report_test-e2e-integration"), regardless of the job slug. Using
+# a real set intersection and requiring score > 0 lets the "log"-name and
+# single-artifact fallbacks below run instead of surfacing a false match.
 ARTIFACT_NAME=$(echo "$ARTIFACTS_JSON" | jq -r --arg slug "$JOB_SLUG" '
-  [.artifacts[]|select(.expired==false)]
-  | map(. + {score:(
-      [($slug|split("-")[]),(.name|split("-")[])]
-      | group_by(.) | map(select(length>1)) | length
-    )})
+  ($slug | split("-") | unique) as $slug_tokens
+  | [.artifacts[]|select(.expired==false)]
+  | map(. + {score: ((.name|ascii_downcase|gsub("[^a-z0-9]+";"-")|split("-")|unique) as $name_tokens
+                      | [$slug_tokens[] | select(IN($name_tokens[]))] | length)})
+  | map(select(.score>0))
   | sort_by(-.score) | .[0].name // ""' 2>/dev/null || true)
+# Both fallbacks below require the candidate set to be unambiguous (exactly
+# one match) rather than blindly taking "the first" — with several unrelated
+# artifacts in a multi-job workflow run, guessing produces exactly the kind of
+# misattributed artifact this scoring fix was added for. Better to attach no
+# artifact than the wrong one.
 [[ -z "${ARTIFACT_NAME:-}" ]] && \
   ARTIFACT_NAME=$(echo "$ARTIFACTS_JSON" | \
-    jq -r '[.artifacts[]|select(.expired==false)|select(.name|test("log";"i"))]|.[0].name//"" ')
+    jq -r '[.artifacts[]|select(.expired==false)|select(.name|test("log";"i"))]
+      | if length==1 then .[0].name else "" end')
 [[ -z "${ARTIFACT_NAME:-}" ]] && \
   ARTIFACT_NAME=$(echo "$ARTIFACTS_JSON" | \
-    jq -r '[.artifacts[]|select(.expired==false)]|.[0].name//"" ')
+    jq -r '[.artifacts[]|select(.expired==false)] | if length==1 then .[0].name else "" end')
 echo "  artifact: ${ARTIFACT_NAME:-"(none)"}"
 
 # ── Download job log ──────────────────────────────────────────────────────────
@@ -119,16 +136,80 @@ fi
 SOLO_LOG="${ARTIFACT_DIR}/solo.log"
 DIAG="${ARTIFACT_DIR}/hiero-components-logs/diagnostics-analysis.txt"
 
+# ── Failed step — scope error extraction to it, not the whole job log ────────
+# A job's raw log interleaves every step. A later, unrelated step (e.g. a
+# best-effort diagnostics collector run with `... || true`) can print its own
+# SOLO-NNNN error box even though that step itself succeeded — a plain
+# first-match grep over the whole log picks that up instead of the step that
+# actually failed. Slice the log down to the first failed step's time window
+# so every extraction below only sees that step's own output.
+echo "Fetching job steps..."
+JOB_STEPS_JSON=$(gh api "repos/hiero-ledger/solo/actions/jobs/${JOB_ID}" --jq '.steps' 2>/dev/null || echo '[]')
+FAILED_STEP_JSON=$(echo "$JOB_STEPS_JSON" | jq -c '[.[]|select(.conclusion=="failure")]|sort_by(.number)|.[0] // empty')
+
+FAILED_STEP_NAME=""
+FAILED_STEP_START=""
+NEXT_STEP_START=""
+if [[ -n "${FAILED_STEP_JSON:-}" ]]; then
+  FAILED_STEP_NAME=$(echo "$FAILED_STEP_JSON" | jq -r '.name // empty')
+  FAILED_STEP_START=$(echo "$FAILED_STEP_JSON" | jq -r '.started_at // empty' | cut -c1-19)
+  FAILED_STEP_NUMBER=$(echo "$FAILED_STEP_JSON" | jq -r '.number // empty')
+  [[ -n "${FAILED_STEP_NUMBER:-}" ]] && \
+    NEXT_STEP_START=$(echo "$JOB_STEPS_JSON" | jq -r --argjson n "$FAILED_STEP_NUMBER" '
+      [.[]|select(.number>$n)|select(.started_at!=null)]|sort_by(.number)|.[0].started_at // empty' \
+      | cut -c1-19)
+fi
+echo "  failed step: ${FAILED_STEP_NAME:-"<none found — using whole job log>"}"
+
+# GitHub's step started_at/completed_at are whole-second, but the step's own
+# last log lines carry fractional seconds and commonly land on that same
+# whole second as the next step's started_at — an exact/exclusive boundary
+# would clip the tail of the failing step's own output (including the actual
+# error) right when it matters most. Pad the upper bound by a few seconds;
+# the next step's own content still starts well after that in practice.
+add_seconds_to_iso() {
+  local ts="$1" secs="$2"
+  local date_part="${ts:0:10}" h="${ts:11:2}" m="${ts:14:2}" s="${ts:17:2}"
+  local total=$(( 10#$h * 3600 + 10#$m * 60 + 10#$s + secs ))
+  total=$(( total % 86400 ))
+  printf '%sT%02d:%02d:%02d' "$date_part" $((total/3600)) $((total%3600/60)) $((total%60))
+}
+
+FAILED_STEP_LOG_PATH="${SCRATCH}/failed-step.log"
+if [[ -n "${FAILED_STEP_START:-}" ]]; then
+  if [[ -n "${NEXT_STEP_START:-}" ]]; then
+    NEXT_STEP_START_BUFFERED=$(add_seconds_to_iso "$NEXT_STEP_START" 3)
+    awk -v start="$FAILED_STEP_START" -v end="$NEXT_STEP_START_BUFFERED" \
+      '{ts=substr($0,1,19); if (ts>=start && ts<end) print}' \
+      "$JOB_LOG_PATH" > "$FAILED_STEP_LOG_PATH" 2>/dev/null || true
+  else
+    awk -v start="$FAILED_STEP_START" \
+      '{ts=substr($0,1,19); if (ts>=start) print}' \
+      "$JOB_LOG_PATH" > "$FAILED_STEP_LOG_PATH" 2>/dev/null || true
+  fi
+fi
+# No step metadata, or the slice came up empty — fall back to the whole job
+# log rather than lose signal entirely.
+[[ -s "$FAILED_STEP_LOG_PATH" ]] || cp "$JOB_LOG_PATH" "$FAILED_STEP_LOG_PATH"
+
+# solo.log is a single artifact file and may span multiple steps (or belong to
+# a step other than the one that failed, as above). Only trust it for this run
+# when the failed step's own output shows a solo command actually ran there —
+# identified by solo's own banner line.
+FAILED_STEP_RAN_SOLO=false
+grep -q "Current Command" "$FAILED_STEP_LOG_PATH" 2>/dev/null && FAILED_STEP_RAN_SOLO=true
+
 # ── Extract errors ────────────────────────────────────────────────────────────
 echo "Extracting errors..."
 
 JOB_ERRORS=$(grep -E "SOLO-[0-9]+|╭|╰|Current Command|##\[error\]|AssertionError|Timeout of [0-9]+ms|failed with error|exit status [1-9][0-9]*" \
-  "$JOB_LOG_PATH" 2>/dev/null \
+  "$FAILED_STEP_LOG_PATH" 2>/dev/null \
   | grep -v "timeout_minutes\|continue_on_error\|shell:\|DOCKER_HOST\|STEP_TIMEOUT\|warn deprecated" \
   | head -50 || true)
 
 SOLO_ERRORS=""
-[[ -f "$SOLO_LOG" ]] && SOLO_ERRORS=$(grep -E "ERROR|SOLO-[0-9]+|Current Command" "$SOLO_LOG" 2>/dev/null | head -40 || true)
+[[ -f "$SOLO_LOG" && "$FAILED_STEP_RAN_SOLO" == true ]] && \
+  SOLO_ERRORS=$(grep -E "ERROR|SOLO-[0-9]+|Current Command" "$SOLO_LOG" 2>/dev/null | head -40 || true)
 
 DIAG_TEXT=""
 [[ -f "$DIAG" ]] && DIAG_TEXT=$(cat "$DIAG")
@@ -162,6 +243,15 @@ function clean_line(value, cleaned) {
   gsub(/\r/, "", cleaned)
   sub(/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+-]+Z[[:space:]]+/, "", cleaned)
   gsub(/\033\[[0-9;]*[[:alpha:]]/, "", cleaned)
+  # Strip a Task/go-task "[job-name] " log-group prefix that Task prepends to
+  # every output line of a step -- without this, neither the headline anchor
+  # nor the "at ..." frame anchor below ever matches Task-wrapped step output.
+  # Only the single separator space is consumed, preserving any indentation
+  # that follows it (frame detection below needs that leading whitespace).
+  sub(/^\[[^]]*\][[:space:]]/, "", cleaned)
+  # Strip a leading marker glyph (e.g. the "\xe2\x9d\x8c " in "\xe2\x9d\x8c Error: ...")
+  # so headline detection below still anchors on "Error:"/"Exception:".
+  sub(/^[^[:alnum:][:space:]]+[[:space:]]*/, "", cleaned)
   return cleaned
 }
 
@@ -224,25 +314,34 @@ END {
 ' "${log_path}" | sed '/^[[:space:]]*$/N;/^\n$/D'
 }
 
-LOG_FILES=("$JOB_LOG_PATH")
-[[ -f "$SOLO_LOG" ]] && LOG_FILES+=("$SOLO_LOG")
-
-STACK_TRACE=$(extract_exception_stack "$JOB_LOG_PATH" || true)
-[[ -z "${STACK_TRACE:-}" && -f "$SOLO_LOG" ]] && STACK_TRACE=$(extract_exception_stack "$SOLO_LOG" || true)
+# Scoped to the failed step first — see "Failed step" section above for why.
+STACK_TRACE=$(extract_exception_stack "$FAILED_STEP_LOG_PATH" || true)
+[[ -z "${STACK_TRACE:-}" && "$FAILED_STEP_RAN_SOLO" == true && -f "$SOLO_LOG" ]] && \
+  STACK_TRACE=$(extract_exception_stack "$SOLO_LOG" || true)
+[[ -z "${STACK_TRACE:-}" ]] && STACK_TRACE=$(extract_exception_stack "$JOB_LOG_PATH" || true)
 
 STACK_FIRST_LINE=$(echo "${STACK_TRACE:-}" | grep -m1 -E '^[[:space:]]*[A-Za-z0-9_.-]*(Error|Exception|SoloError):[[:space:]]+' || true)
 
-SOLO_CODE=$(grep -oE 'SOLO-[0-9]+' "${LOG_FILES[@]}" 2>/dev/null | head -1 | grep -oE 'SOLO-[0-9]+' || true)
+# Scoped to the failed step — a later, unrelated step's SOLO-NNNN must not
+# outrank the code (if any) that the failed step itself reported.
+SOLO_CODE=$(grep -oE 'SOLO-[0-9]+' "$FAILED_STEP_LOG_PATH" 2>/dev/null | head -1 || true)
 
 if [[ -n "${SOLO_CODE:-}" ]]; then
-  SOLO_MSG=$(grep -A2 "$SOLO_CODE" "$SOLO_LOG" 2>/dev/null \
-    | grep "ERROR:" | head -1 | sed 's/.*ERROR: //' | cut -c1-80 || true)
+  SOLO_MSG=""
+  [[ "$FAILED_STEP_RAN_SOLO" == true && -f "$SOLO_LOG" ]] && \
+    SOLO_MSG=$(grep -A2 "$SOLO_CODE" "$SOLO_LOG" 2>/dev/null \
+      | grep "ERROR:" | head -1 | sed 's/.*ERROR: //' | cut -c1-80 || true)
   ERROR_DESC="[${SOLO_CODE}]${SOLO_MSG:+ ${SOLO_MSG}}"
 else
-  # Skip generic "Error executing: 'podman' {" / "Error executing: 'sudo' {" lines
-  FIRST_SOLO_ERROR=$(grep "ERROR:" "$SOLO_LOG" 2>/dev/null \
-    | grep -v "Error executing: '" \
-    | head -1 | sed 's/.*\] ERROR: //' | sed 's/.*ERROR: //' || true)
+  # Skip generic "Error executing: 'podman' {" / "Error executing: 'sudo' {" lines.
+  # Only consult solo.log's leveled-log format when the failed step's own
+  # output confirms a solo command actually ran there (see FAILED_STEP_RAN_SOLO).
+  FIRST_SOLO_ERROR=""
+  if [[ "$FAILED_STEP_RAN_SOLO" == true && -f "$SOLO_LOG" ]]; then
+    FIRST_SOLO_ERROR=$(grep "ERROR:" "$SOLO_LOG" 2>/dev/null \
+      | grep -v "Error executing: '" \
+      | head -1 | sed 's/.*\] ERROR: //' | sed 's/.*ERROR: //' || true)
+  fi
 
   if [[ -n "${FIRST_SOLO_ERROR:-}" ]]; then
     if echo "$FIRST_SOLO_ERROR" | grep -q "Executing command:"; then
@@ -254,7 +353,7 @@ else
     STACK_HEADLINE=$(echo "$STACK_FIRST_LINE" | sed -E 's/^[[:space:]]+//' | tr -s ' ')
     ERROR_DESC=$(echo "$STACK_HEADLINE" | cut -c1-90)
   else
-    JOB_ERR_LINE=$(grep "##\[error\]" "$JOB_LOG_PATH" 2>/dev/null \
+    JOB_ERR_LINE=$(grep "##\[error\]" "$FAILED_STEP_LOG_PATH" 2>/dev/null \
       | head -1 | sed 's/.*##\[error\]//' | cut -c1-90 || true)
     ERROR_DESC="${JOB_ERR_LINE:-task failed}"
   fi
@@ -265,13 +364,18 @@ TITLE="${TITLE:0:120}"
 echo "  title: ${TITLE}"
 
 # ── Current Command ───────────────────────────────────────────────────────────
-CURRENT_COMMAND=$(grep "Current Command" "${LOG_FILES[@]}" 2>/dev/null \
+# Scoped to the failed step: an unrelated later step's banner (e.g. a
+# best-effort diagnostics collector) must not be reported as the failed command.
+CURRENT_COMMAND=$(grep "Current Command" "$FAILED_STEP_LOG_PATH" 2>/dev/null \
   | grep -v "^Binary\|init --debug" \
   | tail -1 | sed 's/.*Current Command[[:space:]]*:[[:space:]]*//' || true)
 
 # ── Error box ─────────────────────────────────────────────────────────────────
-ERROR_BOX=""
-[[ -f "$SOLO_LOG" ]] && \
+# Solo prints the same error box to the console, so the failed step's own
+# output is checked first; solo.log is only a fallback, and only when this run
+# already confirmed a solo command executed within that step.
+ERROR_BOX=$(awk '/╭─ ERROR/{found=1} found{print} /╰─/{if(found) exit}' "$FAILED_STEP_LOG_PATH" 2>/dev/null || true)
+[[ -z "${ERROR_BOX:-}" && "$FAILED_STEP_RAN_SOLO" == true && -f "$SOLO_LOG" ]] && \
   ERROR_BOX=$(awk '/╭─ ERROR/{found=1} found{print} /╰─/{if(found) exit}' "$SOLO_LOG" 2>/dev/null || true)
 
 # Error details: prefer stack trace → box → solo errors → job errors
@@ -390,13 +494,17 @@ ISSUE_URL=$(echo "$RESPONSE" | jq -r '.data.createIssue.issue.url')
 echo "Issue: $ISSUE_URL"
 
 # ── Solo CLI Program Board → Ready / P0 ──────────────────────────────────────
+# Do not redirect stderr to /dev/null here: a missing `project` token scope
+# also makes this lookup come back empty, and silencing it made every past
+# run of this script print the misleading "already exists" message below
+# instead of the real "token has not been granted ... scopes" error.
 ITEM_BOARD=$(gh api graphql -f query="
 mutation {
   addProjectV2ItemById(input: {
     projectId: \"PVT_kwDOCq2Q984BQs6I\"
     contentId: \"$ISSUE_ID\"
   }) { item { id } }
-}" 2>/dev/null | jq -r '.data.addProjectV2ItemById.item.id // empty' || true)
+}" | jq -r '.data.addProjectV2ItemById.item.id // empty' || true)
 
 if [[ -n "${ITEM_BOARD:-}" ]]; then
   gh api graphql -f query="
@@ -415,7 +523,7 @@ mutation {
   }) { projectV2Item { id } }
 }" > /dev/null && echo "Board: Ready/P0"
 else
-  echo "Board: already exists (skipped field update)"
+  echo "Board: not added — either already on the board, or the error above means the token needs the 'project' scope (gh auth refresh -h github.com -s project)"
 fi
 
 # ── Solo X Team → Ready / P0-🔥 ──────────────────────────────────────────────
@@ -425,7 +533,7 @@ mutation {
     projectId: \"PVT_kwDOCq2Q984A6EW6\"
     contentId: \"$ISSUE_ID\"
   }) { item { id } }
-}" 2>/dev/null | jq -r '.data.addProjectV2ItemById.item.id // empty' || true)
+}" | jq -r '.data.addProjectV2ItemById.item.id // empty' || true)
 
 if [[ -n "${ITEM_TEAM:-}" ]]; then
   gh api graphql -f query="
@@ -444,7 +552,7 @@ mutation {
   }) { projectV2Item { id } }
 }" > /dev/null && echo "X Team: Ready/P0-🔥"
 else
-  echo "X Team: already exists (skipped field update)"
+  echo "X Team: not added — either already on the board, or the error above means the token needs the 'project' scope (gh auth refresh -h github.com -s project)"
 fi
 
 # ── Link to initiative ────────────────────────────────────────────────────────
