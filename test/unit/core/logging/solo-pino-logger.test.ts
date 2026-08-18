@@ -376,8 +376,11 @@ describe('SoloPinoLogger log destination preflight', (): void => {
   });
 
   afterEach((): void => {
-    // Restore write permission so the temporary tree can be cleaned up.
-    chmodSync(logsDirectory, 0o700);
+    // Restore write permission so the temporary tree can be cleaned up. Guarded because a test that fails before
+    // the preflight creates the directory would otherwise die here on ENOENT, hiding the real failure.
+    if (existsSync(logsDirectory)) {
+      chmodSync(logsDirectory, 0o700);
+    }
     for (const fileName of fileNames) {
       const filePath: string = PathEx.join(logsDirectory, fileName);
       if (existsSync(filePath)) {
