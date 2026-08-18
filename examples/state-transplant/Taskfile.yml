@@ -69,10 +69,22 @@ tasks:
     desc: Create the Kind cluster if it does not already exist
     cmds:
       - |
-        if ! kind get clusters 2>/dev/null | grep -qx "{{ .CLUSTER_NAME }}"; then
-          kind create cluster --name "{{ .CLUSTER_NAME }}"
+        if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+          npm i @hashgraph/solo@latest
         fi
-        kubectl config use-context "{{ .CONTEXT }}"
+      - |
+        if ! kind get clusters 2>/dev/null | grep -qx "{{ .CLUSTER_NAME }}"; then
+          # The shared config carries the cluster settings CI depends on; fall back to a plain cluster when
+          # this example is run from a release archive, outside the repo.
+          SHARED_KIND_CONFIG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          if [ -f "${SHARED_KIND_CONFIG}" ]; then
+            kind create cluster -n "{{ .CLUSTER_NAME }}" --config "${SHARED_KIND_CONFIG}"
+          else
+            kind create cluster -n "{{ .CLUSTER_NAME }}"
+          fi
+          sleep 10 # let the control plane settle
+        fi
+      - kubectl config use-context "{{ .CONTEXT }}"
 
   init-solo:
     desc: Initialize solo and install the cluster-level charts
