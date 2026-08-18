@@ -138,6 +138,7 @@ seaAssets['package.json'] = path.join(ROOT, 'package.json');
 seaAssets['solo-src-bundle.cjs'] = bundlePath;
 
 const assetKeys: string[] = Object.keys(seaAssets);
+const buildId: string = `${version}-${Date.now()}`;
 
 // Step 3: generate the CJS SEA entry script.
 // sea-main.cjs is what Node.js executes from the SEA blob. It:
@@ -158,6 +159,9 @@ const fs = require('fs');
 const url = require('url');
 
 const SOLO_SEA_VERSION = ${JSON.stringify(version)};
+// Build id includes a timestamp so a rebuild with the same version (e.g. a CI artifact
+// from another commit) still re-extracts instead of reusing stale cached assets.
+const SOLO_SEA_BUILD_ID = ${JSON.stringify(buildId)};
 
 let bundleFileUrl;
 if (sea.isSea()) {
@@ -166,10 +170,10 @@ if (sea.isSea()) {
   const seaRoot = path.join(os.homedir(), '.solo', 'sea-resources', SOLO_SEA_VERSION);
   process.env['SOLO_SEA_ROOT_DIR'] = seaRoot;
 
-  // Skip extraction when the marker already records this exact version.
+  // Skip extraction when the marker already records this exact build.
   const markerPath = path.join(seaRoot, '.sea-extracted');
   let needsExtraction = true;
-  try { needsExtraction = fs.readFileSync(markerPath, 'utf8').trim() !== SOLO_SEA_VERSION; }
+  try { needsExtraction = fs.readFileSync(markerPath, 'utf8').trim() !== SOLO_SEA_BUILD_ID; }
   catch { /* not yet extracted */ }
 
   if (needsExtraction) {
@@ -180,7 +184,7 @@ if (sea.isSea()) {
       fs.mkdirSync(path.dirname(destPath), { recursive: true });
       fs.writeFileSync(destPath, Buffer.from(data));
     }
-    fs.writeFileSync(markerPath, SOLO_SEA_VERSION);
+    fs.writeFileSync(markerPath, SOLO_SEA_BUILD_ID);
   }
 
   bundleFileUrl = url.pathToFileURL(path.join(seaRoot, 'solo-src-bundle.cjs')).href;
