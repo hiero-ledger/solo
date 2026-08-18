@@ -73,8 +73,6 @@ else
 fi
 JOB_NAME=$(echo "$JOB_META" | jq -r '.name')
 JOB_URL=$(echo "$JOB_META"  | jq -r '.html_url')
-# Short form: last segment after "/"
-JOB_SHORT=$(echo "$JOB_NAME" | sed 's|.*/||')
 echo "  job: ${JOB_NAME} (${JOB_ID})"
 
 # ── Artifacts — list + auto-select best match ─────────────────────────────────
@@ -359,7 +357,7 @@ else
   fi
 fi
 
-TITLE="${JOB_SHORT} > ${ERROR_DESC}"
+TITLE="${JOB_NAME} > ${ERROR_DESC}"
 TITLE="${TITLE:0:120}"
 echo "  title: ${TITLE}"
 
@@ -392,7 +390,7 @@ fi
 # ── Build issue body ──────────────────────────────────────────────────────────
 BODY="## Failure Summary
 
-The **${JOB_SHORT}** job failed on branch \`${HEAD_BRANCH}\`. Error: ${ERROR_DESC}
+The **${JOB_NAME}** job failed on branch \`${HEAD_BRANCH}\`. Error: ${ERROR_DESC}
 
 ## Error Details
 
