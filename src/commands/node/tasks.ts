@@ -55,6 +55,7 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
+  Helpers,
   parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
@@ -235,35 +236,7 @@ export class NodeCommandTasks {
   }
 
   private static shouldAvoidGossipFqdn(consensusNodes: ConsensusNode[], gossipFqdnRestricted: boolean): boolean {
-    return gossipFqdnRestricted || NodeCommandTasks.hasMultipleKubernetesContexts(consensusNodes);
-  }
-
-  private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
-    const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
-    return contexts.size > 1;
-  }
-
-  private static buildRsaAddressBookHistory(consensusNodes: ConsensusNode[], keysDirectory: string): string {
-    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
-    for (const consensusNode of consensusNodes) {
-      const publicKeyFile: string = PathEx.join(
-        keysDirectory,
-        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
-      );
-      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
-      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
-        format: 'der',
-        type: 'spki',
-      }) as Buffer;
-      nodeAddresses.push({
-        RSAPubKey: spkiDer.toString('hex'),
-        nodeId: Templates.nodeIdFromNodeAlias(consensusNode.name),
-      });
-    }
-
-    return JSON.stringify({
-      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
-    });
+    return gossipFqdnRestricted || Helpers.hasMultipleKubernetesContexts(consensusNodes);
   }
 
   private static buildNetworkNodeServiceManifest(
@@ -3554,7 +3527,7 @@ export class NodeCommandTasks {
           config.consensusNodes,
           gossipFqdnRestricted,
         );
-        const loadBalancerRequired: boolean = NodeCommandTasks.hasMultipleKubernetesContexts(config.consensusNodes);
+        const loadBalancerRequired: boolean = Helpers.hasMultipleKubernetesContexts(config.consensusNodes);
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
 
         if (loadBalancerRequired) {
@@ -3821,7 +3794,7 @@ export class NodeCommandTasks {
               },
             },
             {
-              title: 'Refresh block node RSA bootstrap state',
+              title: 'Refresh block node RSA bootstrap state (restarts block-node pods)',
               skip: (): boolean =>
                 !refreshBlockNodeRsaBootstrapState ||
                 !this.shouldRefreshBlockNodeRsaBootstrapState(context_.config, consensusNodes),
@@ -3840,7 +3813,7 @@ export class NodeCommandTasks {
     nodeListOverride?: string,
   ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
-      title: 'Refresh block node RSA bootstrap state',
+      title: 'Refresh block node RSA bootstrap state (restarts block-node pods)',
       skip: (context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext): boolean =>
         !this.shouldRefreshBlockNodeRsaBootstrapState(
           context_.config,
@@ -3894,7 +3867,11 @@ export class NodeCommandTasks {
     config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
-    const bootstrapJson: string = NodeCommandTasks.buildRsaAddressBookHistory(consensusNodes, config.keysDir);
+    const bootstrapJson: Optional<string> = Helpers.buildRsaAddressBookJson(consensusNodes, config.keysDir);
+    if (!bootstrapJson) {
+      this.logger.debug('Skipping block node RSA bootstrap refresh because a public key is missing');
+      return;
+    }
     const bootstrapFilePath: string = PathEx.join(config.keysDir, NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE);
     fs.writeFileSync(bootstrapFilePath, bootstrapJson, 'utf8');
 
@@ -4714,10 +4691,12 @@ export class NodeCommandTasks {
     };
   }
 
-  public drainBlockStreamAfterFreeze(): SoloListrTask<NodeUpgradeContext> {
+  public drainBlockStreamAfterFreeze<
+    ContextType extends {config: {freezeBlockDrainSeconds: number}},
+  >(): SoloListrTask<ContextType> {
     return {
       title: 'Drain block stream after freeze',
-      task: async (context_: NodeUpgradeContext): Promise<void> => {
+      task: async (context_: ContextType): Promise<void> => {
         const drainSeconds: number = context_.config.freezeBlockDrainSeconds ?? 20;
         await sleep(Duration.ofSeconds(drainSeconds));
       },

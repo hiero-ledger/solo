@@ -24,6 +24,7 @@ import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
+import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../core/templates.js';
@@ -274,7 +275,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.prepareStagingDirectory('existingNodeAliases'),
       this.tasks.refreshNodeList(),
       this.tasks.copyNodeKeysToSecrets('refreshedConsensusNodes'),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap(
         'Delete network node from chart and update configMaps',
         NodeSubcommandType.DESTROY,
@@ -331,7 +331,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.addNewConsensusNodeToRemoteConfig(),
       // The new node is not part of the active proof roster immediately after node create.
       this.tasks.copyNodeKeysToSecrets(undefined, false),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap('Deploy new network node', NodeSubcommandType.ADD),
       this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.killNodes(),
@@ -383,7 +382,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.copyNodeKeysToSecrets(undefined, false),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap(
         'Update chart to use new configMap due to account number change',
         NodeSubcommandType.UPDATE,
@@ -452,10 +450,9 @@ export class NodeCommandHandlers extends CommandHandler {
   private upgradeExecuteTasks(): SoloListrTask<NodeUpgradeContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-      this.tasks.drainBlockStreamAfterFreeze(),
+      this.tasks.drainBlockStreamAfterFreeze<NodeUpgradeContext>(),
       this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
-      this.tasks.getNodeLogsAndConfigs(),
       this.tasks.upgradeNodeConfigurationFilesWithChart(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
       this.tasks.addWrapsLib(),
@@ -1259,7 +1256,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-        this.tasks.sleep('Drain block stream after freeze', NodeCommandHandlers.FREEZE_BLOCK_STREAM_DRAIN_MILLISECONDS),
+        this.tasks.drainBlockStreamAfterFreeze<NodeFreezeContext>(),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],

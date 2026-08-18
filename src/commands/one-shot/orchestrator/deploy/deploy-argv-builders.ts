@@ -20,6 +20,7 @@ import {
   optionFromFlag,
 } from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
+import {Helpers} from '../../../../core/helpers.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject, type ArgvStruct, type NodeAlias} from '../../../../types/aliases.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
@@ -67,15 +68,9 @@ export class DeployArgvBuilders {
       return false;
     }
 
-    const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
-      config.versions.consensus || version.HEDERA_PLATFORM_VERSION,
-    );
-    if (consensusNodeVersion.lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-      return false;
-    }
-
+    const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
-    return blockStreamMode === 'BLOCKS';
+    return blockStreamMode === 'BLOCKS' && Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
   }
 
   private static shouldInjectRsaBootstrapValuesFile(config: OneShotSingleDeployConfigClass): boolean {
@@ -83,15 +78,9 @@ export class DeployArgvBuilders {
       return false;
     }
 
-    const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
-      config.versions.consensus || version.HEDERA_PLATFORM_VERSION,
-    );
-    if (consensusNodeVersion.lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-      return false;
-    }
-
+    const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
-    return blockStreamMode === 'BLOCKS' || blockStreamMode === 'BOTH';
+    return Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
   }
 
   /**

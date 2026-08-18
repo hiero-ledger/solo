@@ -483,7 +483,7 @@ export class BlockNodeCommand extends BaseCommand {
         initContainers: [
           {
             name: 'init-storage-dirs',
-            image: 'busybox',
+            image: 'busybox:1.36.1',
             command: [
               'sh',
               '-c',

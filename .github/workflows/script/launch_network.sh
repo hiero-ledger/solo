@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/helper.sh"
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
+TEMP_BN_UPGRADE_VALUES_FILE=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -44,6 +45,10 @@ on_exit() {
 
   if [[ -n "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" ]]; then
     rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_BN_UPGRADE_VALUES_FILE:-}" && -f "${TEMP_BN_UPGRADE_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_BN_UPGRADE_VALUES_FILE}"
   fi
 
   if [[ ${rc} -ne 0 ]]; then
@@ -731,7 +736,7 @@ solo one-shot falcon deploy \
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 
-wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2 > /dev/null
+wait_for_mirror_block_progress "source deployment after one-shot" -1 1 90 2 > /dev/null
 source_block_after_one_shot="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before consensus upgrade: ${source_block_after_one_shot}"
 
@@ -804,7 +809,7 @@ blockNode:
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "65536"
   initContainers:
     - name: init-storage-dirs
-      image: busybox
+      image: busybox:1.36.1
       command:
         - sh
         - -c
@@ -828,7 +833,7 @@ blockNode:
         - name: logging-storage
           mountPath: /logging-pvc
     - name: cleanup-block-ranges
-      image: busybox
+      image: busybox:1.36.1
       command:
         - rm
         - -f
