@@ -67,6 +67,7 @@ export class DeployArgvBuilders {
     if (!this.shouldDeployBlockNode(config)) {
       return false;
     }
+
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
     return blockStreamMode === 'BLOCKS' && Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
@@ -76,6 +77,7 @@ export class DeployArgvBuilders {
     if (!this.shouldDeployBlockNode(config)) {
       return false;
     }
+
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
     return Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
