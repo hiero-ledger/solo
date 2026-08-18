@@ -72,6 +72,9 @@ tasks:
         if [ "${USE_RELEASED_VERSION}" = "true" ]; then
           npm i @hashgraph/solo@latest
         fi
+      # `solo init` installs kind/kubectl/helm into ~/.solo/bin. CI provides no kind of its own, so this has
+      # to precede the first kind call.
+      - ${SOLO_COMMAND} init -q
       - |
         if ! kind get clusters 2>/dev/null | grep -qx "{{ .CLUSTER_NAME }}"; then
           # The shared config carries the cluster settings CI depends on; fall back to a plain cluster when
@@ -87,9 +90,8 @@ tasks:
       - kubectl config use-context "{{ .CONTEXT }}"
 
   init-solo:
-    desc: Initialize solo and install the cluster-level charts
+    desc: Connect solo to the cluster and install the cluster-level charts
     cmds:
-      - ${SOLO_COMMAND} init -q
       - ${SOLO_COMMAND} cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }} -q
       - ${SOLO_COMMAND} cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }} -q
 
