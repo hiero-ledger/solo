@@ -24,7 +24,6 @@ import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
-import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../core/templates.js';
