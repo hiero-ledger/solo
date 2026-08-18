@@ -3,6 +3,7 @@
 import {Listr} from 'listr2';
 import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
+  Helpers,
   showVersionBanner,
   sleep,
   withTimeout,
@@ -63,6 +64,7 @@ import {BlockNodeDeployedEvent} from '../core/events/event-types/block-node-depl
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs';
+import yaml from 'yaml';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -70,6 +72,7 @@ interface BlockNodeDeployConfigClass {
   blockNodeChartDirectory: string;
   blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
+  cacheDir: string;
   deployment: DeploymentName;
   debugMode: boolean;
   domainName: Optional<string>;
@@ -221,6 +224,7 @@ export class BlockNodeCommand extends BaseCommand {
   // Sentinel printed by the in-pod consolidation script when no JFR recording is present.
   private static readonly NO_JFR_MARKER: string = 'SOLO_NO_JFR_RECORDING';
   private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
+  private static readonly DEFAULT_MIRROR_NODE_ID: number = 1;
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [],
@@ -235,6 +239,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.blockNodeMessageSizeHardLimitBytes,
       flags.chartDirectory,
       flags.clusterRef,
+      flags.cacheDir,
       flags.debugMode,
       flags.domainName,
       flags.enableIngress,
@@ -342,6 +347,18 @@ export class BlockNodeCommand extends BaseCommand {
       chartValues.file(constants.BLOCK_NODE_TSS_VALUES_FILE);
     }
 
+    if (this.shouldConfigureRsaMirrorBootstrapSource()) {
+      chartValues.setLiteral(
+        'blockNode.config.ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL',
+        `http://${this.resolveMirrorNodeReleaseName()}-restjava:80`,
+      );
+    }
+
+    const rsaBootstrapValuesFile: Optional<string> = this.writeRsaBootstrapInitContainerValuesFile(config);
+    if (rsaBootstrapValuesFile) {
+      chartValues.file(rsaBootstrapValuesFile);
+    }
+
     chartValues.filesFromCommaSeparatedInput(config.valuesFile);
 
     chartValues.set('nameOverride', config.releaseName);
@@ -405,6 +422,78 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     return chartValues;
+  }
+
+  private shouldConfigureRsaMirrorBootstrapSource(): boolean {
+    const consensusNodeVersion: string =
+      this.remoteConfig.configuration.versions?.consensusNode?.toString() ?? versions.HEDERA_PLATFORM_VERSION;
+    const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    return Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
+  }
+
+  private resolveMirrorNodeReleaseName(): string {
+    const mirrorNodeId: number =
+      this.remoteConfig.configuration.state.mirrorNodes?.[0]?.metadata.id ?? BlockNodeCommand.DEFAULT_MIRROR_NODE_ID;
+    return Templates.renderMirrorNodeName(mirrorNodeId);
+  }
+
+  private writeRsaBootstrapInitContainerValuesFile(
+    config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
+  ): Optional<string> {
+    if (!('cacheDir' in config) || !this.shouldConfigureRsaMirrorBootstrapSource()) {
+      return undefined;
+    }
+
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    if (consensusNodes.length === 0) {
+      return undefined;
+    }
+
+    const keysDirectory: string = PathEx.join(config.cacheDir, 'keys');
+    if (!fs.existsSync(keysDirectory)) {
+      return undefined;
+    }
+
+    const bootstrapJson: Optional<string> = Helpers.buildRsaAddressBookJson(consensusNodes, keysDirectory);
+    if (!bootstrapJson) {
+      return undefined;
+    }
+    const content: string = yaml.stringify({
+      blockNode: {
+        initContainers: [
+          {
+            name: 'init-storage-dirs',
+            image: 'busybox:1.36.1',
+            command: [
+              'sh',
+              '-c',
+              [
+                'mkdir -p /application-state-pvc',
+                'chown 2000:2000 /application-state-pvc',
+                'chmod 700 /application-state-pvc',
+                `if [ ! -s /application-state-pvc/rsa-bootstrap-roster.json ]; then printf '%s' '${bootstrapJson}' > /application-state-pvc/rsa-bootstrap-roster.json; fi`,
+                'mkdir -p /archive-pvc/archive-data',
+                'chown 2000:2000 /archive-pvc/archive-data',
+                'chmod 700 /archive-pvc/archive-data',
+                'mkdir -p /live-pvc/live-data',
+                'chown 2000:2000 /live-pvc/live-data',
+                'chmod 700 /live-pvc/live-data',
+              ].join(' && \\\n'),
+            ],
+            volumeMounts: [
+              {name: 'application-state-storage', mountPath: '/application-state-pvc'},
+              {name: 'archive-storage', mountPath: '/archive-pvc'},
+              {name: 'live-storage', mountPath: '/live-pvc'},
+              {name: 'logging-storage', mountPath: '/logging-pvc'},
+            ],
+          },
+        ],
+      },
+    });
+    const valuesFile: string = PathEx.join(config.cacheDir, `${config.releaseName}-rsa-bootstrap-values.yaml`);
+    fs.mkdirSync(config.cacheDir, {recursive: true});
+    fs.writeFileSync(valuesFile, content);
+    return valuesFile;
   }
 
   private getCluster(blockNode: BlockNodeStateSchema): ClusterSchema {
@@ -653,6 +742,7 @@ export class BlockNodeCommand extends BaseCommand {
             this.k8Factory,
             false,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },
@@ -676,6 +766,7 @@ export class BlockNodeCommand extends BaseCommand {
             this.k8Factory,
             false,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },
@@ -789,7 +880,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
             }
 
-            config.livenessCheckPort = this.getLivenessCheckPortNumber(config);
+            config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.componentImage);
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
@@ -922,7 +1013,10 @@ export class BlockNodeCommand extends BaseCommand {
             }
           },
         },
-        this.checkBlockNodeReadiness(),
+        this.checkBlockNodeReadiness(
+          (config): ComponentId => config.newBlockNodeComponent.metadata.id,
+          (config): number => config.livenessCheckPort,
+        ),
         this.handleConsensusNodeUpdating(),
         this.emitBlockNodeDeployed(),
       ],
@@ -1191,7 +1285,10 @@ export class BlockNodeCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            // Skip pod-presence validation: the operator may have intentionally scaled the
+            // block node StatefulSet to 0 (e.g. to delete a stale block-ranges.json before
+            // upgrading), and the upgrade must succeed even when no pods are running.
+            await this.remoteConfig.loadAndValidate(argv, false);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1309,6 +1406,10 @@ export class BlockNodeCommand extends BaseCommand {
                 );
                 await this.recreateBlockNodeChart(config, stepTargetVersion, step);
               } else {
+                // Record timestamp before upgrade so the pod-ready check (which uses
+                // recreateInstallTime as a createdAfter cutoff) waits for the NEW pod,
+                // not the old one still running while the StatefulSet rolls out.
+                config.recreateInstallTime = new Date();
                 try {
                   await this.chartManager.upgrade(
                     namespace,
@@ -1369,6 +1470,10 @@ export class BlockNodeCommand extends BaseCommand {
             }
           },
         },
+        this.checkBlockNodeReadiness(
+          (config): ComponentId => config.id,
+          (config): number => this.getLivenessCheckPortNumber(config.upgradeVersion),
+        ),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -1583,6 +1688,7 @@ export class BlockNodeCommand extends BaseCommand {
             this.k8Factory,
             true,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },
@@ -1593,13 +1699,13 @@ export class BlockNodeCommand extends BaseCommand {
   ///
   /// Block node >= v0.39.0 serves its health endpoints (`/healthz/readyz`) from a dedicated
   /// web server on `BLOCK_NODE_HEALTH_PORT`; earlier versions served them from the gRPC port
-  /// (`BLOCK_NODE_PORT`). The effective version is the higher of the chart version and a local
-  /// image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
-  private getLivenessCheckPortNumber(config: BlockNodeDeployConfigClass): number {
-    let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.chartVersion);
+  /// (`BLOCK_NODE_PORT`). The effective version is the higher of the requested chart version and
+  /// a local image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
+  private getLivenessCheckPortNumber(chartVersion: string, componentImage?: string): number {
+    let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(chartVersion);
 
-    if (config.componentImage && this.isLocalImageReference(config.componentImage)) {
-      const tag: string = this.splitImageNameTag(config.componentImage).tag;
+    if (componentImage && this.isLocalImageReference(componentImage)) {
+      const tag: string = this.splitImageNameTag(componentImage).tag;
       const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
       if (blockNodeVersion.lessThan(imageVersion)) {
         blockNodeVersion = imageVersion;
@@ -1806,8 +1912,8 @@ export class BlockNodeCommand extends BaseCommand {
     };
   }
 
-  private displayHealthCheckData(
-    task: SoloListrTaskWrapper<BlockNodeDeployContext>,
+  private displayHealthCheckData<TContext>(
+    task: SoloListrTaskWrapper<TContext>,
   ): (attempt: number, maxAttempt: number, color?: 'yellow' | 'green' | 'red', additionalData?: string) => void {
     const baseTitle: string = task.title;
 
@@ -1821,7 +1927,10 @@ export class BlockNodeCommand extends BaseCommand {
     };
   }
 
-  private checkBlockNodeReadiness(): SoloListrTask<BlockNodeDeployContext> {
+  private checkBlockNodeReadiness<TContext extends BlockNodeDeployContext | BlockNodeUpgradeContext>(
+    getId: (config: TContext['config']) => ComponentId,
+    getPort: (config: TContext['config']) => number = (): number => constants.BLOCK_NODE_PORT,
+  ): SoloListrTask<TContext> {
     return {
       title: 'Check block node readiness',
       task: async ({config}, task): Promise<void> => {
@@ -1835,7 +1944,7 @@ export class BlockNodeCommand extends BaseCommand {
         const blockNodePodReference: PodReference = await this.k8Factory
           .getK8(config.context)
           .pods()
-          .list(config.namespace, Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id))
+          .list(config.namespace, Templates.renderBlockNodeLabels(getId(config)))
           .then((pods: Pod[]): PodReference => pods[0].podReference);
 
         const containerReference: ContainerReference = ContainerReference.of(
@@ -1856,7 +1965,7 @@ export class BlockNodeCommand extends BaseCommand {
                 .getK8(config.context)
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['bash', '-c', `curl -s http://localhost:${config.livenessCheckPort}/healthz/readyz`]),
+                .execContainer(['bash', '-c', `curl -s http://localhost:${getPort(config)}/healthz/readyz`]),
               Duration.ofSeconds(constants.BLOCK_NODE_ACTIVE_TIMEOUT),
               'Healthcheck timed out',
             );
