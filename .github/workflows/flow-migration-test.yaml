@@ -142,6 +142,12 @@ jobs:
             echo "from_solo_version=${FROM_INPUT}" >> $GITHUB_OUTPUT
             echo "to_consensus_node_version=${TO_CN_INPUT}" >> $GITHUB_OUTPUT
 
+      - name: Cache Solo Bin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.solo/bin
+          key: solo-bin-${{ runner.os }}-${{ hashFiles('version.ts') }}
+
       - name: Restore Solo Image Cache
         id: solo-image-cache
         if: ${{ !cancelled() && !failure() }}
