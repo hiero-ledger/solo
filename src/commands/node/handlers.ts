@@ -24,6 +24,7 @@ import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
+import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../core/templates.js';
@@ -76,9 +77,6 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly DESTROY_CONTEXT_FILE: string = 'node-destroy.json';
   private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
-  // CN does not signal when the final block has been flushed to the block node after a freeze.
-  // Without this delay, stopNodes races the in-flight blocks and the block node may miss the
-  // last block before the freeze boundary, causing a gap in mirror node ingestion.
   private resolveOutputDirectory(argv: ArgvStruct, fallback: string = ''): string {
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.outputDir) || fallback;
@@ -447,7 +445,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private upgradeExecuteTasks(): SoloListrTask<NodeUpgradeContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-      this.tasks.drainBlockStreamAfterFreeze(),
+      this.tasks.drainBlockStreamAfterFreeze<NodeUpgradeContext>(),
       this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.upgradeNodeConfigurationFilesWithChart(),
