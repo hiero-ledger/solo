@@ -8,6 +8,15 @@ nodes:
         apiServer:
           extraArgs:
             watch-cache: "false"
+        etcd:
+          local:
+            extraArgs:
+              # Increase heartbeat and election timeouts to tolerate slow disk I/O on
+              # constrained environments (e.g. Windows WSL2 virtual disk), where the
+              # default 100 ms heartbeat interval is too short and causes the leader to
+              # step down mid-write, surfacing as "etcdserver: request timed out".
+              heartbeat-interval: "300"
+              election-timeout: "3000"
     # One-shot only: publish fixed NodePorts on the host so every one-shot endpoint is reachable via
     # a stable Docker port mapping instead of a flaky kubectl port-forward tunnel. Each hostPort keeps
     # the URL identical to the legacy port-forward port, so existing consumers keep working.
