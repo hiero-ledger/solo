@@ -65,7 +65,7 @@ export class ClusterCommandTasks {
    * The operator's CRDs are cluster-scoped, so they are what a second install collides with — and they
    * remain after the operator's pods and namespace are gone.
    */
-  public async findMinioOperatorCrds(context: Context): Promise<string[]> {
+  private async findMinioOperatorCrds(context: Context): Promise<string[]> {
     const crds: Crds = this.k8Factory.getK8(context).crds();
     const present: string[] = [];
 
