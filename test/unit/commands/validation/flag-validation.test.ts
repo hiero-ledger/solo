@@ -100,7 +100,7 @@ describe('FlagValidation', (): void => {
 
       expect(thrownError).to.be.instanceof(InvalidFlagValueSoloError);
       expect(thrownError).to.be.instanceof(SoloError);
-      expect(thrownError.getFormattedCode()).to.equal('SOLO-4080');
+      expect(thrownError.getFormattedCode()).to.equal('SOLO-4081');
       expect(thrownError.message).to.contain('--namespace');
       expect(thrownError.message).to.contain('NOT_FINE');
       expect(thrownError.message).to.contain('lowercase');

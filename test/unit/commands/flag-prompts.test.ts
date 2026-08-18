@@ -149,9 +149,26 @@ function expectedPromptDefault(flag: CommandFlag): unknown {
   return flag.definition.promptDefaultValue ?? flag.definition.defaultValue;
 }
 
-/** An answer that satisfies each flag's own rules; flags without rules accept any string. */
+/**
+ * Answers tried in order, covering the rule sets flags declare today: an arbitrary string for flags without rules,
+ * a node alias, and a whole number. Extend this list when a flag adopts rules none of these satisfy.
+ */
+const candidateAnswers: string[] = ['answered-value', 'node1', '1'];
+
+/**
+ * An answer that satisfies the flag's own rules, so that `FakePromptTaskWrapper` accepts it on the first ask.
+ * Throws rather than returning an answer the flag would reject, which would re-ask forever with no answer left.
+ */
 function acceptableAnswer(flag: CommandFlag): string {
-  return FlagValidation.violationOf(flag, 'answered-value') ? 'node1' : 'answered-value';
+  const answer: string | undefined = candidateAnswers.find(
+    (candidate: string): boolean => FlagValidation.violationOf(flag, candidate) === undefined,
+  );
+
+  if (answer === undefined) {
+    throw new Error(`No candidate answer satisfies the rules of --${flag.name}; add one to candidateAnswers`);
+  }
+
+  return answer;
 }
 
 function simulateInteractiveTerminal(): void {

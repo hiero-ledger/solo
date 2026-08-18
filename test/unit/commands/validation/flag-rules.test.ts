@@ -56,9 +56,22 @@ describe('FlagRules', (): void => {
       expect(FlagRules.integer('3')).to.be.undefined;
     });
 
+    it('should accept a negative whole number and tolerate surrounding whitespace', (): void => {
+      expect(FlagRules.integer('-3')).to.be.undefined;
+      expect(FlagRules.integer('  3  ')).to.be.undefined;
+    });
+
     it('should reject a non-numeric or fractional value', (): void => {
       expect(FlagRules.integer('abc')).to.equal('must be a whole number');
+      expect(FlagRules.integer('')).to.equal('must be a whole number');
       expect(FlagRules.integer('1.5')).to.not.be.undefined;
+    });
+
+    it('should reject numeric forms the user did not write as a whole number', (): void => {
+      // Number.isInteger(Number(value)) accepts all of these even though none is spelled as a whole number.
+      for (const value of ['1e2', '1.', '0x10', '0b11', '0o17']) {
+        expect(FlagRules.integer(value), value).to.equal('must be a whole number');
+      }
     });
   });
 

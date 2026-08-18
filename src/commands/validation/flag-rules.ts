@@ -29,8 +29,12 @@ export class FlagRules {
   public static readonly alphanumeric: FlagRule = (value: string): string | undefined =>
     validator.isAlphanumeric(value) ? undefined : 'must contain only letters and numbers';
 
+  /**
+   * Matched as digits rather than through `Number`, which widens 'must be a whole number' to forms the user did not
+   * write as one: `Number.isInteger` accepts scientific notation ('1e2') and a trailing period ('1.').
+   */
   public static readonly integer: FlagRule = (value: string): string | undefined =>
-    value.trim() !== '' && Number.isInteger(Number(value)) ? undefined : 'must be a whole number';
+    /^-?\d+$/.test(value.trim()) ? undefined : 'must be a whole number';
 
   public static atLeast(minimum: number): FlagRule {
     return (value: string): string | undefined =>
