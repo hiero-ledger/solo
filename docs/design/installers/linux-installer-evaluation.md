@@ -271,38 +271,25 @@ curl -fsSL -o solo.run \
 
 ## Recommendation
 
-**Use makeself for the initial Linux installer (#5725), with FPM as the planned v2.**
+**Use makeself.**
 
-### Why makeself for v1
-
-The initial evaluation favoured makeself partly because FPM "requires repository infrastructure." That framing has since weakened: JFrog Artifactory is already in use for npm publishing and natively supports Debian and RPM repository types, so no new infrastructure would need to be stood up.
-
-The reason makeself remains the right call for v1 has therefore shifted:
-
-**makeself ships faster.** Moving to FPM + JFrog requires configuring new repository types in Artifactory, setting up GPG signing per package format, adding multiple publish steps to the release workflow, and writing user-facing repo registration instructions. That is real work that would delay #5725 without changing what Solo does.
-
-**First-install UX favours makeself.** With makeself the user runs one command:
+**First-install UX favours makeself.** The user runs one command:
 ```sh
 curl -fsSL -o solo.run https://github.com/hiero-ledger/solo/releases/latest/download/solo-linux-x86_64.run
 chmod +x solo.run && sudo ./solo.run
 ```
-With FPM + a hosted repository, first install requires registering a GPG key, adding an apt/dnf source, running `apt update`, then installing — four steps before Solo is usable. The upgrade story is better, but the onboarding story is worse.
+With FPM + a hosted repository, first install requires registering a GPG key, adding an apt/dnf source, and running `apt update` before Solo is usable — more steps for a worse onboarding experience, even if the upgrade story is better.
 
-**The upgrade gap is bridgeable.** The existing `VersionUpdateNotifier` already notifies users when a newer version is available after every command. With two small adaptations (switch the endpoint from the npm registry to the GitHub Releases API, and adjust the banner to show a `.run` download URL), makeself users get notified automatically. A `solo upgrade` self-update command closes the remaining gap and is a natural follow-on issue.
+**The upgrade gap is bridgeable.** The existing `VersionUpdateNotifier` already notifies users when a newer version is available after every command. With two small adaptations (switch the endpoint from the npm registry to the GitHub Releases API, and adjust the banner to show a `.run` download URL), makeself users are notified automatically. A `solo upgrade` self-update command closes the remaining gap and is a natural follow-on issue from #5714.
 
 **All nine distros with one artifact.** makeself requires no per-distro build or publish step, eliminating combinatorial CI complexity and format-maintenance surface.
 
 **NMT precedent.** The NMT team uses makeself for their Linux distribution, providing a working reference the team can draw from directly.
 
-### Why FPM is the right v2
-
-FPM's advantage is the upgrade story: `apt upgrade solo` / `dnf upgrade solo` works automatically after one-time repo registration, with no user action beyond normal system updates. For a pre-1.0 tool that ships breaking changes regularly, automatic package-manager upgrades are meaningfully better than manual re-runs. Since JFrog already supports Debian and RPM repository types, the infrastructure is available when the team is ready to invest in the publish workflow.
-
-FPM's lifecycle hooks and install layout map directly onto the makeself install/uninstall scripts, so migration from v1 to v2 is a CI and publish-workflow change, not a re-architecture of the installer itself.
-
 ### Alternatives ruled out
 
 - **AppImage:** no install/uninstall lifecycle; cannot run post-install hooks without an outer wrapper.
+- **FPM:** better upgrade story (`apt upgrade solo` / `dnf upgrade solo`) but worse first-install UX, higher CI complexity, and four output formats to maintain and publish. JFrog Artifactory already supports Debian and RPM repository types so the infrastructure is available, but the onboarding cost does not justify the upgrade benefit for Solo's audience.
 - **Raw .deb/.rpm:** two independent build pipelines, incomplete distro coverage (Arch and Alpine excluded natively), and the same repository infrastructure requirement as FPM without FPM's multi-format convenience.
 
 ---
