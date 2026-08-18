@@ -23,6 +23,7 @@ import chalk from 'chalk';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import {Zippy} from './zippy.js';
+import {PcesTrimmer} from './pces-trimmer.js';
 
 /**
  * Class to manage network nodes
@@ -250,6 +251,19 @@ export class NetworkNodes {
         // These transient directories are not part of the selected state/PCES boundary.
         fs.rmSync(PathEx.join(extractedDirectory, 'saved'), {recursive: true, force: true});
         fs.rmSync(PathEx.join(extractedDirectory, 'swirlds-tmp'), {recursive: true, force: true});
+
+        // The top-level preconsensus-events stream is what the platform replays on the next
+        // restart, and it is not naturally bounded to the selected round: it can contain later
+        // events (e.g. a freeze transaction ordered moments after this snapshot was taken) that
+        // the selected round's own state does not yet reflect. Trim those out so replay cannot
+        // cross back into that later boundary, while keeping every event up to the selected
+        // round so the restored node still has other-parent candidates to build new events on
+        // (removing the whole stream instead would leave every node with no known events at
+        // all, which the platform only permits at true genesis).
+        PcesTrimmer.trimDirectoryToBirthRound(
+          PathEx.join(extractedDirectory, 'preconsensus-events'),
+          Number(selectedRound),
+        );
         await this.zippy.zip(extractedDirectory, archivePaths[index]);
       }
 
@@ -372,9 +386,11 @@ export class NetworkNodes {
   ): Promise<void> {
     const maxAttempts: number = constants.STATE_DOWNLOAD_STABLE_MAX_ATTEMPTS;
     const stablePollsRequired: number = constants.STATE_DOWNLOAD_STABLE_POLLS_REQUIRED;
+    const freezeGraceAttempts: number = constants.STATE_DOWNLOAD_FREEZE_GRACE_ATTEMPTS;
     const pollDelay: Duration = Duration.ofMillis(constants.STATE_DOWNLOAD_STABLE_DELAY);
     let lastFingerprint: string | undefined;
     let stablePolls: number = 0;
+    let fallbackStableSinceAttempt: number | undefined;
     const scriptName: string = 'wait-for-stable-saved-state.sh';
     const sourcePath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, scriptName);
     const destinationPath: string = `${HEDERA_HAPI_PATH}/${scriptName}`;
@@ -411,17 +427,34 @@ export class NetworkNodes {
             `[state-download] ${podName}: round ${round} (${kind}) stable poll ${stablePolls}/${stablePollsRequired}`,
           );
 
+          const isStable: boolean = stablePolls >= stablePollsRequired;
+
           if (kind === 'frozen-fallback') {
             // A frozen deployment can expose the FROZEN platform status before a
-            // freeze-marked round becomes fully signed on disk. In that case,
-            // export the newest fully signed non-freeze round instead of waiting
-            // indefinitely for a freeze round that may never materialize.
-            this.logger.warn(
-              `[state-download] ${podName}: deployment is FROZEN but no fully signed freeze round exists on disk yet; using the newest fully signed non-freeze round`,
-            );
-          }
+            // freeze-marked round becomes fully signed on disk. The fallback round's
+            // bundled preconsensus-events stream already extends past its own round
+            // boundary, so restoring it verbatim would replay straight back into the
+            // freeze on restart. Give the freeze round a grace period to finish
+            // signing before accepting the stale fallback.
+            if (isStable && fallbackStableSinceAttempt === undefined) {
+              fallbackStableSinceAttempt = attempt;
+              this.logger.warn(
+                `[state-download] ${podName}: deployment is FROZEN but no fully signed freeze round exists on disk yet; ` +
+                  `waiting up to ${freezeGraceAttempts} more attempt(s) for it before falling back to the newest fully signed non-freeze round`,
+              );
+            }
 
-          if (stablePolls >= stablePollsRequired) {
+            const gracePeriodElapsed: boolean =
+              fallbackStableSinceAttempt !== undefined && attempt - fallbackStableSinceAttempt >= freezeGraceAttempts;
+
+            if (isStable && gracePeriodElapsed) {
+              this.logger.warn(
+                `[state-download] ${podName}: freeze round still not fully signed after grace period; using the newest fully signed non-freeze round`,
+              );
+              await container.execContainer('sync');
+              return;
+            }
+          } else if (isStable) {
             // One final sync narrows the gap between the successful probe and the
             // subsequent zip/copy operation.
             await container.execContainer('sync');

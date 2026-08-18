@@ -507,6 +507,12 @@ export const STATE_DOWNLOAD_STABLE_MAX_ATTEMPTS: number =
 export const STATE_DOWNLOAD_STABLE_DELAY: number = +getEnvironmentVariable('STATE_DOWNLOAD_STABLE_DELAY') || 2000;
 export const STATE_DOWNLOAD_STABLE_POLLS_REQUIRED: number =
   +getEnvironmentVariable('STATE_DOWNLOAD_STABLE_POLLS_REQUIRED') || 3;
+// After a freeze request, the platform can report FROZEN status before the freeze round is
+// fully signed on disk. A non-freeze round may look "stable" first; keep polling for this many
+// additional attempts so the freeze round (once signed) is preferred over the stale fallback,
+// whose bundled preconsensus-events would otherwise replay straight back into the freeze on restart.
+export const STATE_DOWNLOAD_FREEZE_GRACE_ATTEMPTS: number =
+  +getEnvironmentVariable('STATE_DOWNLOAD_FREEZE_GRACE_ATTEMPTS') || 60;
 
 export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWORK_PROXY_MAX_ATTEMPTS') || 300;
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
