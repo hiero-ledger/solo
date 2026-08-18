@@ -619,13 +619,16 @@ export class Helpers {
     return streamMode === 'BLOCKS' || streamMode === 'BOTH';
   }
 
-  public static buildRsaAddressBookJson(consensusNodes: ConsensusNode[], keysDirectory: string): string {
+  public static buildRsaAddressBookJson(consensusNodes: ConsensusNode[], keysDirectory: string): Optional<string> {
     const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
     for (const consensusNode of consensusNodes) {
       const publicKeyFile: string = PathEx.join(
         keysDirectory,
         Templates.renderGossipPemPublicKeyFile(consensusNode.name),
       );
+      if (!fs.existsSync(publicKeyFile)) {
+        return undefined;
+      }
       const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
       const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
         format: 'der',

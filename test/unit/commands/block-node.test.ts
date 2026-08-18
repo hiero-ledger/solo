@@ -70,6 +70,7 @@ interface BlockNodeCommandInternal {
     context: string,
   ) => Promise<{id: number; releaseName: string; isChartInstalled: boolean; isLegacyChartInstalled: boolean}>;
   prepareValuesArgForBlockNode: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
+  getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string) => number;
 }
 
 describe('BlockNodeCommand unit tests', (): void => {
@@ -124,6 +125,13 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(valueArguments).to.include(`blockNode.backfill.sources[0].port=${constants.BLOCK_NODE_PORT}`);
     expect(valueArguments).to.include('blockNode.backfill.sources[0].priority=1');
     expect(valueArguments).to.not.include('blockNode.sources[0].address=block-node-1.solo-ns.svc.cluster.local');
+  });
+
+  it('should use the compatible readiness port for block node chart versions', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0')).to.equal(constants.BLOCK_NODE_PORT);
+    expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.39.0')).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
   });
 
   it('should configure the RSA mirror bootstrap source for block-stream consensus versions', async (): Promise<void> => {

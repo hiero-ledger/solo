@@ -24,9 +24,11 @@ import {Duration} from './time/duration.js';
 const URL_EXISTS_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_URL_EXISTS_TIMEOUT_MS';
 const DOWNLOAD_CONNECT_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_DOWNLOAD_CONNECT_TIMEOUT_MS';
 const DOWNLOAD_RESPONSE_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_DOWNLOAD_RESPONSE_TIMEOUT_MS';
+const DOWNLOAD_RETRY_LIMIT_ENV: string = 'PACKAGE_DOWNLOADER_RETRY_LIMIT';
 const DEFAULT_URL_EXISTS_TIMEOUT: Duration = Duration.ofSeconds(5);
 const DEFAULT_DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration.ofSeconds(10);
 const DEFAULT_DOWNLOAD_RESPONSE_TIMEOUT: Duration = Duration.ofMinutes(2);
+const DEFAULT_DOWNLOAD_RETRY_LIMIT: number = 3;
 
 @injectable()
 export class PackageDownloader {
@@ -59,6 +61,36 @@ export class PackageDownloader {
 
   private getDownloadResponseTimeout(): Duration {
     return this.resolveTimeout(DOWNLOAD_RESPONSE_TIMEOUT_ENV, DEFAULT_DOWNLOAD_RESPONSE_TIMEOUT);
+  }
+
+  private getDownloadRetryLimit(): number {
+    const configured: string | undefined = constants.getEnvironmentVariable(DOWNLOAD_RETRY_LIMIT_ENV);
+    if (!configured) {
+      return DEFAULT_DOWNLOAD_RETRY_LIMIT;
+    }
+    const value: number = Number(configured);
+    if (!Number.isFinite(value) || value < 0) {
+      this.logger.warn(
+        `Invalid ${DOWNLOAD_RETRY_LIMIT_ENV} value '${configured}', using default ${DEFAULT_DOWNLOAD_RETRY_LIMIT}.`,
+      );
+      return DEFAULT_DOWNLOAD_RETRY_LIMIT;
+    }
+    return value;
+  }
+
+  private async streamToFile(
+    url: string,
+    destinationPath: string,
+    connectTimeout: number,
+    responseTimeout: number,
+  ): Promise<void> {
+    await streamPipeline(
+      got.stream(url, {
+        followRedirect: true,
+        timeout: {connect: connectTimeout, response: responseTimeout},
+      }),
+      fs.createWriteStream(destinationPath),
+    );
   }
 
   private isValidURL(url: string): boolean {
@@ -144,24 +176,30 @@ export class PackageDownloader {
       this.logger.warn(`HEAD request reported missing URL; continuing with direct download attempt: ${url}`);
     }
 
-    try {
-      const connectTimeout: number = this.getDownloadConnectTimeout().toMillis();
-      const responseTimeout: number = this.getDownloadResponseTimeout().toMillis();
-      await streamPipeline(
-        got.stream(url, {
-          followRedirect: true,
-          timeout: {
-            connect: connectTimeout,
-            response: responseTimeout,
-          },
-        }),
-        fs.createWriteStream(destinationPath),
-      );
+    const connectTimeout: number = this.getDownloadConnectTimeout().toMillis();
+    const responseTimeout: number = this.getDownloadResponseTimeout().toMillis();
+    const retryLimit: number = this.getDownloadRetryLimit();
 
-      return destinationPath;
-    } catch (error) {
-      throw new SoloErrors.system.packageDownloadFailed(url, error);
+    let lastError: unknown;
+    for (let attempt: number = 1; attempt <= retryLimit; attempt++) {
+      try {
+        await this.streamToFile(url, destinationPath, connectTimeout, responseTimeout);
+        return destinationPath;
+      } catch (error) {
+        lastError = error;
+        if (fs.existsSync(destinationPath)) {
+          fs.rmSync(destinationPath);
+        }
+        if (attempt < retryLimit) {
+          const delayMs: number = 2000 * attempt;
+          this.logger.warn(`Download attempt ${attempt}/${retryLimit} failed, retrying in ${delayMs}ms: ${url}`, error);
+          await new Promise<void>((resolve): void => {
+            setTimeout(resolve, delayMs);
+          });
+        }
+      }
     }
+    throw new SoloErrors.system.packageDownloadFailed(url, lastError as Error);
   }
 
   /**
