@@ -1969,10 +1969,7 @@ export class NodeCommandTasks {
         }
         // skip if caller opted out (e.g. restore flow where endpoint is already correct
         // in the restored state and re-sending triggers the CN v0.74 CHECKING bug)
-        if (this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint)) {
-          return true;
-        }
-        return false;
+        return this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint);
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
@@ -2200,8 +2197,8 @@ export class NodeCommandTasks {
   public startNodes(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Starting nodes',
-      task: (context_, task): any => {
-        const config: any = context_.config;
+      task: (context_, task): SoloListr<AnyListrContext> => {
+        const config: AnyListrContext = context_.config;
         const nodeAliases: NodeAliases = config[nodeAliasesProperty];
         const subTasks: SoloListrTask<AnyListrContext>[] = [];
 
@@ -2449,7 +2446,7 @@ export class NodeCommandTasks {
   ): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
     return {
       title: 'Check nodes are ACTIVE and proxies are ready',
-      task: (context_, task): SoloListr<AnyListrContext> => {
+      task: (_, task): SoloListr<AnyListrContext> => {
         const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Check all nodes are ACTIVE',
@@ -3528,7 +3525,7 @@ export class NodeCommandTasks {
     return {
       title: 'Load signing key certificate',
       task: (context_): void => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
         const signingCertFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
         const signingCertFullPath: string = PathEx.joinWithRealPath(config.keysDir, signingCertFile);
         context_.signingCertDer = this.keyManager.getDerFromPemCertificate(signingCertFullPath);
@@ -3540,7 +3537,7 @@ export class NodeCommandTasks {
     return {
       title: 'Compute mTLS certificate hash',
       task: (context_): void => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
         const tlsCertFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
         const tlsCertFullPath: string = PathEx.joinWithRealPath(config.keysDir, tlsCertFile);
         const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(tlsCertFullPath);
@@ -3705,7 +3702,7 @@ export class NodeCommandTasks {
     return {
       title: 'Send node update transaction',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeUpdateConfigClass = context_.config;
 
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
         this.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
@@ -3720,7 +3717,7 @@ export class NodeCommandTasks {
           );
         }
 
-        let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
+        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
         nodeUpdateTx = nodeUpdateTx.setGossipEndpoints(await this.prepareNodeUpdateGossipEndpoints(config));
 
         if (config.tlsPublicKey && config.tlsPrivateKey) {
@@ -4368,27 +4365,6 @@ export class NodeCommandTasks {
       chartValuesMap: chartValuesMap as Record<ClusterReferenceName, HelmChartValues>,
       valueFilePathsMap: valueFilePathsMap as Record<ClusterReferenceName, string[]>,
     };
-  }
-
-  /**
-   * Append root.image registry/repository/tag settings for a given node path to Helm chart values.
-   * @param chartValues - existing chart values
-   * @param nodePath - base node path, e.g. `hedera.nodes[0]`
-   * @param registry - image registry
-   * @param repository - image repository
-   * @param tag - image tag
-   */
-  private addRootImageValues(
-    chartValues: HelmChartValues,
-    nodePath: string,
-    registry: string,
-    repository: string,
-    tag: string,
-  ): void {
-    chartValues
-      .setLiteral(`${nodePath}.root.image.registry`, registry)
-      .setLiteral(`${nodePath}.root.image.tag`, tag)
-      .setLiteral(`${nodePath}.root.image.repository`, repository);
   }
 
   /**
