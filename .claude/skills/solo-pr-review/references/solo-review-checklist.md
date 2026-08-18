@@ -461,6 +461,64 @@ cycle is detected and prints the offending chains.
 
 ---
 
+## 23. Every thrown error must be a registered `SoloErrors` subclass
+
+**What to look for**
+
+- `throw new SoloError(message)` — bare base-class throw, missing `code` and `troubleshootingSteps`.
+- `throw new Error(message)` — native Error instead of `SoloError` at all.
+- `new SoloError({message, code})` with no `troubleshootingSteps`.
+- A catch block that re-wraps with `new SoloError(...)` instead of the registered type.
+
+**How to respond**
+
+- "we should not throw `new SoloError(message)` directly — every error must be a dedicated subclass registered in `SoloErrors`."
+- Spell out the three steps:
+  1. Create `src/core/errors/classes/<category>/<name>-solo-error.ts` extending `SoloError` with `message`, `code` (new entry in `ErrorCodeRegistry`), and `troubleshootingSteps`.
+  2. Register it in `SoloErrors.<category>` in `solo-errors.ts`.
+  3. Replace the raw throw with `throw new SoloErrors.<category>.<methodName>(params)`.
+- Name the nearest sibling error class as a shape reference (e.g. "see `backup-no-log-files-solo-error.ts` for the shape to follow").
+
+**Counter-check before flagging**
+
+- `KubeApiResponse.throwError` is the correct pattern for K8s client wrappers — do not flag it.
+- Catch blocks that *translate* a foreign error by calling `SoloErrors.*` are fine.
+
+**Prior precedent:** PR #5358 (`backup-restore.ts:1187` threw `new SoloError(message)` directly; the rest of the file used `SoloErrors.validation.*` correctly).
+
+---
+
+## 24. Pin all container image tags and package.json dependencies
+
+**What to look for**
+
+- Any `image: busybox`, `image: alpine`, `image: ubuntu`, or other image reference without an explicit
+  version tag (e.g. `busybox` instead of `busybox:1.36.1`).
+- Images pinned only to a mutable tag like `latest`, `stable`, or a branch name.
+- Image references in TypeScript-generated YAML (init-container spec objects in `block-node.ts`,
+  `deploy-argv-builders.ts`, etc.) as well as in shell-script heredocs and Helm values files checked
+  into the repo.
+- Any `package.json` dependency with a floating version (e.g., `^1.2.3`, `~1.2.3`, `*`, or no version at all).
+
+**How to respond — suggestion-block form**
+
+````
+```suggestion
+      image: busybox:1.36.1
+```
+pin to an exact version — floating tags can pull a different image on every deploy (supply-chain risk).
+````
+
+**How to handle pre-existing unpinned images not in the diff**
+
+- Note them in the review summary under Major (not as an inline comment, since GitHub can't anchor
+  comments on unchanged lines).
+- Recommend a follow-up PR that pins them; do not block merge on pre-existing issues.
+
+**Prior precedent:** PR #5358 (`busybox` unpinned in `launch_network.sh` and `block-node.ts`).
+
+---
+
 ## Quick decision aids
 
 **"Should this be a class with statics or a module of functions?"**

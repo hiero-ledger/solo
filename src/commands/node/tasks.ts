@@ -3912,7 +3912,11 @@ export class NodeCommandTasks {
     config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
-    const bootstrapJson: string = Helpers.buildRsaAddressBookJson(consensusNodes, config.keysDir);
+    const bootstrapJson: Optional<string> = Helpers.buildRsaAddressBookJson(consensusNodes, config.keysDir);
+    if (!bootstrapJson) {
+      this.logger.debug('Skipping block node RSA bootstrap refresh because a public key is missing');
+      return;
+    }
     const bootstrapFilePath: string = PathEx.join(config.keysDir, NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE);
     fs.writeFileSync(bootstrapFilePath, bootstrapJson, 'utf8');
 
@@ -4711,10 +4715,12 @@ export class NodeCommandTasks {
     };
   }
 
-  public drainBlockStreamAfterFreeze(): SoloListrTask<NodeUpgradeContext> {
+  public drainBlockStreamAfterFreeze<
+    ContextType extends {config: {freezeBlockDrainSeconds: number}},
+  >(): SoloListrTask<ContextType> {
     return {
       title: 'Drain block stream after freeze',
-      task: async (context_: NodeUpgradeContext): Promise<void> => {
+      task: async (context_: ContextType): Promise<void> => {
         const drainSeconds: number = context_.config.freezeBlockDrainSeconds ?? 20;
         await sleep(Duration.ofSeconds(drainSeconds));
       },

@@ -208,6 +208,70 @@ TypeScript style guide bans empty or unexplained catch blocks.
 This applies even when the catch body contains statements — the comment documents the *intent*,
 not just the code.
 
+### Error Handling — Always Use a Registered `SoloErrors` Subclass
+
+Every error thrown in `src/` must be a dedicated subclass of `SoloError` registered in the
+`SoloErrors` namespace. **Never** throw `new SoloError(message)` directly or `new Error(message)`.
+The base class lacks the required `code` and `troubleshootingSteps` fields that users and operators
+depend on for diagnosis.
+
+**The three-step pattern:**
+
+1. **Create the error class** in `src/core/errors/classes/<category>/<name>-solo-error.ts`:
+
+```typescript
+// src/core/errors/classes/validation/backup-database-dump-not-found-solo-error.ts
+export class BackupDatabaseDumpNotFoundSoloError extends SoloError {
+  protected override readonly retryable: boolean = false;
+  protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
+
+  public constructor(dumpPath: string) {
+    super({
+      message: `Database dump required for restore but not found at ${dumpPath}`,
+      code: ErrorCodeRegistry.BACKUP_DATABASE_DUMP_NOT_FOUND,
+      troubleshootingSteps:
+        'Create the backup with --backup-external-database\n' +
+        'Restore from the extracted backup directory, not a zip file',
+    });
+  }
+}
+```
+
+2. **Register a new code** in `src/core/errors/error-code-registry.ts`.
+
+3. **Register and throw** via `SoloErrors.<category>` in `src/core/errors/solo-errors.ts`:
+
+```typescript
+// call site:
+throw new SoloErrors.validation.backupDatabaseDumpNotFound(dumpPath);
+```
+
+See `src/core/errors/classes/validation/backup-no-log-files-solo-error.ts` as a reference for the
+full class shape. The `SoloErrors` namespace in `solo-errors.ts` shows how to wire the import and
+factory entry.
+
+**Exception:** `KubeApiResponse.throwError` is the correct wrapper for K8s API errors — do not
+replace it with a raw `SoloError`.
+
+### Pin All Container Image Tags
+
+Every container image reference in this repository — whether in TypeScript source (init-container spec
+objects), shell-script heredocs, Helm values files, or Kubernetes manifests — **must** include an exact
+version tag. Floating tags (`busybox`, `alpine`, `latest`, `stable`) are forbidden because they can pull
+a different image on every deploy without any code change, creating a silent supply-chain risk.
+
+```yaml
+# wrong
+image: busybox
+
+# correct
+image: busybox:1.36.1
+```
+
+The same rule applies to package manager dependencies in `package.json`, Helm chart versions in
+`version.ts`, and any other pinned-version registry: always specify an exact version, never a range
+or mutable alias, unless the project has an explicit policy permitting ranges for that dependency type.
+
 ### Shell Scripts in `.github/` — SPDX Header Required
 
 All shell scripts under `.github/workflows/script/` must include a SPDX license identifier on the
