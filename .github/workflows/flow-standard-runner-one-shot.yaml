@@ -112,6 +112,9 @@ jobs:
         run: task build:compile
 
       - name: Cache Solo Bin
+        # source mode only: restoring into ~/.solo/bin for the global-package matrix entry would
+        # create ~/.solo before the "Assert Clean Environment" step runs, failing that assertion.
+        if: ${{ matrix.install-mode == 'source' }}
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.solo/bin
