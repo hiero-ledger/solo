@@ -31,6 +31,7 @@ export class KubeErrorTranslator {
         error.phase,
         error.containerSummary,
         error,
+        error.volumeMountDiagnostic,
       );
     }
     if (error instanceof KubeContainerOperationFailedError) {
