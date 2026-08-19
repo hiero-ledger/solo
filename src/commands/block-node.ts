@@ -454,17 +454,10 @@ export class BlockNodeCommand extends BaseCommand {
       return undefined;
     }
 
-    for (const consensusNode of consensusNodes) {
-      const publicKeyFile: string = PathEx.join(
-        keysDirectory,
-        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
-      );
-      if (!fs.existsSync(publicKeyFile)) {
-        return undefined;
-      }
+    const bootstrapJson: Optional<string> = Helpers.buildRsaAddressBookJson(consensusNodes, keysDirectory);
+    if (!bootstrapJson) {
+      return undefined;
     }
-
-    const bootstrapJson: string = Helpers.buildRsaAddressBookJson(consensusNodes, keysDirectory);
     const content: string = yaml.stringify({
       blockNode: {
         initContainers: [
@@ -887,7 +880,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
             }
 
-            config.livenessCheckPort = this.getLivenessCheckPortNumber(config);
+            config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.componentImage);
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
@@ -1477,7 +1470,10 @@ export class BlockNodeCommand extends BaseCommand {
             }
           },
         },
-        this.checkBlockNodeReadiness((config): ComponentId => config.id),
+        this.checkBlockNodeReadiness(
+          (config): ComponentId => config.id,
+          (config): number => this.getLivenessCheckPortNumber(config.upgradeVersion),
+        ),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -1703,13 +1699,13 @@ export class BlockNodeCommand extends BaseCommand {
   ///
   /// Block node >= v0.39.0 serves its health endpoints (`/healthz/readyz`) from a dedicated
   /// web server on `BLOCK_NODE_HEALTH_PORT`; earlier versions served them from the gRPC port
-  /// (`BLOCK_NODE_PORT`). The effective version is the higher of the chart version and a local
-  /// image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
-  private getLivenessCheckPortNumber(config: BlockNodeDeployConfigClass): number {
-    let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.chartVersion);
+  /// (`BLOCK_NODE_PORT`). The effective version is the higher of the requested chart version and
+  /// a local image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
+  private getLivenessCheckPortNumber(chartVersion: string, componentImage?: string): number {
+    let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(chartVersion);
 
-    if (config.componentImage && this.isLocalImageReference(config.componentImage)) {
-      const tag: string = this.splitImageNameTag(config.componentImage).tag;
+    if (componentImage && this.isLocalImageReference(componentImage)) {
+      const tag: string = this.splitImageNameTag(componentImage).tag;
       const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
       if (blockNodeVersion.lessThan(imageVersion)) {
         blockNodeVersion = imageVersion;

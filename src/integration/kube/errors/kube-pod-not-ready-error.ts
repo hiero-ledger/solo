@@ -15,19 +15,28 @@ export class KubePodNotReadyError extends KubeError {
   public readonly podName: string;
   public readonly phase: string;
   public readonly containerSummary: string;
+  public readonly volumeMountDiagnostic: string | undefined;
 
-  public constructor(resource: string, podName: string, phase: string, containerStatuses: ContainerStatus[] = []) {
+  public constructor(
+    resource: string,
+    podName: string,
+    phase: string,
+    containerStatuses: ContainerStatus[] = [],
+    volumeMountDiagnostic?: string,
+  ) {
     const containerSummary: string = KubePodNotReadyError.summarizeContainers(containerStatuses);
     super(
       `Pod ${podName} matched ${resource} but did not reach the required state before the timeout` +
-        ` [phase: ${phase ?? 'Unknown'}${containerSummary ? `; containers: ${containerSummary}` : ''}]`,
+        ` [phase: ${phase ?? 'Unknown'}${containerSummary ? `; containers: ${containerSummary}` : ''}]` +
+        (volumeMountDiagnostic ? ` [volume mount diagnostic: ${volumeMountDiagnostic}]` : ''),
       undefined,
-      {resource, podName, phase, containerSummary},
+      {resource, podName, phase, containerSummary, volumeMountDiagnostic},
     );
     this.resource = resource;
     this.podName = podName;
     this.phase = phase;
     this.containerSummary = containerSummary;
+    this.volumeMountDiagnostic = volumeMountDiagnostic;
   }
 
   private static summarizeContainers(containerStatuses: ContainerStatus[]): string {
