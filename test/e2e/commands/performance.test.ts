@@ -282,7 +282,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // mirror importer.  Increasing the ring buffer to 8 M prevented overflow but required
         // ~6 GB of block-node heap, which is disproportionate.  Skipping SmartContractLoadTest
         // keeps the ring under 4 M entries so the 4 M buffer is sufficient and memory stays low.
-        it.skip('SmartContractLoadTest', async (): Promise<void> => {
+        it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
           await runLoadTest('SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 6 + mirrorImporterWarmupSeconds).toMillis());
