@@ -498,6 +498,25 @@ describe('Helpers', (): void => {
     });
   });
 
+  describe('isKindContext', (): void => {
+    it('recognizes a context kind wrote for one of its clusters', (): void => {
+      expect(Helpers.isKindContext('kind-solo')).to.be.true;
+      expect(Helpers.isKindContext('kind-solo-cluster')).to.be.true;
+    });
+
+    it('rejects a context that does not belong to a kind cluster', (): void => {
+      expect(Helpers.isKindContext('gke_my-project_us-central1_my-cluster')).to.be.false;
+      expect(Helpers.isKindContext('minikube')).to.be.false;
+      expect(Helpers.isKindContext('a-kind-cluster')).to.be.false;
+    });
+
+    it('rejects a missing context', (): void => {
+      const unresolvedContext: string = undefined;
+      expect(Helpers.isKindContext(unresolvedContext)).to.be.false;
+      expect(Helpers.isKindContext('')).to.be.false;
+    });
+  });
+
   describe('parseGossipFqdnRestricted', (): void => {
     it('parses true value', (): void => {
       const content: string = 'nodes.gossipFqdnRestricted=true';
