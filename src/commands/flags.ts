@@ -1663,6 +1663,17 @@ export class Flags {
     },
   };
 
+  public static readonly verifyPersistentVolumeClaimMounts: CommandFlag = {
+    constName: 'verifyPersistentVolumeClaimMounts',
+    name: 'verify-pvc-mounts',
+    definition: {
+      describe: 'Fail the deployment when a persistent volume claim is mounted on storage smaller than it requested',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly debugNodeAlias: CommandFlag = {
     constName: 'debugNodeAlias',
     name: 'debug-node-alias',
@@ -2989,6 +3000,7 @@ export class Flags {
     Flags.outputDir,
     Flags.outputValuesFile,
     Flags.persistentVolumeClaims,
+    Flags.verifyPersistentVolumeClaimMounts,
     Flags.pinger,
     Flags.predefinedAccounts,
     Flags.privateKey,

@@ -20,6 +20,7 @@ export interface NetworkDeployConfigClass {
   deployment: string;
   nodeAliasesUnparsed: string;
   persistentVolumeClaims: string;
+  verifyPersistentVolumeClaimMounts: boolean;
   releaseTag: string;
   keysDir: string;
   nodeAliases: NodeAliases;

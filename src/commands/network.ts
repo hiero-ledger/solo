@@ -5,6 +5,8 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
 import {SoloErrors} from '../core/errors/solo-errors.js';
+import {type PvcMountVerifier} from '../core/pvc-mount-verifier.js';
+import {type PvcMountFinding} from '../core/pvc-mount-finding.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -96,6 +98,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.PvcMountVerifier) private readonly pvcMountVerifier: PvcMountVerifier,
   ) {
     super();
 
@@ -105,6 +108,7 @@ export class NetworkCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.pvcMountVerifier = patchInject(pvcMountVerifier, InjectTokens.PvcMountVerifier, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -132,6 +136,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.verifyPersistentVolumeClaimMounts,
       flags.quiet,
       // Keep the legacy flag visible in help as deprecated while canonical parsing
       // uses --consensus-node-version.
@@ -212,6 +217,56 @@ export class NetworkCommand extends BaseCommand {
             collapseSubtasks: false,
           },
         });
+      },
+    };
+  }
+
+  /**
+   * Confirms each consensus node's persistent volume claims are mounted on the storage they asked
+   * for. A claim can bind and mount successfully against a filesystem far too small to hold it —
+   * directory-based provisioners do not enforce the requested size — so without this check a node
+   * running on the wrong disk looks like a clean deployment until the disk fills up.
+   *
+   * Warns by default because a legitimately oversubscribed development cluster (kind, and any
+   * single-disk setup) reports the same shortfall; `--verify-pvc-mounts` turns it into a failure for
+   * clusters where the storage layout is expected to be correct.
+   */
+  private verifyPersistentVolumeClaimMounts(): SoloListrTask<NetworkDeployContext> {
+    return {
+      title: 'Verify persistent volume claim mounts',
+      skip: (context_): boolean => !context_.config.persistentVolumeClaims,
+      task: async (context_, task): Promise<void> => {
+        const config: NetworkDeployConfigClass = context_.config;
+        const findings: PvcMountFinding[] = [];
+
+        for (const context of config.contexts) {
+          findings.push(
+            ...(await this.pvcMountVerifier.verify(config.namespace, context, ['solo.hedera.com/type=network-node'])),
+          );
+        }
+
+        if (findings.length === 0) {
+          return;
+        }
+
+        const descriptions: string[] = findings.map(
+          (finding: PvcMountFinding): string => `${finding.podName}: ${finding.description}`,
+        );
+
+        if (config.verifyPersistentVolumeClaimMounts) {
+          throw new SoloErrors.system.pvcMountVerificationFailed(descriptions);
+        }
+
+        task.title = `${task.title} ${chalk.yellow(`[${findings.length} warning(s)]`)}`;
+        this.logger.showUser(
+          chalk.yellow(
+            `Persistent volume claim mounts are smaller than requested (${findings.length} finding(s)); ` +
+              'consensus nodes may run out of disk. Deploy with --verify-pvc-mounts to treat this as an error.',
+          ),
+        );
+        for (const description of descriptions) {
+          this.logger.showUser(chalk.yellow(`  - ${description}`));
+        }
       },
     };
   }
@@ -890,6 +945,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.verifyPersistentVolumeClaimMounts,
       flags.settingTxt,
       flags.grpcTlsCertificatePath,
       flags.grpcWebTlsCertificatePath,
@@ -1766,6 +1822,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.waitForNetworkPods(),
+        this.verifyPersistentVolumeClaimMounts(),
         {
           title: 'Check proxy pods are running',
           task: (context_, task): SoloListr<NetworkDeployContext> => {
