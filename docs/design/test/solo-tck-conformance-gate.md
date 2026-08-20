@@ -127,7 +127,9 @@ The kit is largely **extraction and decoupling**, not greenfield authoring:
 - **`hiero-solo-action`** is the existing minimal "stand up a Solo network" primitive; the TCK is the
   *assertion layer on top* of bring-up, not a replacement.
 - Today, inlined Solo CLI orchestration and version-branched CLI workarounds are duplicated across CN,
-  MN, BN, and Relay workflows; each pins a different Solo version by hand. The TCK centralizes this.
+  MN, BN, and Relay workflows; each pins a different Solo version by hand. The TCK can absorb this
+  shared bring-up — but it **augments rather than replaces** each consumer's existing tests, which
+  cover behavior outside the TCK's scope.
 - Solo's current per-PR matrix (`e2e-test-matrix.json`, ~12 suites, ~80+ min wall-clock) is the pool
   that shrinks as coverage moves upstream.
 

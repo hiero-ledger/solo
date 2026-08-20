@@ -162,7 +162,10 @@ optionally a reusable workflow where org `uses:` is allowed, and a Docker image 
 
 **Phase 4 · Size: M each · Depends on: TCK-6**
 
-Wire the kit into each consumer per the PRD's integration model:
+Wire the kit into each consumer per the PRD's integration model. The TCK is added as an **additional**
+gate — it does **not** replace a consumer's existing Solo tests, which cover behavior outside its scope
+(replacing duplicated *bring-up orchestration* with a TCK call is fine; retiring any now-redundant
+*tests* is a best-case, per-team follow-up, coordinated with each team):
 
 - **TCK-7 — CN:** add a Solo-TCK regression panel to CN PR checks and XTS; delete inline Solo
   orchestration / version-branching.
