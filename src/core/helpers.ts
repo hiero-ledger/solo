@@ -60,6 +60,8 @@ type AddLoadContextData = {
 };
 
 export class Helpers {
+  public static readonly KIND_CONTEXT_PREFIX: string = 'kind-';
+
   public static getBlockStreamModeForConsensusVersion(
     consensusNodeVersion: SemanticVersion<string> | string | undefined,
     blockNodeIntegrationEnabled: boolean,
@@ -604,6 +606,10 @@ export class Helpers {
     }
     const consensusNode: ConsensusNode = consensusNodes.find((node): boolean => node.name === nodeAlias);
     return consensusNode ? consensusNode.context : undefined;
+  }
+
+  public static isKindContext(context: string | undefined): boolean {
+    return !!context?.startsWith(Helpers.KIND_CONTEXT_PREFIX);
   }
 
   public static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
