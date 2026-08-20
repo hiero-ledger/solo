@@ -343,11 +343,13 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
-      - name: Cache Solo Bin
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore Solo Bin Cache
+        id: solo-bin-cache
+        if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-bin-cache
         with:
-          path: ~/.solo/bin
-          key: solo-bin-${{ runner.os }}-${{ hashFiles('version.ts') }}
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts') }}
 
       - name: Restore Solo Image Cache
         id: solo-image-cache
@@ -535,6 +537,13 @@ jobs:
           ./.github/workflows/script/monitor-resources.sh stop
 
           exit $TEST_EXIT_CODE
+
+      - name: Save Solo Bin Cache
+        if: ${{ inputs.runner != 'windows-latest' && github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-bin-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts') }}
 
       - name: Save Solo Image Cache
         if: ${{ inputs.runner != 'windows-latest' && github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
