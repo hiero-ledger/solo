@@ -230,6 +230,10 @@ export class NetworkCommand extends BaseCommand {
    * Warns by default because a legitimately oversubscribed development cluster (kind, and any
    * single-disk setup) reports the same shortfall; `--verify-pvc-mounts` turns it into a failure for
    * clusters where the storage layout is expected to be correct.
+   *
+   * That flag also enables the chart's `volumeClaims.capacityCheck` init container, which fails the
+   * pod before the consensus node starts. This task stays as the backstop that still reports when
+   * the chart-side guard is unavailable — an older chart, or a values file that overrides it.
    */
   private verifyPersistentVolumeClaimMounts(): SoloListrTask<NetworkDeployContext> {
     return {
@@ -721,7 +725,10 @@ export class NetworkCommand extends BaseCommand {
         .set('telemetry.prometheus.svcMonitor.enabled', false) // remove after chart version is bumped
         .set('crds.serviceMonitor.enabled', config.singleUseServiceMonitor)
         .set('crds.podLog.enabled', config.singleUsePodLog)
-        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims);
+        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims)
+        // Turn on the chart's own pre-start capacity guard alongside solo's post-deploy check, so
+        // an undersized volume stops the node before it writes state rather than after.
+        .set('defaults.volumeClaims.capacityCheck.enabled', config.verifyPersistentVolumeClaimMounts);
     }
 
     config.singleUseServiceMonitor = 'false';
