@@ -9,6 +9,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INCOMPLETE_LOCAL_CONFIG: 'SOLO-1005',
   REMOTE_CONFIG_DATA_INVALID: 'SOLO-1006',
   MIGRATE_LEGACY_LOCAL_CONFIG: 'SOLO-1007',
+  REMOTE_CONFIG_MISSING_ON_KIND_CLUSTER: 'SOLO-1008',
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
   CREATE_DEPLOYMENT: 'SOLO-2001',
