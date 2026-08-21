@@ -50,13 +50,15 @@ export class FilePermissions {
    * @param rootPath - the file or directory to restrict; it must already exist
    */
   public static restrictTreeToOwner(rootPath: string): void {
+    const isDirectory: boolean = fs.statSync(rootPath).isDirectory();
+
     if (OperatingSystem.isWin32()) {
-      FilePermissions.restrictToOwnerWindows(rootPath, true);
+      FilePermissions.restrictToOwnerWindows(rootPath, isDirectory);
       return;
     }
 
     FilePermissions.clearGroupAndOtherAccess(rootPath);
-    if (!fs.statSync(rootPath).isDirectory()) {
+    if (!isDirectory) {
       return;
     }
     for (const relativeEntry of fs.readdirSync(rootPath, {recursive: true}) as string[]) {
@@ -87,18 +89,31 @@ export class FilePermissions {
 
     // `(OI)(CI)` propagates the grant to files and subdirectories created inside a directory so they
     // inherit the same owner-only restriction; plain `F` (Full control) is used for a single file.
+    // The inheritance flags are invalid on a file, where icacls drops the grant and still exits 0.
     const permissions: string = isDirectory ? '(OI)(CI)F' : 'F';
 
     try {
-      // `/inheritance:r` drops all inherited ACEs (removing the broad BUILTIN\Users access that is the
-      // Windows analogue of group/other), and `/grant:r` replaces any existing grant for the user.
-      execFileSync('icacls', [targetPath, '/inheritance:r', '/grant:r', `${principal}:${permissions}`], {
-        stdio: 'ignore',
-        env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC),
-      });
+      // Grant first, then confirm the ACE actually landed, and only then drop the inherited ACEs
+      // (the broad BUILTIN\Users access that is the Windows analogue of group/other). Stripping
+      // inheritance while the grant is missing leaves an empty DACL, which denies every principal
+      // including the owner and cannot be repaired without `icacls /reset`.
+      FilePermissions.icacls(targetPath, ['/grant:r', `${principal}:${permissions}`]);
+      if (!FilePermissions.icacls(targetPath, []).toLowerCase().includes(principal.toLowerCase())) {
+        return;
+      }
+      FilePermissions.icacls(targetPath, ['/inheritance:r']);
     } catch {
       // best-effort: ACL hardening can fail on non-NTFS volumes or with insufficient rights; the POSIX
       // group/other read exposure this guards against does not apply on Windows, so do not abort here.
     }
+  }
+
+  /** Run `icacls` against a path and return its standard output. */
+  private static icacls(targetPath: string, subcommand: string[]): string {
+    return execFileSync('icacls', [targetPath, ...subcommand], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC),
+    });
   }
 }
