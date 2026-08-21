@@ -1211,6 +1211,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly wrapsCopyParallel: CommandFlag = {
+    constName: 'wrapsCopyParallel',
+    name: 'wraps-copy-parallel',
+    definition: {
+      describe:
+        'Copy the WRAPs library to all consensus nodes at once instead of one node after another. Faster on large networks, at the cost of running every transfer over the same link simultaneously',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly tssEnabled: CommandFlag = {
     constName: 'tssEnabled',
     name: 'tss',
@@ -3088,6 +3100,7 @@ export class Flags {
     Flags.skipGrpcWebEndpoint,
     Flags.wrapsEnabled,
     Flags.wrapsKeyPath,
+    Flags.wrapsCopyParallel,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,

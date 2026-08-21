@@ -175,6 +175,7 @@ export class NetworkCommand extends BaseCommand {
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
+      flags.wrapsCopyParallel,
       flags.tssEnabled,
       flags.blockNodeMessageSizeSoftLimitBytes,
       flags.blockNodeMessageSizeHardLimitBytes,
@@ -908,6 +909,7 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
       flags.gossipEndpointPort,
       flags.serviceEndpointPort,
+      flags.wrapsCopyParallel,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -1858,7 +1860,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
-          task: async ({config}): Promise<void> => {
+          task: async ({config}, task): Promise<SoloListr<NetworkDeployContext>> => {
             const wraps: Wraps = this.soloConfig.tss.wraps;
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
@@ -1931,18 +1933,33 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
-            for (const consensusNode of config.consensusNodes) {
-              const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
-                config.namespace,
-                consensusNode.name,
-              );
+            // The library is hundreds of megabytes per node, so on a large network the copies
+            // dominate deploy time. Running them concurrently is much faster but puts every
+            // transfer on the same link at once, which is the wrong trade on a constrained
+            // connection -- hence the flag rather than a fixed choice.
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = config.consensusNodes.map(
+              (consensusNode: ConsensusNode): SoloListrTask<NetworkDeployContext> => ({
+                title: `Copy wraps lib to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
+                task: async (): Promise<void> => {
+                  const rootContainer: Container = await new K8Helper(
+                    consensusNode.context,
+                  ).getConsensusNodeRootContainer(config.namespace, consensusNode.name);
 
-              await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
 
-              if (wrapsTarball) {
-                await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
-              }
-            }
+                  if (wrapsTarball) {
+                    await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  }
+                },
+              }),
+            );
+
+            return task.newListr(subTasks, {
+              concurrent: config.wrapsCopyParallel,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
           },
         },
         {
