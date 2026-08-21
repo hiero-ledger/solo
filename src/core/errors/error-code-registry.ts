@@ -302,6 +302,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   KIND_CLUSTER_STOPPED: 'SOLO-5079',
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
   POD_NOT_READY: 'SOLO-5081',
+  PORT_FORWARD_STOP_FAILED: 'SOLO-5082',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
