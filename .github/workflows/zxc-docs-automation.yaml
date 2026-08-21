@@ -88,17 +88,26 @@ jobs:
           verbosity: 3
           wait: 120s
 
-      - name: Cache Solo Bin
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore Solo Bin Cache
+        id: solo-bin-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-bin-cache
         with:
-          path: ~/.solo/bin
-          key: solo-bin-${{ runner.os }}-${{ hashFiles('version.ts') }}
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts') }}
 
       - name: Solo Command Output
         id: solo-command-output
         run: |
           cd docs/site
           SOLO_CI=true task build:solo:command:output
+
+      - name: Save Solo Bin Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-bin-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts') }}
 
       - name: Collect Deployment Diagnostics Logs
         if: ${{ !cancelled() && always() }}
