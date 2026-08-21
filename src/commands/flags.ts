@@ -1211,6 +1211,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly wrapsCopyParallel: CommandFlag = {
+    constName: 'wrapsCopyParallel',
+    name: 'wraps-copy-parallel',
+    definition: {
+      describe:
+        'Copy the WRAPs library to all consensus nodes at once instead of one node after another. Faster on large networks, at the cost of running every transfer over the same link simultaneously',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly tssEnabled: CommandFlag = {
     constName: 'tssEnabled',
     name: 'tss',
@@ -1661,6 +1673,17 @@ export class Flags {
     ): Promise<boolean> {
       return await Flags.prompt('toggle', task, input, Flags.persistentVolumeClaims);
     },
+  };
+
+  public static readonly verifyPersistentVolumeClaimMounts: CommandFlag = {
+    constName: 'verifyPersistentVolumeClaimMounts',
+    name: 'verify-pvc-mounts',
+    definition: {
+      describe: 'Fail the deployment when a persistent volume claim is mounted on storage smaller than it requested',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
   };
 
   public static readonly debugNodeAlias: CommandFlag = {
@@ -2989,6 +3012,7 @@ export class Flags {
     Flags.outputDir,
     Flags.outputValuesFile,
     Flags.persistentVolumeClaims,
+    Flags.verifyPersistentVolumeClaimMounts,
     Flags.pinger,
     Flags.predefinedAccounts,
     Flags.privateKey,
@@ -3088,6 +3112,7 @@ export class Flags {
     Flags.skipGrpcWebEndpoint,
     Flags.wrapsEnabled,
     Flags.wrapsKeyPath,
+    Flags.wrapsCopyParallel,
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,

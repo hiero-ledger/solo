@@ -34,6 +34,7 @@ import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../integration/kube/resources/pod/pods.js';
+import {KubePodNotFoundError} from '../integration/kube/errors/kube-pod-not-found-error.js';
 import chalk from 'chalk';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
@@ -1221,8 +1222,14 @@ export class MirrorNodeCommand extends BaseCommand {
             constants.MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS,
             constants.MIRROR_NODE_IMPORTER_DETECT_DELAY,
           );
-        } catch {
-          // importer disabled via custom values — no schema build to wait for
+        } catch (error: Error | unknown) {
+          // Only an absent pod means the importer was disabled via custom values, so only that is
+          // safe to skip. An importer pod that exists but never starts (image pull, or a volume
+          // that cannot be provisioned or mounted) previously landed here too and was reported as
+          // a successful deploy, hiding the real failure.
+          if (!(error instanceof KubePodNotFoundError)) {
+            throw error;
+          }
           this.logger.info(`No importer pod found for release ${config.releaseName}; skipping mirror node schema wait`);
           return;
         }
