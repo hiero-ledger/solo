@@ -1684,6 +1684,46 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * A restored state carries the address book of the network it was captured on, which would have this
+   * network's nodes gossiping to the wrong endpoints with mismatched certificates. `override-network.json`
+   * tells the consensus node to use the roster generated here instead.
+   */
+  public installOverrideNetworkJson(skip: SkipCheck | boolean): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Install override-network.json',
+      task: async ({config}): Promise<void> => {
+        // Written to the cache rather than the staging directory: `node start` does not take the flags that
+        // populate `config.stagingDir`, so it is undefined here. The file only has to exist long enough to
+        // be copied into each pod.
+        const overrideNetworkJson: string = await this.generateNetworkJson(
+          constants.OVERRIDE_NETWORK_FILE,
+          config.namespace,
+          config.consensusNodes,
+          constants.SOLO_CACHE_DIR,
+        );
+
+        for (const nodeAlias of config.nodeAliases) {
+          const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const container: Container = this.k8Factory
+            .getK8(kubeContext)
+            .containers()
+            .readByRef(ContainerReference.of(config.podRefs[nodeAlias], constants.ROOT_CONTAINER));
+
+          await container.copyTo(overrideNetworkJson, ConsensusNodePathTemplates.DATA_CONFIG);
+
+          // copyTo lands the file as root; the node runs as hedera and would otherwise be denied access.
+          await container.execContainer([
+            'bash',
+            '-c',
+            `chown hedera:hedera ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}`,
+          ]);
+        }
+      },
+      skip,
+    };
+  }
+
   public identifyNetworkPods(maxAttempts?: number) {
     return {
       title: 'Identify network pods',
@@ -1792,7 +1832,8 @@ export class NodeCommandTasks {
           );
         }
         if (isGenesis) {
-          await this.generateGenesisNetworkJson(
+          await this.generateNetworkJson(
+            constants.GENESIS_NETWORK_FILE,
             config.namespace,
             config.consensusNodes,
             config.stagingDir,
@@ -1928,10 +1969,7 @@ export class NodeCommandTasks {
         }
         // skip if caller opted out (e.g. restore flow where endpoint is already correct
         // in the restored state and re-sending triggers the CN v0.74 CHECKING bug)
-        if (this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint)) {
-          return true;
-        }
-        return false;
+        return this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint);
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
@@ -2072,14 +2110,20 @@ export class NodeCommandTasks {
    * @param gossipEndpointPortMapping - port overrides for the gossip endpoints
    * @param serviceEndpointPortMapping - port overrides for the gRPC service endpoints
    */
-  private async generateGenesisNetworkJson(
+  /**
+   * Writes the address book describing the network as it exists right now — endpoints, admin keys and
+   * weights are read from the live remote config and service map, so the result reflects any nodes added or
+   * updated since genesis. `genesis-network.json` and `override-network.json` share this format.
+   */
+  private async generateNetworkJson(
+    fileName: string,
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
     stagingDirectory: string,
     domainNamesMapping?: Record<NodeAlias, string>,
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
-  ): Promise<void> {
+  ): Promise<string> {
     const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap: Map<NodeAlias, NetworkNodeServices> = await this.accountManager.getNodeServiceMap(
       namespace,
@@ -2104,8 +2148,9 @@ export class NodeCommandTasks {
       serviceEndpointPortMapping,
     );
 
-    const genesisNetworkJson: string = PathEx.join(stagingDirectory, 'genesis-network.json');
-    fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
+    const networkJson: string = PathEx.join(stagingDirectory, fileName);
+    fs.writeFileSync(networkJson, genesisNetworkData.toJSON());
+    return networkJson;
   }
 
   public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
@@ -2152,8 +2197,8 @@ export class NodeCommandTasks {
   public startNodes(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Starting nodes',
-      task: (context_, task): any => {
-        const config: any = context_.config;
+      task: (context_, task): SoloListr<AnyListrContext> => {
+        const config: AnyListrContext = context_.config;
         const nodeAliases: NodeAliases = config[nodeAliasesProperty];
         const subTasks: SoloListrTask<AnyListrContext>[] = [];
 
@@ -2401,7 +2446,7 @@ export class NodeCommandTasks {
   ): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
     return {
       title: 'Check nodes are ACTIVE and proxies are ready',
-      task: (context_, task): SoloListr<AnyListrContext> => {
+      task: (_, task): SoloListr<AnyListrContext> => {
         const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Check all nodes are ACTIVE',
@@ -3480,7 +3525,7 @@ export class NodeCommandTasks {
     return {
       title: 'Load signing key certificate',
       task: (context_): void => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
         const signingCertFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
         const signingCertFullPath: string = PathEx.joinWithRealPath(config.keysDir, signingCertFile);
         context_.signingCertDer = this.keyManager.getDerFromPemCertificate(signingCertFullPath);
@@ -3492,7 +3537,7 @@ export class NodeCommandTasks {
     return {
       title: 'Compute mTLS certificate hash',
       task: (context_): void => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
         const tlsCertFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
         const tlsCertFullPath: string = PathEx.joinWithRealPath(config.keysDir, tlsCertFile);
         const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(tlsCertFullPath);
@@ -3657,7 +3702,7 @@ export class NodeCommandTasks {
     return {
       title: 'Send node update transaction',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeUpdateConfigClass = context_.config;
 
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
         this.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
@@ -3672,7 +3717,7 @@ export class NodeCommandTasks {
           );
         }
 
-        let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
+        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
         nodeUpdateTx = nodeUpdateTx.setGossipEndpoints(await this.prepareNodeUpdateGossipEndpoints(config));
 
         if (config.tlsPublicKey && config.tlsPrivateKey) {
@@ -4324,27 +4369,6 @@ export class NodeCommandTasks {
       chartValuesMap: chartValuesMap as Record<ClusterReferenceName, HelmChartValues>,
       valueFilePathsMap: valueFilePathsMap as Record<ClusterReferenceName, string[]>,
     };
-  }
-
-  /**
-   * Append root.image registry/repository/tag settings for a given node path to Helm chart values.
-   * @param chartValues - existing chart values
-   * @param nodePath - base node path, e.g. `hedera.nodes[0]`
-   * @param registry - image registry
-   * @param repository - image repository
-   * @param tag - image tag
-   */
-  private addRootImageValues(
-    chartValues: HelmChartValues,
-    nodePath: string,
-    registry: string,
-    repository: string,
-    tag: string,
-  ): void {
-    chartValues
-      .setLiteral(`${nodePath}.root.image.registry`, registry)
-      .setLiteral(`${nodePath}.root.image.tag`, tag)
-      .setLiteral(`${nodePath}.root.image.repository`, repository);
   }
 
   /**

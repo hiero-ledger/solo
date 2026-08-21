@@ -18,6 +18,7 @@
 | [one-shot-local-build](./one-shot-local-build/)                     | Example of how to deploy a complete network using locally built component sources via the Solo one-shot falcon command |
 | [rapid-fire](./rapid-fire/)                                         | Example of how to use the Solo **rapid-fire** commands                                                              |
 | [state-save-and-restore](./state-save-and-restore/)                 | Save network state, recreate network, and restore state with mirror node (with optional external database)          |
+| [state-transplant](./state-transplant/)                             | Start a network from a state captured on a different network, verifying the generated `override-network.json`        |
 | [running-solo-inside-cluster](./running-solo-inside-cluster/)       | Example of how to run the Solo network inside a privileged Ubuntu pod in a Kubernetes cluster for end-to-end testing |
 | [version-upgrade-test](./version-upgrade-test/)                     | Example of how to upgrade all components of a Hiero network to current versions                                     |
 
