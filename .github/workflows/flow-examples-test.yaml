@@ -287,6 +287,35 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      # Some example Taskfiles call kind/helm/kubectl directly before they run any solo command, so the
+      # binaries are installed here rather than as a side effect of a solo command. Versions and action
+      # pins match the ones the E2E workflow (zxc-e2e-test.yaml) uses.
+      - name: Install Kubectl
+        if: ${{ !cancelled() && !failure() }}
+        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 'v1.32.2'
+
+      - name: Setup Kind
+        if: ${{ !cancelled() && !failure() }}
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          install_only: true
+          node_image: 'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211'
+          version: 'v0.29.0'
+          kubectl_version: 'v1.32.2'
+          verbosity: 3
+          wait: 120s
+
+      - name: Setup Helm
+        if: ${{ !cancelled() && !failure() }}
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 'v3.14.2'
+
       - name: Restore Solo Image Cache
         id: solo-image-cache
         if: ${{ !cancelled() && !failure() }}

@@ -124,27 +124,6 @@ deployment.apps/cluster-diagnostics created
 > rm -Rf dist && tsc && node resources/post-build-script.js
 
 
-> @hashgraph/solo@0.34.0 solo
-> node --no-deprecation --no-warnings dist/solo.js init
-
-
-******************************* Solo *********************************************
-Version			: 0.34.0
-Kubernetes Context	: kind-solo-e2e-c2
-Kubernetes Cluster	: kind-solo-e2e-c2
-Current Command		: init
-**********************************************************************************
-✔ Setup home directory and cache
-✔ Check dependencies
-  ✔ Check dependency: helm [OS: darwin, Release: 23.6.0, Arch: arm64]
-✔ Setup chart manager [1s]
-✔ Copy templates in '/Users/user/.solo/cache'
-
-
-***************************************************************************************
-Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: /Users/user/.solo
-If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.
-***************************************************************************************
 Switched to context "kind-solo-e2e-c1".
 
 > @hashgraph/solo@0.34.0 solo

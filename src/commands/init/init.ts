@@ -3,36 +3,27 @@
 import {BaseCommand} from '../base.js';
 import fs from 'node:fs';
 import * as constants from '../../core/constants.js';
-import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {FilePermissions} from '../../business/utils/file-permissions.js';
-import {container, inject, injectable} from 'tsyringe-neo';
-import {type CommandDefinition, type InitDependenciesOptions, type SoloListrTask} from '../../types/index.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {type InitDependenciesOptions, type SoloListrTask} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
-import {Listr, ListrRendererValue} from 'listr2';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ClusterTaskManager} from '../../core/cluster-task-manager.js';
-import {type Deprecation} from '../../types/deprecation.js';
-import {Deprecations} from '../../core/deprecations.js';
-import {type DeprecationRegistry} from '../../core/deprecation-registry.js';
 
 /**
- * Defines the core functionalities of 'init' command
+ * One-time local environment setup: Solo's home/cache directories, the packaged templates, and the
+ * external dependencies (podman, helm, kubectl, ...). Every command runs the system-file tasks through
+ * {@link Middlewares.initSystemFiles}, and the dependency tasks are pulled in by
+ * {@link CommandBuilder}; there is no longer a user-facing command for it.
  */
 @injectable()
 export class InitCommand extends BaseCommand {
-  public static readonly COMMAND_NAME: string = 'init';
-  public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
   private static hasShownDevSystemFileLists: boolean = false;
-  private static readonly DEPRECATION: Deprecation = {
-    since: '0.85.0',
-    removalIssue: 5389,
-    reason: 'Running it is no longer required.',
-  };
 
   public constructor(
     @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
@@ -111,7 +102,7 @@ export class InitCommand extends BaseCommand {
             this.logger.showUser(
               chalk.grey(
                 `Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: ${constants.SOLO_HOME_DIR}\n` +
-                  "If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.",
+                  'If a full reset is needed, delete the directory or relevant sub-directories before re-running solo.',
               ),
             );
             this.logger.showUser(
@@ -162,67 +153,6 @@ export class InitCommand extends BaseCommand {
     }
 
     return tasks;
-  }
-
-  /** Executes the init CLI command */
-  public initTasks(argv: any): Listr<InitContext, ListrRendererValue, ListrRendererValue> {
-    return this.taskList.newTaskList(
-      [
-        ...this.setupSystemFilesTasks(argv),
-        ...this.installDependenciesTasks({
-          deps: [...constants.BASE_DEPENDENCIES],
-          createCluster: false,
-        }),
-      ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-      undefined,
-      InitCommand.INIT_COMMAND_NAME,
-    );
-  }
-
-  public async init(argv: any): Promise<boolean> {
-    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.initTasks(argv);
-
-    if (tasks.isRoot()) {
-      try {
-        await tasks.run();
-      } catch (error: Error | any) {
-        throw new SoloErrors.deployment.initFailed(error);
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Return Yargs command definition for 'init' command
-   * @returns A object representing the Yargs command definition
-   */
-  public getCommandDefinition(): CommandDefinition {
-    const deprecationRegistry: DeprecationRegistry = container.resolve<DeprecationRegistry>(
-      InjectTokens.DeprecationRegistry,
-    );
-    deprecationRegistry.registerCommand(InitCommand.COMMAND_NAME, 'command', InitCommand.DEPRECATION);
-
-    return {
-      command: InitCommand.COMMAND_NAME,
-      desc: `Initialize local environment [DEPRECATED: ${Deprecations.formatHelpMarker(InitCommand.DEPRECATION)}]`,
-      builder: (y: any): void => {
-        // set the quiet flag even though it isn't used for consistency across all commands
-        flags.setOptionalCommandFlags(y, [flags.cacheDir, flags.quiet, flags.username], InitCommand.COMMAND_NAME);
-      },
-      handler: async (argv: any): Promise<void> => {
-        await this.init(argv)
-          .then((r: boolean): void => {
-            if (!r) {
-              throw new SoloErrors.deployment.initFailed();
-            }
-          })
-          .catch(error => {
-            throw new SoloErrors.deployment.initFailed(error);
-          });
-      },
-    };
   }
 
   public close(): Promise<void> {
