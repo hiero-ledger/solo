@@ -31,6 +31,8 @@ export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLOR
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.78.1';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
+// If this version changes, regenerate test/data/proto.zip (see test/data/get-block.sh for steps) —
+// a stale vendored schema causes intermittent grpcurl unmarshal failures (see issue #5848).
 export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.40.1';
 
 export const METALLB_CHART_VERSION: string = constants.getEnvironmentVariable('METALLB_CHART_VERSION') || '0.15.3';
