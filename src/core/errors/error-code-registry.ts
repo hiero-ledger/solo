@@ -302,6 +302,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   KIND_CLUSTER_STOPPED: 'SOLO-5079',
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
   POD_NOT_READY: 'SOLO-5081',
+  SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5082',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
@@ -317,4 +318,5 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CACHE_IMAGE_TEMPLATE_UNDECLARED: 'SOLO-9011',
   INJECTED_FAILURE: 'SOLO-9012',
   PIPELINE_CANCELLED: 'SOLO-9013',
+  UNCAUGHT_FATAL_ERROR: 'SOLO-9014',
 } as const;

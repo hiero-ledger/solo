@@ -4,10 +4,13 @@ import {expect} from 'chai';
 import {describe, it, beforeEach, afterEach} from 'mocha';
 import sinon, {type SinonStub, type SinonFakeTimers} from 'sinon';
 import {EventEmitter} from 'node:events';
+import {chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {OneShotState} from '../../../../src/core/one-shot-state.js';
 import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
-import {type SoloError} from '../../../../src/core/errors/solo-error.js';
+import {SoloError} from '../../../../src/core/errors/solo-error.js';
+import {PathEx} from '../../../../src/business/utils/path-ex.js';
 
 function lineLogged(stub: SinonStub, substring: string): boolean {
   return stub.getCalls().some((call): boolean => String(call.args[0]).includes(substring));
@@ -350,5 +353,110 @@ describe('SoloPinoLogger stream configuration', (): void => {
     const logger: SoloPinoLogger = new SoloPinoLogger('debug', true, new OneShotState());
 
     expect(internalsOf(logger).rotatingStreams).to.have.lengthOf(0);
+  });
+});
+
+// Typed view over the writability preflight, which runs before any stream is constructed.
+type LoggerPreflight = {
+  assertLogDestinationsWritable: (logsDirectory: string, fileNames: string[]) => void;
+};
+
+function preflightOf(): LoggerPreflight {
+  return SoloPinoLogger as unknown as LoggerPreflight;
+}
+
+describe('SoloPinoLogger log destination preflight', (): void => {
+  // chmod does not restrict writes on Windows, so the denial cases cannot be staged there.
+  const canDenyWrites: boolean = process.platform !== 'win32';
+  const fileNames: string[] = ['solo.ndjson', 'solo.log'];
+  let logsDirectory: string;
+
+  beforeEach((): void => {
+    logsDirectory = PathEx.join(mkdtempSync(PathEx.join(tmpdir(), 'solo-logs-')), 'logs');
+  });
+
+  afterEach((): void => {
+    // Restore write permission so the temporary tree can be cleaned up. Guarded because a test that fails before
+    // the preflight creates the directory would otherwise die here on ENOENT, hiding the real failure.
+    if (existsSync(logsDirectory)) {
+      chmodSync(logsDirectory, 0o700);
+    }
+    for (const fileName of fileNames) {
+      const filePath: string = PathEx.join(logsDirectory, fileName);
+      if (existsSync(filePath)) {
+        chmodSync(filePath, 0o600);
+      }
+    }
+    rmSync(logsDirectory, {recursive: true, force: true});
+  });
+
+  it('creates the logs directory when it does not exist yet', (): void => {
+    expect((): void => preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames)).to.not.throw();
+    expect(existsSync(logsDirectory)).to.be.true;
+  });
+
+  it('accepts a writable directory with writable existing log files', (): void => {
+    mkdirSync(logsDirectory, {recursive: true});
+    for (const fileName of fileNames) {
+      writeFileSync(PathEx.join(logsDirectory, fileName), 'existing content\n');
+    }
+
+    expect((): void => preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames)).to.not.throw();
+  });
+
+  (canDenyWrites ? it : it.skip)('rejects a logs directory that cannot be written', (): void => {
+    mkdirSync(logsDirectory, {recursive: true});
+    chmodSync(logsDirectory, 0o500);
+
+    let thrown: SoloError | undefined;
+    try {
+      preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames);
+    } catch (error) {
+      thrown = error as SoloError;
+    }
+
+    expect(thrown, 'expected the preflight to reject a read-only logs directory').to.be.instanceOf(SoloError);
+    expect(thrown.getFormattedCode()).to.equal('SOLO-5082');
+    expect(thrown.message).to.include(logsDirectory);
+    // The errno reaches the message, so a permissions failure reads differently from a full disk.
+    expect(thrown.message).to.include('EACCES');
+  });
+
+  (canDenyWrites ? it : it.skip)('rejects an existing log file that cannot be written', (): void => {
+    // The reporter's case in issue #5370: the directory is fine, the log files are owned by root.
+    mkdirSync(logsDirectory, {recursive: true});
+    const lockedFile: string = PathEx.join(logsDirectory, 'solo.ndjson');
+    writeFileSync(lockedFile, 'owned by another user\n');
+    chmodSync(lockedFile, 0o400);
+
+    let thrown: SoloError | undefined;
+    try {
+      preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames);
+    } catch (error) {
+      thrown = error as SoloError;
+    }
+
+    expect(thrown, 'expected the preflight to reject a read-only log file').to.be.instanceOf(SoloError);
+    expect(thrown.getFormattedCode()).to.equal('SOLO-5082');
+    // The offending file is named, not just its directory, so the user knows what to chown.
+    expect(thrown.message).to.include(lockedFile);
+  });
+
+  (canDenyWrites ? it : it.skip)('offers ownership and removal as recovery steps', (): void => {
+    mkdirSync(logsDirectory, {recursive: true});
+    chmodSync(logsDirectory, 0o500);
+
+    let thrown: SoloError | undefined;
+    try {
+      preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames);
+    } catch (error) {
+      thrown = error as SoloError;
+    }
+
+    const steps: string = (thrown.getTroubleshootingSteps() ?? []).join('\n');
+    expect(steps).to.include('chown');
+    expect(steps).to.include('rm -rf ~/.solo');
+    expect(steps).to.include('SOLO_HOME');
+    expect(thrown.cause).to.be.instanceOf(Error);
   });
 });
