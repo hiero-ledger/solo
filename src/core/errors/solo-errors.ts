@@ -259,6 +259,7 @@ import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
 import {FileInvalidJsonSoloError} from './classes/system/file-invalid-json-solo-error.js';
+import {CachedFileInaccessibleSoloError} from './classes/system/cached-file-inaccessible-solo-error.js';
 import {DirectoryCreationFailedSoloError} from './classes/system/directory-creation-failed-solo-error.js';
 import {ArchiveUnzipFailedSoloError} from './classes/system/archive-unzip-failed-solo-error.js';
 import {ArchiveTarFailedSoloError} from './classes/system/archive-tar-failed-solo-error.js';
@@ -793,6 +794,7 @@ export class SoloErrors {
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
     readonly fileInvalidJson: typeof FileInvalidJsonSoloError;
+    readonly cachedFileInaccessible: typeof CachedFileInaccessibleSoloError;
     readonly directoryCreationFailed: typeof DirectoryCreationFailedSoloError;
     readonly archiveUnzipFailed: typeof ArchiveUnzipFailedSoloError;
     readonly archiveTarFailed: typeof ArchiveTarFailedSoloError;
@@ -876,6 +878,7 @@ export class SoloErrors {
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,
     fileInvalidJson: FileInvalidJsonSoloError,
+    cachedFileInaccessible: CachedFileInaccessibleSoloError,
     directoryCreationFailed: DirectoryCreationFailedSoloError,
     archiveUnzipFailed: ArchiveUnzipFailedSoloError,
     archiveTarFailed: ArchiveTarFailedSoloError,

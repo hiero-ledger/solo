@@ -1365,12 +1365,19 @@ export class NetworkCommand extends BaseCommand {
             fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
           }
         }
+
+        // The cached CRD file may have been copyFileSync'd from a packaged (0755) source, bypassing umask.
+        FilePermissions.restrictToOwner(temporaryFile, false);
       }
 
-      // The cached CRD file may have been copyFileSync'd from a packaged (0755) source, bypassing umask.
-      FilePermissions.restrictTreeToOwner(temporaryFile);
-
-      await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
+      try {
+        await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
+      } catch (error) {
+        if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+          throw new SoloErrors.system.cachedFileInaccessible(temporaryFile, error);
+        }
+        throw error;
+      }
     }
   }
 
