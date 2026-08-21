@@ -1145,24 +1145,6 @@ export class Flags {
     },
   };
 
-  public static readonly blockNodeChartVersion: CommandFlag = {
-    constName: 'chartVersion',
-    name: 'chart-version',
-    definition: {
-      describe: 'Block node chart version',
-      defaultValue: version.BLOCK_NODE_VERSION,
-      type: 'string',
-      deprecated: {since: '0.85.0', removalIssue: 5388, replacement: '--block-node-version'},
-      promptText: 'Enter block node chart version: ',
-    },
-    prompt: async function promptBlockNodeChartVersion(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      return await Flags.prompt('input', task, input, Flags.blockNodeChartVersion);
-    },
-  };
-
   public static readonly priorityMapping: CommandFlag = {
     constName: 'priorityMapping',
     name: 'priority-mapping',
@@ -2872,10 +2854,16 @@ export class Flags {
     name: 'block-node-version',
     definition: {
       describe: 'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
-      defaultValue: '',
+      defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
+      promptText: 'Enter block node version: ',
     },
-    prompt: undefined,
+    prompt: async function promptBlockNodeVersion(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.prompt('input', task, input, Flags.blockNodeVersion);
+    },
   };
 
   // ------------------ Edge ---------------- //
@@ -3053,7 +3041,6 @@ export class Flags {
     Flags.domainNames,
     Flags.gossipEndpointPort,
     Flags.serviceEndpointPort,
-    Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,
     Flags.blockNodeMessageSizeSoftLimitBytes,
