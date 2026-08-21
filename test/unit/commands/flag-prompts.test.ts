@@ -62,7 +62,7 @@ const textPromptFlags: CommandFlag[] = [
   Flags.clusterRef,
   Flags.clusterSetupNamespace,
   Flags.namespace,
-  Flags.releaseTag,
+  Flags.consensusNodeVersion,
   Flags.relayReleaseTag,
   Flags.cacheDir,
   Flags.nodeAliasesUnparsed,
