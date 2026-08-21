@@ -36,7 +36,12 @@ export function getEnvironmentVariable(name: string): string | undefined {
   return undefined;
 }
 
-export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
+// In SEA mode the bootstrap (sea/build.ts banner) sets SOLO_SEA_ROOT_DIR to
+// ~/.solo/sea-resources/<version>/ before any module initializes, so all
+// RESOURCES_DIR-based paths continue to resolve without code changes at each read site.
+export const ROOT_DIR: string =
+  process.env['SOLO_SEA_ROOT_DIR'] ??
+  PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
 
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR: string =

@@ -92,15 +92,16 @@ tasks:
         {{end}}
 
   build:
-    desc: "Build the project (compile and lint)"
+    desc: "Build the project (compile, lint, and SEA binary)"
     deps: [npm:install]
     sources:
       - src/**/*.ts
-      - test/**/*.tss 
+      - test/**/*.tss
     cmds:
       - task: "build:compile"
       - task: "build:lint"
       - task: "check:deprecations"
+      - task: "sea:build"
 
   check:deprecations:
     desc: "Warn (without failing) about deprecated features that have reached their removal target version"
@@ -127,6 +128,12 @@ tasks:
     deps: [npm:install]
     sources:
       - src/**/*.ts
-      - test/**/*.tss 
+      - test/**/*.tss
     cmds:
       - npx eslint .
+
+  sea:build:
+    desc: "Build the Solo Node.js Single Executable Application (SEA) binary for the current platform"
+    deps: [build:compile]
+    cmds:
+      - npx tsx sea/build.ts
