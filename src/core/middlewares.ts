@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import {Flags as flags} from '../commands/flags.js';
+import {FlagValidation} from '../commands/validation/flag-validation.js';
 import chalk from 'chalk';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type FlagDeprecation} from '../types/flag-deprecation.js';
@@ -388,6 +389,9 @@ export class Middlewares {
 
       // apply precedence for flags
       argv = configManager.applyPrecedence(argv, yargs.parsed.aliases);
+
+      // Before update(), which coerces some values and would report its own error instead of a flag-scoped one.
+      FlagValidation.assertAllValid(flags.allFlags, argv);
 
       // update config manager
       configManager.update(argv);
