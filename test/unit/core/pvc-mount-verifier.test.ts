@@ -18,35 +18,35 @@ import {resetForTest} from '../../test-container.js';
 const NAMESPACE: NamespaceName = NamespaceName.of('solo');
 const GIBIBYTE: number = 1024 ** 3;
 
+/** A consensus node pod mounting one claim per stream directory, as the solo chart renders it. */
+function buildPod(): Pod {
+  return {
+    podReference: PodReference.of(NAMESPACE, PodName.of('network-node1-0')),
+    persistentVolumeClaimMounts: [
+      {
+        claimName: 'hgcapp-data-saved-network-node1-0',
+        volumeName: 'hgcapp-data-saved',
+        containerName: 'root-container',
+        mountPath: '/opt/hgcapp/services-hedera/HapiApp2.0/data/saved',
+      },
+    ],
+  } as Pod;
+}
+
+function buildClaim(requestedStorageBytes: number): PvcDetail {
+  return {
+    pvcReference: PvcReference.of(NAMESPACE, PvcName.of('hgcapp-data-saved-network-node1-0')),
+    phase: 'Bound',
+    requestedStorageBytes,
+    storageClassName: 'local-path',
+  };
+}
+
 describe('PvcMountVerifier', (): void => {
   let listPodsStub: SinonStub;
   let readAllPvcsStub: SinonStub;
   let execContainerStub: SinonStub;
   let verifier: PvcMountVerifier;
-
-  /** A consensus node pod mounting one claim per stream directory, as the solo chart renders it. */
-  function buildPod(): Pod {
-    return {
-      podReference: PodReference.of(NAMESPACE, PodName.of('network-node1-0')),
-      persistentVolumeClaimMounts: [
-        {
-          claimName: 'hgcapp-data-saved-network-node1-0',
-          volumeName: 'hgcapp-data-saved',
-          containerName: 'root-container',
-          mountPath: '/opt/hgcapp/services-hedera/HapiApp2.0/data/saved',
-        },
-      ],
-    } as Pod;
-  }
-
-  function buildClaim(requestedStorageBytes: number): PvcDetail {
-    return {
-      pvcReference: PvcReference.of(NAMESPACE, PvcName.of('hgcapp-data-saved-network-node1-0')),
-      phase: 'Bound',
-      requestedStorageBytes,
-      storageClassName: 'local-path',
-    };
-  }
 
   beforeEach((): void => {
     resetForTest();
