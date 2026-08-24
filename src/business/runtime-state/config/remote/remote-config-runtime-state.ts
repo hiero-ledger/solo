@@ -415,6 +415,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     throw new SoloErrors.system.kindClusterStopped(clusterName, lastError);
   }
 
+  private static isMissingRemoteConfigError(error: unknown): boolean {
+    return error instanceof ResourceNotFoundError || error instanceof SoloErrors.system.resourceNotFound;
+  }
+
   public async populateFromExisting(namespace: NamespaceName, context: Context): Promise<void> {
     const remoteConfigConfigMap: ConfigMap = await this.getConfigMap(namespace, context);
     await this.populateFromConfigMap(remoteConfigConfigMap);
@@ -431,9 +435,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       deployment = this.localConfig.configuration.deploymentByName(deploymentName);
     } catch {
       // Deployment not in local config — fall back to namespace/context already resolved from remote config scan.
-      const namespaceFromConfig: NamespaceName = this.configManager.getFlag(flags.namespace);
+      const namespaceFromConfig: NamespaceName | string = this.configManager.getFlag(flags.namespace);
       if (namespaceFromConfig) {
-        this.namespace = namespaceFromConfig;
+        this.namespace =
+          typeof namespaceFromConfig === 'string' ? NamespaceName.of(namespaceFromConfig) : namespaceFromConfig;
       }
       return this.configManager.getFlag<Context>(flags.context);
     }
@@ -471,7 +476,19 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     const context: Context = this.populateClusterReferences(deploymentName);
 
     // TODO: Compare configs from clusterReferences
-    await this.load(this.namespace, context);
+    try {
+      await this.load(this.namespace, context);
+    } catch (error) {
+      if (RemoteConfigRuntimeState.isMissingRemoteConfigError(error) && Helpers.isKindContext(context)) {
+        throw new SoloErrors.config.remoteConfigMissingOnKindCluster(
+          deploymentName,
+          this.namespace?.name,
+          context,
+          error instanceof Error ? error : undefined,
+        );
+      }
+      throw error;
+    }
 
     this.logger.info('Remote config loaded');
     if (!validate) {
