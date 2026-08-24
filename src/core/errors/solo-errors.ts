@@ -29,6 +29,7 @@ import {GitHubApiRequestFailedError} from './classes/system/github-api-request-f
 import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
 import {GitHubApiResponseParseFailedError} from './classes/system/github-api-response-parse-failed-error.js';
 import {PortForwardRefreshFailedError} from './classes/system/port-forward-refresh-failed-error.js';
+import {PortForwardStopFailedError} from './classes/system/port-forward-stop-failed-error.js';
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
 import {IncompleteLocalConfigError} from './classes/config/incomplete-local-config-error.js';
@@ -758,6 +759,7 @@ export class SoloErrors {
     readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
     readonly githubApiResponseParseFailed: typeof GitHubApiResponseParseFailedError;
     readonly portForwardRefreshFailed: typeof PortForwardRefreshFailedError;
+    readonly portForwardStopFailed: typeof PortForwardStopFailedError;
     readonly portForwardStatusFailed: typeof PortForwardStatusFailedError;
     readonly resourceNotFound: typeof ResourceNotFoundError;
     readonly namespaceNotFound: typeof NamespaceNotFoundSoloError;
@@ -841,6 +843,7 @@ export class SoloErrors {
     githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
     githubApiResponseParseFailed: GitHubApiResponseParseFailedError,
     portForwardRefreshFailed: PortForwardRefreshFailedError,
+    portForwardStopFailed: PortForwardStopFailedError,
     portForwardStatusFailed: PortForwardStatusFailedError,
     resourceNotFound: ResourceNotFoundError,
     namespaceNotFound: NamespaceNotFoundSoloError,
