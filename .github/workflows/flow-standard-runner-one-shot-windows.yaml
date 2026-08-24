@@ -272,14 +272,20 @@ jobs:
           # Solo hardens files under ~/.solo with icacls. A grant that does not land leaves an empty
           # DACL, which denies everyone including the owner and wedges every later deploy (#5302).
           # Test-Path and File.Exists do not consult the DACL, so each file must actually be opened.
+          $checked = 0
           $unreadable = @()
           foreach ($file in Get-ChildItem -Path "$env:USERPROFILE\.solo\cache" -Recurse -File -Force) {
+            $checked++
             try {
               [IO.File]::Open($file.FullName, 'Open', 'Read', 'ReadWrite').Dispose()
             } catch {
               $unreadable += $file.FullName
               icacls $file.FullName
             }
+          }
+          Write-Host "Opened $checked cached file(s) under ~/.solo/cache"
+          if ($checked -eq 0) {
+            throw "No files found under ~/.solo/cache - this check is no longer guarding anything"
           }
           if ($unreadable.Count -gt 0) {
             throw "Solo left unreadable files under ~/.solo/cache: $($unreadable -join ', ')"
