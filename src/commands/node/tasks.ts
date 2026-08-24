@@ -3344,11 +3344,6 @@ export class NodeCommandTasks {
           const deploymentPhase: DeploymentPhase = nodeComponent.metadata.phase;
 
           if (![DeploymentPhase.FROZEN, DeploymentPhase.STOPPED].includes(deploymentPhase)) {
-            this.logger.showUser(
-              chalk.yellow(
-                `Warning: node ${nodeAlias} is in phase '${deploymentPhase}'. State download is only supported when consensus nodes are frozen or stopped.`,
-              ),
-            );
             throw new SoloErrors.validation.illegalArgument(
               `Consensus node ${nodeAlias} must be in phase '${DeploymentPhase.FROZEN}' or '${DeploymentPhase.STOPPED}' before downloading saved state.`,
             );

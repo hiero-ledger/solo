@@ -77,9 +77,11 @@ fi
 
 # Fingerprint the entire saved-state tree, not just the chosen round directory,
 # so the caller can detect when background flushes have stopped changing disk
-# contents across consecutive polls.
-find "${saved_dir}" -type f -print0 \
-  | sort -z \
-  | xargs -0 "${hash_cmd[@]}" \
+# contents across consecutive polls. Fingerprint size+mtime per file rather than
+# hashing file contents: this poll runs up to 180 times, and re-reading every byte
+# under data/saved on each pass adds real I/O load exactly while the node is trying
+# to quiesce, for no benefit over the much cheaper metadata comparison.
+find "${saved_dir}" -type f -printf '%s %T@ %p\n' \
+  | sort \
   | "${hash_cmd[@]}" \
   | awk -v round="${selected_round}" -v kind="${selected_kind}" '{print $1, round, kind}'
