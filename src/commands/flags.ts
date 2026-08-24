@@ -308,7 +308,7 @@ export class Flags {
     constName: 'valuesFile',
     name: 'values-file',
     definition: {
-      describe: 'Comma separated chart values file',
+      describe: 'Comma separated chart values files, each in YAML or JSON format',
       defaultValue: '',
       alias: 'f',
       type: 'string',
