@@ -10,7 +10,17 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/hiero-ledger/solo/badge)](https://scorecard.dev/viewer/?uri=github.com/hiero-ledger/solo)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/10697/badge)](https://bestpractices.coreinfrastructure.org/projects/10697)
 
-An opinionated CLI tool to deploy and manage standalone test networks.
+A CLI tool to deploy and manage local Hiero (Hedera) test networks for
+development and testing. Runs on Kubernetes — Mac, Linux, and Windows.
+
+## Quick Start
+
+```bash
+npm install -g @hiero-ledger/solo@latest
+solo one-shot single deploy
+```
+
+Full guide: [Simple Solo Setup](https://solo.hiero.org/docs/simple-solo-setup/)
 
 ## Homebrew Deprecation Notice
 
@@ -28,6 +38,10 @@ If Solo is currently installed with Homebrew, switch over with:
 brew uninstall solo
 npm install -g @hiero-ledger/solo
 ```
+
+## Documentation
+
+Our documentation is available here: [solo.hiero.org](https://solo.hiero.org/)
 
 ## Releases
 
@@ -49,10 +63,6 @@ Solo releases are supported for one month after their release date. LTS (Long-Te
 | 0.74.0 (LTS) | >= 22.0.0 (lts/jod) | v0.73.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-26   | 2026-08-26     |
 
 To see a list of legacy releases, please check the [legacy versions documentation page](legacy-versions.md).
-
-## Documentation
-
-Our documentation is available here: [solo.hiero.org](https://solo.hiero.org/)
 
 ## Contributing
 

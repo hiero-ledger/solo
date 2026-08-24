@@ -1,7 +1,8 @@
 {
   "name": "@hiero-ledger/solo",
   "version": "0.87.1",
-  "description": "An opinionated CLI tool to deploy and manage private Hedera Networks.",
+  "description": "Kubernetes-based local Hiero (Hedera) network for development and testing",
+  "homepage": "https://solo.hiero.org",
   "main": "./dist/src/index.js",
   "type": "module",
   "bin": {
