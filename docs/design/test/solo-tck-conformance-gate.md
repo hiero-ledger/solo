@@ -152,6 +152,15 @@ Solo TCK runner (Mocha + TypeScript)
   JUnit XML + mochawesome + exit code
 ```
 
+**Building the candidate (step 1).** The end-state flow uses per-component build actions consolidated
+into a **single new repo** — planned name `solo-build-actions` (governance-approved; maintainers
+nathanklick / jeromy-cannon / jan-milenkov). It replaces the five separate `solo-build-*-action` repos
+originally floated. A component PR calls the matching action, which builds the branch image and feeds
+`hiero-solo-action` (which our team updates to accept a built component image); the TCK then runs
+against that network. `#5021` (local component build) is the interim mechanism until this lands. This
+consolidation is only about the **build actions** — it does not merge the component repos, so the
+cross-repo invocation model (§6.5) still applies.
+
 ### 6.2 Independent verification
 
 A run passes only if every `solo` subcommand exits 0, all expected pods reach `Ready`, an HCS smoke

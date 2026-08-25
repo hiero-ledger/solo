@@ -72,8 +72,10 @@ doesn't force a Solo bump) or reuses each consumer's `CITR_SOLO_VERSION`.
 **Phase 1 · Size: M · Depends on: TCK-D1, TCK-D2**
 
 **Why.** The candidate is a component's **branch build**, not a pinned release. The TCK must deploy a
-locally-built component image through Solo. See design §6.1, §6.3; blocked by
-[#5021](https://github.com/hiero-ledger/solo/issues/5021).
+locally-built component image through Solo. See design §6.1, §6.3. Interim mechanism:
+[#5021](https://github.com/hiero-ledger/solo/issues/5021). End state: the consolidated
+`solo-build-actions` repo (governance-approved) → `hiero-solo-action` (our team updates it to accept a
+built image) → TCK.
 
 **Scope.** Build a component branch → `kind load` → deploy through Solo with that image; confirm the
 deployed pod runs the built image, not a registry default. Validate for CN and MN first.
