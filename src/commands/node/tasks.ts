@@ -2701,10 +2701,24 @@ export class NodeCommandTasks {
     return {
       title: 'Update node configuration files',
       task: async ({config}, task): Promise<Listr<NodeConnectionsContext, any, any> | void> => {
-        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
+        // This task also owns the only `helm upgrade` call in the `node upgrade` flow, so it must
+        // still run when the user is only bumping the chart version, chart directory, or supplying
+        // a custom values file -- none of which are node config file flags -- even though no
+        // config file needs to be copied in that case.
+        const chartUpgradeTriggerFlags: CommandFlag[] = [
+          flags.soloChartVersion,
+          flags.chartDirectory,
+          flags.networkDeploymentValuesFile,
+        ];
+
+        if (
+          ![...flags.nodeConfigFileFlags.values(), ...chartUpgradeTriggerFlags].some(
+            (flag): boolean => !this.isDefaultFlagValue(flag),
+          )
+        ) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
-              chalk.grey('no consensus node configuration files to be updated'),
+              chalk.grey('no consensus node configuration files or chart changes to apply'),
           );
 
           return;
