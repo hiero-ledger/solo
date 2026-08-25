@@ -1753,6 +1753,19 @@ export class NodeCommandTasks {
     };
   }
 
+  public updateConsensusNodeVersionInRemoteConfig(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Update consensus node version in remote config',
+      task: async ({config}): Promise<void> => {
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.ConsensusNode,
+          new SemanticVersion<string>(config.releaseTag),
+        );
+        await this.remoteConfig.persist();
+      },
+    };
+  }
+
   public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Populate serviceMap',
