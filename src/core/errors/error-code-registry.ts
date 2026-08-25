@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-export const ErrorCodeRegistry: Record<string, string> = {
+export const ErrorCodeRegistry = {
   // 1xxx - Configuration: Deployment config, schema, existence checks
   LOCAL_CONFIG_NOT_FOUND: 'SOLO-1001',
   WRITE_LOCAL_CONFIG: 'SOLO-1002',
@@ -320,4 +320,5 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CACHE_IMAGE_TEMPLATE_UNDECLARED: 'SOLO-9011',
   INJECTED_FAILURE: 'SOLO-9012',
   PIPELINE_CANCELLED: 'SOLO-9013',
+  UNCAUGHT_FATAL_ERROR: 'SOLO-9014',
 } as const;
