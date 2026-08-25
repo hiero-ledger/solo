@@ -13,18 +13,17 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 
 @injectable()
 export class Zippy {
-  constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
+  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
   /**
    * Zip a file or directory
-   * @param srcPath - path to a file or directory
-   * @param destPath - path to the output zip file
-   * @param [verbose] - if true, log the progress
    * @returns path to the output zip file
+   * @param sourcePath
+   * @param destinationPath
    */
-  async zip(sourcePath: string, destinationPath: string, _verbose = false) {
+  public async zip(sourcePath: string, destinationPath: string): Promise<string> {
     if (!sourcePath) {
       throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
@@ -36,24 +35,24 @@ export class Zippy {
     }
 
     try {
-      const zip = new AdmZip('', {});
+      const zip: AdmZip = new AdmZip('', {});
 
-      const stat = fs.statSync(sourcePath);
+      const stat: fs.Stats = fs.statSync(sourcePath);
       if (stat.isDirectory()) {
         zip.addLocalFolder(sourcePath, '');
       } else {
-        zip.addFile(path.basename(sourcePath), fs.readFileSync(sourcePath), '', stat as any);
+        zip.addFile(path.basename(sourcePath), fs.readFileSync(sourcePath), '', stat);
       }
 
       await zip.writeZipPromise(destinationPath, {overwrite: true});
 
       return destinationPath;
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloErrors.system.archiveUnzipFailed(sourcePath, error);
     }
   }
 
-  unzip(sourcePath: string, destinationPath: string, verbose = false) {
+  public unzip(sourcePath: string, destinationPath: string, verbose: boolean = false): string {
     if (!sourcePath) {
       throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
@@ -66,7 +65,7 @@ export class Zippy {
     }
 
     try {
-      const zip = new AdmZip(sourcePath, {readEntries: true});
+      const zip: AdmZip = new AdmZip(sourcePath, {readEntries: true});
 
       for (const zipEntry of zip.getEntries()) {
         if (verbose) {
@@ -86,12 +85,12 @@ export class Zippy {
       }
 
       return destinationPath;
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloErrors.system.archiveUnzipFailed(sourcePath, error);
     }
   }
 
-  tar(sourcePath: string, destinationPath: string) {
+  public tar(sourcePath: string, destinationPath: string): string {
     if (!sourcePath) {
       throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
@@ -116,12 +115,12 @@ export class Zippy {
         [sourcePath],
       );
       return destinationPath;
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloErrors.system.archiveTarFailed(sourcePath, error);
     }
   }
 
-  untar(sourcePath: string, destinationPath: string) {
+  public untar(sourcePath: string, destinationPath: string): string {
     if (!sourcePath) {
       throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
@@ -143,7 +142,7 @@ export class Zippy {
         sync: true,
       });
       return destinationPath;
-    } catch (error: Error | any) {
+    } catch (error) {
       throw new SoloErrors.system.archiveUntarFailed(sourcePath, error);
     }
   }
