@@ -34,4 +34,38 @@ describe('NodeCommandTasks.updateConsensusNodeVersionInRemoteConfig', (): void =
     expect(updateComponentVersionCalls[0].version.toString()).to.equal('0.75.1');
     expect(persistCallCount).to.equal(1);
   });
+
+  it('skips without persisting when no release tag was resolved (e.g. --local-build-path upgrades)', async (): Promise<void> => {
+    let updateComponentVersionCallCount: number = 0;
+    let persistCallCount: number = 0;
+    let skipMessage: string | undefined;
+
+    const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+
+    (nodeCommandTasks as unknown as {remoteConfig: unknown}).remoteConfig = {
+      updateComponentVersion: (): void => {
+        updateComponentVersionCallCount++;
+      },
+      persist: async (): Promise<void> => {
+        persistCallCount++;
+      },
+    };
+
+    const context: NodeUpgradeContext = {
+      config: {releaseTag: ''},
+    } as unknown as NodeUpgradeContext;
+
+    const task: {title: string; skip: (message: string) => void} = {
+      title: 'Update consensus node version in remote config',
+      skip: (message: string): void => {
+        skipMessage = message;
+      },
+    };
+
+    await nodeCommandTasks.updateConsensusNodeVersionInRemoteConfig().task(context, task as never);
+
+    expect(updateComponentVersionCallCount).to.equal(0);
+    expect(persistCallCount).to.equal(0);
+    expect(skipMessage).to.include('SKIPPING');
+  });
 });
