@@ -493,6 +493,10 @@ export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
 
+// Number of consecutive fatal container states (e.g. CrashLoopBackOff, OOMKilled) detected while
+// polling node activeness before failing fast instead of waiting out the full attempt budget.
+export const NETWORK_NODE_ACTIVE_FATAL_ERROR_THRESHOLD: number = 3;
+
 // GRPC Healtcheck Checks
 export const NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS') || 20;
