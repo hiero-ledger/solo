@@ -29,6 +29,7 @@ import {GitHubApiRequestFailedError} from './classes/system/github-api-request-f
 import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
 import {GitHubApiResponseParseFailedError} from './classes/system/github-api-response-parse-failed-error.js';
 import {PortForwardRefreshFailedError} from './classes/system/port-forward-refresh-failed-error.js';
+import {PortForwardStopFailedError} from './classes/system/port-forward-stop-failed-error.js';
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
 import {IncompleteLocalConfigError} from './classes/config/incomplete-local-config-error.js';
@@ -248,6 +249,7 @@ import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-s
 import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
+import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -664,6 +666,7 @@ export class SoloErrors {
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
+    readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -741,6 +744,7 @@ export class SoloErrors {
     confirmationRequired: ConfirmationRequiredSoloError,
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
+    invalidFlagValue: InvalidFlagValueSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -759,6 +763,7 @@ export class SoloErrors {
     readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
     readonly githubApiResponseParseFailed: typeof GitHubApiResponseParseFailedError;
     readonly portForwardRefreshFailed: typeof PortForwardRefreshFailedError;
+    readonly portForwardStopFailed: typeof PortForwardStopFailedError;
     readonly portForwardStatusFailed: typeof PortForwardStatusFailedError;
     readonly resourceNotFound: typeof ResourceNotFoundError;
     readonly namespaceNotFound: typeof NamespaceNotFoundSoloError;
@@ -843,6 +848,7 @@ export class SoloErrors {
     githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
     githubApiResponseParseFailed: GitHubApiResponseParseFailedError,
     portForwardRefreshFailed: PortForwardRefreshFailedError,
+    portForwardStopFailed: PortForwardStopFailedError,
     portForwardStatusFailed: PortForwardStatusFailedError,
     resourceNotFound: ResourceNotFoundError,
     namespaceNotFound: NamespaceNotFoundSoloError,

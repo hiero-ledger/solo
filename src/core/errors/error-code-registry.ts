@@ -219,6 +219,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   VALUES_FILE_NOT_FOUND: 'SOLO-4078',
   VALUES_FILE_PARSE_FAILED: 'SOLO-4079',
   BACKUP_DATABASE_DUMP_NOT_FOUND: 'SOLO-4080',
+  INVALID_FLAG_VALUE: 'SOLO-4081',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -302,7 +303,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   KIND_CLUSTER_STOPPED: 'SOLO-5079',
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
   POD_NOT_READY: 'SOLO-5081',
-  CACHED_FILE_INACCESSIBLE: 'SOLO-5082',
+  PORT_FORWARD_STOP_FAILED: 'SOLO-5082',
+  CACHED_FILE_INACCESSIBLE: 'SOLO-5083',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
