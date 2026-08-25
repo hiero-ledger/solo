@@ -161,6 +161,14 @@ against that network. `#5021` (local component build) is the interim mechanism u
 consolidation is only about the **build actions** — it does not merge the component repos, so the
 cross-repo invocation model (§6.5) still applies.
 
+**Test-authoring strategy (recommendation).** Three options were considered: (1) reuse the existing
+`test/e2e` suites in-process as-is, (2) **recreate them using their logic** as black-box subprocess
+suites, or (3) author entirely new tests. We recommend **(2)** — extract the existing command wrappers
+and topology suites but drive them via subprocess `solo` + `kubectl`/REST probes. (1) couples to Solo
+internals and breaks the black-box contract; (3) discards proven coverage. (2) is a **one-time,
+bounded** port (the real complexity Jeromy flagged in swapping `k8`→`kubectl` and in-process→subprocess
+is acknowledged) and is the only option that is both black-box *and* preserves existing coverage.
+
 ### 6.2 Independent verification
 
 A run passes only if every `solo` subcommand exits 0, all expected pods reach `Ready`, an HCS smoke
@@ -214,10 +222,24 @@ Because a gate needs a **synchronous** verdict and GitHub does not import reusab
 repos the way GitLab does, the component runs the TCK **inline in its own pipeline** — not by
 dispatching into Solo and awaiting an async result. Candidate mechanisms (design-phase decision):
 
-- A **composite GitHub Action** the consumer calls from its own workflow (portable, DRY, synchronous).
-- A **reusable workflow** where cross-repo `uses:` is permitted within the org.
+- A **reusable cross-repo workflow** (primary) — the consumer calls it with minimal inputs, keeping the
+  TCK a black box. **Gated on a POC** (see below): GitHub cross-repo `uses:` reusable workflows are
+  less flexible than GitLab's; the POC confirms a consumer repo can call it and get a synchronous
+  status back. SMEs who may already use this: Roger / Andrew / Nathan. Fallbacks if the POC fails: a
+  **composite Action** (runs inline, portable) or **template-and-clone**.
 - A **Docker image** for local / non-GitHub runs. *(Not nested inside Solo's CI containers — Solo-in-a-
   container would add a fourth level to the existing runner→Kind→component-containers nesting.)*
+
+**Inputs the caller (consumer CI) supplies** — kept minimal so the TCK stays black-box:
+
+| Input | Required | Meaning / effect |
+| --- | --- | --- |
+| `component` | yes | `consensus-node` \| `mirror-node` \| `block-node` \| `relay` \| `js-sdk` — maps to that component's version env var |
+| `candidate` | yes | the branch build (via `solo-build-actions` / #5021) or a pinned version to test |
+| `solo-version` | no (default: latest release) | a published Solo version **or** a Solo branch/`main` build |
+| `topology` | no (default `standard`) | which topology suite(s) to run |
+| `scope` | no (default `core+component`) | `core` \| `core+component` \| `full` |
+| `non-candidate-versions` | no | override for the other components; default per §6.3 |
 
 ### 6.6 End-to-end run (mirror-node PR example)
 

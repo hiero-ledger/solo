@@ -34,13 +34,22 @@ TCK-D3 ─┘        TCK-2 ─► TCK-4        TCK-5 ─► TCK-6
 
 **Phase 0 · Size: S (decision) · Depends on: none**
 
-**Why.** The candidate is a branch build, but the versions of the *other* components are modelled
-differently by the two upstream docs: Keith's PRD says **latest-stable / hybrid / edge**; roadmap#199
-says **external mainnet/testnet profile files**. This is load-bearing — the run contract, the profile
-work, and CI inputs all depend on it. See design §6.3.
+**Why.** The candidate is a branch build, but the versions of the *other* components need a model.
 
-**Acceptance criteria.** A documented decision (with Keith/leadership) on how non-candidate versions
-resolve, and whether profiles are in scope. Design doc §6.3 updated to a single model.
+**Options.**
+
+- **(a) Latest-stable (dynamic)** — always current, but non-reproducible over time.
+- **(b) Hybrid** — candidate provided; others latest-stable but overridable. Attributable (vary-one),
+  flexible; a few more inputs.
+- **(c) Edge** — very latest of each; catches bleeding-edge breaks but noisy/hard to attribute.
+- **(d) Pinned tuple profiles** (mainnet/testnet, roadmap#199) — reproducible, good for release-gating;
+  needs profile files + upkeep.
+
+**Recommendation.** **(b) Hybrid** for per-team PR runs + **(d) pinned profile** for nightly/release —
+they serve different consumers and compose. **Pending ratification:** reconcile PRD (hybrid) vs
+roadmap#199 (profiles) with Keith/leadership. See design §6.3.
+
+**Acceptance criteria.** Decision recorded (with Keith/leadership); design §6.3 updated to the chosen model.
 
 ---
 
@@ -48,11 +57,19 @@ resolve, and whether profiles are in scope. Design doc §6.3 updated to a single
 
 **Phase 0 · Size: S (decision) · Depends on: none**
 
-**Why.** Standalone `hiero-ledger/solo-tck` (independent versioning, clean boundary, setup overhead)
-vs inside the Solo repo (immediate `test/e2e` reuse, always in sync). The PRD defers this to design.
+**Options.**
 
-**Acceptance criteria.** A decision recorded, with the runner/governance/release implications for the
-chosen option.
+- **(a) Standalone `hiero-ledger/solo-tck`** — independent semver (consumers pin a stable TCK), clean
+  black-box boundary, mirrors `hiero-sdk-tck` + the new `solo-build-actions` tooling-repo pattern;
+  one-time new-repo setup.
+- **(b) Inside the Solo repo** — immediate `test/e2e` reuse, always in sync; but couples the release
+  cadence and weakens the boundary.
+- **(c) In each consumer repo** — rejected: defeats reuse, N copies to maintain.
+
+**Recommendation.** **(a) Standalone `solo-tck`** — independent versioning is the point of a black-box
+kit; extraction from `test/e2e` is a one-time port.
+
+**Acceptance criteria.** Decision recorded, with runner/governance/release implications for the choice.
 
 ---
 
@@ -60,8 +77,10 @@ chosen option.
 
 **Phase 0 · Size: S (decision) · Depends on: none**
 
-**Why.** Whether the Solo TCK pin is a separate `CITR_SOLO_TCK_VERSION` (recommended, so a TCK bug
-doesn't force a Solo bump) or reuses each consumer's `CITR_SOLO_VERSION`.
+**Options.** Separate `CITR_SOLO_TCK_VERSION` vs reuse each consumer's `CITR_SOLO_VERSION`.
+
+**Recommendation.** **Separate `CITR_SOLO_TCK_VERSION`** — so a TCK bug doesn't force a Solo bump and
+vice versa; decouples cadences. Matches Keith's PRD.
 
 **Acceptance criteria.** Naming/ownership of the pin agreed; consumers know which variable to set.
 
@@ -157,6 +176,12 @@ optionally a reusable workflow where org `uses:` is allowed, and a Docker image 
 **not** nest Solo inside a CI container. Semver, independent of Solo's cadence.
 
 **Acceptance criteria.** A consumer workflow runs the TCK inline and blocks on a synchronous pass/fail.
+
+**POC prerequisite (TCK-6a).** Before committing to the reusable cross-repo workflow, run a POC:
+(1) a minimal `workflow_call` workflow in a test repo → (2) call it from a second repo with inputs →
+(3) confirm synchronous status flows back to the caller PR → (4) verify secret/permission passing.
+Ask Roger/Andrew/Nathan whether they already use this. If it fails, fall back to a composite Action
+(runs inline) or template-and-clone. Cannot be validated by design alone — needs live CI.
 
 ---
 
