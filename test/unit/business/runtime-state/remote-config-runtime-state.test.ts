@@ -113,6 +113,7 @@ describe('RemoteConfigRuntimeState', (): void => {
       configManager,
       {} as unknown as RemoteConfigValidatorApi,
       {} as unknown as ObjectMapper,
+      {resumeStoppedClusterNode} as unknown as ContainerEngineClient,
     );
   }
 
