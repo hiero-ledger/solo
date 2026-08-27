@@ -8,6 +8,11 @@ import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {OneShotState} from '../../../../src/core/one-shot-state.js';
 import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
 import {type SoloError} from '../../../../src/core/errors/solo-error.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import * as constants from '../../../../src/core/constants.js';
+import {PathEx} from '../../../../src/business/utils/path-ex.js';
 
 function lineLogged(stub: SinonStub, substring: string): boolean {
   return stub.getCalls().some((call): boolean => String(call.args[0]).includes(substring));
@@ -350,5 +355,35 @@ describe('SoloPinoLogger stream configuration', (): void => {
     const logger: SoloPinoLogger = new SoloPinoLogger('debug', true, new OneShotState());
 
     expect(internalsOf(logger).rotatingStreams).to.have.lengthOf(0);
+  });
+});
+
+describe('SoloPinoLogger log destination', (): void => {
+  let temporaryDirectory: string;
+
+  beforeEach((): void => {
+    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-pino-logger-home-'));
+  });
+
+  afterEach((): void => {
+    fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+  });
+
+  it('writes its log files under the supplied home directory, not the real Solo home', (): void => {
+    const realLogPath: string = PathEx.join(constants.SOLO_LOGS_DIR, 'solo.log');
+    const sizeBefore: number = fs.existsSync(realLogPath) ? fs.statSync(realLogPath).size : -1;
+
+    const logger: SoloPinoLogger = new SoloPinoLogger('debug', true, new OneShotState(), temporaryDirectory);
+    logger.error('destination regression check');
+
+    // The constructor creates the destination directory eagerly; the log files themselves are opened
+    // lazily by the rotating stream, so only the directory is asserted here.
+    const logsDirectory: string = path.join(temporaryDirectory, 'logs');
+    expect(fs.existsSync(logsDirectory)).to.be.true;
+    // Guards against the logger hardcoding constants.SOLO_LOGS_DIR, which made every unit test that
+    // logs an error append to the user's own ~/.solo/logs/solo.log.
+    expect(path.resolve(logsDirectory)).to.not.equal(path.resolve(constants.SOLO_LOGS_DIR));
+    const sizeAfter: number = fs.existsSync(realLogPath) ? fs.statSync(realLogPath).size : -1;
+    expect(sizeAfter).to.equal(sizeBefore);
   });
 });

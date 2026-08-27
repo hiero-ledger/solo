@@ -25,7 +25,7 @@ type ChalkColor = typeof chalk.red;
 /**
  * Pino-based implementation of the SoloLogger interface.
  *
- * Emits two files under constants.SOLO_LOGS_DIR:
+ * Emits two files under the `logs` subdirectory of the container-configured Solo home directory:
  *  - solo.ndjson : newline-delimited JSON (authoritative)
  *  - solo.log    : pretty human-readable
  */
@@ -46,13 +46,33 @@ export class SoloPinoLogger implements SoloLogger {
   private static readonly MIN_BOX_WIDTH: number = 70;
 
   /**
+   * Resolves the home directory whose `logs` subdirectory receives the log files. Honouring the
+   * container-configured home keeps a container pointed at a different home — the test container,
+   * for example — from writing into the user's real `~/.solo/logs`.
+   */
+  private static resolveHomeDirectory(homeDirectory: string | undefined): string {
+    if (homeDirectory) {
+      return homeDirectory;
+    }
+    try {
+      return patchInject(homeDirectory, InjectTokens.HomeDirectory, SoloPinoLogger.name);
+    } catch {
+      // The logger can be constructed before the container is initialized, in which case no home has
+      // been configured yet and the default is the correct destination.
+      return constants.SOLO_HOME_DIR;
+    }
+  }
+
+  /**
    * @param logLevel - the log level to use (fatal|error|warn|info|debug|trace)
    * @param developmentMode - if true, show full stack traces in error messages
+   * @param homeDirectory - the Solo home directory whose `logs` subdirectory receives the log files
    */
   public constructor(
     @inject(InjectTokens.LogLevel) logLevel?: string,
     @inject(InjectTokens.DevelopmentMode) private developmentMode?: boolean,
     @inject(InjectTokens.OneShotState) private readonly oneShotState?: OneShotState,
+    @inject(InjectTokens.HomeDirectory) homeDirectory?: string,
   ) {
     logLevel = patchInject(logLevel, InjectTokens.LogLevel, this.constructor.name) ?? 'info';
     this.developmentMode = patchInject(developmentMode, InjectTokens.DevelopmentMode, this.constructor.name);
@@ -60,7 +80,7 @@ export class SoloPinoLogger implements SoloLogger {
     this.nextTraceId();
 
     // Ensure logs directory exists
-    const logsDirectory: string = constants.SOLO_LOGS_DIR;
+    const logsDirectory: string = PathEx.join(SoloPinoLogger.resolveHomeDirectory(homeDirectory), 'logs');
     try {
       mkdirSync(logsDirectory, {recursive: true});
     } catch {

@@ -59,11 +59,18 @@ interface ConditionalLogSuppression {
    * If false, suppress matching errors anywhere once activated.
    */
   suppressOnlyBeforeActivation?: boolean;
+  /**
+   * Suppress an error only when a success marker appears *later* in the same log, proving the
+   * component recovered from it. Errors with no subsequent success — a terminal outage rather than
+   * a retried blip — still surface. Takes precedence over {@link suppressOnlyBeforeActivation}.
+   */
+  suppressWhenFollowedBySuccess?: boolean;
 }
 
 interface ActiveConditionalLogSuppression {
   rule: ConditionalLogSuppression;
   activationLineIndex: number;
+  lastSuccessLineIndex: number;
 }
 
 /**
@@ -147,10 +154,13 @@ export class DiagnosticsAnalyzer {
       reason: 'Postgres "relation does not exist" during Flyway async-migration startup race',
     },
     {
-      // Mirror importer may log downloader errors early in startup, before
-      // stream processing stabilizes. If we later observe repeated
-      // RecordFileParser success, suppress those begin-phase downloader
-      // errors only; keep post-activation errors visible.
+      // The importer retries every block-node read. The node can be momentarily unreachable, close
+      // the stream with an HTTP/2 GOAWAY, not yet hold the requested block, or serve a block whose
+      // first item is not a block header. All of these are noise as long as the importer went on to
+      // process further blocks, so they are matched broadly by source class rather than by message
+      // text — enumerating individual messages is what let earlier drift ("source" vs "source:",
+      // "server status" vs "server status detail") silently disable these rules. Suppression
+      // requires a *later* success, so a terminal block-node outage still surfaces.
       logFilePattern: /mirror[^/]*-importer[^/]*\.log$/i,
       conditionalSuppressions: [
         {
@@ -160,20 +170,31 @@ export class DiagnosticsAnalyzer {
           suppressOnlyBeforeActivation: true,
         },
         {
-          errorPattern: /BlockNode Failed to get server status for BlockNode\(/i,
+          errorPattern: /BlockNode Failed to get server status(?: detail)? for BlockNode\(/i,
           successPattern: /RecordFileParser Successfully processed /i,
           minimumSuccessMatches: 2,
-          suppressOnlyBeforeActivation: true,
+          suppressWhenFollowedBySuccess: true,
         },
         {
-          errorPattern:
-            /CompositeBlockSource Failed to get block from BLOCK_NODE source .*No block node can provide block \d+/i,
+          errorPattern: /CompositeBlockSource Failed to get block from BLOCK_NODE source\b/i,
           successPattern: /RecordFileParser Successfully processed /i,
           minimumSuccessMatches: 2,
-          suppressOnlyBeforeActivation: true,
+          suppressWhenFollowedBySuccess: true,
         },
       ],
-      reason: 'Mirror Node importer begin-phase downloader errors after repeated record processing success',
+      reason: 'Mirror Node importer block-node read retries that a later block success proves recovered',
+    },
+    {
+      // When a block node supplies the stream, account balance files are not read from cloud
+      // storage, so AccountBalancesDownloader polls a bucket that was never configured. The AWS SDK
+      // reports that as an empty credential chain, and the paired request then times out. Both
+      // recur for the lifetime of the pod rather than only during bring-up, so neither is
+      // startup-scoped. The credential-chain text is itself the evidence that no S3/MinIO backend
+      // is in use, which is why this does not need to know the deployment flags.
+      logFilePattern: /mirror[^/]*-importer[^/]*\.log$/i,
+      transientMessagePattern:
+        /AccountBalancesDownloader Error downloading (?:signature )?files\b.*(?:Unable to load credentials from any of the providers in the chain|TimeoutException)/i,
+      reason: 'Account balance downloader has no cloud storage configured; the block stream supplies balances',
     },
     {
       // Mirror Node REST API retries its Redis connection until the Redis
@@ -204,6 +225,16 @@ export class DiagnosticsAnalyzer {
         /Application readiness check failed|^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+ERROR Startup healthcheck failed\s*$|^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+ERROR Startup healthcheck failed\s*\nError: connect ECONNREFUSED\b/i,
       startupWindowSeconds: 180,
       reason: 'Mirror Node REST readiness healthcheck during startup',
+    },
+    {
+      // The read-side mirror components (rest, restjava, web3, grpc) accept scheduled work as soon as
+      // they boot, which can precede the importer's Flyway migration that creates the tables they
+      // query. The header line and the nested "Caused by:" lines all carry the message, so a message
+      // pattern covers the whole entry.
+      logFilePattern: /mirror[^/]*-(?:rest|web3|grpc)[^/]*\.log$/i,
+      startupTransientMessagePattern: /relation "[^"]+" does not exist/i,
+      startupWindowSeconds: 180,
+      reason: 'Mirror Node REST queried a table before the importer schema migration created it',
     },
   ];
 
@@ -841,17 +872,20 @@ export class DiagnosticsAnalyzer {
       }
       for (const rule of suppression.conditionalSuppressions) {
         const minimumSuccessMatches: number = Math.max(1, rule.minimumSuccessMatches ?? 1);
-        let successMatches: number = 0;
+        const successLineIndexes: number[] = [];
         for (const [index, line] of lines.entries()) {
-          if (!rule.successPattern.test(line)) {
-            continue;
-          }
-          successMatches++;
-          if (successMatches >= minimumSuccessMatches) {
-            activeSuppressions.push({rule, activationLineIndex: index});
-            break;
+          if (rule.successPattern.test(line)) {
+            successLineIndexes.push(index);
           }
         }
+        if (successLineIndexes.length < minimumSuccessMatches) {
+          continue;
+        }
+        activeSuppressions.push({
+          rule,
+          activationLineIndex: successLineIndexes[minimumSuccessMatches - 1],
+          lastSuccessLineIndex: successLineIndexes.at(-1),
+        });
       }
     }
     return activeSuppressions;
@@ -865,6 +899,9 @@ export class DiagnosticsAnalyzer {
     return activeSuppressions.some((activeSuppression: ActiveConditionalLogSuppression): boolean => {
       if (!activeSuppression.rule.errorPattern.test(line)) {
         return false;
+      }
+      if (activeSuppression.rule.suppressWhenFollowedBySuccess) {
+        return lineIndex < activeSuppression.lastSuccessLineIndex;
       }
       if (activeSuppression.rule.suppressOnlyBeforeActivation) {
         return lineIndex < activeSuppression.activationLineIndex;

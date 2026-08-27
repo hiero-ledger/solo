@@ -295,7 +295,7 @@ containers:
       importerLogPath,
       [
         '2026-05-19T17:08:39.170Z 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.BlockNode Failed to get server status for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: UNAVAILABLE: io exception',
-        '2026-05-19T17:08:39.170Z 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source org.hiero.mirror.importer.exception.BlockStreamException: No block node can provide block 0',
+        '2026-05-19T17:08:39.170Z 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source: No block node can provide block 0',
         '2026-05-19T17:08:40.170Z 2026-05-19T17:08:40.170Z INFO RecordFileParser Successfully processed 1 items',
         '2026-05-19T17:08:41.170Z 2026-05-19T17:08:41.170Z INFO RecordFileParser Successfully processed 1 items',
         '2026-05-19T17:08:42.170Z 2026-05-19T17:08:42.170Z ERROR scheduling-6 o.h.m.i.d.b.BlockNode Failed to get server status for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: UNAVAILABLE: io exception',
@@ -315,7 +315,7 @@ containers:
       'line 1: 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.BlockNode Failed to get server status for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: UNAVAILABLE: io exception',
     );
     expect(reportText).to.not.include(
-      'line 2: 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source org.hiero.mirror.importer.exception.BlockStreamException: No block node can provide block 0',
+      'line 2: 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source: No block node can provide block 0',
     );
   });
 
@@ -508,6 +508,114 @@ containers:
     expect(reportText).to.not.include('ERROR:  relation "crypto_allowance_migration" does not exist');
     // Auth failures within 90-second startup window should be suppressed
     expect(reportText).to.not.include('FATAL:  password authentication failed');
+  });
+
+  it('suppresses importer block-node read errors only when a later block success follows', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const importerLogPath: string = path.join(componentLogDirectory, 'mirror-main-importer.log');
+    fs.writeFileSync(
+      importerLogPath,
+      [
+        // Recovered: an HTTP/2 GOAWAY, a not-yet-available block, and a misaligned first block item,
+        // all followed by further successful block processing.
+        '2026-08-27T16:49:10.505Z 2026-08-27T16:49:10.505Z ERROR scheduling-4 o.h.m.i.d.b.BlockNode Failed to get server status detail for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: INTERNAL: Abrupt GOAWAY closed sent stream. HTTP/2 error code: PROTOCOL_ERROR',
+        '2026-08-27T16:49:10.506Z 2026-08-27T16:49:10.506Z ERROR scheduling-4 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source: No block node can provide block 14',
+        '2026-08-27T16:49:11.000Z 2026-08-27T16:49:11.000Z ERROR scheduling-4 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source org.hiero.mirror.importer.exception.BlockStreamException: Incorrect first block item case ROUND_HEADER',
+        '2026-08-27T16:49:12.000Z 2026-08-27T16:49:12.000Z INFO pool-10-thread-2 o.h.m.i.p.r.RecordFileParser Successfully processed 1 items from 0000000000000000014.blk in 1.1 ms',
+        '2026-08-27T16:49:13.000Z 2026-08-27T16:49:13.000Z INFO pool-10-thread-2 o.h.m.i.p.r.RecordFileParser Successfully processed 1 items from 0000000000000000015.blk in 1.2 ms',
+        // Terminal: no success follows, so this must stay visible.
+        '2026-08-27T16:50:00.000Z 2026-08-27T16:50:00.000Z ERROR scheduling-4 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source: No block node can provide block 16',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.not.include('line 1: ');
+    expect(reportText).to.not.include('line 2: ');
+    expect(reportText).to.not.include('line 3: ');
+    // A block-node failure with no subsequent progress is a real outage, not a retried blip.
+    expect(reportText).to.include('line 6: ');
+  });
+
+  it('suppresses account balance downloader errors when no cloud storage is configured', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const importerLogPath: string = path.join(componentLogDirectory, 'mirror-main-importer.log');
+    fs.writeFileSync(
+      importerLogPath,
+      [
+        '2026-08-27T16:49:23.136Z 2026-08-27T16:49:23.136Z ERROR parallel-1 o.h.m.i.d.b.AccountBalancesDownloader Error downloading signature files for node 0 software.amazon.awssdk.core.exception.SdkClientException: Unable to load credentials from any of the providers in the chain AwsCredentialsProviderChain(credentialsProviders=[SystemPropertyCredentialsProvider()])',
+        "2026-08-27T16:49:28.133Z 2026-08-27T16:49:28.133Z ERROR scheduling-4 o.h.m.i.d.b.AccountBalancesDownloader Error downloading files reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 5000ms in 'flatMap' (and no fallback has been configured)",
+        // An unrelated downloader failure must not be swept up by the cloud-storage rule.
+        '2026-08-27T16:49:30.000Z 2026-08-27T16:49:30.000Z ERROR scheduling-4 o.h.m.i.d.b.AccountBalancesDownloader Error downloading files java.lang.IllegalStateException: corrupt balance file',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.not.include('line 1: ');
+    expect(reportText).to.not.include('line 2: ');
+    expect(reportText).to.include('line 3: ');
+  });
+
+  it('suppresses mirror web3 missing-table errors during startup', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const web3LogPath: string = path.join(componentLogDirectory, 'mirror-1-web3-6c6964dd4c-545hp.log');
+    fs.writeFileSync(
+      web3LogPath,
+      [
+        '2026-08-27T16:47:54.316Z 2026-08-27T16:47:54.316Z INFO main o.h.m.w.Web3Application Started Web3Application',
+        '2026-08-27T16:47:54.808Z 2026-08-27T16:47:54.808Z WARN task-1 o.h.orm.jdbc.error ERROR: relation "file_data" does not exist',
+        '2026-08-27T16:47:54.809Z 2026-08-27T16:47:54.809Z WARN task-1 o.h.orm.jdbc.error ERROR: relation "file_data" does not exist',
+        '2026-08-27T16:58:00.000Z 2026-08-27T16:58:00.000Z WARN task-1 o.h.orm.jdbc.error ERROR: relation "file_data" does not exist',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.not.include('line 2: ');
+    expect(reportText).to.not.include('line 3: ');
+    // Long after startup a missing table is a real schema problem.
+    expect(reportText).to.include('line 4: ');
+  });
+
+  it('suppresses mirror restjava missing-table errors only during startup', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const restJavaLogPath: string = path.join(componentLogDirectory, 'mirror-1-restjava-5bfc4c8679-sxbfw.log');
+    fs.writeFileSync(
+      restJavaLogPath,
+      [
+        '2026-08-27T15:36:33.663Z 2026-08-27T15:36:33.663Z INFO main o.h.m.r.RestJavaApplication Started RestJavaApplication in 4.522 seconds',
+        '2026-08-27T15:36:33.664Z 2026-08-27T15:36:33.664Z WARN scheduling-1 o.h.orm.jdbc.error ERROR: relation "file_data" does not exist',
+        '2026-08-27T15:36:33.664Z 2026-08-27T15:36:33.664Z ERROR scheduling-1 o.s.s.s.TaskUtils$LoggingErrorHandler Unexpected error occurred in scheduled task org.springframework.dao.InvalidDataAccessResourceUsageException: JDBC exception executing SQL [ERROR: relation "file_data" does not exist',
+        '2026-08-27T15:36:33.665Z Caused by: org.postgresql.util.PSQLException: ERROR: relation "file_data" does not exist',
+        '2026-08-27T15:45:00.000Z 2026-08-27T15:45:00.000Z ERROR scheduling-1 o.s.s.s.TaskUtils$LoggingErrorHandler Unexpected error occurred in scheduled task org.springframework.dao.InvalidDataAccessResourceUsageException: JDBC exception executing SQL [ERROR: relation "file_data" does not exist',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    // The startup-window entry and its cascaded "Caused by:" continuation are both suppressed.
+    expect(reportText).to.not.include('line 2: ');
+    expect(reportText).to.not.include('line 3: ');
+    expect(reportText).to.not.include('line 4: ');
+    // A missing table long after startup is a real schema problem.
+    expect(reportText).to.include('line 5: ');
   });
 
   it('suppresses transient solo.log block-node copy verification size mismatch errors', (): void => {
