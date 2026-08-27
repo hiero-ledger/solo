@@ -34,9 +34,8 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
   contents: read
-  actions: write
+  actions: read # gha-jobid-action reads the jobs of the current workflow run
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -44,6 +43,10 @@ env:
 
 jobs:
   gcs-storage-test:
+    permissions:
+      contents: read
+      actions: read # gha-jobid-action reads the jobs of the current workflow run
+      id-token: write # OIDC token for google-github-auth workload identity federation
     name: "GCS Storage Test - ${{ matrix.storageType }}"
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     timeout-minutes: 40

@@ -39,15 +39,16 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
   contents: read
   actions: read
-  pull-requests: write
-  checks: write
-  statuses: write
 
 jobs:
   unit-test:
+    permissions:
+      contents: read
+      actions: read
+      checks: write # publish-unit-test-result-action creates a check run
+      pull-requests: write # publish-unit-test-result-action comments on the pull request
     strategy:
       fail-fast: false
       matrix:

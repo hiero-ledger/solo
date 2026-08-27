@@ -37,8 +37,7 @@ defaults:
 
 permissions:
   contents: read
-  actions: write
-  pull-requests: write
+  actions: read # flow-performance-test.yaml polls the current workflow run
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
