@@ -469,9 +469,8 @@ export class DiagnosticsAnalyzer {
    *
    * These are the raw container logs downloaded by `downloadHieroComponentLogs()`
    * alongside the `*.describe.txt` files. Each file is scanned for lines carrying an `ERROR` or
-   * `FATAL` level, plus the level-less failures the JVM prints directly (`OutOfMemoryError`,
-   * `Exception in thread`, a thrown exception class name, `Caused by:`), and the first matching
-   * block (up to 8 lines) is captured.
+   * `FATAL` level, plus the level-less failures the JVM prints directly (`OutOfMemoryError`, and
+   * `Exception` as a standalone word), and the first matching block (up to 8 lines) is captured.
    */
   private analyzePodLogFiles(rootDirectory: string, findings: DiagnosticsFinding[]): void {
     // Only scan logs for non-consensus components. Consensus node logs are
@@ -489,16 +488,16 @@ export class DiagnosticsAnalyzer {
     //
     //   java.lang.OutOfMemoryError: Java heap space
     //   Exception in thread "server-@default-listener" java.lang.OutOfMemoryError: Java heap space
-    //   io.helidon.common.socket.SocketWriterException          <- logged under INFO
-    //           at io.helidon.common.socket...
     //
-    // None of these contain ERROR or FATAL as a word ("OutOfMemoryError" has no word boundary
-    // before "Error"), so entire block node logs produced no finding at all — including one that
-    // died of heap exhaustion. Thrown exceptions are matched by class name, which mirrors what the
-    // consensus-node archive scanner already looks for in swirlds.log and hgcaa.log; the bare word
-    // "Exception" is deliberately not matched, so prose mentioning it does not trigger a finding.
-    const errorPattern: RegExp =
-      /\b(?:ERROR|FATAL)\b|\bOutOfMemoryError\b|Exception in thread\s|\b[A-Za-z_$][\w$]*(?:\.[\w$]+)*Exception\b|\bCaused by:\s/;
+    // Neither contains ERROR or FATAL as a word ("OutOfMemoryError" has no word boundary before
+    // "Error"), so an entire block node log recording a heap death produced no finding at all.
+    //
+    // "Exception" is matched only as a standalone word, and case-sensitively. That is deliberately
+    // narrow: it catches `Exception in thread ...` while skipping class-name suffixes such as
+    // `io.helidon.common.socket.SocketWriterException` — low-level connection churn that a server
+    // logs routinely, often below ERROR — because there is no word boundary before "Exception"
+    // there. Case sensitivity keeps prose like "configured exception handling" from matching.
+    const errorPattern: RegExp = /\b(?:ERROR|FATAL)\b|\bOutOfMemoryError\b|\bException\b/;
 
     this.logger.showUser(`  Found ${logFiles.length} pod log file(s)`);
 

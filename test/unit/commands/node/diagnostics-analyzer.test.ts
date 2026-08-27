@@ -242,10 +242,10 @@ events: []
     expect(reportText).to.include('line 4: ');
   });
 
-  it('detects a thrown exception logged below ERROR level, but not the bare word in prose', (): void => {
-    // The block node logs a stack trace under INFO, so nothing on these lines carries an error
-    // level. Matching is by exception class name so a log message that merely mentions the word
-    // "exception" does not become a finding.
+  it('matches Exception only as a standalone word, skipping class-name suffixes and prose', (): void => {
+    // `Exception` is matched as its own word and case-sensitively. `SocketWriterException` is
+    // low-level connection churn a server logs routinely and must not raise a finding: there is no
+    // word boundary before "Exception" in a class-name suffix. Lowercase prose must not match either.
     const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
     fs.mkdirSync(componentLogDirectory, {recursive: true});
     fs.writeFileSync(
@@ -255,14 +255,7 @@ events: []
         '2026-08-27T16:01:22.580687714Z io.helidon.common.socket.SocketWriterException',
         '2026-08-27T16:01:22.580754160Z \tat io.helidon.common.socket.SocketWriterAsync.flush(SocketWriterAsync.java:179)',
         '2026-08-27T16:01:22.580786976Z Caused by: java.net.SocketException: Broken pipe',
-      ].join('\n'),
-      'utf8',
-    );
-    fs.writeFileSync(
-      path.join(componentLogDirectory, 'blocknode-1.log'),
-      [
         '2026-08-27T16:02:00.000Z 2026-08-27 16:02:00.000+0000 INFO    [Startup] Configured exception handling for the request pipeline',
-        '2026-08-27T16:02:01.000Z 2026-08-27 16:02:01.000+0000 FINE    [Startup] No exception was raised during warmup',
       ].join('\n'),
       'utf8',
     );
@@ -271,10 +264,8 @@ events: []
 
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     const reportText: string = fs.readFileSync(reportPath, 'utf8');
-    expect(reportText).to.include('Application ERROR detected in pod log: blocknode-0');
-    expect(reportText).to.include('SocketWriterException');
-    // Prose mentioning "exception" must not raise a finding.
-    expect(reportText).to.not.include('blocknode-1');
+    expect(reportText).to.not.include('blocknode-0');
+    expect(reportText).to.not.include('SocketWriterException');
   });
 
   it('shows the most severe findings in the terminal summary regardless of discovery order', (): void => {
