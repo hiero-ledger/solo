@@ -151,6 +151,169 @@ java.lang.NullPointerException
     expect(reportText).to.include('java.lang.NullPointerException');
   });
 
+  it('detects a memory-limit kill recorded as exit code 137 rather than OOMKilled', (): void => {
+    // The kubelet frequently records a memory-limit kill as `exitCode: 137` (128 + SIGKILL) with
+    // `reason: Error` and no OOMKilled anywhere. The pod is Running and Ready again by collection
+    // time, so the readiness check does not flag it either.
+    const describeSample: string = `pod:
+  status:
+    phase: Running
+    containerStatuses:
+      - name: block-node-server
+        ready: true
+        restartCount: 9
+        lastState:
+          terminated:
+            exitCode: 137
+            reason: Error
+            finishedAt: 2026-08-27T16:03:36.000Z
+        state:
+          running:
+            startedAt: 2026-08-27T16:03:36.000Z
+events: []
+`;
+
+    const describeDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs', 'sphere-1');
+    fs.mkdirSync(describeDirectory, {recursive: true});
+    fs.writeFileSync(path.join(describeDirectory, 'block-node-1-0.describe.txt'), describeSample, 'utf8');
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('OOM-related failure detected for pod block-node-1-0');
+    expect(reportText).to.include('exitCode: 137');
+    // The restart count distinguishes a one-off kill from an ongoing loop.
+    expect(reportText).to.include('restartCount: 9');
+  });
+
+  it('does not report an OOM for a container that exited non-zero for another reason', (): void => {
+    const describeSample: string = `pod:
+  status:
+    phase: Running
+    containerStatuses:
+      - name: block-node-server
+        ready: true
+        restartCount: 2
+        lastState:
+          terminated:
+            exitCode: 1
+            reason: Error
+events: []
+`;
+
+    const describeDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs', 'sphere-1');
+    fs.mkdirSync(describeDirectory, {recursive: true});
+    fs.writeFileSync(path.join(describeDirectory, 'block-node-1-0.describe.txt'), describeSample, 'utf8');
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.not.include('OOM-related failure');
+  });
+
+  it('detects JVM heap exhaustion in a log that carries no ERROR or FATAL level', (): void => {
+    // The block node logs through java.util.logging (FINE/INFO/WARNING/SEVERE) and the JVM prints
+    // heap exhaustion with no level at all, so nothing in this log matches ERROR or FATAL.
+    // "OutOfMemoryError" has no word boundary before "Error", so \bERROR\b does not match it.
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    fs.writeFileSync(
+      path.join(componentLogDirectory, 'block-node-1-0-1.log'),
+      [
+        '2026-08-27T15:58:09.147755355Z 2026-08-27 15:58:09.050+0000 FINE    [org.hiero.block.node.stream.publisher.LiveStreamPublisherManager addHandler] Added new handler 147',
+        '2026-08-27T16:01:06.672252440Z java.lang.OutOfMemoryError: Java heap space',
+        '2026-08-27T16:01:06.672777238Z Dumping heap to /tmp/dump.hprof ...',
+        '2026-08-27T16:01:18.738172420Z Exception in thread "server-@default-listener" java.lang.OutOfMemoryError: Java heap space',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    // Reported as an out-of-memory death, not a routine app-error, so it ranks with the other
+    // memory kills instead of last.
+    expect(reportText).to.include('JVM heap exhaustion detected in pod log: block-node-1-0-1');
+    expect(reportText).to.include('[Out Of Memory]');
+    expect(reportText).to.include('line 2: ');
+    expect(reportText).to.include('line 4: ');
+  });
+
+  it('detects a thrown exception logged below ERROR level, but not the bare word in prose', (): void => {
+    // The block node logs a stack trace under INFO, so nothing on these lines carries an error
+    // level. Matching is by exception class name so a log message that merely mentions the word
+    // "exception" does not become a finding.
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    fs.writeFileSync(
+      path.join(componentLogDirectory, 'blocknode-0.log'),
+      [
+        '2026-08-27T16:01:22.515Z 2026-08-27 16:01:22.515+0000 INFO    [PbjProtocolHandler init] Failed to initialize grpc protocol handler',
+        '2026-08-27T16:01:22.580687714Z io.helidon.common.socket.SocketWriterException',
+        '2026-08-27T16:01:22.580754160Z \tat io.helidon.common.socket.SocketWriterAsync.flush(SocketWriterAsync.java:179)',
+        '2026-08-27T16:01:22.580786976Z Caused by: java.net.SocketException: Broken pipe',
+      ].join('\n'),
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(componentLogDirectory, 'blocknode-1.log'),
+      [
+        '2026-08-27T16:02:00.000Z 2026-08-27 16:02:00.000+0000 INFO    [Startup] Configured exception handling for the request pipeline',
+        '2026-08-27T16:02:01.000Z 2026-08-27 16:02:01.000+0000 FINE    [Startup] No exception was raised during warmup',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: blocknode-0');
+    expect(reportText).to.include('SocketWriterException');
+    // Prose mentioning "exception" must not raise a finding.
+    expect(reportText).to.not.include('blocknode-1');
+  });
+
+  it('shows the most severe findings in the terminal summary regardless of discovery order', (): void => {
+    // The terminal summary prints only the first ten findings. It used to iterate the *unordered*
+    // array, so which findings made the cut depended on the order the scanners ran in: describe
+    // files are scanned before pod logs, so ten not-ready pods (severity 3) crowded out a heap
+    // exhaustion (severity 2) found later, even though the report file ranked it above them.
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+
+    for (let index: number = 0; index < 10; index++) {
+      fs.writeFileSync(
+        path.join(componentLogDirectory, `mirror-${index}-rest.describe.txt`),
+        ['pod:', '  status:', '    phase: Pending', 'events: []', ''].join('\n'),
+        'utf8',
+      );
+    }
+    fs.writeFileSync(
+      path.join(componentLogDirectory, 'block-node-1-0-1.log'),
+      '2026-08-27T16:01:06.672252440Z java.lang.OutOfMemoryError: Java heap space',
+      'utf8',
+    );
+
+    const userMessages: string[] = [];
+    const capturingLogger: SoloLogger = {
+      showUser: (message: string): void => {
+        userMessages.push(message);
+      },
+      debug: (): void => {},
+    } as unknown as SoloLogger;
+
+    new DiagnosticsAnalyzer(capturingLogger).analyze(temporaryDirectory, '');
+
+    const summary: string = userMessages.join('\n');
+    // Present at all, and ahead of the lower-severity readiness findings.
+    expect(summary).to.include('JVM heap exhaustion detected in pod log: block-node-1-0-1');
+    expect(summary.indexOf('JVM heap exhaustion')).to.be.lessThan(summary.indexOf('Pod not ready/running'));
+  });
+
   it('detects image-pull failures from YAML pod describe content', (): void => {
     const describeSample: string = `pod:
   status:

@@ -238,6 +238,19 @@ export class DiagnosticsAnalyzer {
     },
   ];
 
+  /**
+   * Report ordering for finding categories; the lowest value is the most severe. Used for both the
+   * `diagnostics-analysis.txt` report and the terminal summary so the two agree.
+   */
+  private static readonly CATEGORY_SEVERITY_ORDER: Record<DiagnosticsFindingCategory, number> = {
+    'image-pull': 1,
+    oom: 2,
+    'pod-readiness': 3,
+    'consensus-active': 4,
+    'log-exception': 5,
+    'app-error': 6,
+  };
+
   /** Matches an ISO-8601 timestamp at the start of an application log line. */
   private static readonly LOG_LINE_TIMESTAMP_PATTERN: RegExp =
     /^\s*(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)/;
@@ -311,7 +324,7 @@ export class DiagnosticsAnalyzer {
           `Detected ${findings.length} potential issue(s) from diagnostics logs. Summary written to ${reportPath}`,
         ),
       );
-      for (const [index, finding] of findings.slice(0, 10).entries()) {
+      for (const [index, finding] of DiagnosticsAnalyzer.orderFindingsBySeverity(findings).slice(0, 10).entries()) {
         this.logger.showUser(`${index + 1}. ${finding.title} [${finding.source}]`);
         if (finding.evidence.length > 0) {
           const maxEvidenceLines: number =
@@ -363,7 +376,17 @@ export class DiagnosticsAnalyzer {
     // Matches out-of-memory kills.
     // "OOMKilled" appears in the container's LastTerminationState and in Events.
     // "reason: OOMKilled" is the structured field in the container status JSON.
-    const oomPattern: RegExp = /OOMKilled|out of memory|reason:\s*OOMKilled/i;
+    //
+    // Exit code 137 (128 + SIGKILL) is included because the kubelet does not always attribute a
+    // memory-limit kill to OOMKilled: a container killed after exceeding its limit is frequently
+    // recorded as `exitCode: 137` with `reason: Error`, which none of the OOMKilled spellings
+    // match. Such a pod can also be `Running` and `Ready` at collection time — having already
+    // restarted — so the pod-readiness check does not flag it either, leaving a container that has
+    // been killed repeatedly completely invisible.
+    const oomPattern: RegExp = /OOMKilled|out of memory|reason:\s*OOMKilled|(?:exitCode|Exit Code):\s*137\b/i;
+    // Restart counts are captured alongside the OOM evidence: they show whether the kill happened
+    // once or is an ongoing loop, which the exit code alone does not convey.
+    const restartCountPattern: RegExp = /^\s*restartCount:\s*[1-9]\d*\s*$/im;
 
     this.logger.showUser(`  Found ${describeFiles.length} pod describe file(s)`);
 
@@ -395,7 +418,10 @@ export class DiagnosticsAnalyzer {
           category: 'oom',
           title: `OOM-related failure detected for pod ${podName}`,
           source,
-          evidence: this.extractMatchSnippets(content, oomPattern, 6),
+          evidence: [
+            ...this.extractMatchSnippets(content, oomPattern, 6),
+            ...this.extractMatchSnippets(content, restartCountPattern, 2),
+          ],
         });
       }
 
@@ -442,8 +468,10 @@ export class DiagnosticsAnalyzer {
    * for application-level ERROR lines (category: `app-error`).
    *
    * These are the raw container logs downloaded by `downloadHieroComponentLogs()`
-   * alongside the `*.describe.txt` files. Each file is scanned for lines
-   * containing `ERROR` and the first matching block (up to 8 lines) is captured.
+   * alongside the `*.describe.txt` files. Each file is scanned for lines carrying an `ERROR` or
+   * `FATAL` level, plus the level-less failures the JVM prints directly (`OutOfMemoryError`,
+   * `Exception in thread`, a thrown exception class name, `Caused by:`), and the first matching
+   * block (up to 8 lines) is captured.
    */
   private analyzePodLogFiles(rootDirectory: string, findings: DiagnosticsFinding[]): void {
     // Only scan logs for non-consensus components. Consensus node logs are
@@ -456,7 +484,21 @@ export class DiagnosticsAnalyzer {
     );
 
     // Strip Docker/containerd timestamp prefix (e.g. "2026-04-06T03:24:32.470558065Z ") before matching.
-    const errorPattern: RegExp = /\b(?:ERROR|FATAL)\b/;
+    // A level token alone is not enough. The block node logs through java.util.logging, whose
+    // levels are FINE/INFO/WARNING/SEVERE, and the JVM prints failures with no level at all:
+    //
+    //   java.lang.OutOfMemoryError: Java heap space
+    //   Exception in thread "server-@default-listener" java.lang.OutOfMemoryError: Java heap space
+    //   io.helidon.common.socket.SocketWriterException          <- logged under INFO
+    //           at io.helidon.common.socket...
+    //
+    // None of these contain ERROR or FATAL as a word ("OutOfMemoryError" has no word boundary
+    // before "Error"), so entire block node logs produced no finding at all — including one that
+    // died of heap exhaustion. Thrown exceptions are matched by class name, which mirrors what the
+    // consensus-node archive scanner already looks for in swirlds.log and hgcaa.log; the bare word
+    // "Exception" is deliberately not matched, so prose mentioning it does not trigger a finding.
+    const errorPattern: RegExp =
+      /\b(?:ERROR|FATAL)\b|\bOutOfMemoryError\b|Exception in thread\s|\b[A-Za-z_$][\w$]*(?:\.[\w$]+)*Exception\b|\bCaused by:\s/;
 
     this.logger.showUser(`  Found ${logFiles.length} pod log file(s)`);
 
@@ -490,12 +532,29 @@ export class DiagnosticsAnalyzer {
       if (errorScan.evidence.length === 0) {
         continue;
       }
-      this.addDiagnosticsFinding(findings, {
-        category: 'app-error',
-        title: `Application ERROR detected in pod log: ${podName}`,
-        source: relativePath,
-        evidence: errorScan.evidence,
-      });
+      // Heap exhaustion is not a routine ERROR line — it is an out-of-memory death, and the pod's
+      // describe file may not show it at all when the container restarted and became Ready again.
+      // Reported under `oom` so it ranks with the other memory kills instead of last among
+      // app-errors, where the ten-finding terminal summary would push it out of sight.
+      const isHeapExhaustion: boolean = errorScan.evidence.some((line: string): boolean =>
+        /\bOutOfMemoryError\b/.test(line),
+      );
+      this.addDiagnosticsFinding(
+        findings,
+        isHeapExhaustion
+          ? {
+              category: 'oom',
+              title: `JVM heap exhaustion detected in pod log: ${podName}`,
+              source: relativePath,
+              evidence: errorScan.evidence,
+            }
+          : {
+              category: 'app-error',
+              title: `Application ERROR detected in pod log: ${podName}`,
+              source: relativePath,
+              evidence: errorScan.evidence,
+            },
+      );
     }
   }
 
@@ -1221,15 +1280,26 @@ export class DiagnosticsAnalyzer {
    * log-exception).  Returns the report as a string ready to be written to
    * `diagnostics-analysis.txt`.
    */
+  /**
+   * Returns `findings` ordered most severe first, preserving discovery order within a category.
+   *
+   * Shared by the report and the terminal summary. The summary previously iterated the unordered
+   * array, so which findings made its ten-item cut depended on the order the scanners happened to
+   * run in — a block node dead of heap exhaustion was pushed past the cut by routine consensus-node
+   * exceptions and never shown, even though the report ranked it correctly.
+   */
+  private static orderFindingsBySeverity(findings: readonly DiagnosticsFinding[]): DiagnosticsFinding[] {
+    // Sorts a copy, so the caller's array is untouched; `toSorted` is ES2023 and this project
+    // targets ES2022. Matches the existing pattern used elsewhere in src/.
+    // eslint-disable-next-line unicorn/no-array-sort
+    return [...findings].sort(
+      (first: DiagnosticsFinding, second: DiagnosticsFinding): number =>
+        DiagnosticsAnalyzer.CATEGORY_SEVERITY_ORDER[first.category] -
+        DiagnosticsAnalyzer.CATEGORY_SEVERITY_ORDER[second.category],
+    );
+  }
+
   private renderDiagnosticsFindings(findings: DiagnosticsFinding[]): string {
-    const severityOrder: Record<DiagnosticsFindingCategory, number> = {
-      'image-pull': 1,
-      oom: 2,
-      'pod-readiness': 3,
-      'consensus-active': 4,
-      'log-exception': 5,
-      'app-error': 6,
-    };
     const categoryLabel: Record<DiagnosticsFindingCategory, string> = {
       'image-pull': 'Image Pull',
       oom: 'Out Of Memory',
@@ -1246,17 +1316,7 @@ export class DiagnosticsAnalyzer {
       return lines.join('\n');
     }
 
-    const orderedFindings: DiagnosticsFinding[] = [];
-    for (const finding of findings) {
-      let insertionIndex: number = orderedFindings.length;
-      for (const [index, existingFinding] of orderedFindings.entries()) {
-        if (severityOrder[finding.category] < severityOrder[existingFinding.category]) {
-          insertionIndex = index;
-          break;
-        }
-      }
-      orderedFindings.splice(insertionIndex, 0, finding);
-    }
+    const orderedFindings: DiagnosticsFinding[] = DiagnosticsAnalyzer.orderFindingsBySeverity(findings);
 
     lines.push(`Detected ${orderedFindings.length} potential issue(s):`, '');
 
