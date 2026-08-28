@@ -58,8 +58,6 @@ tasks:
   setup:
     desc: Deploy initial consensus network
     cmds:
-      # Install the Solo-managed dependency binaries before creating the cluster.
-      - cmd: $SOLO_COMMAND init --dev
       - task: create-cluster
       - task: init-solo
       - task: deploy-block-node

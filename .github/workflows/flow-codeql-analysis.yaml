@@ -1,0 +1,74 @@
+# CodeQL static analysis (SAST) of the TypeScript sources and the GitHub
+# Actions workflows, using the security-extended query suite. Results appear
+# under the repository Security tab.
+#
+# Runs on every pull request and push to main/release branches — intentionally
+# without path filters, since the OpenSSF Scorecard SAST check scores by the
+# fraction of commits that had a SAST run (https://scorecard.dev/viewer/?uri=github.com/hiero-ledger/solo).
+# Also runs once daily at 04:28 UTC against main, so new and improved CodeQL
+# queries re-scan the existing code between commits.
+name: "CodeQL"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'release/*'
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+  schedule:
+    - cron: '28 4 * * *'
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: hiero-solo-linux-medium
+    timeout-minutes: 60
+    permissions:
+      # required for all workflows
+      security-events: write
+      # required to fetch internal or private CodeQL packs
+      packages: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          category: "/language:${{ matrix.language }}"
