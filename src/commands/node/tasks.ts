@@ -1791,6 +1791,29 @@ export class NodeCommandTasks {
     };
   }
 
+  public updateConsensusNodeVersionInRemoteConfig(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Update consensus node version in remote config',
+      task: async ({config}, task): Promise<void> => {
+        if (!config.releaseTag) {
+          // upgrades performed with --local-build-path do not resolve a semantic release tag,
+          // so there is no version to record in remote config
+          task.skip(
+            `${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey('no release tag resolved for this upgrade')}`,
+          );
+
+          return;
+        }
+
+        this.remoteConfig.updateComponentVersion(
+          ComponentTypes.ConsensusNode,
+          new SemanticVersion<string>(config.releaseTag),
+        );
+        await this.remoteConfig.persist();
+      },
+    };
+  }
+
   public populateServiceMap(): SoloListrTask<NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Populate serviceMap',
