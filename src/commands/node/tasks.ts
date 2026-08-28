@@ -160,6 +160,7 @@ import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
+import {type Pods} from '../../integration/kube/resources/pod/pods.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
@@ -2660,14 +2661,64 @@ export class NodeCommandTasks {
     return value === defaultValue;
   }
 
+  /**
+   * `helm upgrade` only triggers a StatefulSet rollout when the rendered pod template actually
+   * changes (root container image/tag, a volume mount toggled by application.env, resources,
+   * etc). Rather than guessing from which CLI flags were passed, poll briefly for evidence the
+   * node's pod is actually being recreated, so a chart-version/image bump is waited on even
+   * without --application-env, and an unrelated values change that never touches the pod
+   * template doesn't block on a restart that will never happen.
+   */
+  private static async didNodePodRolloutStart(
+    podsApi: Pods,
+    namespace: NamespaceName,
+    labels: string[],
+    previousPod: Pod | undefined,
+  ): Promise<boolean> {
+    for (let attempt: number = 1; attempt <= constants.NODE_POD_ROLLOUT_DETECTION_MAX_ATTEMPTS; attempt++) {
+      const [currentPod]: Pod[] = await podsApi.list(namespace, labels);
+
+      if (!previousPod || !currentPod) {
+        return true;
+      }
+
+      const recreated: boolean =
+        Boolean(currentPod.deletionTimestamp) ||
+        currentPod.creationTimestamp?.getTime() !== previousPod.creationTimestamp?.getTime() ||
+        currentPod.containerImage !== previousPod.containerImage;
+
+      if (recreated) {
+        return true;
+      }
+
+      await sleep(Duration.ofMillis(constants.NODE_POD_ROLLOUT_DETECTION_DELAY));
+    }
+
+    return false;
+  }
+
   public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
     return {
       title: 'Update node configuration files',
       task: async ({config}, task): Promise<Listr<NodeConnectionsContext, any, any> | void> => {
-        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
+        // This task also owns the only `helm upgrade` call in the `node upgrade` flow, so it must
+        // still run when the user is only bumping the chart version, chart directory, or supplying
+        // a custom values file -- none of which are node config file flags -- even though no
+        // config file needs to be copied in that case.
+        const chartUpgradeTriggerFlags: CommandFlag[] = [
+          flags.soloChartVersion,
+          flags.chartDirectory,
+          flags.networkDeploymentValuesFile,
+        ];
+
+        if (
+          ![...flags.nodeConfigFileFlags.values(), ...chartUpgradeTriggerFlags].some(
+            (flag): boolean => !this.isDefaultFlagValue(flag),
+          )
+        ) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
-              chalk.grey('no consensus node configuration files to be updated'),
+              chalk.grey('no consensus node configuration files or chart changes to apply'),
           );
 
           return;
@@ -2823,6 +2874,23 @@ export class NodeCommandTasks {
           config.valuesFile,
         ).chartValuesMap;
 
+        // Snapshot each node's current pod before the helm upgrade runs, so that afterward we can
+        // detect whether the upgrade actually triggered a StatefulSet rollout (see
+        // didNodePodRolloutStart) rather than assuming it did or didn't based on which config
+        // file flags were passed.
+        const previousPods: Map<NodeAlias, Pod | undefined> = new Map();
+        await Promise.all(
+          config.consensusNodes.map(async (node): Promise<void> => {
+            const labels: string[] = [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'];
+            const [previousPod]: Pod[] = await this.k8Factory
+              .getK8(node.context)
+              .pods()
+              .list(NamespaceName.of(node.namespace), labels);
+            previousPods.set(node.name, previousPod);
+          }),
+        );
+        const upgradeTimestamp: Date = new Date();
+
         const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
           {
             title: 'Update all charts',
@@ -2857,24 +2925,37 @@ export class NodeCommandTasks {
           {
             title: 'Re-apply configuration files to nodes after chart update',
             task: async (): Promise<void> => {
-              // The Helm chart upgrade triggers a StatefulSet rolling update, which restarts pods
-              // and runs the init-copier init container. That container copies the ConfigMap
-              // (which may have stale values) to the PVC, overwriting what was copied above.
-              // Wait for each pod to be Ready, then re-copy the staging application.properties
-              // so that CN reads the correct values on startup.
-              if (!this.isDefaultFlagValue(flags.applicationProperties)) {
-                for (const node of config.consensusNodes) {
-                  const labels: string[] = [
-                    `solo.hedera.com/node-name=${node.name}`,
-                    'solo.hedera.com/type=network-node',
-                  ];
-                  await this.k8Factory
-                    .getK8(node.context)
-                    .pods()
-                    .waitForReadyStatus(NamespaceName.of(node.namespace), labels, 120, 1000, undefined, true);
+              // The helm upgrade only triggers a StatefulSet rolling update, which restarts the pod
+              // and runs the init-copier init container, when it actually changed the rendered pod
+              // template (root container image/tag, application.env's volume mount, etc). That
+              // init container copies the ConfigMap (which may have stale values) to the PVC,
+              // overwriting what was copied above. So: wait for a real rollout only when one was
+              // actually observed, then re-copy the staging application.properties so that CN reads
+              // the correct values on startup.
+              for (const node of config.consensusNodes) {
+                const labels: string[] = [
+                  `solo.hedera.com/node-name=${node.name}`,
+                  'solo.hedera.com/type=network-node',
+                ];
+                const namespace: NamespaceName = NamespaceName.of(node.namespace);
+                const podsApi: Pods = this.k8Factory.getK8(node.context).pods();
 
+                const rolloutStarted: boolean = await NodeCommandTasks.didNodePodRolloutStart(
+                  podsApi,
+                  namespace,
+                  labels,
+                  previousPods.get(node.name),
+                );
+
+                if (!rolloutStarted) {
+                  continue;
+                }
+
+                await podsApi.waitForReadyStatus(namespace, labels, 120, 1000, upgradeTimestamp, true);
+
+                if (!this.isDefaultFlagValue(flags.applicationProperties)) {
                   const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
-                    NamespaceName.of(node.namespace),
+                    namespace,
                     node.name,
                   );
 
