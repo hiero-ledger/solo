@@ -369,6 +369,37 @@ describe('SoloPinoLogger log destination', (): void => {
     fs.rmSync(temporaryDirectory, {recursive: true, force: true});
   });
 
+  it('creates its log files owner-only so other users cannot read them', (): void => {
+    if (process.platform === 'win32') {
+      return; // POSIX mode bits are not used on Windows; the e2e suite skips this check too.
+    }
+    // Exercises the synchronous CI destination so the files exist by the time the assertions run;
+    // the rotating stream used outside CI is configured with the same mode.
+    const originalCi: string | undefined = process.env.CI;
+    process.env.CI = 'true';
+    try {
+      const logger: SoloPinoLogger = new SoloPinoLogger('debug', true, new OneShotState(), temporaryDirectory);
+      logger.error('permission regression check');
+
+      const logsDirectory: string = path.join(temporaryDirectory, 'logs');
+      expect(fs.statSync(logsDirectory).mode & 0o777).to.equal(0o700);
+      const logFiles: string[] = fs.readdirSync(logsDirectory);
+      expect(logFiles).to.include('solo.log');
+      for (const logFile of logFiles) {
+        const mode: number = fs.statSync(path.join(logsDirectory, logFile)).mode & 0o777;
+        // Same rule the e2e SOLO_HOME check applies: no group-write and no "other" access. Solo logs
+        // command lines and Kubernetes responses, so world-readable log files leak them.
+        expect(mode & 0o027, `${logFile} is 0${mode.toString(8)}`).to.equal(0);
+      }
+    } finally {
+      if (originalCi === undefined) {
+        delete process.env.CI;
+      } else {
+        process.env.CI = originalCi;
+      }
+    }
+  });
+
   it('writes its log files under the supplied home directory, not the real Solo home', (): void => {
     const realLogPath: string = PathEx.join(constants.SOLO_LOGS_DIR, 'solo.log');
     const sizeBefore: number = fs.existsSync(realLogPath) ? fs.statSync(realLogPath).size : -1;
