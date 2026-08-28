@@ -178,7 +178,6 @@ jobs:
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
-          echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
           echo ONE_SHOT_BLOCK_NODE_PERF=false >> .env
           cat .env
 
