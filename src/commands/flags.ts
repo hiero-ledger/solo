@@ -1644,7 +1644,8 @@ export class Flags {
     constName: 'verifyPersistentVolumeClaimMounts',
     name: 'verify-pvc-mounts',
     definition: {
-      describe: 'Fail the deployment when a persistent volume claim is mounted on storage smaller than it requested',
+      describe:
+        'Fail the deployment when a persistent volume claim is mounted on storage smaller than it requested; requires --pvcs',
       defaultValue: false,
       type: 'boolean',
     },

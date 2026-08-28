@@ -19,7 +19,7 @@ export interface NetworkDeployConfigClass {
   namespace: NamespaceName;
   deployment: string;
   nodeAliasesUnparsed: string;
-  persistentVolumeClaims: string;
+  persistentVolumeClaims: boolean;
   verifyPersistentVolumeClaimMounts: boolean;
   releaseTag: string;
   keysDir: string;

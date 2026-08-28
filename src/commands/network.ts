@@ -1008,6 +1008,15 @@ export class NetworkCommand extends BaseCommand {
         'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
+
+    if (config.verifyPersistentVolumeClaimMounts && !config.persistentVolumeClaims) {
+      throw new SoloErrors.validation.invalidFlagValue(
+        flags.verifyPersistentVolumeClaimMounts.name,
+        'true',
+        `requires --${flags.persistentVolumeClaims.name}`,
+      );
+    }
+
     const normalizedReleaseTag: string | undefined = SemanticVersion.normalizeToken(config.releaseTag);
     if (normalizedReleaseTag) {
       config.releaseTag = normalizedReleaseTag;

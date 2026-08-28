@@ -45,7 +45,7 @@ export class KubernetesQuantity {
       return undefined;
     }
 
-    const amount: number = Number.parseFloat(match[1]);
+    const amount: number = Number(match[1]);
     const suffix: string = match[2] ?? '';
     const multiplier: number | undefined =
       KubernetesQuantity.BINARY_MULTIPLIERS.get(suffix) ?? KubernetesQuantity.DECIMAL_MULTIPLIERS.get(suffix);
