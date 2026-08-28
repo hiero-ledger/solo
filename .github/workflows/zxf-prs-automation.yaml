@@ -1,7 +1,10 @@
 name: "ZXF: PR Automation"
 
 on:
-  pull_request:
+  # Uses pull_request_target (not pull_request) because Dependabot-triggered pull_request runs
+  # get a read-only GITHUB_TOKEN and no repository secrets, which breaks the github-token input
+  # below. Neither job checks out PR code, so running in the base repo's context is safe.
+  pull_request_target:
     types:
       - opened
       - reopened
@@ -39,7 +42,7 @@ defaults:
 jobs:
   auto-assign-merge-queue:
     name: "Auto-Assign Merge Queue PRs"
-    if: github.event_name == 'pull_request' && startsWith(github.base_ref, 'trunk-merge/')
+    if: github.event_name == 'pull_request_target' && startsWith(github.base_ref, 'trunk-merge/')
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
@@ -253,7 +256,7 @@ jobs:
               }
             }
 
-            const prEventNames = ['pull_request', 'pull_request_review', 'pull_request_review_comment'];
+            const prEventNames = ['pull_request_target', 'pull_request_review', 'pull_request_review_comment'];
             if (prEventNames.includes(context.eventName)) {
               const prNumber = context.payload.pull_request?.number;
               if (prNumber) {
