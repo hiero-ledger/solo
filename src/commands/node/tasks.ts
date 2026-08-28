@@ -730,6 +730,7 @@ export class NodeCommandTasks {
 
     let attempt: number = 0;
     let success: boolean = false;
+    let fatalErrorStreak: number = 0;
     while (attempt < maxAttempts) {
       const controller: AbortController = new AbortController();
 
@@ -773,10 +774,27 @@ export class NodeCommandTasks {
           task.title = `${title} - status ${chalk.yellow(NodeStatusEnums[statusNumber])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
         }
         clearTimeout(timeoutId);
+        fatalErrorStreak = 0;
       } catch (error) {
         this.logger.debug(
           `${title} : Error in checking node activeness: attempt: ${attempt}/${maxAttempts}: ${JSON.stringify(error)}`,
         );
+
+        // The exec call above fails when the container is not currently running (e.g. mid-crash-restart),
+        // which is indistinguishable from a slow-starting node without inspecting the container state directly.
+        // Detect a non-recoverable crash (CrashLoopBackOff, OOMKilled, ...) and fail fast rather than
+        // exhausting the full attempt budget waiting for a process that will never resurrect itself.
+        const fatalError: string | undefined = await this.detectFatalNodeContainerError(podReference, context);
+        if (fatalError) {
+          fatalErrorStreak++;
+          if (fatalErrorStreak >= constants.NETWORK_NODE_ACTIVE_FATAL_ERROR_THRESHOLD) {
+            task.title = `${title} - status ${chalk.red('CRASHED')}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
+            clearTimeout(timeoutId);
+            throw new SoloErrors.component.nodeContainerCrashed(nodeAlias, fatalError);
+          }
+        } else {
+          fatalErrorStreak = 0;
+        }
       }
 
       attempt++;
@@ -793,6 +811,25 @@ export class NodeCommandTasks {
     }
 
     return podReference;
+  }
+
+  /**
+   * Best-effort check of the node pod's container state for a non-recoverable crash (e.g.
+   * CrashLoopBackOff, OOMKilled). Returns the fatal error description, or undefined when the pod
+   * cannot be read or is not in a fatal state, so callers can fall back to normal retry handling.
+   */
+  private async detectFatalNodeContainerError(
+    podReference: PodReference,
+    context?: string,
+  ): Promise<string | undefined> {
+    try {
+      const k8: K8 = this.k8Factory.getK8(context);
+      const pod: Pod = await k8.pods().read(podReference);
+      return k8.pods().detectFatalContainerError(pod);
+    } catch {
+      // best-effort diagnostic only: if the pod lookup itself fails, defer to the normal retry/timeout handling
+      return undefined;
+    }
   }
 
   private async waitForGrpcReadiness(
