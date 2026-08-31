@@ -307,6 +307,22 @@ export class SubprocessEnvironment {
   }
 
   /**
+   * Returns the already-vetted operator-configured names for a profile.
+   *
+   * Exists so a spawned worker that runs in its own process — and therefore starts with an empty
+   * {@link operatorAllowlist} of its own — can be handed the parent's accepted names (e.g. as a
+   * CLI argument) and re-seed them via {@link configureOperatorAllowlist} before it re-derives its
+   * own environment with {@link forCommand}. Without this, a worker's independent filtering step
+   * silently drops names the operator configured, even though the parent already accepted them.
+   *
+   * @param profile - the command profile to read accepted names for
+   * @returns the accepted names for that profile, or an empty array when none were configured
+   */
+  public static getOperatorAllowlist(profile: SubprocessCommandProfile): readonly string[] {
+    return SubprocessEnvironment.operatorAllowlist[profile] ?? [];
+  }
+
+  /**
    * Renders withheld variable names as one or more bounded log lines.
    *
    * Environment variable *names* come from the parent process and are not otherwise constrained —

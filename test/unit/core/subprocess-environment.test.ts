@@ -10,19 +10,33 @@ import {type AnyObject} from '../../../src/types/aliases.js';
 
 describe('SubprocessEnvironment', (): void => {
   const temporaryKeys: string[] = [];
+  // Some tests (e.g. PATH) override a variable the surrounding process already relies on, not one
+  // that is merely absent. Restoring the original value here, rather than always deleting, keeps
+  // this file from leaving a follow-on test (or any other file in the same mocha worker) with no
+  // PATH at all.
+  const originalValuesByKey: Map<string, string | undefined> = new Map<string, string | undefined>();
   const allProfiles: SubprocessCommandProfile[] = Object.values(SubprocessCommandProfile);
 
-  /** Sets an environment variable for the duration of a single test and schedules its removal. */
+  /** Sets an environment variable for the duration of a single test and schedules its restoration. */
   function setTemporaryEnvironmentVariable(name: string, value: string): void {
+    if (!originalValuesByKey.has(name)) {
+      originalValuesByKey.set(name, process.env[name]);
+    }
     temporaryKeys.push(name);
     process.env[name] = value;
   }
 
   afterEach((): void => {
     for (const key of temporaryKeys) {
-      delete process.env[key];
+      const originalValue: string | undefined = originalValuesByKey.get(key);
+      if (originalValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = originalValue;
+      }
     }
     temporaryKeys.length = 0;
+    originalValuesByKey.clear();
     SubprocessEnvironment.configureOperatorAllowlist({});
     sinon.restore();
   });
