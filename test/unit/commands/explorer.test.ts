@@ -673,7 +673,8 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(uninstallStub.getCall(1).args[1]).to.equal(ingressReleaseName);
     sinon.assert.calledOnceWithMatch(ingressClassesDeleteStub, ingressReleaseName);
 
-    const secretsDeleteStub: SinonStub = (kubernetesClient as any).secrets().delete as SinonStub;
+    const secretsClient: Record<string, unknown> = (kubernetesClient.secrets as () => Record<string, unknown>)();
+    const secretsDeleteStub: SinonStub = secretsClient.delete as SinonStub;
     sinon.assert.calledOnceWithMatch(secretsDeleteStub, sinon.match.any, constants.EXPLORER_INGRESS_TLS_SECRET_NAME);
 
     const components: Record<string, unknown> = (harness.remoteConfig.configuration as Record<string, unknown>)
