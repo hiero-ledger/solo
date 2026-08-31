@@ -83,8 +83,8 @@ describe('ShellRunner', (): void => {
       expect(redacted).to.deep.equal(['-p', '******']);
     });
 
-    it('should redact -P and its value', (): void => {
-      const arguments_: string[] = ['-rX', '-P', 'myZipSecret', 'backup.zip', '.'];
+    it('should redact -P and its space-containing value', (): void => {
+      const arguments_: string[] = ['-rX', '-P', 'my Zip Secret', 'backup.zip', '.'];
       const redacted: string[] = ShellRunner.redactArguments(arguments_);
       expect(redacted).to.deep.equal(['-rX', '-P', '******', 'backup.zip', '.']);
     });
