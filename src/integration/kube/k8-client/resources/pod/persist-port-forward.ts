@@ -190,6 +190,7 @@ async function executeKubectl(
     const kubectlCommand: string = KUBECTL_EXECUTABLE || 'kubectl';
 
     const kubectlProcess: ChildProcess = spawn(kubectlCommand, commandArguments, {
+      shell: false,
       env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL, {
         PATH: `${kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
       }),
