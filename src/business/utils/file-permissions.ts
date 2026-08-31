@@ -374,7 +374,6 @@ export class FilePermissions {
         shell: false,
         stdio: 'ignore',
         env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC),
-        shell: false,
       });
     } catch {
       // best-effort: ACL hardening can fail on non-NTFS volumes or with insufficient rights; the POSIX
