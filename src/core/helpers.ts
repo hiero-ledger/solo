@@ -751,6 +751,7 @@ export class Helpers {
     const fullImageName: string = `${imageName}:${imageTag}`;
     try {
       const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
+        shell: false,
         encoding: 'utf8',
         stdio: 'pipe',
         env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.CONTAINER_ENGINE),
