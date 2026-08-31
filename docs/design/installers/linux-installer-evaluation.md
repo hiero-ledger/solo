@@ -476,11 +476,14 @@ holds it, and how it rotates should reference
 ### 7.2 Hosting options
 
 * **JFrog Artifactory (recommended, all four formats):** Solo already publishes npm packages
-  here. JFrog natively supports Debian and RPM repository types for `deb`/`rpm`. For `apk` and
-  `pacman` it has no native repository type, so those are served from a generic/raw repository on
-  the same instance, with CI generating the `APKINDEX`/`repo-add` metadata each release — one
-  Artifactory instance, one release pipeline, all four formats, rather than treating apk/pacman
-  hosting as a separate later decision.
+  here. JFrog has native repository types for Debian, RPM, *and* Alpine — each with a "Signing
+  Keys" configuration that signs the repository's own metadata (`Release`/`InRelease` for apt,
+  `repomd.xml` for dnf, `APKINDEX.tar.gz` for apk) automatically on reindex, once the
+  corresponding key from §7.4 is uploaded to Artifactory. Only Arch/`pacman` has no native
+  repository type in Artifactory; that one is served from a generic/raw repository on the same
+  instance, with CI running `repo-add --sign` and uploading the result — one Artifactory
+  instance, one release pipeline, all four formats, rather than treating repository hosting as a
+  separate later decision.
 * **GitHub Pages:** a CI job regenerates repository metadata after each release and pushes it to
   a `gh-pages` branch. GitHub-native, used by projects like Tailscale; requires maintaining the
   metadata-generation step in CI. Not chosen here since it duplicates infrastructure Solo already
@@ -579,6 +582,18 @@ That collapses to **two distinct kinds of key material to provision, not four**:
    `abuild-sign` doesn't speak OpenPGP, and `apk` doesn't accept a GPG public key as a trusted
    signer.
 
+Where the actual signing *operation* runs also splits along a line worth knowing before #5725
+builds the release pipeline. Once a key is uploaded to JFrog Artifactory's Signing Keys
+configuration (§7.2), Artifactory signs that repository's own metadata automatically on
+reindex — `Release`/`InRelease` for apt, `repomd.xml` for dnf, and `APKINDEX.tar.gz` for apk all
+happen *at the Artifactory level*, with no separate CI signing command needed for the repo trust
+chain itself. Two things Artifactory does **not** do: it doesn't embed a signature inside each
+individual `.rpm` (that's what `gpgcheck=1` checks on a per-package basis, separate from
+`repomd.xml`), so a `rpmsign --addsign` pass in CI before upload is still needed if per-package
+RPM verification matters; and it has no Arch/`pacman` repository type at all, so `repo-add --sign`
+and everything else for that format has to happen entirely in CI, with Artifactory used as plain
+file storage for the result.
+
 Notably, none of these are a purchased or CA-issued certificate the way the macOS and Windows
 legs of the same epic are:
 [#5717](https://github.com/hiero-ledger/solo/issues/5717) as currently scoped names an **Apple
@@ -663,10 +678,11 @@ output types layered onto a `deb`/`rpm`-first tool. It is the better-maintained 
 the "one declarative source, four formats" need in §4.4.
 
 **Hosted repositories for all four formats, from the outset.** JFrog Artifactory hosts
-`deb`/`rpm` natively and `apk`/`pacman` via a generic/raw repository on the same instance (§7.2)
-— one release pipeline, one signing setup (#5717), all four formats, rather than treating
-repository hosting as a later add-on. Every format is also attached to the GitHub Release
-directly, so a local-file install always works even before a client adds the repository.
+`deb`, `rpm`, *and* `apk` as native repository types (each auto-signing its own metadata once
+the §7.4 key is uploaded to Artifactory) and `pacman` via a generic/raw repository on the same
+instance (§7.2) — one release pipeline, one signing setup (#5717), all four formats, rather than
+treating repository hosting as a later add-on. Every format is also attached to the GitHub
+Release directly, so a local-file install always works even before a client adds the repository.
 
 **Format availability is sequenced by its own prerequisites, not by scope choice:**
 
@@ -730,10 +746,11 @@ directly, so a local-file install always works even before a client adds the rep
   [#5721](https://github.com/hiero-ledger/solo/issues/5721) landing a subcommand both this
   document and the macOS document assume. Until then, `preremove` has nothing safe to hand off to
   beyond a printed instruction.
-* **JFrog's apk/pacman coverage is unconfirmed.** §7.2 assumes a generic/raw repository would be
-  needed for Alpine/Arch hosting since JFrog's native Debian/RPM support doesn't extend there;
-  this hasn't been verified against Solo's actual JFrog instance and matters once the musl SEA
-  binary in §3 lands.
+* **JFrog's generic-repository signing for `pacman` is unconfirmed against Solo's own instance.**
+  §7.2's native-repository-type claims (Debian, RPM, Alpine) are confirmed against JFrog's public
+  documentation, but the Arch/`pacman` generic-repository fallback (CI-side `repo-add --sign`,
+  Artifactory as opaque storage) hasn't been verified against Solo's actual Artifactory instance
+  and matters once that format is picked up.
 * **nfpm's built-in signing coverage.** nfpm can invoke external signing tools per format, but
   whether its built-in `rpm`/`deb` signing config is sufficient on its own or whether the
   external tools in §7.1 (`debsigs`, `rpmsign`) are still needed in CI should be confirmed during
