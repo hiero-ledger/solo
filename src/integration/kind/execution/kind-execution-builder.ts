@@ -7,6 +7,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {ExecutionBuilder} from '../../execution-builder.js';
 import {SubprocessEnvironment} from '../../../core/subprocess-environment.js';
 import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 
 /**
  * A builder for creating a kind command execution.
@@ -152,12 +153,16 @@ export class KindExecutionBuilder extends ExecutionBuilder {
 
   /**
    * Adds a flag to the kind execution.
-   * @param flag the flag to be added
+   * @param flag the flag to be added; must start with `-` (e.g. `--retain`), because kind
+   *   silently treats a bare word as a positional argument instead of an option
    * @returns this builder
    */
   public flag(flag: string): KindExecutionBuilder {
     if (!flag) {
       throw new Error('flag must not be null');
+    }
+    if (!flag.startsWith('-')) {
+      throw new SoloErrors.validation.illegalArgument('flag must start with "-"', flag);
     }
     this._flags.push(flag);
     return this;

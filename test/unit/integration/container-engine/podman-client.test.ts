@@ -8,6 +8,7 @@ import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {PodmanClient} from '../../../../src/integration/container-engine/podman-client.js';
 import {type ContainerEngineCommand} from '../../../../src/integration/container-engine/container-engine-command.js';
 import {PodmanDependencyManager} from '../../../../src/core/dependency-managers/podman-dependency-manager.js';
+import {SubprocessEnvironment} from '../../../../src/core/subprocess-environment.js';
 
 describe('PodmanClient', (): void => {
   let previousKindProvider: string | undefined;
@@ -176,6 +177,31 @@ describe('PodmanClient', (): void => {
       'sudo',
       PodmanClientTestBuilder.sudoKindLoadImageArchiveArguments(kindExecutable, '/tmp/busybox.tar', 'kind'),
     );
+  });
+
+  describe('kindProvider', (): void => {
+    afterEach((): void => {
+      SubprocessEnvironment.clearSessionState();
+    });
+
+    it('returns undefined when neither session state nor the environment set a provider', (): void => {
+      delete process.env.KIND_EXPERIMENTAL_PROVIDER;
+
+      expect(PodmanClient.kindProvider()).to.equal(undefined);
+    });
+
+    it('falls back to a user-provided KIND_EXPERIMENTAL_PROVIDER environment variable', (): void => {
+      process.env.KIND_EXPERIMENTAL_PROVIDER = 'podman';
+
+      expect(PodmanClient.kindProvider()).to.equal('podman');
+    });
+
+    it('prefers the session value over the environment variable', (): void => {
+      process.env.KIND_EXPERIMENTAL_PROVIDER = 'docker';
+      SubprocessEnvironment.setSessionVariable('KIND_EXPERIMENTAL_PROVIDER', 'podman');
+
+      expect(PodmanClient.kindProvider()).to.equal('podman');
+    });
   });
 });
 

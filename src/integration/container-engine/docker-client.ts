@@ -184,7 +184,7 @@ export class DockerClient implements ContainerEngineClient {
       return cachedCommand;
     }
 
-    if (constants.getEnvironmentVariable('KIND_EXPERIMENTAL_PROVIDER') !== constants.PODMAN) {
+    if (PodmanClient.kindProvider() !== constants.PODMAN) {
       const dockerCommand: ContainerEngineCommand = DockerClient.dockerCommand();
       if (await this.containerExists(dockerCommand, nodeName)) {
         this.kindContainerCommands.set(nodeName, dockerCommand);
