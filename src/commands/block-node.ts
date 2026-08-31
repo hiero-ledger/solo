@@ -78,6 +78,7 @@ interface BlockNodeDeployConfigClass {
   domainName: Optional<string>;
   enableIngress: boolean;
   quiet: boolean;
+  force: boolean;
   valuesFile: Optional<string>;
   releaseTag: string;
   imageTag: Optional<string>;
@@ -125,6 +126,7 @@ interface BlockNodeUpgradeConfigClass {
   deployment: DeploymentName;
   debugMode: boolean;
   quiet: boolean;
+  force: boolean;
   valuesFile: Optional<string>;
   namespace: NamespaceName;
   context: string;
@@ -243,6 +245,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.debugMode,
       flags.domainName,
       flags.enableIngress,
+      flags.force,
       flags.quiet,
       flags.valuesFile,
       // Keep deprecated legacy flag accepted for backward compatibility.
@@ -429,6 +432,42 @@ export class BlockNodeCommand extends BaseCommand {
       this.remoteConfig.configuration.versions?.consensusNode?.toString() ?? versions.HEDERA_PLATFORM_VERSION;
     const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
     return Helpers.requiresRsaBootstrap(consensusNodeVersion, blockStreamMode);
+  }
+
+  /**
+   * Rejects a block node version that sits on the opposite side of the fixed 16-slot block root hash
+   * boundary (hiero-consensus-node#26918) from the deployed consensus node. The consensus node streams
+   * every block to the block node for verification, so a mismatched pair is rejected with
+   * BAD_BLOCK_PROOF until the consensus node block buffer saturates and the network stalls.
+   */
+  private assertBlockProofCompatibility(blockNodeVersion: string, force: boolean): void {
+    const consensusNodeVersion: string =
+      this.remoteConfig.configuration.versions?.consensusNode?.toString() ?? versions.HEDERA_PLATFORM_VERSION;
+
+    const blockNodeUsesFixedSlots: boolean = new SemanticVersion<string>(blockNodeVersion).greaterThanOrEqual(
+      versions.MINIMUM_BLOCK_NODE_VERSION_FOR_16_SLOT_BLOCK_PROOF,
+    );
+    const consensusNodeUsesFixedSlots: boolean = new SemanticVersion<string>(consensusNodeVersion).greaterThanOrEqual(
+      versions.MINIMUM_CN_VERSION_FOR_16_SLOT_BLOCK_PROOF,
+    );
+
+    if (blockNodeUsesFixedSlots === consensusNodeUsesFixedSlots) {
+      return;
+    }
+
+    if (force) {
+      this.logger.warn(
+        `Force flag enabled, bypassing the block root hash compatibility check between block node ${blockNodeVersion} and consensus node ${consensusNodeVersion}`,
+      );
+      return;
+    }
+
+    throw new SoloErrors.validation.blockNodeBlockProofIncompatible(
+      blockNodeVersion,
+      consensusNodeVersion,
+      versions.MINIMUM_BLOCK_NODE_VERSION_FOR_16_SLOT_BLOCK_PROOF,
+      versions.MINIMUM_CN_VERSION_FOR_16_SLOT_BLOCK_PROOF,
+    );
   }
 
   private resolveMirrorNodeReleaseName(): string {
@@ -879,6 +918,8 @@ export class BlockNodeCommand extends BaseCommand {
             if (!config.componentImage && config.imageTag) {
               config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
             }
+
+            this.assertBlockProofCompatibility(config.chartVersion, config.force);
 
             config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.componentImage);
 
@@ -1344,6 +1385,8 @@ export class BlockNodeCommand extends BaseCommand {
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode),
               optionFromFlag(flags.upgradeVersion),
             );
+
+            this.assertBlockProofCompatibility(config.upgradeVersion, config.force);
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
