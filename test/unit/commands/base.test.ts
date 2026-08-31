@@ -96,7 +96,7 @@ describe('BaseCommand', (): void => {
       const flagsList: CommandFlag[] = [flags.releaseTag, flags.tlsClusterIssuerType, flags.valuesFile];
       const argv: Argv = Argv.initializeEmpty();
       argv.setArg(flags.releaseTag, 'releaseTag1');
-      argv.setArg(flags.tlsClusterIssuerType, 'type2');
+      argv.setArg(flags.tlsClusterIssuerType, 'self-signed');
       argv.setArg(flags.valuesFile, 'file3');
       configManager.update(argv.build());
 
@@ -118,7 +118,7 @@ describe('BaseCommand', (): void => {
         extraVariables,
       ) as newClassInstance;
       expect(newClassInstance1.releaseTag).to.equal('releaseTag1');
-      expect(newClassInstance1.tlsClusterIssuerType).to.equal('type2');
+      expect(newClassInstance1.tlsClusterIssuerType).to.equal('self-signed');
       expect(newClassInstance1.valuesFile).to.equal('file3');
       expect(newClassInstance1.var1).to.equal('');
       expect(newClassInstance1.var2).to.equal('');
@@ -148,7 +148,7 @@ describe('BaseCommand', (): void => {
       ) as newClassInstance;
       newClassInstance3.var1 = 'var1';
       expect(newClassInstance3.var1).to.equal('var1');
-      expect(newClassInstance3.tlsClusterIssuerType).to.equal('type2');
+      expect(newClassInstance3.tlsClusterIssuerType).to.equal('self-signed');
       expect(baseCmd.configManager.getUnusedConfigs(NEW_CLASS3_NAME)).to.deep.equal([
         flags.releaseTag.constName,
         flags.valuesFile.constName,
