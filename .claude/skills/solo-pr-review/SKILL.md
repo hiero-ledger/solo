@@ -51,9 +51,16 @@ Open these before writing any feedback. They are the rulebook — the review mus
      drift from existing patterns.
    - **Minor** — naming, comment hygiene, suggestion-block one-liners.
    - **Question** — something that looks off but might have a reason. Ask before claiming.
-5. **Test pass.** Are there tests? Are they unit (cheap, fast) or did the author reach for E2E/nightly when a unit test
-   would do? Flag missing unit coverage explicitly.
-6. **Write the report.** Use the template in §Output. Lead with the critical/major findings; line-level suggestion
+5. **Comment-to-implementation pass.** For every changed behavioral comment, JSDoc, test name/comment, example,
+   documentation claim, and PR-description assertion, trace the claim to the final source and test behavior. Confirm
+   that APIs, control flow, process boundaries, logging, configuration propagation, and claimed coverage are exactly
+   what the text says. Treat wording left over from an earlier commit or implementation as a finding — not as reliable
+   context — and distinguish a documentation-only mismatch from behavior that is actually broken or concealed by the
+   stale wording.
+6. **Test pass.** Are there tests? Are they unit (cheap, fast) or did the author reach for E2E/nightly when a unit test
+   would do? Do the tests execute the behavior their names and the PR description claim they cover? Flag missing or
+   overstated unit coverage explicitly.
+7. **Write the report.** Use the template in §Output. Lead with the critical/major findings; line-level suggestion
    blocks come after.
 
 > **Checkpoint:** before delivering the report, re-read it and ask: *"If I were the author, would I be able to act on
@@ -199,6 +206,11 @@ when a pending review already exists.
 
 - <question that needs an answer before this can be Approved>
 
+## Comment and description consistency
+
+- <State that each changed behavioral claim was checked against the final implementation, or list the stale/mismatched
+  claims with their source and actual behavior.>
+
 ## Positive
 
 - <specific thing done well — be concrete, not generic>
@@ -221,6 +233,9 @@ one-click apply.
 - End the turn by linking the pending review and asking the user to vet and submit it themselves.
 - Cite the rule being applied (style-guide section, eslint rule, or prior PR convention) for every Critical and Major
   finding.
+- Verify every changed behavioral comment and claim — including JSDoc, test names/comments, examples, documentation,
+  and the PR description — against the final source and test execution before reporting. Never rely on text that may
+  describe an earlier revision; report the actual final behavior and identify stale wording explicitly.
 - Prefer fixing existing methods over adding new ones when they overlap (DRY).
 - Push back when a CLI flag description leaks command-specific context — flags belong to the whole CLI.
 - Ask "is this a workaround?" whenever the change adds polling loops, sleep/wait, or `kubectl exec` of imperative shell
