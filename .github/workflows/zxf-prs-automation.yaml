@@ -27,10 +27,13 @@ on:
     - cron: "0 */4 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
+# Deliberately empty: every job here that needs write access authenticates with the
+# secrets.GH_ACCESS_TOKEN PAT explicitly (see repo-token/github-token inputs below), not the
+# ambient GITHUB_TOKEN, so no job depends on permissions granted here. zizmor flagged the
+# previous contents/pull-requests/issues grants as unused, workflow-level excessive permissions
+# (https://docs.zizmor.sh/audits/#excessive-permissions). The zizmor-scan job below declares its
+# own minimal job-level permissions for the one thing that does use the ambient token.
+permissions: {}
 
 defaults:
   run:
