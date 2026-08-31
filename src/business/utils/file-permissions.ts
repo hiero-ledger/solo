@@ -225,6 +225,7 @@ export class FilePermissions {
       output = execFileSync('icacls', [targetPath], {
         encoding: 'utf8',
         env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC),
+        shell: false,
       });
     } catch {
       // Unlike restrictToOwner's best-effort hardening, an unreadable DACL cannot be waved through
@@ -372,6 +373,7 @@ export class FilePermissions {
       execFileSync('icacls', [targetPath, '/inheritance:r', '/grant:r', `${principal}:${permissions}`], {
         stdio: 'ignore',
         env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC),
+        shell: false,
       });
     } catch {
       // best-effort: ACL hardening can fail on non-NTFS volumes or with insufficient rights; the POSIX
