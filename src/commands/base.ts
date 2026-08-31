@@ -10,6 +10,7 @@ import {type DependencyManager} from '../core/dependency-managers/index.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type SoloLogger} from '../core/logging/solo-logger.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -132,7 +133,7 @@ export abstract class BaseCommand extends ShellRunner {
     return paths;
   }
 
-  private static checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
+  public static checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
     if (OperatingSystem.isLinux()) {
       return {containerdSnapshotterEnabled: false};
     }
@@ -175,17 +176,25 @@ export abstract class BaseCommand extends ShellRunner {
    * warning when it is. This check is relevant for any Solo command that deploys pods,
    * since the containerd snapshotter setting can cause ImageInspectError failures.
    * The task is non-blocking - it warns only and does not halt the command.
+   *
+   * The static overload accepts an explicit logger so it can be called from classes
+   * that are not `BaseCommand` subclasses (e.g. `Subcommand`).
    */
-  protected dockerDesktopPreflightTask(): SoloListrTask<AnyListrContext> {
+  public static dockerDesktopPreflightTask(logger: SoloLogger): SoloListrTask<AnyListrContext> {
     return {
       title: 'Pre-flight: check Docker Desktop containerd setting',
       task: async (): Promise<void> => {
         const result: DockerDesktopContainerdCheckResult = BaseCommand.checkDockerDesktopContainerdSetting();
         if (result.containerdSnapshotterEnabled && result.warningMessage) {
-          this.logger.warn(result.warningMessage);
+          logger.warn(result.warningMessage);
         }
       },
     };
+  }
+
+  /** Instance convenience wrapper — delegates to the static implementation. */
+  protected dockerDesktopPreflightTask(): SoloListrTask<AnyListrContext> {
+    return BaseCommand.dockerDesktopPreflightTask(this.logger);
   }
 
   /**
