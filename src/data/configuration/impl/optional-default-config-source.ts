@@ -22,6 +22,11 @@ export class OptionalDefaultConfigSource<T extends object> extends DefaultConfig
   private readonly filePath: string;
 
   public constructor(fileName: string, basePath: string, schema: SchemaDefinition<T>, mapper: ObjectMapper) {
+    // The backing file is optional, but DefaultConfigSource's backend still validates that basePath
+    // itself is a real directory, and a machine that has never run Solo (a fresh CI runner, a new
+    // operator's first run) has no reason to have created it yet. Mirrors Container.init()'s own
+    // mkdirSync of its home directory, for the same reason.
+    fs.mkdirSync(basePath, {recursive: true});
     super(fileName, basePath, schema, mapper);
     this.filePath = PathEx.join(basePath, fileName);
   }
