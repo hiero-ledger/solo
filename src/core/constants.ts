@@ -487,11 +487,23 @@ export const JVM_DEBUG_PORT: number = 5005;
 export const PODS_RUNNING_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_RUNNING_MAX_ATTEMPTS') || 60 * 15;
 export const PODS_RUNNING_DELAY: number = +getEnvironmentVariable('PODS_RUNNING_DELAY') || 1000;
 
+// Used during `node upgrade` to detect whether a helm upgrade actually triggered a node pod
+// rollout before waiting on its readiness, so an upgrade that never changes the pod template
+// doesn't block waiting for a restart that will never happen.
+export const NODE_POD_ROLLOUT_DETECTION_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NODE_POD_ROLLOUT_DETECTION_MAX_ATTEMPTS') || 20;
+export const NODE_POD_ROLLOUT_DETECTION_DELAY: number =
+  +getEnvironmentVariable('NODE_POD_ROLLOUT_DETECTION_DELAY') || 1500;
+
 // Node Checks
 export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+
+// Number of consecutive fatal container states (e.g. CrashLoopBackOff, OOMKilled) detected while
+// polling node activeness before failing fast instead of waiting out the full attempt budget.
+export const NETWORK_NODE_ACTIVE_FATAL_ERROR_THRESHOLD: number = 3;
 
 // GRPC Healtcheck Checks
 export const NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS: number =
