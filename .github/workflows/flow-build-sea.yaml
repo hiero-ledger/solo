@@ -64,7 +64,7 @@ jobs:
             platform: darwin
             arch: arm64
           # Intel (x64) macOS runner
-          - os: macos-13
+          - os: macos-15-intel
             platform: darwin
             arch: x64
           # win32 is Node's fixed process.platform value for ALL Windows builds
