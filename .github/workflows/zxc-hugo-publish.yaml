@@ -47,6 +47,7 @@ jobs:
   deploy:
     name: Deploy
     runs-on: hiero-solo-linux-medium
+    # Callers must grant these scopes on the calling job; otherwise the run fails to start.
     permissions:
       contents: write # gh release upload attaches the docs archives to the release
       pages: write # configure-pages and deploy-pages

@@ -79,6 +79,7 @@ jobs:
   analyze:
     name: ${{ inputs.custom-job-label || 'Analyze' }}
     runs-on: hiero-solo-linux-medium
+    # Callers must grant these scopes on the calling job; otherwise the run fails to start.
     permissions:
       contents: read
       actions: read

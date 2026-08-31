@@ -44,6 +44,7 @@ permissions:
 
 jobs:
   unit-test:
+    # Callers must grant these scopes on the calling job; otherwise the run fails to start.
     permissions:
       contents: read
       actions: read

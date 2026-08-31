@@ -40,7 +40,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   code-style:

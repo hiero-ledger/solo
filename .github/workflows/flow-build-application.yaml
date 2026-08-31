@@ -81,9 +81,6 @@ jobs:
 
   code-style:
     name: Code Style
-    permissions:
-      contents: read
-      actions: read
     uses: ./.github/workflows/zxc-code-style.yaml
     with:
       custom-job-label: Standard
@@ -106,9 +103,6 @@ jobs:
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true') && !cancelled() }}
-    permissions:
-      contents: read
-      actions: read # the cancellation poller reads the current workflow run
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
       - code-style

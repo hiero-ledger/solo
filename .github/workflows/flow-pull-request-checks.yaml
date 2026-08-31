@@ -37,7 +37,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 defaults:
   run:

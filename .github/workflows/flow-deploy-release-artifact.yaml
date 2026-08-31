@@ -209,7 +209,7 @@ jobs:
     name: 'Create GitHub Release'
     runs-on: hiero-solo-linux-medium
     permissions:
-      contents: write # semantic-release pushes tags/commits and gh release upload attaches assets
+      contents: read # every write in this job authenticates with GH_ACCESS_TOKEN, not GITHUB_TOKEN
     if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' || needs.prepare-release.outputs.need-hg-release == 'true' }}
     needs:
       - prepare-release
@@ -537,7 +537,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # OIDC token for npm publish provenance
+      id-token: write # OIDC token for npm trusted publishing (no NPM_TOKEN is configured)
     needs:
       - get-package-info
       - create-github-release

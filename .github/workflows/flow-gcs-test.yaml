@@ -35,7 +35,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: read # gha-jobid-action reads the jobs of the current workflow run
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
