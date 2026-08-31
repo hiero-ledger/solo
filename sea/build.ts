@@ -44,6 +44,7 @@ const ROOT: string = path.join(SEA_DIR, '..');
 const BUILD_DIR: string = path.join(SEA_DIR, 'dist');
 const RESOURCES_DIR: string = path.join(ROOT, 'resources');
 const DIST_DIR: string = path.join(ROOT, 'dist');
+const SEA_MAIN_TEMPLATE_PATH: string = path.join(SEA_DIR, 'sea-main.template.cjs');
 
 const packageJson: {version: string} = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const version: string = packageJson.version;
@@ -140,7 +141,7 @@ seaAssets['solo-src-bundle.cjs'] = bundlePath;
 const assetKeys: string[] = Object.keys(seaAssets);
 const buildId: string = `${version}-${Date.now()}`;
 
-// Step 3: generate the CJS SEA entry script.
+// Step 3: generate the CJS SEA entry script from sea-main.template.cjs.
 // sea-main.cjs is what Node.js executes from the SEA blob. It:
 //   - Bootstraps synchronously (sets env vars, extracts assets)
 //   - Requires solo-src-bundle.cjs from the extracted seaRoot
@@ -149,80 +150,15 @@ const buildId: string = `${version}-${Date.now()}`;
 // Any non-built-in path passed to require() throws ERR_UNKNOWN_BUILTIN_MODULE.
 // Dynamic import() goes through the regular module loader and CAN load filesystem files,
 // so we use import() + pathToFileURL to load solo-src-bundle.cjs after extraction.
-const seaMainContent: string = `'use strict';
-// SEA bootstrap — synchronous CJS; sets env vars and extracts assets before loading solo.
-// NOTE: require() in SEA mode is restricted to Node.js built-ins; use import() for files.
-const sea = require('node:sea');
-const os = require('os');
-const path = require('path');
-const fs = require('fs');
-const url = require('url');
-
-const SOLO_SEA_VERSION = ${JSON.stringify(version)};
-// Build id includes a timestamp so a rebuild with the same version (e.g. a CI artifact
-// from another commit) still re-extracts instead of reusing stale cached assets.
-const SOLO_SEA_BUILD_ID = ${JSON.stringify(buildId)};
-
-let bundleFileUrl;
-if (sea.isSea()) {
-  process.env['SOLO_SEA_VERSION'] = SOLO_SEA_VERSION;
-
-  const seaRoot = path.join(os.homedir(), '.solo', 'sea-resources', SOLO_SEA_VERSION);
-  process.env['SOLO_SEA_ROOT_DIR'] = seaRoot;
-
-  // Skip extraction when the marker already records this exact build.
-  const markerPath = path.join(seaRoot, '.sea-extracted');
-  let needsExtraction = true;
-  try { needsExtraction = fs.readFileSync(markerPath, 'utf8').trim() !== SOLO_SEA_BUILD_ID; }
-  catch { /* not yet extracted */ }
-
-  if (needsExtraction) {
-    for (const key of ${JSON.stringify(assetKeys)}) {
-      let data;
-      try { data = sea.getAsset(key); } catch { continue; }
-      const destPath = path.join(seaRoot, key);
-      fs.mkdirSync(path.dirname(destPath), { recursive: true });
-      fs.writeFileSync(destPath, Buffer.from(data));
-    }
-    fs.writeFileSync(markerPath, SOLO_SEA_BUILD_ID);
-  }
-
-  bundleFileUrl = url.pathToFileURL(path.join(seaRoot, 'solo-src-bundle.cjs')).href;
-} else {
-  // Not running as SEA (e.g. development test of the built artefacts).
-  bundleFileUrl = url.pathToFileURL(path.join(__dirname, 'solo-src-bundle.cjs')).href;
-}
-
-// import() uses the regular module loader and can access the filesystem — unlike require()
-// in SEA mode which is restricted to built-ins. Importing a .cjs file returns its
-// module.exports as the default export.
-import(bundleFileUrl).then(function (mod) {
-  const soloModule = mod.default || mod;
-
-  // Run the solo CLI. async IIFE keeps this CJS-compatible (no top-level await).
-  void (async function () {
-    const context = { logger: undefined };
-
-    await soloModule.main(process.argv, context).catch(function (error) {
-      // SilentBreak / UserBreak are solo's clean-exit signals (--help, --version, user ^C).
-      // The DI ErrorHandler swallows them; replicate that here so the exit code stays 0.
-      const name = (error && (error.name || (error.constructor && error.constructor.name))) || '';
-      if (name === 'SilentBreak' || name === 'UserBreak') return;
-      process.exitCode = 1;
-      console.error(error);
-    });
-
-    if (context.logger && typeof context.logger.flush === 'function') {
-      context.logger.flush(function () { process.exit(process.exitCode ?? 0); });
-    } else {
-      process.exit(process.exitCode ?? 0);
-    }
-  }());
-}).catch(function (error) {
-  process.exitCode = 1;
-  console.error(error);
-});
-`;
+//
+// The bootstrap logic lives in the template file (a real, lintable .cjs file) rather than
+// an inline template literal here. Build-time values are injected via a plain string
+// substitution of the template's three placeholder tokens — no templating library needed.
+const seaMainTemplate: string = readFileSync(SEA_MAIN_TEMPLATE_PATH, 'utf8');
+const seaMainContent: string = seaMainTemplate
+  .replace("'__SOLO_SEA_VERSION__'", JSON.stringify(version))
+  .replace("'__SOLO_SEA_BUILD_ID__'", JSON.stringify(buildId))
+  .replace("['__SOLO_SEA_ASSET_KEYS__']", JSON.stringify(assetKeys));
 writeFileSync(seaMainPath, seaMainContent);
 
 // Step 4: write sea-config.json and generate the SEA blob from sea-main.cjs.
@@ -246,6 +182,11 @@ if (platform === 'darwin') {
 }
 
 const machoFlag: string = platform === 'darwin' ? '--macho-segment-name NODE_SEA' : '';
+// --sentinel-fuse is the fixed marker string Node.js embeds in its own binary at build time
+// (see NODE_SEA_FUSE in Node's deps/v8 fuse.h). postject searches the copied node binary for
+// this exact byte sequence and flips a bit next to it once the blob is injected — that bit is
+// what makes process.sea.isSea() (and Node's SEA bootstrap) return true at runtime. The value
+// is Node's own constant, not something generated per build, so it must not change.
 run(
   `npx postject ${quotePath(binaryPath)} NODE_SEA_BLOB ${quotePath(blobPath)} --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 ${machoFlag}`,
   'Injecting SEA blob via postject',

@@ -51,17 +51,27 @@ concurrency:
 
 jobs:
   build-sea:
-    name: "SEA / ${{ matrix.os }}"
+    name: "SEA / ${{ matrix.os }} (${{ matrix.arch }})"
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: hiero-solo-linux-medium
             platform: linux
+            arch: x64
+          # Apple Silicon (arm64) runner
           - os: macos-latest
             platform: darwin
+            arch: arm64
+          # Intel (x64) macOS runner
+          - os: macos-13
+            platform: darwin
+            arch: x64
+          # win32 is Node's fixed process.platform value for ALL Windows builds
+          # windows-latest currently resolves to a x64 runner.
           - os: windows-latest
             platform: win32
+            arch: x64
 
     runs-on: ${{ matrix.os }}
 
@@ -106,7 +116,7 @@ jobs:
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: solo-${{ matrix.platform }}-${{ github.sha }}
+          name: solo-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.sha }}
           path: sea/dist/solo-${{ matrix.platform }}-*
           if-no-files-found: error
           retention-days: 7
