@@ -180,7 +180,6 @@ interface MirrorNodeDestroyConfigClass {
   releaseName: string;
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
-  isIngressControllerChartInstalled: boolean;
 }
 
 interface MirrorNodeDestroyContext {
@@ -2117,11 +2116,6 @@ export class MirrorNodeCommand extends BaseCommand {
               releaseName,
               ingressReleaseName,
               isLegacyChartInstalled,
-              isIngressControllerChartInstalled: await this.chartManager.isChartInstalled(
-                namespace,
-                ingressReleaseName,
-                clusterContext,
-              ),
             };
 
             if (!this.oneShotState.isActive()) {
@@ -2184,13 +2178,11 @@ export class MirrorNodeCommand extends BaseCommand {
         this.disableSharedResourceComponents(),
         {
           title: 'Uninstall mirror ingress controller',
-          skip: (context_): boolean => !context_.config.isIngressControllerChartInstalled,
+          // No skip guard: chartManager.uninstall() no-ops when the release is absent, and the
+          // IngressClass / ConfigMap / TLS secret deletions below tolerate missing resources. The
+          // ingress controller must be torn down even when its Helm release name cannot be
+          // re-detected, otherwise the chart, IngressClass, and TLS secret leak after destroy.
           task: async (context_): Promise<void> => {
-            await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .ingressClasses()
-              .delete(constants.MIRROR_INGRESS_CLASS_NAME);
-
             if (
               await this.k8Factory
                 .getK8(context_.config.clusterContext)
@@ -2221,6 +2213,13 @@ export class MirrorNodeCommand extends BaseCommand {
                   .delete(constants.MIRROR_INGRESS_CLASS_NAME);
               }
             }
+
+            // Delete the namespace-scoped TLS secret created for the ingress on deploy.
+            // secrets().delete() returns true for NotFound, so no try/catch needed.
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .secrets()
+              .delete(context_.config.namespace, constants.MIRROR_INGRESS_TLS_SECRET_NAME);
           },
         },
         this.disableMirrorNodeComponents(),
