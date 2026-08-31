@@ -33,7 +33,7 @@ const preReleaseArbitrary: fc.Arbitrary<string> = fc
   .map((parts: string[]): string => parts.join('.'));
 
 // Build metadata identifiers are kept to letters and digits: a hyphen inside the build metadata of a version
-// without a pre-release is currently read as the start of a pre-release, so it would not round-trip.
+// without a pre-release is read as the start of a pre-release, so it would not round-trip (tracked in #5932).
 const buildMetadataArbitrary: fc.Arbitrary<string> = fc
   .array(fc.string({unit: fc.oneof(digitCharacter, letterCharacter), minLength: 1, maxLength: 8}), {
     minLength: 1,
