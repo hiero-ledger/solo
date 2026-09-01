@@ -73,7 +73,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   analyze:
@@ -82,7 +81,6 @@ jobs:
     # Callers must grant these scopes on the calling job; otherwise the run fails to start.
     permissions:
       contents: read
-      actions: read
       checks: write # publish-unit-test-result-action creates a check run
       pull-requests: write # publish-unit-test-result-action comments on the pull request
     steps:

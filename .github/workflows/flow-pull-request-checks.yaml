@@ -95,7 +95,6 @@ jobs:
     name: Unit Tests
     permissions:
       contents: read
-      actions: read
       checks: write # zxc-unit-test.yaml publishes a unit test report check run
       pull-requests: write # zxc-unit-test.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-unit-test.yaml
@@ -143,7 +142,6 @@ jobs:
     name: CodeCov
     permissions:
       contents: read
-      actions: read
       checks: write # zxc-code-analysis.yaml publishes an E2E test report check run
       pull-requests: write # zxc-code-analysis.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-code-analysis.yaml
@@ -164,7 +162,6 @@ jobs:
     name: Codacy
     permissions:
       contents: read
-      actions: read
       checks: write # zxc-code-analysis.yaml publishes an E2E test report check run
       pull-requests: write # zxc-code-analysis.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-code-analysis.yaml
