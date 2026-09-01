@@ -337,7 +337,7 @@ jobs:
       - name: Install grpcurl
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.3
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@d00c28104be4b06f4dd887196ccfc57b054aa069 # v1.9.3
 
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
