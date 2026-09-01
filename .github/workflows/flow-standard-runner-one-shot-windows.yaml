@@ -237,6 +237,33 @@ jobs:
           }
           exit 0
 
+      - name: Install Ubuntu WSL distribution fallback
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        # Bypass setup-wsl's downloadTool path when the hosted tool cache is incomplete.
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $distributionName = 'Ubuntu-24.04'
+          $installedDistributions = @(wsl.exe --list --quiet 2>$null)
+          if ($installedDistributions -match [regex]::Escape($distributionName)) {
+            Write-Host "WSL distribution already installed: $distributionName"
+            exit 0
+          }
+
+          $installerPath = Join-Path $env:RUNNER_TEMP 'ubuntu-24.04.4-wsl-amd64.wsl'
+          $installerUri = 'https://releases.ubuntu.com/24.04.4/ubuntu-24.04.4-wsl-amd64.wsl'
+          Write-Host "Downloading Ubuntu installer from $installerUri"
+          Invoke-WebRequest -Uri $installerUri -OutFile $installerPath -UseBasicParsing
+          if (-not (Test-Path -LiteralPath $installerPath)) {
+            throw "Ubuntu installer was not downloaded: $installerPath"
+          }
+
+          Write-Host "Installing $distributionName from $installerPath"
+          & "$env:SystemRoot\System32\wsl.exe" --install --from-file $installerPath --no-launch --name $distributionName
+          if ($LASTEXITCODE -ne 0) {
+            throw "wsl.exe failed to install $distributionName with exit code $LASTEXITCODE"
+          }
+
       - name: Retry Setup WSL2
         if: ${{ steps.setup_wsl2.outcome == 'failure' }}
         # Retry once after removing the process and distribution left by the timed-out setup action.
