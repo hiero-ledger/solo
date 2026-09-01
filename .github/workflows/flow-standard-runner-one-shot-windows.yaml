@@ -124,11 +124,30 @@ jobs:
           task build:compile
 
       - name: Setup WSL2
+        id: setup_wsl2
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
         # container mode with no Docker Desktop to switch it. WSL2 + Docker inside it replicates
         # what Docker Desktop does for Windows users, exposing a Linux daemon via TCP.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        continue-on-error: true
         timeout-minutes: 10
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          use-cache: false
+          set-as-default: true
+          additional-packages: |
+            apt-transport-https
+            ca-certificates
+            curl
+            software-properties-common
+
+      - name: Retry Setup WSL2
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        # setup-wsl intermittently times out on hosted Windows runners while installing Ubuntu.
+        # Retry once to recover from transient host/network issues.
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        timeout-minutes: 15
         with:
           distribution: Ubuntu-24.04
           wsl-version: 2
