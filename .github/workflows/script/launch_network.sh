@@ -727,6 +727,44 @@ SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED=false
 #  4. Skip CN upgrade — leave consensus nodes on the source version and continue covering
 #                      Solo/component migration behavior until CN issue #26498 is fixed.
 
+# hiero-consensus-node#26918 replaced the block root hash with a fixed 16-slot merkle tree. The
+# consensus node produces that shape from the v0.77 line and the block node verifies it from 0.41.0.
+# A pre-boundary producer streaming to a post-boundary verifier (or the reverse) is rejected with
+# BAD_BLOCK_PROOF, which saturates the consensus node block buffer and stalls the network. Because
+# blockStream.writerMode is FILE_AND_GRPC here, the consensus node always publishes to the block
+# node, so the two must stay on the same side of the boundary.
+cn_uses_16_slot_block_proof() {
+  local version="${1#v}"
+  local major="${version%%.*}"
+  local minor="${version#*.}"
+  minor="${minor%%.*}"
+
+  (( major > 0 )) || (( minor >= 77 ))
+}
+
+bn_uses_16_slot_block_proof() {
+  local version="${1#v}"
+  local major="${version%%.*}"
+  local minor="${version#*.}"
+  minor="${minor%%.*}"
+
+  (( major > 0 )) || (( minor >= 41 ))
+}
+
+# The consensus node the block node has to interoperate with for the rest of this run.
+if [[ "${SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED}" == "true" ]]; then
+  EFFECTIVE_CONSENSUS_NODE_VERSION="${FROM_CONSENSUS_NODE_VERSION}"
+else
+  EFFECTIVE_CONSENSUS_NODE_VERSION="${TO_CONSENSUS_NODE_VERSION}"
+fi
+echo "Effective consensus node version for block node compatibility: ${EFFECTIVE_CONSENSUS_NODE_VERSION}"
+
+BLOCK_NODE_UPGRADE_CROSSES_PROOF_BOUNDARY=false
+if bn_uses_16_slot_block_proof "${CURRENT_BLOCK_VERSION}" &&
+  ! cn_uses_16_slot_block_proof "${EFFECTIVE_CONSENSUS_NODE_VERSION}"; then
+  BLOCK_NODE_UPGRADE_CROSSES_PROOF_BOUNDARY=true
+fi
+
 # Step 1: Upgrade BN while CN source version is running, unless the BN bypass is re-enabled.
 ACTIVE_BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION_NO_V}"
 if [[ "${SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED}" == "true" ]]; then
@@ -734,6 +772,18 @@ if [[ "${SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED}" == "true" ]]; then
   echo "Reason: hiero-block-node#3150 can make mirror importer reject live-stream batches starting with ROUND_HEADER."
   echo "Block node remains on ${PREV_BLOCK_VERSION_NO_V}; continuing component migration coverage."
   dump_bn_log "BN upgrade skipped due to hiero-block-node#3150"
+elif [[ "${BLOCK_NODE_UPGRADE_CROSSES_PROOF_BOUNDARY}" == "true" ]]; then
+  # Skipping keeps the block node on the same side of the boundary as the consensus node that will
+  # actually be running. Once the CN #26498 bypass above is lifted, do not simply re-enable this
+  # branch: move the BN upgrade into the CN stop/start seam below (between `consensus network
+  # upgrade --skip-node-start` and `consensus node start`) so both cross the boundary together
+  # while no consensus node is producing blocks.
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Skipping BN upgrade to ${CURRENT_BLOCK_VERSION}"
+  echo "Reason: BN ${CURRENT_BLOCK_VERSION} expects the 16-slot block root hash (hiero-consensus-node#26918)"
+  echo "but the consensus node stays on ${EFFECTIVE_CONSENSUS_NODE_VERSION}, which still produces the old shape."
+  echo "Upgrading would make BN reject every block with BAD_BLOCK_PROOF and stall the consensus node."
+  echo "Block node remains on ${PREV_BLOCK_VERSION_NO_V}; continuing component migration coverage."
+  dump_bn_log "BN upgrade skipped due to the 16-slot block proof boundary"
 elif [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   TEMP_BN_UPGRADE_VALUES_FILE="$(mktemp -t bn-upgrade-values-XXXX.yaml)"
   cat > "${TEMP_BN_UPGRADE_VALUES_FILE}" <<'VALS'

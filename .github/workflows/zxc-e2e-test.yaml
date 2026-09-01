@@ -328,16 +328,18 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          go-version: '1.22.3'
-
       - name: Install grpcurl
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+          # Pinned to an exact release and installed as a prebuilt binary. `go install ...@latest`
+          # broke when grpcurl v1.9.4 raised its minimum Go version above the pinned toolchain, and
+          # a floating version can break this job again with no change on our side. The prebuilt
+          # binary also removes the Go toolchain from this job entirely.
+          mkdir -p "${HOME}/.local/bin"
+          curl -sSLf "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" \
+            | tar -xz -C "${HOME}/.local/bin" grpcurl
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+          "${HOME}/.local/bin/grpcurl" -version
 
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

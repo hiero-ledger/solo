@@ -25,15 +25,16 @@ export const KUBECTL_VERSION: string = 'v1.32.2';
 export const CRANE_VERSION: string = 'v0.21.4';
 
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.66.0';
-export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.75.1';
-export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.161.0';
+export const HEDERA_PLATFORM_VERSION: string =
+  constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.77.0-rc.11';
+export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.162.0';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.2.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.78.1';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
 // If this version changes, regenerate test/data/proto.zip (see test/data/get-block.sh for steps) —
 // a stale vendored schema causes intermittent grpcurl unmarshal failures (see issue #5848).
-export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.40.1';
+export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.41.0';
 
 export const METALLB_CHART_VERSION: string = constants.getEnvironmentVariable('METALLB_CHART_VERSION') || '0.15.3';
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
@@ -88,6 +89,14 @@ export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';
 // Block node >= v0.39.0 serves health endpoints from a dedicated port (BLOCK_NODE_HEALTH_PORT)
 // rather than the gRPC port. The '-0' suffix makes pre-releases (e.g. v0.39.0-rc1) satisfy the check.
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT: string = 'v0.39.0-0';
+
+// hiero-consensus-node#26918 replaced the block root hash with a fixed 16-slot merkle tree. The
+// consensus node produces that shape from the v0.77 line and the block node verifies it from 0.41.0,
+// so a deployment must keep both on the same side of the boundary: a mismatch is rejected with
+// BAD_BLOCK_PROOF, which saturates the consensus node block buffer and stalls the network. The '-0'
+// suffix makes pre-releases (e.g. v0.77.0-rc.11) satisfy the check.
+export const MINIMUM_CN_VERSION_FOR_16_SLOT_BLOCK_PROOF: string = 'v0.77.0-0';
+export const MINIMUM_BLOCK_NODE_VERSION_FOR_16_SLOT_BLOCK_PROOF: string = 'v0.41.0-0';
 
 export function getSoloVersion(): Version {
   const __filename: string = fileURLToPath(import.meta.url);
