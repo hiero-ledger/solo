@@ -9,7 +9,9 @@
  *      imports the bundle
  *   3. All files under resources/, persist-port-forward.js, and solo-src-bundle.cjs are SEA assets
  *   4. node --experimental-sea-config generates the SEA blob from sea-main.cjs
- *   5. The current node binary is copied and the blob is injected via postject
+ *   5. The current node binary is copied and the blob is injected via postject's programmatic
+ *      API (not its CLI — `npx postject` resolves to npx.cmd on Windows, which execFileSync
+ *      cannot launch without a shell)
  *   6. On macOS the binary is re-signed with an ad-hoc signature
  *
  * Why dist/src/index.js (not dist/solo.js)?
@@ -40,6 +42,8 @@ import {execFileSync} from 'node:child_process';
 import {copyFileSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
+// postject ships no type declarations; tsconfig.json has "strict": false, so this resolves to `any`.
+import {inject as postjectInject} from 'postject';
 
 const SEA_DIR: string = path.dirname(fileURLToPath(import.meta.url));
 const ROOT: string = path.join(SEA_DIR, '..');
@@ -194,23 +198,15 @@ if (platform === 'darwin') {
   run('codesign', ['--remove-signature', binaryPath], 'Removing existing macOS signature');
 }
 
-// --sentinel-fuse is the fixed marker string Node.js embeds in its own binary at build time
+// The sentinel fuse is the fixed marker string Node.js embeds in its own binary at build time
 // (see NODE_SEA_FUSE in Node's deps/v8 fuse.h). postject searches the copied node binary for
 // this exact byte sequence and flips a bit next to it once the blob is injected — that bit is
 // what makes sea.isSea() (node:sea) and Node's SEA bootstrap return true at runtime. The value
 // is Node's own constant, not something generated per build, so it must not change.
-const postjectArguments: string[] = [
-  'postject',
-  binaryPath,
-  'NODE_SEA_BLOB',
-  blobPath,
-  '--sentinel-fuse',
-  'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
-];
-if (platform === 'darwin') {
-  postjectArguments.push('--macho-segment-name', 'NODE_SEA');
-}
-run('npx', postjectArguments, 'Injecting SEA blob via postject');
+await postjectInject(binaryPath, 'NODE_SEA_BLOB', readFileSync(blobPath), {
+  sentinelFuse: 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
+  ...(platform === 'darwin' ? {machoSegmentName: 'NODE_SEA'} : {}),
+});
 
 if (platform === 'darwin') {
   run('codesign', ['--sign', '-', binaryPath], 'Re-signing for macOS (ad-hoc)');
