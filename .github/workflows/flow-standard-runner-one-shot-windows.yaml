@@ -127,12 +127,15 @@ jobs:
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
         # container mode with no Docker Desktop to switch it. WSL2 + Docker inside it replicates
         # what Docker Desktop does for Windows users, exposing a Linux daemon via TCP.
+        # use-cache is enabled so the distribution installer is cached across runs via
+        # actions/cache instead of re-downloaded every time — this workflow was intermittently
+        # timing out on the fresh download from a shared runner's network.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         timeout-minutes: 10
         with:
           distribution: Ubuntu-24.04
           wsl-version: 2
-          use-cache: false
+          use-cache: true
           set-as-default: true
           additional-packages: |
             apt-transport-https
