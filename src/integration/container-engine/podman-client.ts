@@ -136,6 +136,7 @@ export class PodmanClient {
         commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
         environmentVariablesToAppend: this.containerConfigEnvironment(),
         timeoutMs: PodmanClient.CONTAINER_ENGINE_PROBE_TIMEOUT_MS,
+        bestEffort: true,
       });
       return true;
     } catch (error) {

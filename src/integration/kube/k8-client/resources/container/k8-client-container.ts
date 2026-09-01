@@ -82,6 +82,7 @@ export class K8ClientContainer implements Container {
         constants.KUBECTL,
         fullArguments,
         {
+          shell: false,
           env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL, {
             PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`,
           }),
