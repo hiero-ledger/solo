@@ -43,6 +43,8 @@ concurrency:
 env:
   STEP_TIMEOUT_MINUTES: '5'
   DOCKER_HOST: tcp://localhost:2375
+  ACTIONS_STEP_DEBUG: 'true'
+  ACTIONS_RUNNER_DEBUG: 'true'
 
 jobs:
   standard-runner-one-shot-windows:
@@ -144,6 +146,61 @@ jobs:
             ca-certificates
             curl
             software-properties-common
+
+      - name: Capture WSL2 diagnostics after setup failure
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          $diagnosticsDirectory = Join-Path $env:RUNNER_TEMP 'wsl-diagnostics'
+          New-Item -ItemType Directory -Path $diagnosticsDirectory -Force | Out-Null
+
+          Write-Host '::group::WSL processes'
+          Get-Process -Name wsl,wslhost,vmmemWSL -ErrorAction SilentlyContinue |
+            Select-Object Id,ProcessName,StartTime,CPU,Responding |
+            Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'processes.txt')
+          Write-Host '::endgroup::'
+
+          Write-Host '::group::WSL services'
+          Get-Service -Name WslService,LxssManager -ErrorAction SilentlyContinue |
+            Select-Object Name,Status,StartType |
+            Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'services.txt')
+          Write-Host '::endgroup::'
+
+          function Invoke-WslDiagnostic {
+            param(
+              [string]$Name,
+              [string[]]$Arguments
+            )
+
+            $outputPath = Join-Path $diagnosticsDirectory "$Name.txt"
+            $errorPath = Join-Path $diagnosticsDirectory "$Name.error.txt"
+            $wslProcess = Start-Process -FilePath "$env:SystemRoot\System32\wsl.exe" -ArgumentList $Arguments `
+              -NoNewWindow -PassThru -RedirectStandardOutput $outputPath -RedirectStandardError $errorPath
+            if (-not $wslProcess.WaitForExit(10000)) {
+              Write-Warning "wsl.exe $Name did not exit within 10 seconds; terminating it."
+              Stop-Process -Id $wslProcess.Id -Force -ErrorAction SilentlyContinue
+            }
+            Write-Host "::group::wsl.exe $Name"
+            Get-Content -Path $outputPath,$errorPath -ErrorAction SilentlyContinue
+            Write-Host '::endgroup::'
+          }
+
+          Invoke-WslDiagnostic -Name 'status' -Arguments @('--status')
+          Invoke-WslDiagnostic -Name 'version' -Arguments @('--version')
+          Invoke-WslDiagnostic -Name 'list' -Arguments @('--list','--all','--verbose')
+
+          Write-Host '::group::Recent WSL-related system events'
+          Get-WinEvent -FilterHashtable @{
+            LogName = 'System'
+            StartTime = (Get-Date).AddMinutes(-15)
+          } -ErrorAction SilentlyContinue |
+            Where-Object ProviderName -Match 'Lxss|Wsl|Hyper-V' |
+            Select-Object TimeCreated,ProviderName,Id,LevelDisplayName,Message |
+            Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'system-events.txt') |
+            Format-List
+          Write-Host '::endgroup::'
 
       - name: Recover incomplete WSL2 installation
         if: ${{ steps.setup_wsl2.outcome == 'failure' }}
@@ -312,6 +369,10 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          path: C:\Users\runneradmin\.solo\logs # bug in actions/upload-artifact on Windows prevents using %USERPROFILE% or ~, must hardcode full path
+          # upload-artifact on Windows cannot expand %USERPROFILE% or ~, so keep the existing
+          # hardcoded Solo log path and add the runner diagnostics directory separately.
+          path: |
+            C:\Users\runneradmin\.solo\logs
+            ${{ runner.temp }}\wsl-diagnostics
           overwrite: true
           if-no-files-found: warn
