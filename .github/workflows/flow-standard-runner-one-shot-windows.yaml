@@ -120,6 +120,28 @@ jobs:
         run: |
           task build:compile
 
+      - name: Validate Ubuntu WSL cache
+        shell: pwsh
+        timeout-minutes: 1
+        run: |
+          $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE 'Ubuntu\24.4.4\x64'
+          $installerPath = Join-Path $cacheDirectory 'ubuntu-24.04.4-wsl-amd64.wsl'
+          $completeMarker = Join-Path $cacheDirectory '.complete'
+          $valid = (
+            (Test-Path -LiteralPath $installerPath) -and
+            (Test-Path -LiteralPath $completeMarker) -and
+            ((Get-Item -LiteralPath $installerPath).Length -gt 100MB)
+          )
+
+          if ($valid) {
+            Write-Host "Ubuntu WSL cache is valid: $installerPath"
+          } elseif (Test-Path -LiteralPath $cacheDirectory) {
+            Write-Warning "Removing incomplete Ubuntu WSL cache: $cacheDirectory"
+            Remove-Item -LiteralPath $cacheDirectory -Recurse -Force
+          } else {
+            Write-Host "Ubuntu WSL cache is not present; setup-wsl will download it."
+          }
+
       - name: Setup WSL2
         id: setup_wsl2
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
