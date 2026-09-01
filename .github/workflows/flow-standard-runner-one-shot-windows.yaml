@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Windows One-Shot Deploy and Destroy"
+name: 'Windows One-Shot Deploy and Destroy'
 # Compatibility gate: verifies that Solo one-shot deploy continues to work on native Windows.
 # Solo runs natively in PowerShell on a standard GitHub-hosted Windows runner.
 # Docker runs inside WSL2 (replicating how Docker Desktop works for Windows users) and is
@@ -130,10 +130,13 @@ jobs:
         # what Docker Desktop does for Windows users, exposing a Linux daemon via TCP.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         continue-on-error: true
-        timeout-minutes: 10
+        # A healthy setup completes in about one minute. Bound a stalled action so the
+        # recovery path can run instead of consuming the previous ten-minute timeout.
+        timeout-minutes: 3
         with:
           distribution: Ubuntu-24.04
           wsl-version: 2
+          # The setup-wsl cache has hung on hosted runners while resolving this distribution.
           use-cache: false
           set-as-default: true
           additional-packages: |
@@ -142,12 +145,27 @@ jobs:
             curl
             software-properties-common
 
+      - name: Recover incomplete WSL2 installation
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        shell: pwsh
+        # The timed-out action can leave its wsl.exe child process and a partially registered
+        # distribution behind. Remove both before retrying the installation from a clean state.
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          Get-Process -Name wsl -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          wsl --shutdown
+          wsl --unregister Ubuntu-24.04
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Ubuntu-24.04 was not registered after the failed installation.'
+          }
+          exit 0
+
       - name: Retry Setup WSL2
         if: ${{ steps.setup_wsl2.outcome == 'failure' }}
-        # setup-wsl intermittently times out on hosted Windows runners while installing Ubuntu.
-        # Retry once to recover from transient host/network issues.
+        # Retry once after removing the process and distribution left by the timed-out setup action.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
-        timeout-minutes: 15
+        timeout-minutes: 5
         with:
           distribution: Ubuntu-24.04
           wsl-version: 2
