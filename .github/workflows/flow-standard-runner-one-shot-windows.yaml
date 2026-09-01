@@ -250,8 +250,8 @@ jobs:
             exit 0
           }
 
-          Write-Host "Installing $distributionName through the WSL distribution channel"
-          & "$env:SystemRoot\System32\wsl.exe" --install --distribution $distributionName --no-launch
+          Write-Host "Installing $distributionName through WSL web download"
+          & "$env:SystemRoot\System32\wsl.exe" --install --web-download --distribution $distributionName --no-launch
           if ($LASTEXITCODE -ne 0) {
             throw "wsl.exe failed to install $distributionName with exit code $LASTEXITCODE"
           }
