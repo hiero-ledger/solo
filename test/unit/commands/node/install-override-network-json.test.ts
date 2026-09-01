@@ -3,6 +3,8 @@
 import {describe, it, afterEach} from 'mocha';
 import {expect} from 'chai';
 import sinon from 'sinon';
+import fs from 'node:fs';
+import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {ConsensusNodePathTemplates} from '../../../../src/core/consensus-node-path-templates.js';
@@ -82,7 +84,24 @@ describe('installOverrideNetworkJson', (): void => {
       {name: 'node1', nodeId: 0, cluster: 'cluster-1', context: 'context-1'},
     ]);
     // A defined output directory, not config.stagingDir, which `node start` never populates.
-    expect(generate.firstCall.args[3]).to.equal(constants.SOLO_CACHE_DIR);
+    const outputDirectory: string = generate.firstCall.args[3] as string;
+    expect(outputDirectory).to.match(/[/\\]override-network-[^/\\]+$/);
+    expect(PathEx.dirname(outputDirectory)).to.equal(constants.SOLO_CACHE_DIR);
+  });
+
+  it('writes to a directory of its own, so concurrent transplants cannot cross rosters', async (): Promise<void> => {
+    await runTask(tasks);
+    const first: string = generateStub(tasks).firstCall.args[3] as string;
+
+    container = {execContainer: sinon.stub().resolves(), copyTo: sinon.stub().resolves()};
+    tasks = createTasks(container);
+    await runTask(tasks);
+    const second: string = generateStub(tasks).firstCall.args[3] as string;
+
+    expect(second).to.not.equal(first);
+    // The directory only has to outlive the copy into each pod.
+    expect(fs.existsSync(first), 'the temporary directory should be removed once the copies are done').to.be.false;
+    expect(fs.existsSync(second), 'the temporary directory should be removed once the copies are done').to.be.false;
   });
 
   it('places it where the consensus node looks for it', async (): Promise<void> => {

@@ -1768,31 +1768,39 @@ export class NodeCommandTasks {
     return {
       title: 'Install override-network.json',
       task: async ({config}): Promise<void> => {
-        // Written to the cache rather than the staging directory: `node start` does not take the flags that
-        // populate `config.stagingDir`, so it is undefined here. The file only has to exist long enough to
-        // be copied into each pod.
-        const overrideNetworkJson: string = await this.generateNetworkJson(
-          constants.OVERRIDE_NETWORK_FILE,
-          config.namespace,
-          config.consensusNodes,
-          constants.SOLO_CACHE_DIR,
-        );
+        // Written under the cache rather than the staging directory: `node start` does not take the flags
+        // that populate `config.stagingDir`, so it is undefined here. A unique directory per invocation
+        // keeps two concurrent transplants under the same SOLO_HOME from reading each other's roster.
+        fs.mkdirSync(constants.SOLO_CACHE_DIR, {recursive: true});
+        const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(constants.SOLO_CACHE_DIR, 'override-network-'));
 
-        for (const nodeAlias of config.nodeAliases) {
-          const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const container: Container = this.k8Factory
-            .getK8(kubeContext)
-            .containers()
-            .readByRef(ContainerReference.of(config.podRefs[nodeAlias], constants.ROOT_CONTAINER));
+        try {
+          const overrideNetworkJson: string = await this.generateNetworkJson(
+            constants.OVERRIDE_NETWORK_FILE,
+            config.namespace,
+            config.consensusNodes,
+            temporaryDirectory,
+          );
 
-          await container.copyTo(overrideNetworkJson, ConsensusNodePathTemplates.DATA_CONFIG);
+          for (const nodeAlias of config.nodeAliases) {
+            const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+            const container: Container = this.k8Factory
+              .getK8(kubeContext)
+              .containers()
+              .readByRef(ContainerReference.of(config.podRefs[nodeAlias], constants.ROOT_CONTAINER));
 
-          // copyTo lands the file as root; the node runs as hedera and would otherwise be denied access.
-          await container.execContainer([
-            'bash',
-            '-c',
-            `chown hedera:hedera ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}`,
-          ]);
+            await container.copyTo(overrideNetworkJson, ConsensusNodePathTemplates.DATA_CONFIG);
+
+            // copyTo lands the file as root; the node runs as hedera and would otherwise be denied access.
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${ConsensusNodePathTemplates.OVERRIDE_NETWORK_JSON}`,
+            ]);
+          }
+        } finally {
+          // The file only has to exist long enough to be copied into each pod.
+          fs.rmSync(temporaryDirectory, {force: true, recursive: true});
         }
       },
       skip,
@@ -2198,16 +2206,6 @@ export class NodeCommandTasks {
     fs.writeFileSync(nodeOverridesYaml, nodeOverridesModel.toYAML());
   }
 
-  /**
-   * Generate genesis network json file
-   * @param namespace - namespace
-   * @param consensusNodes - consensus nodes
-   * @param keysDirectory - keys directory
-   * @param stagingDirectory - staging directory
-   * @param domainNamesMapping
-   * @param gossipEndpointPortMapping - port overrides for the gossip endpoints
-   * @param serviceEndpointPortMapping - port overrides for the gRPC service endpoints
-   */
   /**
    * Writes the address book describing the network as it exists right now — endpoints, admin keys and
    * weights are read from the live remote config and service map, so the result reflects any nodes added or

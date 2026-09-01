@@ -25,11 +25,6 @@
     "local-java-build": false
   },
   {
-    "name": "State Transplant",
-    "directory": "state-transplant",
-    "local-java-build": false
-  },
-  {
     "name": "One Shot Local Build",
     "directory": "one-shot-local-build",
     "local-java-build": true

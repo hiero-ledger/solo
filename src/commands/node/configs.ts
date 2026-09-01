@@ -602,6 +602,13 @@ export class NodeCommandConfigs {
       'consensusNodes',
       'contexts',
     ]) as NodeStartConfigClass;
+
+    // A transplant replaces the roster carried by a state captured elsewhere; with no state file there is
+    // nothing to transplant, and the flag would otherwise be dropped without the start ever reporting it.
+    if (context_.config.transplant && context_.config.stateFile.length === 0) {
+      throw new SoloErrors.validation.transplantRequiresStateFile();
+    }
+
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
