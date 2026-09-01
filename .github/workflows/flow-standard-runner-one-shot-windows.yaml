@@ -250,16 +250,8 @@ jobs:
             exit 0
           }
 
-          $installerPath = Join-Path $env:RUNNER_TEMP 'ubuntu-24.04.4-wsl-amd64.wsl'
-          $installerUri = 'https://releases.ubuntu.com/24.04.4/ubuntu-24.04.4-wsl-amd64.wsl'
-          Write-Host "Downloading Ubuntu installer from $installerUri"
-          Invoke-WebRequest -Uri $installerUri -OutFile $installerPath -UseBasicParsing
-          if (-not (Test-Path -LiteralPath $installerPath)) {
-            throw "Ubuntu installer was not downloaded: $installerPath"
-          }
-
-          Write-Host "Installing $distributionName from $installerPath"
-          & "$env:SystemRoot\System32\wsl.exe" --install --from-file $installerPath --no-launch --name $distributionName
+          Write-Host "Installing $distributionName through the WSL distribution channel"
+          & "$env:SystemRoot\System32\wsl.exe" --install --distribution $distributionName --no-launch
           if ($LASTEXITCODE -ne 0) {
             throw "wsl.exe failed to install $distributionName with exit code $LASTEXITCODE"
           }
