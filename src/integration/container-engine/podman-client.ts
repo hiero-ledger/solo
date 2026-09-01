@@ -11,6 +11,7 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {PodmanDependencyManager} from '../../core/dependency-managers/podman-dependency-manager.js';
 import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
+import {KindProviderResolver} from './kind-provider-resolver.js';
 
 @injectable()
 export class PodmanClient {
@@ -34,18 +35,6 @@ export class PodmanClient {
       .containerConfigEnvironment();
   }
 
-  /**
-   * The kind provider in effect for this solo invocation: the session value set when solo
-   * configures kind to use podman, falling back to a user-provided `KIND_EXPERIMENTAL_PROVIDER`
-   * environment variable.
-   */
-  public static kindProvider(): string | undefined {
-    return (
-      SubprocessEnvironment.sessionVariable('KIND_EXPERIMENTAL_PROVIDER') ??
-      constants.getEnvironmentVariable('KIND_EXPERIMENTAL_PROVIDER')
-    );
-  }
-
   public async getKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
     const detectedCommand: ContainerEngineCommand | undefined = this.podmanUnavailable
       ? undefined
@@ -55,7 +44,7 @@ export class PodmanClient {
       return detectedCommand;
     }
 
-    if (PodmanClient.kindProvider() === constants.PODMAN) {
+    if (KindProviderResolver.current() === constants.PODMAN) {
       return PodmanClient.podmanCommand();
     }
 

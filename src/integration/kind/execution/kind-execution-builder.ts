@@ -7,7 +7,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {ExecutionBuilder} from '../../execution-builder.js';
 import {SubprocessEnvironment} from '../../../core/subprocess-environment.js';
 import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
-import {SoloErrors} from '../../../core/errors/solo-errors.js';
 
 /**
  * A builder for creating a kind command execution.
@@ -36,11 +35,6 @@ export class KindExecutionBuilder extends ExecutionBuilder {
    * The list of options and a list of their one or more values.
    */
   private readonly _optionsWithMultipleValues: Array<{key: string; value: string[]}> = [];
-
-  /**
-   * The flags to be passed to the kind command.
-   */
-  private readonly _flags: string[] = [];
 
   /**
    * The positional arguments to be passed to the kind command.
@@ -148,23 +142,6 @@ export class KindExecutionBuilder extends ExecutionBuilder {
       throw new Error(KindExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
     this._environmentVariables.set(name, value);
-    return this;
-  }
-
-  /**
-   * Adds a flag to the kind execution.
-   * @param flag the flag to be added; must start with `-` (e.g. `--retain`), because kind
-   *   silently treats a bare word as a positional argument instead of an option
-   * @returns this builder
-   */
-  public flag(flag: string): KindExecutionBuilder {
-    if (!flag) {
-      throw new Error('flag must not be null');
-    }
-    if (!flag.startsWith('-')) {
-      throw new SoloErrors.validation.illegalArgument('flag must start with "-"', flag);
-    }
-    this._flags.push(flag);
     return this;
   }
 

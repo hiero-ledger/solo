@@ -12,7 +12,7 @@ import {SubprocessEnvironment} from '../../../../src/core/subprocess-environment
 describe('BrewPackageManager', (): void => {
   afterEach((): void => {
     sinon.restore();
-    SubprocessEnvironment.clearSessionState();
+    SubprocessEnvironment.resetForTesting();
   });
 
   it('install registers the brew shellenv variables and PATH directories as session state', async (): Promise<void> => {

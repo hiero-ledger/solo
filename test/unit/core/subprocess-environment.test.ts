@@ -205,7 +205,7 @@ describe('SubprocessEnvironment', (): void => {
 
   describe('session environment state', (): void => {
     afterEach((): void => {
-      SubprocessEnvironment.clearSessionState();
+      SubprocessEnvironment.resetForTesting();
     });
 
     it('forwards a session variable only to profiles whose allowlist includes it', (): void => {
@@ -227,6 +227,14 @@ describe('SubprocessEnvironment', (): void => {
       expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL).KUBECONFIG).to.equal(
         '/solo/kubeconfig',
       );
+    });
+
+    it('rejects PATH as a session variable regardless of casing', (): void => {
+      for (const name of ['PATH', 'Path', 'path']) {
+        expect((): void => SubprocessEnvironment.setSessionVariable(name, '/custom/bin'), name).to.throw(
+          'PATH must be registered with prependSessionPath/appendSessionPath',
+        );
+      }
     });
 
     it('exposes session variables through the sessionVariable getter', (): void => {

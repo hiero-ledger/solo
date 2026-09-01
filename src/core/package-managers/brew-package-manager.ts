@@ -110,12 +110,11 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
   }
 
   /**
-   * Registers the new directories from a shellenv `PATH` value (the brew bin/sbin directories it
-   * prepends to the inherited `PATH`) as session path prepends, preserving their order. brew
-   * hardcodes `:` as the separator, and this flow only runs on Linux.
+   * Registers the new directories from a shellenv `PATH` value as session path prepends, preserving
+   * order. The brew value is split on the `:` brew hardcodes; this flow only runs on Linux.
    */
   private static registerPathAdditions(pathValue: string): void {
-    const currentSegments: Set<string> = new Set<string>(SubprocessEnvironment.currentPath().split(':'));
+    const currentSegments: Set<string> = new Set<string>(SubprocessEnvironment.currentPath().split(PathEx.delimiter));
     const newSegments: string[] = pathValue
       .split(':')
       .filter((segment: string): boolean => Boolean(segment) && !currentSegments.has(segment));

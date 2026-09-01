@@ -172,7 +172,7 @@ describe('PodmanDependencyManager', (): void => {
     });
 
     afterEach((): void => {
-      SubprocessEnvironment.clearSessionState();
+      SubprocessEnvironment.resetForTesting();
     });
 
     it('should register CONTAINERS_CONF as session state instead of mutating process.env', async (): Promise<void> => {
