@@ -168,6 +168,19 @@ jobs:
             Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'services.txt')
           Write-Host '::endgroup::'
 
+          Write-Host '::group::Ubuntu installer cache'
+          $installerCacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE 'Ubuntu\24.4.4\x64'
+          $installerPath = Join-Path $installerCacheDirectory 'ubuntu-24.04.4-wsl-amd64.wsl'
+          if (Test-Path -LiteralPath $installerPath) {
+            Get-Item -LiteralPath $installerPath |
+              Select-Object FullName,Length,LastWriteTime |
+              Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'installer-cache.txt')
+          } else {
+            Write-Warning "Ubuntu installer is missing: $installerPath"
+            "Missing: $installerPath" | Set-Content -Path (Join-Path $diagnosticsDirectory 'installer-cache.txt')
+          }
+          Write-Host '::endgroup::'
+
           function Invoke-WslDiagnostic {
             param(
               [string]$Name,
@@ -215,6 +228,12 @@ jobs:
           wsl --unregister Ubuntu-24.04
           if ($LASTEXITCODE -ne 0) {
             Write-Warning 'Ubuntu-24.04 was not registered after the failed installation.'
+          }
+          $installerCacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE 'Ubuntu\24.4.4\x64'
+          $installerPath = Join-Path $installerCacheDirectory 'ubuntu-24.04.4-wsl-amd64.wsl'
+          if ((Test-Path -LiteralPath $installerCacheDirectory) -and -not (Test-Path -LiteralPath $installerPath)) {
+            Write-Warning "Removing incomplete Ubuntu installer cache: $installerCacheDirectory"
+            Remove-Item -LiteralPath $installerCacheDirectory -Recurse -Force -ErrorAction SilentlyContinue
           }
           exit 0
 
