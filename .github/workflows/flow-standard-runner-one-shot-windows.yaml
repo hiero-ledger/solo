@@ -52,11 +52,6 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
-        with:
-          egress-policy: audit
-
       - name: Windows Diagnostics
         shell: pwsh
         timeout-minutes: 5
@@ -271,6 +266,11 @@ jobs:
             ca-certificates
             curl
             software-properties-common
+
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
 
       - name: Restart WSL
         run: wsl --shutdown
