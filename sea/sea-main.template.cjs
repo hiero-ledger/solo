@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 'use strict';
 // SEA bootstrap — synchronous CJS; sets env vars and extracts assets before loading solo.
 // NOTE: require() in SEA mode is restricted to Node.js built-ins; use import() for files.
@@ -7,7 +8,8 @@
 // build-time values via a plain string substitution, then writes the result to
 // sea/dist/sea-main.cjs, which is what Node.js actually executes from the SEA blob. Keeping
 // this logic in its own .cjs file (instead of a template literal inside build.ts) gives it
-// normal editor syntax highlighting, linting, and IDE navigation.
+// normal editor syntax highlighting and IDE navigation. It is NOT linted: eslint.config.mjs
+// globally ignores '**/*.*js', so `task check` never runs eslint over this file.
 const sea = require('node:sea');
 const os = require('os');
 const path = require('path');
@@ -38,12 +40,7 @@ if (sea.isSea()) {
 
   if (needsExtraction) {
     for (const key of SOLO_SEA_ASSET_KEYS) {
-      let data;
-      try {
-        data = sea.getAsset(key);
-      } catch {
-        continue;
-      }
+      const data = sea.getAsset(key);
       const destPath = path.join(seaRoot, key);
       fs.mkdirSync(path.dirname(destPath), {recursive: true});
       fs.writeFileSync(destPath, Buffer.from(data));
@@ -63,28 +60,7 @@ if (sea.isSea()) {
 import(bundleFileUrl)
   .then(function (mod) {
     const soloModule = mod.default || mod;
-
-    // Run the solo CLI. async IIFE keeps this CJS-compatible (no top-level await).
-    void (async function () {
-      const context = {logger: undefined};
-
-      await soloModule.main(process.argv, context).catch(function (error) {
-        // SilentBreak / UserBreak are solo's clean-exit signals (--help, --version, user ^C).
-        // The DI ErrorHandler swallows them; replicate that here so the exit code stays 0.
-        const name = (error && (error.name || (error.constructor && error.constructor.name))) || '';
-        if (name === 'SilentBreak' || name === 'UserBreak') return;
-        process.exitCode = 1;
-        console.error(error);
-      });
-
-      if (context.logger && typeof context.logger.flush === 'function') {
-        context.logger.flush(function () {
-          process.exit(process.exitCode ?? 0);
-        });
-      } else {
-        process.exit(process.exitCode ?? 0);
-      }
-    })();
+    return soloModule.CliBootstrap.run(process.argv, soloModule.main);
   })
   .catch(function (error) {
     process.exitCode = 1;

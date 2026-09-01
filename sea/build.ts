@@ -5,7 +5,8 @@
  *
  * Pipeline:
  *   1. esbuild bundles dist/src/index.js (exports main(), no top-level await) into a CJS file
- *   2. A generated CJS SEA entry (sea-main.cjs) bootstraps synchronously, then requires the bundle
+ *   2. A generated CJS SEA entry (sea-main.cjs) bootstraps synchronously, then dynamically
+ *      imports the bundle
  *   3. All files under resources/, persist-port-forward.js, and solo-src-bundle.cjs are SEA assets
  *   4. node --experimental-sea-config generates the SEA blob from sea-main.cjs
  *   5. The current node binary is copied and the blob is injected via postject
@@ -21,8 +22,10 @@
  *   sea-main.cjs (the SEA main script, embedded in the blob) runs synchronously:
  *     1. Sets SOLO_SEA_VERSION and SOLO_SEA_ROOT_DIR env vars
  *     2. Extracts all SEA assets (including solo-src-bundle.cjs) to ~/.solo/sea-resources/<ver>/
- *     3. Calls require(seaRoot/solo-src-bundle.cjs) — synchronous CJS
- *     4. Calls main() inside an async IIFE (no top-level await needed in CJS)
+ *     3. Calls import(seaRoot/solo-src-bundle.cjs) — Node's SEA require() override only allows
+ *        built-in modules, so the bootstrap uses the async module loader instead
+ *     4. Delegates to the bundle's exported CliBootstrap.run() (shared with solo.ts) to invoke
+ *        main() and handle errors/exit
  *   constants.ts reads SOLO_SEA_ROOT_DIR (set before require()) for ROOT_DIR.
  *   version.ts reads SOLO_SEA_VERSION (set before require()) for getSoloVersion().
  *
@@ -32,9 +35,8 @@
  * Or via:   task sea:build   (which ensures build:compile ran first)
  */
 
-// eslint-disable-next-line n/no-unpublished-import
 import * as esbuild from 'esbuild';
-import {execSync} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 import {copyFileSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -59,12 +61,9 @@ const blobPath: string = path.join(BUILD_DIR, 'sea-prep.blob');
 const configPath: string = path.join(BUILD_DIR, 'sea-config.json');
 const binaryPath: string = path.join(BUILD_DIR, binaryName);
 
-/** Wraps a path in double quotes for safe shell interpolation on all platforms. */
-const quotePath: (filePath: string) => string = (filePath: string): string => `"${filePath}"`;
-
-function run(cmd: string, label: string): void {
+function run(command: string, commandArguments: string[], label: string): void {
   console.log(`\n▶ ${label}`);
-  execSync(cmd, {stdio: 'inherit'});
+  execFileSync(command, commandArguments, {stdio: 'inherit'});
 }
 
 /** Recursively collect all files under a directory, returning paths relative to a base directory. */
@@ -79,6 +78,20 @@ function collectFiles(directory: string, baseDirectory: string): string[] {
     }
   }
   return results;
+}
+
+// SEA requires a Node.js build with the feature compiled in. Homebrew's `node` formula (and
+// other --shared builds) has it disabled, so `node --experimental-sea-config` hard-fails there.
+// Skip with a warning instead of failing the whole build on such a Node
+const seaSupported: boolean =
+  (process.config.variables as {single_executable_application?: boolean}).single_executable_application === true;
+if (!seaSupported) {
+  console.warn(
+    '\n⚠ Skipping SEA build: this Node.js build has the single-executable-application feature ' +
+      "disabled. Use an official Node.js build (nodejs.org, nvm, 'fnm) to produce a binary.\n',",
+  );
+  // eslint-disable-next-line unicorn/no-process-exit, n/no-process-exit
+  process.exit(0);
 }
 
 console.log(`\nBuilding Solo SEA binary v${version} for ${platform}/${arch}: ${binaryName}`);
@@ -144,8 +157,8 @@ const buildId: string = `${version}-${Date.now()}`;
 // Step 3: generate the CJS SEA entry script from sea-main.template.cjs.
 // sea-main.cjs is what Node.js executes from the SEA blob. It:
 //   - Bootstraps synchronously (sets env vars, extracts assets)
-//   - Requires solo-src-bundle.cjs from the extracted seaRoot
-//   - Calls soloModule.main() inside an async IIFE (CJS-compatible, no top-level await)
+//   - Dynamically imports solo-src-bundle.cjs from the extracted seaRoot
+//   - Delegates to the bundle's exported CliBootstrap.run() to invoke main() and handle errors/exit
 // Note: Node.js SEA overrides require() to allow only built-in modules (embedderRequire).
 // Any non-built-in path passed to require() throws ERR_UNKNOWN_BUILTIN_MODULE.
 // Dynamic import() goes through the regular module loader and CAN load filesystem files,
@@ -168,32 +181,39 @@ const seaConfig: Record<string, unknown> = {
   assets: seaAssets,
   disableExperimentalSEAWarning: true,
   useSnapshot: false,
-  useCodeCache: true,
+  useCodeCache: false,
 };
 writeFileSync(configPath, JSON.stringify(seaConfig, undefined, 2));
 
-run(`node --experimental-sea-config ${quotePath(configPath)}`, 'Generating SEA blob');
+run('node', ['--experimental-sea-config', configPath], 'Generating SEA blob');
 
 copyFileSync(process.execPath, binaryPath);
 console.log(`\n▶ Copied node binary → ${binaryName}`);
 
 if (platform === 'darwin') {
-  run(`codesign --remove-signature ${quotePath(binaryPath)}`, 'Removing existing macOS signature');
+  run('codesign', ['--remove-signature', binaryPath], 'Removing existing macOS signature');
 }
 
-const machoFlag: string = platform === 'darwin' ? '--macho-segment-name NODE_SEA' : '';
 // --sentinel-fuse is the fixed marker string Node.js embeds in its own binary at build time
 // (see NODE_SEA_FUSE in Node's deps/v8 fuse.h). postject searches the copied node binary for
 // this exact byte sequence and flips a bit next to it once the blob is injected — that bit is
-// what makes process.sea.isSea() (and Node's SEA bootstrap) return true at runtime. The value
+// what makes sea.isSea() (node:sea) and Node's SEA bootstrap return true at runtime. The value
 // is Node's own constant, not something generated per build, so it must not change.
-run(
-  `npx postject ${quotePath(binaryPath)} NODE_SEA_BLOB ${quotePath(blobPath)} --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 ${machoFlag}`,
-  'Injecting SEA blob via postject',
-);
+const postjectArguments: string[] = [
+  'postject',
+  binaryPath,
+  'NODE_SEA_BLOB',
+  blobPath,
+  '--sentinel-fuse',
+  'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
+];
+if (platform === 'darwin') {
+  postjectArguments.push('--macho-segment-name', 'NODE_SEA');
+}
+run('npx', postjectArguments, 'Injecting SEA blob via postject');
 
 if (platform === 'darwin') {
-  run(`codesign --sign - ${quotePath(binaryPath)}`, 'Re-signing for macOS (ad-hoc)');
+  run('codesign', ['--sign', '-', binaryPath], 'Re-signing for macOS (ad-hoc)');
 }
 
 console.log(`\n✓ Solo SEA binary ready: sea/dist/${binaryName}\n`);

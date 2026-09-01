@@ -99,19 +99,28 @@ jobs:
       - name: Build SEA Binary
         run: npx tsx sea/build.ts
 
-      - name: Smoke Test — solo --help
-        # Verify the binary starts, resolves its embedded resources, and exits cleanly.
+      - name: Smoke Test — solo --help / --version
+        # Verify the binary starts, resolves its embedded resources, exits cleanly, and reports
+        # the version actually embedded at build time.
         shell: bash
         run: |
+          set -e
           if [[ "${{ matrix.platform }}" == "win32" ]]; then
             BIN=$(find sea/dist -name "solo-win32-*.exe" | head -1)
           else
             BIN=$(find sea/dist -name "solo-${{ matrix.platform }}-*" ! -name "*.blob" ! -name "*.cjs" ! -name "*.json" | head -1)
-            chmod +x "$BIN"
           fi
+          [[ -n "$BIN" ]] || { echo "no SEA binary found in sea/dist"; exit 1; }
+          [[ "${{ matrix.platform }}" == "win32" ]] || chmod +x "$BIN"
+
           echo "Running: $BIN --help"
           "$BIN" --help
-          echo "✓ Smoke test passed (exit code $?)"
+          echo "✓ --help exited 0"
+
+          EXPECTED=$(node -p "require('./package.json').version")
+          ACTUAL=$("$BIN" --version)
+          echo "$ACTUAL" | grep -q "$EXPECTED" || { echo "version mismatch: expected $EXPECTED, got: $ACTUAL"; exit 1; }
+          echo "✓ Smoke test passed (version $EXPECTED)"
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
