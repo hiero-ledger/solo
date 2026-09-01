@@ -1716,16 +1716,17 @@ export class NodeCommandTasks {
             `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
 
-          // Clean up old rounds - keep only the latest/biggest round
-          this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-
-          const cleanupScriptName: string = PathEx.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
-          const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
-
-          await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
-          await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
-          await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
-          await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
+          // TEST: state-round trimming (cleanup-state-rounds.sh) temporarily disabled to check
+          // whether it is still needed as a workaround for hiero-consensus-node#26299.
+          // this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
+          //
+          // const cleanupScriptName: string = PathEx.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+          // const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+          //
+          // await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
+          // await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+          // await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
+          // await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
           if (sourceNodeId !== targetNodeId) {
