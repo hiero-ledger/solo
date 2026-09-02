@@ -3205,6 +3205,7 @@ export class NodeCommandTasks {
                   'helm',
                   ['get', 'values', release.name, '-n', release.namespace, '--kube-context', context, '--all'],
                   {
+                    shell: false,
                     encoding: 'utf8',
                     cwd: process.cwd(),
                     maxBuffer: 1024 * 1024 * 10, // 10MB buffer
