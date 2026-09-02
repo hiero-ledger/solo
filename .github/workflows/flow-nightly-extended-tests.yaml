@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -83,7 +83,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -118,7 +118,7 @@ jobs:
         test: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -252,14 +252,16 @@ jobs:
     needs:
       - generate_matrix
     uses: ./.github/workflows/flow-one-shot-timing.yaml
-    secrets: inherit
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
   ledger-reset-warm-start-timing:
     name: Extended Test (ledger-reset-warm-start-timing)
     needs:
       - generate_matrix
     uses: ./.github/workflows/flow-ledger-reset-warm-start-timing.yaml
-    secrets: inherit
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
   flow-performance-test:
     name: Extended Test (flow-performance-test)
@@ -268,7 +270,8 @@ jobs:
       actions: read # flow-performance-test.yaml polls the current workflow run
     needs:
       - generate_matrix
+    # No `secrets:` block: this workflow only uses secrets.GITHUB_TOKEN, which GitHub provides to
+    # called workflows automatically and which cannot be passed explicitly.
     uses: ./.github/workflows/flow-performance-test.yaml
     with:
       cn-edge-version: v0.75.1
-    secrets: inherit
