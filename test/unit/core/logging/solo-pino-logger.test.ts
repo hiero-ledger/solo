@@ -484,11 +484,20 @@ describe('SoloPinoLogger log destination preflight', (): void => {
 
   it('builds file streams when the destination is usable', (): void => {
     const home: string = mkdtempSync(PathEx.join(tmpdir(), 'solo-home-'));
+    // The rotating streams only exist on the non-CI branch; CI uses synchronous destinations and
+    // registers nothing to drain. Pin the branch rather than inheriting the runner's environment.
+    const originalCi: string | undefined = process.env.CI;
+    delete process.env.CI;
     try {
       const logger: SoloPinoLogger = new SoloPinoLogger('debug', true, new OneShotState(), home);
-      // Outside CI the rotating streams are registered, which only happens on the non-degraded path.
+      // Registered only on the non-degraded path, so this fails if the preflight starts rejecting.
       expect(internalsOf(logger).rotatingStreams).to.have.lengthOf(2);
     } finally {
+      if (originalCi === undefined) {
+        delete process.env.CI;
+      } else {
+        process.env.CI = originalCi;
+      }
       rmSync(home, {recursive: true, force: true});
     }
   });
