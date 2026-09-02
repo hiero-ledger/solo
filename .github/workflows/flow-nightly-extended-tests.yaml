@@ -37,8 +37,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: write
-  pull-requests: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -265,6 +263,9 @@ jobs:
 
   flow-performance-test:
     name: Extended Test (flow-performance-test)
+    permissions:
+      contents: read
+      actions: read # flow-performance-test.yaml polls the current workflow run
     needs:
       - generate_matrix
     uses: ./.github/workflows/flow-performance-test.yaml

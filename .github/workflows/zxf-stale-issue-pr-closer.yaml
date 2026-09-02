@@ -11,15 +11,16 @@ defaults:
     shell: bash
 
 permissions:
-  actions: write
-  issues: write
-  pull-requests: write
-  contents: write
+  contents: read
 
 jobs:
   stale-pull-requests:
     name: Stale Pull Requests
     runs-on: hiero-solo-linux-medium
+    permissions:
+      contents: write # actions/stale deletes the head branch (delete-branch: true)
+      pull-requests: write # actions/stale labels, comments on and closes pull requests
+      issues: write # actions/stale documents it for label mutation via the issues endpoint
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1

@@ -39,12 +39,7 @@ defaults:
     shell: bash
 
 permissions:
-  contents: write
-  packages: write
-  pages: write
-  id-token: write
-  issues: write
-  pull-requests: write
+  contents: read
 
 jobs:
   prepare-release:
@@ -213,6 +208,8 @@ jobs:
   create-github-release:
     name: 'Create GitHub Release'
     runs-on: hiero-solo-linux-medium
+    permissions:
+      contents: read # every write in this job authenticates with GH_ACCESS_TOKEN, not GITHUB_TOKEN
     if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' || needs.prepare-release.outputs.need-hg-release == 'true' }}
     needs:
       - prepare-release
@@ -538,6 +535,9 @@ jobs:
   publish-npm-packages:
     name: Publish Release Packages
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing (no NPM_TOKEN is configured)
     needs:
       - get-package-info
       - create-github-release
@@ -708,6 +708,10 @@ jobs:
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled
   hugo-docs-publish:
     name: Hugo Docs Publish
+    permissions:
+      contents: write # zxc-hugo-publish.yaml attaches the docs archives to the release
+      pages: write # zxc-hugo-publish.yaml deploys to GitHub Pages
+      id-token: write # required by actions/deploy-pages
     if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     needs:
       - prepare-release
