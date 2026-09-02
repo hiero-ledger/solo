@@ -55,7 +55,7 @@ jobs:
     # by `cancel-in-progress` when a newer commit arrives, or by hand - concludes as 'cancelled'
     # even when one of its jobs had already failed, so it never reaches the retry logic.
     if: >-
-      ${{ github.event.workflow_run.status == 'completed' &&
+      ${{ github.event.workflow_run.status == 'completed' && github.event.workflow_run.event == 'pull_request &&
       github.event.workflow_run.conclusion == 'failure' }}
     runs-on: hiero-solo-linux-medium
     timeout-minutes: 15
