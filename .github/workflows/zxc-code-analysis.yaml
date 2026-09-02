@@ -73,15 +73,16 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
-  pull-requests: write
-  checks: write
-  statuses: write
 
 jobs:
   analyze:
     name: ${{ inputs.custom-job-label || 'Analyze' }}
     runs-on: hiero-solo-linux-medium
+    # Callers must grant these scopes on the calling job; otherwise the run fails to start.
+    permissions:
+      contents: read
+      checks: write # publish-unit-test-result-action creates a check run
+      pull-requests: write # publish-unit-test-result-action comments on the pull request
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
