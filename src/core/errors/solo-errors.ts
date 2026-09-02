@@ -29,6 +29,7 @@ import {GitHubApiRequestFailedError} from './classes/system/github-api-request-f
 import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
 import {GitHubApiResponseParseFailedError} from './classes/system/github-api-response-parse-failed-error.js';
 import {PortForwardRefreshFailedError} from './classes/system/port-forward-refresh-failed-error.js';
+import {PortForwardStopFailedError} from './classes/system/port-forward-stop-failed-error.js';
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
 import {IncompleteLocalConfigError} from './classes/config/incomplete-local-config-error.js';
@@ -152,7 +153,6 @@ import {BackupExportFailedSoloError} from './classes/deployment/backup-export-fa
 import {BackupImportFailedSoloError} from './classes/deployment/backup-import-failed-solo-error.js';
 import {BackupRestoreClustersFailedSoloError} from './classes/deployment/backup-restore-clusters-failed-solo-error.js';
 import {DeployNetworkFailedSoloError} from './classes/deployment/deploy-network-failed-solo-error.js';
-import {InitFailedSoloError} from './classes/deployment/init-failed-solo-error.js';
 import {BlockNodeClusterContextNotFoundSoloError} from './classes/deployment/block-node-cluster-context-not-found-solo-error.js';
 import {MirrorNodeClusterContextNotFoundSoloError} from './classes/deployment/mirror-node-cluster-context-not-found-solo-error.js';
 import {AccountCreationFailedSoloError} from './classes/component/account-creation-failed-solo-error.js';
@@ -200,6 +200,7 @@ import {HederaFileAppendFailedSoloError} from './classes/component/hedera-file-a
 import {NodeStatusEmptyResponseSoloError} from './classes/component/node-status-empty-response-solo-error.js';
 import {NodeStatusMissingLineSoloError} from './classes/component/node-status-missing-line-solo-error.js';
 import {PredefinedAccountsCreationFailedSoloError} from './classes/component/predefined-accounts-creation-failed-solo-error.js';
+import {NodeContainerCrashedSoloError} from './classes/component/node-container-crashed-solo-error.js';
 import {InvalidHbarAmountSoloError} from './classes/validation/invalid-hbar-amount-solo-error.js';
 import {InvalidFileIdFormatSoloError} from './classes/validation/invalid-file-id-format-solo-error.js';
 import {InvalidEndpointFormatSoloError} from './classes/validation/invalid-endpoint-format-solo-error.js';
@@ -248,6 +249,7 @@ import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-s
 import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
+import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -361,7 +363,6 @@ export class SoloErrors {
     readonly backupImportFailed: typeof BackupImportFailedSoloError;
     readonly backupRestoreClustersFailed: typeof BackupRestoreClustersFailedSoloError;
     readonly deployNetworkFailed: typeof DeployNetworkFailedSoloError;
-    readonly initFailed: typeof InitFailedSoloError;
     readonly blockNodeClusterContextNotFound: typeof BlockNodeClusterContextNotFoundSoloError;
     readonly mirrorNodeClusterContextNotFound: typeof MirrorNodeClusterContextNotFoundSoloError;
   } = Object.freeze({
@@ -393,7 +394,6 @@ export class SoloErrors {
     backupImportFailed: BackupImportFailedSoloError,
     backupRestoreClustersFailed: BackupRestoreClustersFailedSoloError,
     deployNetworkFailed: DeployNetworkFailedSoloError,
-    initFailed: InitFailedSoloError,
     blockNodeClusterContextNotFound: BlockNodeClusterContextNotFoundSoloError,
     mirrorNodeClusterContextNotFound: MirrorNodeClusterContextNotFoundSoloError,
   });
@@ -491,6 +491,7 @@ export class SoloErrors {
     readonly nodeStatusEmptyResponse: typeof NodeStatusEmptyResponseSoloError;
     readonly nodeStatusMissingLine: typeof NodeStatusMissingLineSoloError;
     readonly predefinedAccountsCreationFailed: typeof PredefinedAccountsCreationFailedSoloError;
+    readonly nodeContainerCrashed: typeof NodeContainerCrashedSoloError;
   } = Object.freeze({
     nodeTransactionFailed: NodeTransactionFailedSoloError,
     nodeBuildUploadFailed: NodeBuildUploadFailedSoloError,
@@ -583,6 +584,7 @@ export class SoloErrors {
     nodeStatusEmptyResponse: NodeStatusEmptyResponseSoloError,
     nodeStatusMissingLine: NodeStatusMissingLineSoloError,
     predefinedAccountsCreationFailed: PredefinedAccountsCreationFailedSoloError,
+    nodeContainerCrashed: NodeContainerCrashedSoloError,
   });
 
   // 4xxx — Validation: User input, flags, IDs, formatting
@@ -663,6 +665,7 @@ export class SoloErrors {
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
+    readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -740,6 +743,7 @@ export class SoloErrors {
     confirmationRequired: ConfirmationRequiredSoloError,
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
+    invalidFlagValue: InvalidFlagValueSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -758,6 +762,7 @@ export class SoloErrors {
     readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
     readonly githubApiResponseParseFailed: typeof GitHubApiResponseParseFailedError;
     readonly portForwardRefreshFailed: typeof PortForwardRefreshFailedError;
+    readonly portForwardStopFailed: typeof PortForwardStopFailedError;
     readonly portForwardStatusFailed: typeof PortForwardStatusFailedError;
     readonly resourceNotFound: typeof ResourceNotFoundError;
     readonly namespaceNotFound: typeof NamespaceNotFoundSoloError;
@@ -841,6 +846,7 @@ export class SoloErrors {
     githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
     githubApiResponseParseFailed: GitHubApiResponseParseFailedError,
     portForwardRefreshFailed: PortForwardRefreshFailedError,
+    portForwardStopFailed: PortForwardStopFailedError,
     portForwardStatusFailed: PortForwardStatusFailedError,
     resourceNotFound: ResourceNotFoundError,
     namespaceNotFound: NamespaceNotFoundSoloError,
