@@ -426,16 +426,28 @@ jobs:
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- one-shot single destroy --quiet-mode --dev; $true
 
+      - name: Stage logs for upload
+        if: always()
+        shell: pwsh
+        timeout-minutes: 1
+        run: |
+          $stagingDirectory = Join-Path $env:RUNNER_TEMP 'solo-logs'
+          New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
+          $soloLogsDirectory = Join-Path $stagingDirectory 'solo'
+          if (Test-Path -LiteralPath 'C:\Users\runneradmin\.solo\logs') {
+            Copy-Item -Path 'C:\Users\runneradmin\.solo\logs' -Destination $soloLogsDirectory -Recurse -Force
+          }
+          $wslDiagnosticsDirectory = Join-Path $env:RUNNER_TEMP 'wsl-diagnostics'
+          if (Test-Path -LiteralPath $wslDiagnosticsDirectory) {
+            Copy-Item -Path $wslDiagnosticsDirectory -Destination (Join-Path $stagingDirectory 'wsl-diagnostics') -Recurse -Force
+          }
+
       - name: Upload Logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          # upload-artifact on Windows cannot expand %USERPROFILE% or ~, so keep the existing
-          # hardcoded Solo log path and add the runner diagnostics directory separately.
-          path: |
-            C:\Users\runneradmin\.solo\logs
-            ${{ runner.temp }}\wsl-diagnostics
+          path: ${{ runner.temp }}\solo-logs
           overwrite: true
           if-no-files-found: warn
