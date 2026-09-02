@@ -252,14 +252,16 @@ jobs:
     needs:
       - generate_matrix
     uses: ./.github/workflows/flow-one-shot-timing.yaml
-    secrets: inherit
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
   ledger-reset-warm-start-timing:
     name: Extended Test (ledger-reset-warm-start-timing)
     needs:
       - generate_matrix
     uses: ./.github/workflows/flow-ledger-reset-warm-start-timing.yaml
-    secrets: inherit
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
   flow-performance-test:
     name: Extended Test (flow-performance-test)
@@ -268,7 +270,8 @@ jobs:
       actions: read # flow-performance-test.yaml polls the current workflow run
     needs:
       - generate_matrix
+    # No `secrets:` block: this workflow only uses secrets.GITHUB_TOKEN, which GitHub provides to
+    # called workflows automatically and which cannot be passed explicitly.
     uses: ./.github/workflows/flow-performance-test.yaml
     with:
       cn-edge-version: v0.75.1
-    secrets: inherit

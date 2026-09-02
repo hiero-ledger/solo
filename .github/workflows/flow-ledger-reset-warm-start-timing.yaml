@@ -41,6 +41,10 @@ on:
         type: number
         required: false
         default: 3
+    secrets:
+      SLACK_TEST_WEBHOOK:
+        description: "Webhook used by the Send Slack Notification step to post the timing summary"
+        required: false
 
 defaults:
   run:
