@@ -51,7 +51,12 @@ env:
 jobs:
   retry-transient-failure:
     name: 'Retry Transient Failure'
-    if: github.event.workflow_run.conclusion == 'failure'
+    # Only a run that completed and concluded in failure is eligible. A run that was cancelled -
+    # by `cancel-in-progress` when a newer commit arrives, or by hand - concludes as 'cancelled'
+    # even when one of its jobs had already failed, so it never reaches the retry logic.
+    if: >-
+      ${{ github.event.workflow_run.status == 'completed' &&
+      github.event.workflow_run.conclusion == 'failure' }}
     runs-on: hiero-solo-linux-medium
     timeout-minutes: 15
     permissions:
@@ -123,10 +128,31 @@ jobs:
               }
             };
 
+            // Repeated from the job condition so a cancelled run is refused even if the trigger
+            // is ever widened, and so the behaviour can be exercised in isolation.
+            if (run.conclusion !== 'failure') {
+              core.info(`${run.name} run ${run.id} concluded as '${run.conclusion}', not 'failure'. Nothing to retry.`);
+              return;
+            }
+
             const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
               owner, repo, run_id: run.id, filter: 'latest', per_page: 100,
             });
 
+            // A cancelled job means the run was interrupted part way through, which in this repo
+            // almost always means a newer commit superseded it. Retrying then spends runners on
+            // code that is already stale, so the whole run is left alone.
+            const cancelledJobs = jobs.filter(job => job.conclusion === 'cancelled');
+            if (cancelledJobs.length > 0) {
+              core.info(
+                `${run.name} run ${run.id} was interrupted (cancelled jobs: ` +
+                `${cancelledJobs.map(job => job.name).join(', ')}). Leaving the run alone.`
+              );
+              return;
+            }
+
+            // Cancelled jobs and cancelled steps are never classified: only an outright failure
+            // carries a signature worth reading.
             const failedJobs = jobs.filter(job => job.conclusion === 'failure');
             const reasons = [];
 
