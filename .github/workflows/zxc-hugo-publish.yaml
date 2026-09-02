@@ -37,9 +37,7 @@ on:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 defaults:
   run:
@@ -49,6 +47,11 @@ jobs:
   deploy:
     name: Deploy
     runs-on: hiero-solo-linux-medium
+    # Callers must grant these scopes on the calling job; otherwise the run fails to start.
+    permissions:
+      contents: write # gh release upload attaches the docs archives to the release
+      pages: write # configure-pages and deploy-pages
+      id-token: write # required by actions/deploy-pages
     environment:
       name: github-pages # security guard on what branch/tag can run this job
       url: ${{ steps.deployment.outputs.page_url }}
