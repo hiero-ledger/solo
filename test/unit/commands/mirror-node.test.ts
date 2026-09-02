@@ -25,26 +25,35 @@ interface MirrorNodeMemoryOverrideConfig {
   componentImage?: string;
 }
 
+interface MirrorNodeRemoteConfigTestState {
+  clusters: {name: string; dnsBaseDomain: string}[];
+  components: {
+    state: {
+      blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
+    };
+  };
+  versions?: {
+    consensusNode: {greaterThanOrEqual: () => boolean};
+    blockNodeChart: {greaterThanOrEqual: () => boolean};
+  };
+  state?: {
+    tssEnabled?: boolean;
+  };
+}
+
 interface MirrorNodeCommandInternal {
   remoteConfig: {
-    configuration: {
-      clusters: {name: string; dnsBaseDomain: string}[];
-      components: {
-        state: {
-          blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
-        };
-      };
-      versions?: {
-        consensusNode: {greaterThanOrEqual: () => boolean};
-        blockNodeChart: {greaterThanOrEqual: () => boolean};
-      };
-    };
+    configuration: MirrorNodeRemoteConfigTestState;
+    _remoteConfig?: MirrorNodeRemoteConfigTestState;
+    phase?: 'loaded' | 'not_loaded';
   };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
     config: MirrorNodeMemoryOverrideConfig,
   ) => void;
   addMirrorNodeImageTagOverrides: (chartValues: HelmChartValues, mirrorNodeVersion: string) => void;
+  shouldApplyMirrorNodeImageTagOverrides: (mirrorNodeChartDirectory: string) => boolean;
+  configManager: {wasFlagProvidedByUser: sinon.SinonStub};
   initializeSharedPostgresDatabaseTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   primePostgresSecretTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   waitForMirrorNodeSchemaTask: () => SoloListrTask<MirrorNodeSchemaWaitTaskContext>;
@@ -315,6 +324,33 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesArguments).to.include('web3.image.tag=0.157.0');
   });
 
+  it('should apply mirror node image tag overrides when no local chart directory is used', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+
+    expect(mirrorNodeCommandInternal.shouldApplyMirrorNodeImageTagOverrides('')).to.equal(true);
+  });
+
+  it('should skip mirror node image tag overrides for a local chart directory when the version flag was not provided', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    mirrorNodeCommandInternal.configManager = {wasFlagProvidedByUser: sinon.stub().returns(false)};
+
+    expect(
+      mirrorNodeCommandInternal.shouldApplyMirrorNodeImageTagOverrides('/home/user/hiero-mirror-node/charts'),
+    ).to.equal(false);
+  });
+
+  it('should apply mirror node image tag overrides for a local chart directory when the version flag was explicitly provided', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    mirrorNodeCommandInternal.configManager = {wasFlagProvidedByUser: sinon.stub().returns(true)};
+
+    expect(
+      mirrorNodeCommandInternal.shouldApplyMirrorNodeImageTagOverrides('/home/user/hiero-mirror-node/charts'),
+    ).to.equal(true);
+  });
+
   it('should use block node importer endpoint properties for mirror node 0.157.0', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
@@ -327,6 +363,14 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
         clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
       },
     };
 
@@ -364,6 +408,14 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
         clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
       },
     };
 
@@ -501,6 +553,82 @@ describe('MirrorNodeCommand unit tests', (): void => {
       );
       expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
+    } finally {
+      fs.rmSync(cacheDirection, {recursive: true, force: true});
+    }
+  });
+
+  it('should leave mirror node on consensus streams when consensus node version is not supported', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
+
+    try {
+      mirrorNodeCommandInternal.remoteConfig._remoteConfig = {
+        clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
+        components: {
+          state: {
+            blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+          },
+        },
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => false,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
+      };
+      mirrorNodeCommandInternal.remoteConfig.phase = 'loaded';
+
+      const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
+        cacheDir: cacheDirection,
+        clusterReference: 'kind-a',
+        mirrorNodeVersion: versions.MIRROR_NODE_VERSION,
+      });
+
+      expect(chartValues.toArguments()).to.deep.equal([]);
+    } finally {
+      fs.rmSync(cacheDirection, {recursive: true, force: true});
+    }
+  });
+
+  it('should leave mirror node on consensus streams when TSS is disabled', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
+
+    try {
+      mirrorNodeCommandInternal.remoteConfig = {
+        configuration: {
+          clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
+          components: {
+            state: {
+              blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+            },
+          },
+          versions: {
+            consensusNode: {
+              greaterThanOrEqual: (): boolean => true,
+            },
+            blockNodeChart: {
+              greaterThanOrEqual: (): boolean => true,
+            },
+          },
+          state: {
+            tssEnabled: false,
+          },
+        },
+      };
+
+      const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
+        cacheDir: cacheDirection,
+        clusterReference: 'kind-a',
+        mirrorNodeVersion: versions.MIRROR_NODE_VERSION,
+      });
+
+      expect(chartValues.toArguments()).to.deep.equal([]);
     } finally {
       fs.rmSync(cacheDirection, {recursive: true, force: true});
     }

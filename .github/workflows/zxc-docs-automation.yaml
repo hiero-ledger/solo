@@ -39,7 +39,7 @@ jobs:
       STEP_TIMEOUT_MINUTES: '5'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -88,6 +88,12 @@ jobs:
           verbosity: 3
           wait: 120s
 
+      - name: Cache Solo Bin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.solo/bin
+          key: solo-bin-${{ runner.os }}-${{ hashFiles('version.ts') }}
+
       - name: Solo Command Output
         id: solo-command-output
         run: |
@@ -127,7 +133,7 @@ jobs:
       STEP_TIMEOUT_MINUTES: '5'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 

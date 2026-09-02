@@ -37,8 +37,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: write
-  pull-requests: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -50,7 +48,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -85,7 +83,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -120,7 +118,7 @@ jobs:
         test: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -265,9 +263,12 @@ jobs:
 
   flow-performance-test:
     name: Extended Test (flow-performance-test)
+    permissions:
+      contents: read
+      actions: read # flow-performance-test.yaml polls the current workflow run
     needs:
       - generate_matrix
     uses: ./.github/workflows/flow-performance-test.yaml
     with:
-      cn-edge-version: v0.74.0
+      cn-edge-version: v0.75.1
     secrets: inherit

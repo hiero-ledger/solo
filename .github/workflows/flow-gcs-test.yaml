@@ -34,9 +34,7 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
   contents: read
-  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -44,6 +42,10 @@ env:
 
 jobs:
   gcs-storage-test:
+    permissions:
+      contents: read
+      actions: read # gha-jobid-action reads the jobs of the current workflow run
+      id-token: write # OIDC token for google-github-auth workload identity federation
     name: "GCS Storage Test - ${{ matrix.storageType }}"
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     timeout-minutes: 40
@@ -66,7 +68,7 @@ jobs:
 
       - name: Harden Runner
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -153,6 +155,23 @@ jobs:
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
+      - name: Install Helm
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 'v3.14.2'
+
+      - name: Install Kind
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          install_only: true
+          version: 'v0.29.0'
+          node_image: 'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211'
+          kubectl_version: 'v1.32.2'
 
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
         id: run-gcs-script

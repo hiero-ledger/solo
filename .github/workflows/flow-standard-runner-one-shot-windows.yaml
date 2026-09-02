@@ -51,7 +51,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -127,12 +127,15 @@ jobs:
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
         # container mode with no Docker Desktop to switch it. WSL2 + Docker inside it replicates
         # what Docker Desktop does for Windows users, exposing a Linux daemon via TCP.
+        # use-cache is enabled so the distribution installer is cached across runs via
+        # actions/cache instead of re-downloaded every time — this workflow was intermittently
+        # timing out on the fresh download from a shared runner's network.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         timeout-minutes: 10
         with:
           distribution: Ubuntu-24.04
           wsl-version: 2
-          use-cache: false
+          use-cache: true
           set-as-default: true
           additional-packages: |
             apt-transport-https
@@ -236,13 +239,6 @@ jobs:
           Write-Host "Rendered Kind config: $renderedConfig"
           Write-Host "Linux patches hostPath: $linuxPatchesPath"
           "SOLO_KIND_CLUSTER_CONFIG_FILE=$renderedConfig" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Solo Init
-        shell: pwsh
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
-          npm run solo -- init --dev
 
       - name: One-Shot Single Deploy
         shell: pwsh

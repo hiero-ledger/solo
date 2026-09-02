@@ -46,6 +46,9 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: read
+
 jobs:
   generate_matrix:
     runs-on: hiero-solo-linux-medium
@@ -53,7 +56,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -84,6 +87,10 @@ jobs:
 
   unit-tests:
     name: Unit Tests
+    permissions:
+      contents: read
+      checks: write # zxc-unit-test.yaml publishes a unit test report check run
+      pull-requests: write # zxc-unit-test.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-unit-test.yaml
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true') && !cancelled() }}
     needs:
@@ -125,6 +132,10 @@ jobs:
 
   analyze:
     name: Analyze
+    permissions:
+      contents: read
+      checks: write # zxc-code-analysis.yaml publishes an E2E test report check run
+      pull-requests: write # zxc-code-analysis.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-code-analysis.yaml
     needs:
       - unit-tests

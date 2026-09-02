@@ -37,9 +37,7 @@ on:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -60,7 +58,7 @@ jobs:
       versioned-release: ${{ steps.set-inputs.outputs.versioned_release }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -175,6 +173,10 @@ jobs:
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
   hugo-docs-publish:
     name: Hugo Docs Publish
+    permissions:
+      contents: write # zxc-hugo-publish.yaml attaches the docs archives to the release
+      pages: write # zxc-hugo-publish.yaml deploys to GitHub Pages
+      id-token: write # required by actions/deploy-pages
     if: ${{ needs.setup.outputs.versioned-release == 'true' && inputs.dry-run-enabled != 'true' && startsWith(github.ref_name, 'release/') && !cancelled() && !failure() }}
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
@@ -205,6 +207,10 @@ jobs:
   # Publish the Hugo docs site to GitHub Pages unless dry-run is enabled or if this is a merge to release/* branch
   hugo-docs-publish-main-only:
     name: Hugo Docs Publish - Main Only
+    permissions:
+      contents: write # zxc-hugo-publish.yaml attaches the docs archives to the release
+      pages: write # zxc-hugo-publish.yaml deploys to GitHub Pages
+      id-token: write # required by actions/deploy-pages
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     needs:
       - setup

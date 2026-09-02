@@ -14,7 +14,6 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
-import {InitTest} from './tests/init-test.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {DeploymentTest} from './tests/deployment-test.js';
@@ -50,6 +49,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withClusterCount(2)
   .withConsensusNodesCount(consensusNodesCount)
   .withLoadBalancerEnabled(true)
+  .withTssEnabled(false)
   .withPinger(true)
   .withShard(3)
   .withRealm(2)
@@ -88,7 +88,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished resetting containers for each test`);
         });
 
-        InitTest.init(options);
         ClusterReferenceTest.connect(options);
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);

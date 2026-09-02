@@ -11,6 +11,7 @@ import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {showVersionBanner, sleep} from '../core/helpers.js';
+import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {
   type ClusterReferenceName,
@@ -284,12 +285,6 @@ export class ExplorerCommand extends BaseCommand {
 
     const chartValues: HelmChartValues = new HelmChartValues();
 
-    if (!['acme-staging', 'acme-prod', 'self-signed'].includes(tlsClusterIssuerType)) {
-      throw new Error(
-        `Invalid TLS cluster issuer type: ${tlsClusterIssuerType}, must be one of: "acme-staging", "acme-prod", or "self-signed"`,
-      );
-    }
-
     if (!(await this.clusterChecks.isCertManagerInstalled())) {
       chartValues.set('cert-manager.installCRDs', true);
     }
@@ -325,13 +320,27 @@ export class ExplorerCommand extends BaseCommand {
         const soloCertManagerChartValues: HelmChartValues = await this.prepareCertManagerChartValues(config);
         // check if CRDs of cert-manager are already installed
         let needInstall: boolean = false;
+        const foundCrdVersions: Set<string> = new Set<string>();
         for (const crd of constants.CERT_MANAGER_CRDS) {
-          const crdExists: boolean = await this.k8Factory.getK8(config.clusterContext).crds().ifExists(crd);
+          const crdLabels: Record<string, string> | undefined = await this.k8Factory
+            .getK8(config.clusterContext)
+            .crds()
+            .readLabels(crd);
 
-          if (!crdExists) {
+          if (crdLabels === undefined) {
             needInstall = true;
             break;
           }
+          foundCrdVersions.add(SharedClusterResourceReport.versionFromLabels(crdLabels));
+        }
+
+        if (!needInstall) {
+          SharedClusterResourceReport.show(
+            this.logger,
+            'cert-manager CRDs',
+            config.clusterContext,
+            `all ${constants.CERT_MANAGER_CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
+          );
         }
 
         if (needInstall) {
