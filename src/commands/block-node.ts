@@ -82,6 +82,7 @@ interface BlockNodeDeployConfigClass {
   releaseTag: string;
   imageTag: Optional<string>;
   componentImage: Optional<string>;
+  componentImageArchive: Optional<string>;
   namespace: NamespaceName;
   context: string;
   chartValues: HelmChartValues;
@@ -250,6 +251,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.consensusNodeVersion,
       flags.imageTag,
       flags.componentImage,
+      flags.componentImageArchive,
       flags.priorityMapping,
     ],
   };
@@ -373,10 +375,14 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if ('componentImage' in config && config.componentImage) {
+      const hasComponentImageArchive: boolean = this.hasComponentImageArchive(
+        config.componentImage,
+        config.componentImageArchive,
+      );
       if (this.isLocalImageReference(config.componentImage)) {
         const {name: localImageName, tag: rawTag} = this.splitImageNameTag(config.componentImage);
         const localImageTag: string = SemanticVersion.getValidSemanticVersion(rawTag, false, 'Block node image tag');
-        if (this.isLocalImageAvailableInDocker(`${localImageName}:${localImageTag}`)) {
+        if (this.isLocalImageAvailableInDocker(`${localImageName}:${localImageTag}`) || hasComponentImageArchive) {
           // Image found locally — kind-load task will load it; set pullPolicy: Never.
           if (this.isLocalRegistryImageReference(config.componentImage)) {
             const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
@@ -401,6 +407,9 @@ export class BlockNodeCommand extends BaseCommand {
           .setLiteral('image.registry', parsedReference.registry)
           .set('image.repository', parsedReference.repository)
           .set('image.tag', parsedReference.tag);
+        if (hasComponentImageArchive) {
+          chartValues.set('image.pullPolicy', 'Never');
+        }
       }
     }
 
@@ -691,12 +700,15 @@ export class BlockNodeCommand extends BaseCommand {
 
   private loadImageIntoKindTask(): SoloListrTask<BlockNodeDeployContext> {
     return {
-      title: 'Load local image into Kind cluster',
+      title: 'Load component image into Kind cluster',
       skip: ({config}: BlockNodeDeployContext): boolean => {
-        return !config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage);
+        return (
+          !this.hasComponentImageArchive(config.componentImage, config.componentImageArchive) &&
+          (!config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage))
+        );
       },
       task: async ({config}: BlockNodeDeployContext): Promise<void> => {
-        await this.kindLoadComponentImage(config.componentImage, config.context);
+        await this.loadComponentImage(config.componentImage, config.componentImageArchive, config.context);
       },
     };
   }
@@ -889,7 +901,11 @@ export class BlockNodeCommand extends BaseCommand {
               config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
             }
 
-            config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.componentImage);
+            config.livenessCheckPort = this.getLivenessCheckPortNumber(
+              config.chartVersion,
+              config.componentImage,
+              config.componentImageArchive,
+            );
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
@@ -958,17 +974,17 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.remoteConfig.persist();
 
-            if (componentImage && this.isLocalImageAvailableInDocker(componentImage)) {
+            if (componentImage && this.isComponentImageAvailableForKind(componentImage, config.componentImageArchive)) {
               // update config map with new VERSION info since
               // it will be used as a critical environment variable by block node
-              const localImageTag: string = this.splitImageNameTag(componentImage).tag;
+              const componentImageTag: string = this.splitImageNameTag(componentImage).tag;
               const blockNodeId: ComponentId = newBlockNodeComponent.metadata.id;
 
               const name: string = `block-node-${blockNodeId}-config`;
-              const data: Record<string, string> = {VERSION: localImageTag};
+              const data: Record<string, string> = {VERSION: componentImageTag};
 
               await this.k8Factory.getK8(context).configMaps().update(namespace, name, data);
-              task.title += ` with local built image (${localImageTag})`;
+              task.title += ` with component image (${componentImageTag})`;
             }
 
             showVersionBanner(this.logger, releaseName, chartVersion);
@@ -1710,10 +1726,14 @@ export class BlockNodeCommand extends BaseCommand {
   /// web server on `BLOCK_NODE_HEALTH_PORT`; earlier versions served them from the gRPC port
   /// (`BLOCK_NODE_PORT`). The effective version is the higher of the requested chart version and
   /// a local image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
-  private getLivenessCheckPortNumber(chartVersion: string, componentImage?: string): number {
+  private getLivenessCheckPortNumber(
+    chartVersion: string,
+    componentImage?: string,
+    componentImageArchive?: string,
+  ): number {
     let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(chartVersion);
 
-    if (componentImage && this.isLocalImageReference(componentImage)) {
+    if (componentImage && this.isComponentImageAvailableForKind(componentImage, componentImageArchive)) {
       const tag: string = this.splitImageNameTag(componentImage).tag;
       const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
       if (blockNodeVersion.lessThan(imageVersion)) {
@@ -1746,7 +1766,10 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     const deployConfig: BlockNodeDeployConfigClass = config as BlockNodeDeployConfigClass;
-    if (deployConfig.componentImage && this.isLocalImageReference(deployConfig.componentImage)) {
+    if (
+      deployConfig.componentImage &&
+      this.isComponentImageAvailableForKind(deployConfig.componentImage, deployConfig.componentImageArchive)
+    ) {
       const tag: string = this.splitImageNameTag(deployConfig.componentImage).tag;
       componentImageVersion = new SemanticVersion<string>(tag);
     }
