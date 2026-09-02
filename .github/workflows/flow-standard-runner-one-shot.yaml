@@ -117,7 +117,7 @@ jobs:
         # defeat that mode's no-cached-images purpose.
         id: solo-image-cache
         if: ${{ matrix.install-mode == 'source' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}

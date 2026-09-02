@@ -144,7 +144,7 @@ jobs:
       - name: Restore Solo Image Cache
         id: solo-image-cache
         if: ${{ !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
@@ -199,7 +199,7 @@ jobs:
 
       - name: Save Solo Image Cache
         if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: save
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}

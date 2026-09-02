@@ -648,7 +648,7 @@ jobs:
 
   docs-automation:
     name: Docs Automation
-    uses: ./.github/workflows/zxc-docs-automation.yaml
+    uses: $/.github/workflows/zxc-docs-automation.yaml
 
   setup:
     name: Hugo Docs Setup
@@ -680,7 +680,7 @@ jobs:
   # Do a Hugo build for the docs site for the release branch
   hugo-docs-build:
     name: Hugo Docs Build
-    uses: ./.github/workflows/zxc-hugo-build.yaml
+    uses: $/.github/workflows/zxc-hugo-build.yaml
     needs:
       - prepare-release
       - create-github-release
@@ -695,7 +695,7 @@ jobs:
   #  to GitHub Pages
   hugo-docs-build-main:
     name: Hugo Docs Build Main
-    uses: ./.github/workflows/zxc-hugo-build.yaml
+    uses: $/.github/workflows/zxc-hugo-build.yaml
     needs:
       - hugo-docs-build
     with:
@@ -717,7 +717,7 @@ jobs:
       - prepare-release
       - hugo-docs-build-main
       - docs-automation
-    uses: ./.github/workflows/zxc-hugo-publish.yaml
+    uses: $/.github/workflows/zxc-hugo-publish.yaml
     with:
       docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
