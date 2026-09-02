@@ -56,27 +56,39 @@ describe('FatalErrorReporter', (): void => {
     expect(process.exitCode).to.equal(1);
   });
 
-  it('should only use the logger once, so a failing logger cannot drive a report loop', (): void => {
+  it('should bound logger use, so a failing logger cannot drive a report loop', (): void => {
     for (let index: number = 0; index < 25; index++) {
       FatalErrorReporter.report(logger, 'uncaughtException', new Error(`boom ${index}`));
     }
 
-    expect(showUserError).to.have.been.callCount(1);
-    expect(standardErrorWrite).to.have.been.callCount(24);
+    expect(showUserError).to.have.been.callCount(3);
+    expect(standardErrorWrite).to.have.been.callCount(22);
     expect(String(standardErrorWrite.lastCall.args[0])).to.include('unhandled uncaughtException');
+  });
+
+  it('should render a second, distinct failure in full rather than reducing it to one line', (): void => {
+    // A long run can hit genuinely unrelated fatal errors; the bound exists to stop a loop, not to
+    // discard the code and remediation of the second real failure while the logger is still healthy.
+    FatalErrorReporter.report(logger, 'uncaughtException', new Error('first failure'));
+    FatalErrorReporter.report(logger, 'unhandledRejection', new Error('unrelated second failure'));
+
+    expect(showUserError).to.have.been.callCount(2);
+    expect((showUserError.secondCall.args[0] as SoloError).message).to.include('unrelated second failure');
+    expect(standardErrorWrite).to.have.been.callCount(0);
   });
 
   it('should render again after a reset, so one run does not silence the next', (): void => {
     // main() resets per invocation; the end-to-end tests call it many times in a single process.
-    FatalErrorReporter.report(logger, 'uncaughtException', new Error('first run'));
-    FatalErrorReporter.report(logger, 'uncaughtException', new Error('still the first run'));
-    expect(showUserError).to.have.been.callCount(1);
+    for (let index: number = 0; index < 4; index++) {
+      FatalErrorReporter.report(logger, 'uncaughtException', new Error(`first run ${index}`));
+    }
+    expect(showUserError).to.have.been.callCount(3);
 
     FatalErrorReporter.reset();
     FatalErrorReporter.report(logger, 'uncaughtException', new Error('second run'));
 
-    expect(showUserError).to.have.been.callCount(2);
-    expect((showUserError.secondCall.args[0] as SoloError).message).to.include('second run');
+    expect(showUserError).to.have.been.callCount(4);
+    expect((showUserError.lastCall.args[0] as SoloError).message).to.include('second run');
   });
 
   it('should fall back to stderr when the logger itself throws', (): void => {

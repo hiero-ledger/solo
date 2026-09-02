@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {type FatalErrorKind} from '../../fatal-error-kind.js';
 
 /**
  * @description Thrown when solo traps an error that escaped every handler — either an `uncaughtException` or
@@ -14,7 +15,7 @@ export class UncaughtFatalErrorSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
 
-  public constructor(kind: string, cause?: Error) {
+  public constructor(kind: FatalErrorKind, cause?: Error) {
     const detail: string = cause?.message ? `: ${cause.message}` : '';
     super(
       {

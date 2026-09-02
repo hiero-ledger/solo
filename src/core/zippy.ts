@@ -37,11 +37,18 @@ export class Zippy {
     try {
       const zip: AdmZip = new AdmZip('', {});
 
-      const stat: fs.Stats = fs.statSync(sourcePath);
-      if (stat.isDirectory()) {
-        zip.addLocalFolder(sourcePath, '');
-      } else {
-        zip.addFile(path.basename(sourcePath), fs.readFileSync(sourcePath), '', stat);
+      // Opened once and inspected through the descriptor: stat-then-read would let the path be swapped
+      // between the two calls, so the file described by the stat need not be the file that is read.
+      const sourceHandle: number = fs.openSync(sourcePath, 'r');
+      try {
+        const stat: fs.Stats = fs.fstatSync(sourceHandle);
+        if (stat.isDirectory()) {
+          zip.addLocalFolder(sourcePath, '');
+        } else {
+          zip.addFile(path.basename(sourcePath), fs.readFileSync(sourceHandle), '', stat);
+        }
+      } finally {
+        fs.closeSync(sourceHandle);
       }
 
       await zip.writeZipPromise(destinationPath, {overwrite: true});

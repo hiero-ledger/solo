@@ -363,7 +363,7 @@ describe('SoloPinoLogger stream configuration', (): void => {
 
 // Typed view over the writability preflight, which runs before any stream is constructed.
 type LoggerPreflight = {
-  assertLogDestinationsWritable: (logsDirectory: string, fileNames: string[]) => void;
+  findLogDestinationFailure: (logsDirectory: string, fileNames: string[]) => SoloError | undefined;
 };
 
 function preflightOf(): LoggerPreflight {
@@ -396,7 +396,7 @@ describe('SoloPinoLogger log destination preflight', (): void => {
   });
 
   it('creates the logs directory when it does not exist yet', (): void => {
-    expect((): void => preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames)).to.not.throw();
+    expect(preflightOf().findLogDestinationFailure(logsDirectory, fileNames)).to.be.undefined;
     expect(existsSync(logsDirectory)).to.be.true;
   });
 
@@ -406,63 +406,91 @@ describe('SoloPinoLogger log destination preflight', (): void => {
       writeFileSync(PathEx.join(logsDirectory, fileName), 'existing content\n');
     }
 
-    expect((): void => preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames)).to.not.throw();
+    expect(preflightOf().findLogDestinationFailure(logsDirectory, fileNames)).to.be.undefined;
   });
 
-  (canDenyWrites ? it : it.skip)('rejects a logs directory that cannot be written', (): void => {
+  (canDenyWrites ? it : it.skip)('reports a logs directory that cannot be written', (): void => {
     mkdirSync(logsDirectory, {recursive: true});
     chmodSync(logsDirectory, 0o500);
 
-    let thrown: SoloError | undefined;
-    try {
-      preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames);
-    } catch (error) {
-      thrown = error as SoloError;
-    }
+    const failure: SoloError | undefined = preflightOf().findLogDestinationFailure(logsDirectory, fileNames);
 
-    expect(thrown, 'expected the preflight to reject a read-only logs directory').to.be.instanceOf(SoloError);
-    expect(thrown.getFormattedCode()).to.equal('SOLO-5083');
-    expect(thrown.message).to.include(logsDirectory);
+    expect(failure, 'expected the preflight to report a read-only logs directory').to.be.instanceOf(SoloError);
+    expect(failure.getFormattedCode()).to.equal('SOLO-5083');
+    expect(failure.message).to.include(logsDirectory);
     // The errno reaches the message, so a permissions failure reads differently from a full disk.
-    expect(thrown.message).to.include('EACCES');
+    expect(failure.message).to.include('EACCES');
   });
 
-  (canDenyWrites ? it : it.skip)('rejects an existing log file that cannot be written', (): void => {
+  (canDenyWrites ? it : it.skip)('reports an existing log file that cannot be written', (): void => {
     // The reporter's case in issue #5370: the directory is fine, the log files are owned by root.
     mkdirSync(logsDirectory, {recursive: true});
     const lockedFile: string = PathEx.join(logsDirectory, 'solo.ndjson');
     writeFileSync(lockedFile, 'owned by another user\n');
     chmodSync(lockedFile, 0o400);
 
-    let thrown: SoloError | undefined;
-    try {
-      preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames);
-    } catch (error) {
-      thrown = error as SoloError;
-    }
+    const failure: SoloError | undefined = preflightOf().findLogDestinationFailure(logsDirectory, fileNames);
 
-    expect(thrown, 'expected the preflight to reject a read-only log file').to.be.instanceOf(SoloError);
-    expect(thrown.getFormattedCode()).to.equal('SOLO-5083');
+    expect(failure, 'expected the preflight to report a read-only log file').to.be.instanceOf(SoloError);
+    expect(failure.getFormattedCode()).to.equal('SOLO-5083');
     // The offending file is named, not just its directory, so the user knows what to chown.
-    expect(thrown.message).to.include(lockedFile);
+    expect(failure.message).to.include(lockedFile);
   });
 
   (canDenyWrites ? it : it.skip)('offers ownership and removal as recovery steps', (): void => {
     mkdirSync(logsDirectory, {recursive: true});
     chmodSync(logsDirectory, 0o500);
 
-    let thrown: SoloError | undefined;
-    try {
-      preflightOf().assertLogDestinationsWritable(logsDirectory, fileNames);
-    } catch (error) {
-      thrown = error as SoloError;
-    }
+    const failure: SoloError | undefined = preflightOf().findLogDestinationFailure(logsDirectory, fileNames);
 
-    const steps: string = (thrown.getTroubleshootingSteps() ?? []).join('\n');
+    const steps: string = (failure.getTroubleshootingSteps() ?? []).join('\n');
     expect(steps).to.include('chown');
     expect(steps).to.include('rm -rf ~/.solo');
     expect(steps).to.include('SOLO_HOME');
-    expect(thrown.cause).to.be.instanceOf(Error);
+    expect(failure.cause).to.be.instanceOf(Error);
+  });
+
+  // The cases above call the preflight directly, so none of them would notice if the constructor stopped
+  // calling it, or called it after the streams were built. These two pin that contract.
+  (canDenyWrites ? it : it.skip)('is run by the constructor, which degrades instead of throwing', (): void => {
+    const home: string = mkdtempSync(PathEx.join(tmpdir(), 'solo-home-'));
+    mkdirSync(PathEx.join(home, 'logs'), {recursive: true});
+    chmodSync(PathEx.join(home, 'logs'), 0o500);
+    const stderrWrites: string[] = [];
+    const writeStub: SinonStub = sinon
+      .stub(process.stderr, 'write')
+      .callsFake((chunk: string | Uint8Array): boolean => {
+        stderrWrites.push(String(chunk));
+        return true;
+      });
+
+    try {
+      // An unwritable destination must not stop solo from running — the command still has work to do.
+      const logger: SoloPinoLogger = new SoloPinoLogger('debug', true, new OneShotState(), home);
+      expect(logger).to.be.instanceOf(SoloPinoLogger);
+      // Console-only: no file streams were opened, so there is nothing for flush() to drain.
+      expect(internalsOf(logger).rotatingStreams).to.have.lengthOf(0);
+    } finally {
+      writeStub.restore();
+      chmodSync(PathEx.join(home, 'logs'), 0o700);
+      rmSync(home, {recursive: true, force: true});
+    }
+
+    // The user is told why the log files are missing, with the code and remediation.
+    const reported: string = stderrWrites.join('');
+    expect(reported).to.include('SOLO-5083');
+    expect(reported).to.include('chown');
+  });
+
+  it('builds file streams when the destination is usable', (): void => {
+    const home: string = mkdtempSync(PathEx.join(tmpdir(), 'solo-home-'));
+    try {
+      const logger: SoloPinoLogger = new SoloPinoLogger('debug', true, new OneShotState(), home);
+      // Outside CI the rotating streams are registered, which only happens on the non-degraded path.
+      expect(internalsOf(logger).rotatingStreams).to.have.lengthOf(2);
+    } finally {
+      rmSync(home, {recursive: true, force: true});
+    }
   });
 });
 

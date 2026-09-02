@@ -19,7 +19,7 @@ import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
 import {VersionUpdateNotifier} from './core/version-update-notifier.js';
 import {HomebrewDeprecationNotifier} from './core/homebrew-deprecation-notifier.js';
-import {getSoloVersion} from '../version.js';
+import {VersionBanner} from './core/version-banner.js';
 
 if (!process.stdout.isTTY) {
   chalk.level = 0;
@@ -31,6 +31,13 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
   // end-to-end tests call it many times in one process, and a latch left set would reduce every failure
   // after the first to a bare stderr line.
   FatalErrorReporter.reset();
+
+  // Answered before the container is built, so the version is readable whatever state the installation
+  // is in — an unwritable ~/.solo/logs included. Reading the version is what a user reaches for when
+  // Solo is already misbehaving, which is exactly the situation in #5370.
+  if (VersionBanner.writeIfRequested(argv)) {
+    throw new SilentBreak('displayed version information, exiting');
+  }
 
   try {
     // New files default to 0640 and new directories to 0750. No-op on Windows.
@@ -57,7 +64,8 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
       FatalErrorReporter.reportWithoutLogger(error);
     }
     // The failure is rendered above; a SilentBreak keeps the entrypoint from rendering it a second time.
-    throw new SilentBreak(error.message);
+    // The coded error rides along as the cause so programmatic callers still reach its code and steps.
+    throw new SilentBreak(error.message, error);
   }
 
   const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
@@ -75,55 +83,6 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
 
   logger.debug('Initializing Solo CLI');
   constants.LISTR_DEFAULT_RENDERER_OPTION.logger = new ListrLogger({processOutput: new CustomProcessOutput(logger)});
-  if (argv.some((argument): boolean => ['-version', '--version', '-v', '--v'].includes(argument))) {
-    // Check for --output flag (K8s ecosystem standard)
-    const outputFlagIndex: number = argv.findIndex(
-      (argument): boolean => argument.startsWith('--output=') || argument === '--output' || argument === '-o',
-    );
-
-    let outputFormat: string = '';
-
-    if (outputFlagIndex !== -1) {
-      const outputArgument: string = argv[outputFlagIndex];
-
-      if (outputArgument.startsWith('--output=')) {
-        outputFormat = outputArgument.split('=', 2)[1] ?? '';
-      } else if (outputFlagIndex + 1 < argv.length) {
-        outputFormat = argv[outputFlagIndex + 1];
-      }
-    }
-
-    const version: string = getSoloVersion();
-
-    // Handle different output formats
-    switch (outputFormat) {
-      case 'json': {
-        logger.showUser(JSON.stringify({version}, undefined, 2));
-        break;
-      }
-      case 'yaml': {
-        logger.showUser(`version: ${version}`);
-        break;
-      }
-      case 'wide': {
-        logger.showUser(version);
-        break;
-      }
-      default: {
-        // Default: full formatted banner
-        logger.showUser(
-          chalk.cyan('\n******************************* Solo *********************************************'),
-        );
-        logger.showUser(chalk.cyan('Version\t\t\t:'), chalk.yellow(version));
-        logger.showUser(
-          chalk.cyan('**********************************************************************************'),
-        );
-        break;
-      }
-    }
-    throw new SilentBreak('displayed version information, exiting');
-  }
-
   const result: AnyObject = await ArgumentProcessor.process(argv);
   await VersionUpdateNotifier.notifyIfUpdateAvailable(logger);
   HomebrewDeprecationNotifier.notifyIfInstalledViaHomebrew(logger);
