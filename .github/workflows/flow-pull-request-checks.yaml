@@ -36,12 +36,7 @@ on:
       - ready_for_review
 
 permissions:
-  id-token: write
   contents: read
-  actions: write
-  pull-requests: write
-  checks: write
-  statuses: write
 
 defaults:
   run:
@@ -98,6 +93,10 @@ jobs:
 
   unit-tests:
     name: Unit Tests
+    permissions:
+      contents: read
+      checks: write # zxc-unit-test.yaml publishes a unit test report check run
+      pull-requests: write # zxc-unit-test.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-unit-test.yaml
     needs:
       - code-style
@@ -141,6 +140,10 @@ jobs:
 
   codecov:
     name: CodeCov
+    permissions:
+      contents: read
+      checks: write # zxc-code-analysis.yaml publishes an E2E test report check run
+      pull-requests: write # zxc-code-analysis.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-code-analysis.yaml
     needs:
       - unit-tests
@@ -157,6 +160,10 @@ jobs:
 
   codacy-coverage:
     name: Codacy
+    permissions:
+      contents: read
+      checks: write # zxc-code-analysis.yaml publishes an E2E test report check run
+      pull-requests: write # zxc-code-analysis.yaml comments the report on the pull request
     uses: ./.github/workflows/zxc-code-analysis.yaml
     needs:
       - unit-tests
