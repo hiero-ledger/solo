@@ -202,9 +202,12 @@ export class DockerClient implements ContainerEngineClient {
 
   private async containerExists(command: ContainerEngineCommand, nodeName: string): Promise<boolean> {
     try {
-      await this.shellRunner.run(command.executable, [...command.argumentsPrefix, 'container', 'exists', nodeName], {
-        commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
-      });
+      // `container exists` is Podman-only; `container inspect` is the portable existence probe.
+      await this.shellRunner.run(
+        command.executable,
+        [...command.argumentsPrefix, 'container', 'inspect', '--format', '{{.Id}}', nodeName],
+        {commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE, bestEffort: true},
+      );
       return true;
     } catch {
       // best-effort probe: a missing Docker container may be owned by Podman instead
@@ -258,6 +261,7 @@ export class DockerClient implements ContainerEngineClient {
         {
           commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
           timeoutMs: DockerClient.CONTAINER_LIFECYCLE_TIMEOUT_MS,
+          bestEffort: true,
         },
       );
       return output.join('').trim() || undefined;

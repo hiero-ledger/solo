@@ -137,6 +137,7 @@ export const ErrorCodeRegistry = {
   GOSSIP_KEY_SECRET_RESTORE_FAILED: 'SOLO-3091',
   SDK_CLIENT_NO_HEALTHY_NODES: 'SOLO-3092',
   NODE_KEY_LOAD_FAILED: 'SOLO-3093',
+  NODE_CONTAINER_CRASHED: 'SOLO-3094',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
