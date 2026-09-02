@@ -3,7 +3,7 @@ title: Solo
 description: Deploy and manage Hiero networks with ease
 ---
 
-{{< blocks/cover image_anchor="top" height="min" color="primary" >}}
+{{< blocks/cover image\_anchor="top" height="min" color="primary" >}}
 
 <div class="mx-auto">
   <h1 class="cover-title">Solo</h1>

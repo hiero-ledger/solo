@@ -12,18 +12,18 @@ Solo *already has* substantial state-tracking infrastructure that could power id
 
 ## 2. Goals
 
-- A failed one-shot deploy can be re-invoked with the same flags and resume from the failed step, not from step 1.
-- A successful one-shot deploy can be re-invoked with the same flags and complete as a fast no-op.
-- Steps that currently throw on existing state instead detect the existing state and skip.
-- The existing "preserve state on failure" default — currently undocumented and contradicted by the flag's describe text — is made explicit and properly documented.
+* A failed one-shot deploy can be re-invoked with the same flags and resume from the failed step, not from step 1.
+* A successful one-shot deploy can be re-invoked with the same flags and complete as a fast no-op.
+* Steps that currently throw on existing state instead detect the existing state and skip.
+* The existing "preserve state on failure" default — currently undocumented and contradicted by the flag's describe text — is made explicit and properly documented.
 
 ## 3. Non-Goals
 
-- Detecting **unhealthy-but-installed** resources (e.g., pods in `CrashLoopBackOff` will be treated as installed → skipped). Deferred to Phase 3.
-- Detecting **configuration drift** — guards check existence, not whether the deployed thing matches the user's current flags. Deferred to Phase 3.
-- Explicit **resume UX** (`--resume`, `solo one-shot resume`). Phase 1 is implicit: re-running `deploy` is the resume mechanism. A first-class resume command is deferred to Phase 2.
-- Persisting per-step **workflow state** beyond what `ComponentsDataWrapper` already gives us. Deferred to Phase 2.
-- **Component-level rollback** of partial state from a failed step (e.g., uninstalling a half-installed Helm release, removing dangling sub-resources before re-running). Phase 1 relies on sub-command idempotency for safe re-runs; richer rollback semantics are deferred to Phase 2.
+* Detecting **unhealthy-but-installed** resources (e.g., pods in `CrashLoopBackOff` will be treated as installed → skipped). Deferred to Phase 3.
+* Detecting **configuration drift** — guards check existence, not whether the deployed thing matches the user's current flags. Deferred to Phase 3.
+* Explicit **resume UX** (`--resume`, `solo one-shot resume`). Phase 1 is implicit: re-running `deploy` is the resume mechanism. A first-class resume command is deferred to Phase 2.
+* Persisting per-step **workflow state** beyond what `ComponentsDataWrapper` already gives us. Deferred to Phase 2.
+* **Component-level rollback** of partial state from a failed step (e.g., uninstalling a half-installed Helm release, removing dangling sub-resources before re-running). Phase 1 relies on sub-command idempotency for safe re-runs; richer rollback semantics are deferred to Phase 2.
 
 ## 4. Existing Infrastructure
 
@@ -48,9 +48,9 @@ The takeaway: phase enums and per-component state exist; chart, ConfigMap, and r
 
 Three phases, each delivering operator-visible value on its own:
 
-- **Phase 1 — Crawl: Command-Level Guards.** Before any step runs, pre-fetch a snapshot of "what already exists" and attach it to the task context. Each sub-command invocation gets a skip predicate that reads the snapshot. Steps that today throw on existing state are made idempotent.
-- **Phase 2 — Walk: Workflow State + Resume.** Persist per-step workflow state to the remote ConfigMap so resume decisions can survive across Solo upgrades, distinguish "in progress" from "completed", and surface a clean resume UX.
-- **Phase 3 — Run: Convergence + Health.** Replace existence-only guards with health-aware ones, detect configuration drift, and integrate `DiagnosticsAnalyzer` so re-runs can recover from broken state rather than skipping over it.
+* **Phase 1 — Crawl: Command-Level Guards.** Before any step runs, pre-fetch a snapshot of "what already exists" and attach it to the task context. Each sub-command invocation gets a skip predicate that reads the snapshot. Steps that today throw on existing state are made idempotent.
+* **Phase 2 — Walk: Workflow State + Resume.** Persist per-step workflow state to the remote ConfigMap so resume decisions can survive across Solo upgrades, distinguish "in progress" from "completed", and surface a clean resume UX.
+* **Phase 3 — Run: Convergence + Health.** Replace existence-only guards with health-aware ones, detect configuration drift, and integrate `DiagnosticsAnalyzer` so re-runs can recover from broken state rather than skipping over it.
 
 Phase 1 is sufficient to address the most common operator complaint (re-running after failure) without depending on schema changes or new commands. Phases 2 and 3 each warrant their own RFC once Phase 1 is in production and producing failure data.
 
@@ -145,10 +145,10 @@ And `performRollback()` short-circuits on `config.rollback === false`, leaving p
 
 Phase 1 changes:
 
-- **No behavior change to the default.** Rollback stays opt-in. Re-running deploy after a failure already finds partial state intact and resumes from there once the Phase 1 guards land.
-- **Fix the describe text** in `src/commands/flags.ts` to accurately state: "Automatically clean up partial resources when deploy fails. Default: off (partial state is preserved so deploy can be re-run as a resume)."
-- **Update operator-facing docs** (`docs/site/content/en/docs/`) to document the resume workflow: "If `solo one-shot deploy` fails, fix the underlying issue and re-run the same command — Phase 1 guards will skip completed steps."
-- **No flag removal or deprecation** is needed. `--no-rollback` was an undocumented synonym for the existing default; we are not renaming or removing flags.
+* **No behavior change to the default.** Rollback stays opt-in. Re-running deploy after a failure already finds partial state intact and resumes from there once the Phase 1 guards land.
+* **Fix the describe text** in `src/commands/flags.ts` to accurately state: "Automatically clean up partial resources when deploy fails. Default: off (partial state is preserved so deploy can be re-run as a resume)."
+* **Update operator-facing docs** (`docs/site/content/en/docs/`) to document the resume workflow: "If `solo one-shot deploy` fails, fix the underlying issue and re-run the same command — Phase 1 guards will skip completed steps."
+* **No flag removal or deprecation** is needed. `--no-rollback` was an undocumented synonym for the existing default; we are not renaming or removing flags.
 
 This was the most impactful correction to the original planning doc; see §15 Notes for context.
 
@@ -156,8 +156,8 @@ This was the most impactful correction to the original planning doc; see §15 No
 
 Two sites currently throw on existing state. The fix is local to those handlers, not in the one-shot flow:
 
-- **`deployment config create`** — when the deployment already exists in both local config and the remote ConfigMap, log `Deployment 'X' already exists, skipping creation` and return successfully instead of throwing `DeploymentAlreadyExistsSoloError`. If only one of the two sides exists (stale state), retain the current cleanup-and-proceed behavior already implemented for that case.
-- **Remote-config component creation** — when a component of the requested type already exists in the components array, log and return successfully instead of throwing. The phase-gated guards on later steps already handle the "skip subsequent work" decision.
+* **`deployment config create`** — when the deployment already exists in both local config and the remote ConfigMap, log `Deployment 'X' already exists, skipping creation` and return successfully instead of throwing `DeploymentAlreadyExistsSoloError`. If only one of the two sides exists (stale state), retain the current cleanup-and-proceed behavior already implemented for that case.
+* **Remote-config component creation** — when a component of the requested type already exists in the components array, log and return successfully instead of throwing. The phase-gated guards on later steps already handle the "skip subsequent work" decision.
 
 These two changes also make the operations safe to call directly (not just from one-shot), which is a small bonus for scripted workflows.
 
@@ -190,17 +190,19 @@ Records are written through `RemoteConfigRuntimeState` so callers never reach in
 **Decision:** extend the existing remote ConfigMap (`solo-remote-config`) with a new top-level `workflow` field. Not a dedicated ConfigMap.
 
 Rationale:
-- Phase 1's `DeploymentStateSnapshot` already reads from this ConfigMap; adding workflow state to the same source keeps reads consistent and avoids a second round-trip.
-- A typical one-shot deploy has fewer than 20 steps; the additional payload is small (~2 KB) — well within the 1 MiB ConfigMap limit.
-- One source of truth simplifies backup/restore and migration tooling.
+
+* Phase 1's `DeploymentStateSnapshot` already reads from this ConfigMap; adding workflow state to the same source keeps reads consistent and avoids a second round-trip.
+* A typical one-shot deploy has fewer than 20 steps; the additional payload is small (~2 KB) — well within the 1 MiB ConfigMap limit.
+* One source of truth simplifies backup/restore and migration tooling.
 
 ### 7.3 Schema versioning
 
 **Decision:** version field `workflowVersion: number` at the top of the workflow state. Bump on any backward-incompatible change.
 
 Read behavior:
-- **Newer Solo reading older versions:** registered migration in `src/data/schema/migration/impl/remote/` lifts the record to the current schema. Same pattern Phase 1 already uses.
-- **Older Solo reading newer versions:** unknown version → drop the workflow state entirely and treat the deploy as fresh. Safer than silently mis-interpreting fields.
+
+* **Newer Solo reading older versions:** registered migration in `src/data/schema/migration/impl/remote/` lifts the record to the current schema. Same pattern Phase 1 already uses.
+* **Older Solo reading newer versions:** unknown version → drop the workflow state entirely and treat the deploy as fresh. Safer than silently mis-interpreting fields.
 
 The first release that ships Phase 2 sets `workflowVersion: 1`. Phase 1 deployments without a workflow field are treated as version 0 (no workflow state) — fresh-start behavior on first Phase 2 invocation.
 
@@ -248,9 +250,10 @@ Phase 2 ships this for account creation specifically. Other batch operations (TL
 **Decision:** **auto-resume by default**, with a banner log line showing what was found and what will happen. A new `--no-resume` flag forces a fresh start (after rollback of any partial state).
 
 Rationale:
-- Matches Phase 1's implicit-resume philosophy: re-running `deploy` is the resume mechanism. Phase 2 makes it explicit and observable, not a different command.
-- No new subcommand (`solo one-shot resume`) — operators already type `deploy`, no reason to ask them to learn a second command for the recovery path.
-- No prompt — the default operator workflow is non-interactive (CI, scripts); prompting would break that.
+
+* Matches Phase 1's implicit-resume philosophy: re-running `deploy` is the resume mechanism. Phase 2 makes it explicit and observable, not a different command.
+* No new subcommand (`solo one-shot resume`) — operators already type `deploy`, no reason to ask them to learn a second command for the recovery path.
+* No prompt — the default operator workflow is non-interactive (CI, scripts); prompting would break that.
 
 The banner emitted on resume:
 
@@ -278,10 +281,10 @@ End-to-end scenarios that gate Phase 2's release:
 
 Desired-state vs. actual-state reconciliation:
 
-- A `solo one-shot status` command that reports per-component health against the deployment's desired configuration.
-- Health-aware guards: replace "chart installed → skip" with "chart installed AND healthy → skip". Unhealthy resources become a recovery target, not a skip.
-- Config drift detection: compare the deployed component versions against the user's current `--release-tag` and friends.
-- Integration with `DiagnosticsAnalyzer` so a re-run after failure can fix the root cause (image pull error → retry pull; OOM → adjust resources; etc.) rather than skip past it.
+* A `solo one-shot status` command that reports per-component health against the deployment's desired configuration.
+* Health-aware guards: replace "chart installed → skip" with "chart installed AND healthy → skip". Unhealthy resources become a recovery target, not a skip.
+* Config drift detection: compare the deployed component versions against the user's current `--release-tag` and friends.
+* Integration with `DiagnosticsAnalyzer` so a re-run after failure can fix the root cause (image pull error → retry pull; OOM → adjust resources; etc.) rather than skip past it.
 
 Open questions for a Phase 3 RFC: implicit convergence in `deploy` vs. an explicit `converge` command; version upgrade strategy; how aggressive drift correction should be by default.
 
@@ -327,30 +330,30 @@ Ordering matters: PR 1 is a prerequisite for everything else. PRs 2–8 are inde
 
 ## 12. Risks
 
-- **Snapshot staleness on long deploys.** A deploy that runs for 20 minutes may make decisions based on a 20-minute-old snapshot. Mitigation accepted for Phase 1: subordinate steps' own idempotency catches the race. Tighter freshness in Phase 3.
-- **Guard false-negatives mask real bugs.** A guard that incorrectly says "already done" causes a silent skip. Mitigation: every guard fire logs a one-liner at `INFO`; the test suite asserts exact skip/run sequences for the four scenarios in §10.
-- **Idempotent throws change error semantics.** Operators who *expected* `DeploymentAlreadyExistsSoloError` as a signal lose that signal. Mitigation: log clearly; document in changelog; the new behavior is what most operators want when invoking deploy a second time.
-- **Documentation-only flag change still surprises users.** Some users may have relied on the misleading describe text and believed rollback was default-on; their existing scripts may have been explicitly passing `--no-rollback` to "preserve state" — which was a no-op against the real default. Mitigation: the documentation update explicitly calls out the previously-misleading describe text in the changelog.
+* **Snapshot staleness on long deploys.** A deploy that runs for 20 minutes may make decisions based on a 20-minute-old snapshot. Mitigation accepted for Phase 1: subordinate steps' own idempotency catches the race. Tighter freshness in Phase 3.
+* **Guard false-negatives mask real bugs.** A guard that incorrectly says "already done" causes a silent skip. Mitigation: every guard fire logs a one-liner at `INFO`; the test suite asserts exact skip/run sequences for the four scenarios in §10.
+* **Idempotent throws change error semantics.** Operators who *expected* `DeploymentAlreadyExistsSoloError` as a signal lose that signal. Mitigation: log clearly; document in changelog; the new behavior is what most operators want when invoking deploy a second time.
+* **Documentation-only flag change still surprises users.** Some users may have relied on the misleading describe text and believed rollback was default-on; their existing scripts may have been explicitly passing `--no-rollback` to "preserve state" — which was a no-op against the real default. Mitigation: the documentation update explicitly calls out the previously-misleading describe text in the changelog.
 
 ## 13. Rollout
 
-- Phase 1 ships behind no feature flag — the new guard behavior is the only behavior.
-- The `--rollback` flag retains its current name, default, and semantics; only the describe text and external docs change.
-- No data migration is required; the snapshot is read-only.
-- Changelog entry under "Behavior changes (UX)" calls out: (a) re-running `deploy` after a failure now resumes from the failed step rather than erroring on existing state, (b) `--rollback`'s describe text has been corrected to match its long-standing default.
+* Phase 1 ships behind no feature flag — the new guard behavior is the only behavior.
+* The `--rollback` flag retains its current name, default, and semantics; only the describe text and external docs change.
+* No data migration is required; the snapshot is read-only.
+* Changelog entry under "Behavior changes (UX)" calls out: (a) re-running `deploy` after a failure now resumes from the failed step rather than erroring on existing state, (b) `--rollback`'s describe text has been corrected to match its long-standing default.
 
 ## 14. Open Questions
 
-- Should guards emit a structured event (in addition to the log line) so external tooling can detect "step X was skipped"?
-- Is the `SOLO_FAIL_AFTER_STEP` injection mechanism acceptable, or should the test suite use a different approach (e.g., a test-only subclass)?
+* Should guards emit a structured event (in addition to the log line) so external tooling can detect "step X was skipped"?
+* Is the `SOLO_FAIL_AFTER_STEP` injection mechanism acceptable, or should the test suite use a different approach (e.g., a test-only subclass)?
 
 ## 15. References & Notes
 
-- Solo source: `src/commands/one-shot/default-one-shot.ts`, `src/commands/command-helpers.ts` (`invokeSoloCommand`), `src/data/schema/model/remote/deployment-phase.ts`, `src/core/config/remote/components-data-wrapper.ts`, `src/business/runtime-state/config/remote/remote-config-runtime-state.ts`.
-- Related plan: `docs/plans/parallelize-one-shot-plan.md` — parallelization of one-shot. Orthogonal but overlaps in the same `deployInternal()` flow; the snapshot mechanism here is compatible with parallel execution.
-- Umbrella tracking issue: TBD.
+* Solo source: `src/commands/one-shot/default-one-shot.ts`, `src/commands/command-helpers.ts` (`invokeSoloCommand`), `src/data/schema/model/remote/deployment-phase.ts`, `src/core/config/remote/components-data-wrapper.ts`, `src/business/runtime-state/config/remote/remote-config-runtime-state.ts`.
+* Related plan: `docs/plans/parallelize-one-shot-plan.md` — parallelization of one-shot. Orthogonal but overlaps in the same `deployInternal()` flow; the snapshot mechanism here is compatible with parallel execution.
+* Umbrella tracking issue: TBD.
 
 **Note on the planning-to-RFC delta.** Two corrections were applied to the planning doc that produced this RFC:
 
-- The planning doc proposed flipping the rollback default. Verification against `main` showed the default is already off; the flag's describe text was the actual source of confusion. §6.4 was rewritten to reflect this.
-- The planning doc proposed guarding the account-creation step on the existence of ledger account `0.0.1002`. No such literal exists in the codebase. The account-creation step already writes `${outputDirectory}/accounts.json` on success, which is a faster and more reliable signal. §6.3 step 11e was changed accordingly.
+* The planning doc proposed flipping the rollback default. Verification against `main` showed the default is already off; the flag's describe text was the actual source of confusion. §6.4 was rewritten to reflect this.
+* The planning doc proposed guarding the account-creation step on the existence of ledger account `0.0.1002`. No such literal exists in the codebase. The account-creation step already writes `${outputDirectory}/accounts.json` on success, which is a faster and more reliable signal. §6.3 step 11e was changed accordingly.

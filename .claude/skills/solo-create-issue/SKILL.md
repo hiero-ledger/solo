@@ -137,6 +137,7 @@ Extract the following from the user's natural-language description:
 prompt instead of many.
 
 The calls are sequential and chain outputs:
+
 1. **Create issue** → capture `issue.id` and `issue.url` (type + labels set in this same mutation)
 2. **Add to project** using `issue.id` → capture `item.id`
 3. **Set Status + Priority** using `item.id` (both fields in one aliased mutation)
@@ -226,12 +227,12 @@ Project:  Solo X Team
 
 ## Tips from the field
 
-- **Batch creation**: when creating many issues (e.g. populating an epic), capture all issue IDs
+* **Batch creation**: when creating many issues (e.g. populating an epic), capture all issue IDs
   first in Pass 1, then do a second pass to patch cross-reference links (`- [ ] requires #N` /
   `- [ ] required by #N`) into each body once all numbers are known.
-- **Status guidance**: use **Ready** for issues with no blockers; use **Backlog** when the issue
+* **Status guidance**: use **Ready** for issues with no blockers; use **Backlog** when the issue
   depends on other issues being completed first.
-- **Parent node IDs for common epics/initiatives** (save a lookup):
+* **Parent node IDs for common epics/initiatives** (save a lookup):
 
   | Issue | # | Node ID |
   |-------|---|---------|
