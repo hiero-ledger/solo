@@ -378,10 +378,19 @@ export class BlockNodeCommand extends BaseCommand {
         const localImageTag: string = SemanticVersion.getValidSemanticVersion(rawTag, false, 'Block node image tag');
         if (this.isLocalImageAvailableInDocker(`${localImageName}:${localImageTag}`)) {
           // Image found locally — kind-load task will load it; set pullPolicy: Never.
-          chartValues
-            .set('image.repository', localImageName)
-            .set('image.tag', localImageTag)
-            .set('image.pullPolicy', 'Never');
+          if (this.isLocalRegistryImageReference(config.componentImage)) {
+            const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+            chartValues
+              .setLiteral('image.registry', parsedReference.registry)
+              .set('image.repository', parsedReference.repository)
+              .set('image.tag', localImageTag)
+              .set('image.pullPolicy', 'Never');
+          } else {
+            chartValues
+              .set('image.repository', localImageName)
+              .set('image.tag', localImageTag)
+              .set('image.pullPolicy', 'Never');
+          }
         } else {
           // Not in local Docker — plain tag override so K8s can pull from a registry.
           chartValues.set('image.tag', localImageTag);

@@ -71,6 +71,7 @@ interface BlockNodeCommandInternal {
   ) => Promise<{id: number; releaseName: string; isChartInstalled: boolean; isLegacyChartInstalled: boolean}>;
   prepareValuesArgForBlockNode: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
   getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string) => number;
+  isLocalImageAvailableInDocker: (componentImage: string) => boolean;
 }
 
 describe('BlockNodeCommand unit tests', (): void => {
@@ -259,6 +260,35 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(valueArguments).to.not.include(
       'blockNode.config.ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL=http://mirror-2-restjava:80',
     );
+  });
+
+  it('should configure a Kind-attached local registry image with a Never pull policy', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+        },
+      },
+    };
+    sinon.stub(blockNodeCommandInternal, 'isLocalImageAvailableInDocker').returns(true);
+
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: false,
+      componentImage: 'localhost:5001/block-node-server:0.38.0',
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+    expect(valueArguments).to.include('image.registry=localhost:5001');
+    expect(valueArguments).to.include('image.repository=block-node-server');
+    expect(valueArguments).to.include('image.tag=0.38.0');
+    expect(valueArguments).to.include('image.pullPolicy=Never');
   });
 
   it('should use the block node release name as the Helm instance label selector', (): void => {

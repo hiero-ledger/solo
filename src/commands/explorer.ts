@@ -436,6 +436,10 @@ export class ExplorerCommand extends BaseCommand {
           }
         }
 
+        if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+          await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
+        }
+
         await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,
