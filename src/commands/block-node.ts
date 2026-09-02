@@ -375,7 +375,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if ('componentImage' in config && config.componentImage) {
-      const hasComponentImageArchive: boolean = this.hasComponentImageArchive(
+      const hasComponentImageArchive: boolean = this.hasComponentImageArchiveValue(
         config.componentImage,
         config.componentImageArchive,
       );
@@ -703,7 +703,7 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Load component image into Kind cluster',
       skip: ({config}: BlockNodeDeployContext): boolean => {
         return (
-          !this.hasComponentImageArchive(config.componentImage, config.componentImageArchive) &&
+          !this.hasComponentImageArchiveValue(config.componentImage, config.componentImageArchive) &&
           (!config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage))
         );
       },

@@ -418,6 +418,15 @@ describe('BaseCommand', (): void => {
         '--component-image-archive requires --component-image to identify the image in the archive.',
       );
     });
+
+    it('should reject a missing image archive path', async (): Promise<void> => {
+      const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
+      const missingArchivePath: string = PathEx.join(os.tmpdir(), 'missing-block-node-server.tar');
+
+      await expect(
+        baseCommandInternal.loadComponentImage('block-node-server:0.38.0', missingArchivePath, 'kind-first'),
+      ).to.be.rejectedWith(`File does not exist: ${missingArchivePath}`);
+    });
   });
 
   describe('kindClusterNameFromContext', (): void => {

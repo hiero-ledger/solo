@@ -310,12 +310,19 @@ export abstract class BaseCommand extends ShellRunner {
     return checkDockerImageExists(name, tag);
   }
 
-  protected hasComponentImageArchive(
+  protected hasComponentImageArchiveValue(
     componentImage: Optional<string>,
     componentImageArchive: Optional<string>,
   ): boolean {
-    if (!componentImageArchive?.trim()) {
-      return false;
+    return Boolean(componentImageArchive?.trim());
+  }
+
+  protected validateComponentImageArchive(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+  ): void {
+    if (!this.hasComponentImageArchiveValue(componentImage, componentImageArchive)) {
+      return;
     }
 
     if (!componentImage?.trim()) {
@@ -328,8 +335,6 @@ export abstract class BaseCommand extends ShellRunner {
     if (!fs.existsSync(componentImageArchive)) {
       throw new SoloErrors.system.fileNotFound(componentImageArchive);
     }
-
-    return true;
   }
 
   protected async loadComponentImage(
@@ -337,7 +342,8 @@ export abstract class BaseCommand extends ShellRunner {
     componentImageArchive: Optional<string>,
     clusterContext: Context,
   ): Promise<void> {
-    if (this.hasComponentImageArchive(componentImage, componentImageArchive)) {
+    if (this.hasComponentImageArchiveValue(componentImage, componentImageArchive)) {
+      this.validateComponentImageArchive(componentImage, componentImageArchive);
       await this.kindLoadComponentImageArchive(componentImageArchive, clusterContext);
       return;
     }
@@ -351,10 +357,12 @@ export abstract class BaseCommand extends ShellRunner {
     componentImage: Optional<string>,
     componentImageArchive: Optional<string>,
   ): boolean {
-    return (
-      this.hasComponentImageArchive(componentImage, componentImageArchive) ||
-      Boolean(componentImage && this.isLocalImageAvailableInDocker(componentImage))
-    );
+    if (this.hasComponentImageArchiveValue(componentImage, componentImageArchive)) {
+      this.validateComponentImageArchive(componentImage, componentImageArchive);
+      return true;
+    }
+
+    return Boolean(componentImage && this.isLocalImageAvailableInDocker(componentImage));
   }
 
   protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
