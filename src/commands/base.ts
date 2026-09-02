@@ -311,7 +311,9 @@ export abstract class BaseCommand extends ShellRunner {
 
   protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
     const targetContexts: Context[] = [...new Set<Context>([...this.remoteConfig.getContexts(), clusterContext])];
-    const nonKindContexts: Context[] = targetContexts.filter((context: Context): boolean => !context.startsWith('kind-'));
+    const nonKindContexts: Context[] = targetContexts.filter(
+      (context: Context): boolean => !context.startsWith('kind-'),
+    );
 
     if (nonKindContexts.length > 0) {
       throw new SoloErrors.validation.illegalArgument(
