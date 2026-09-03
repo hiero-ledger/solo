@@ -96,6 +96,8 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Node
+        # zizmor: ignore[cache-poisoning]
+        # Accepted: this workflow does not publish release artifacts; retaining the cache avoids significant CI overhead.
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:

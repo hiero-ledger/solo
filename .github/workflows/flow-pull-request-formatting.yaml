@@ -17,6 +17,8 @@
 name: "PR Formatting"
 on:
   workflow_dispatch:
+  # zizmor: ignore[dangerous-triggers]
+  # Accepted: this workflow does not checkout or execute untrusted PR code, it only reads the PR title. pull_request_target is needed for statuses: write.
   pull_request_target:
     types:
       - opened

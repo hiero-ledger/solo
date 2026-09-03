@@ -86,6 +86,8 @@ jobs:
           # Arch is rolling, so the tag cannot be pinned to a release; -Syu keeps the freshly
           # refreshed package index and the installed system from drifting apart.
           - distro: arch
+            # zizmor: ignore[unpinned-images]
+            # Accepted: archlinux:latest is an intentional exception to pinning policy because Arch is rolling release and we explicitly want to test the current rolling environment.
             image: archlinux:latest
             bootstrap: 'pacman -Syu --noconfirm --needed git curl sudo ca-certificates'
             use_setup_node: true

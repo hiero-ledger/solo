@@ -17,6 +17,8 @@
 name: "Solo Docs Update Trigger"
 
 on:
+  # zizmor: ignore[dangerous-triggers]
+  # Accepted: this workflow does not checkout PR code or download untrusted artifacts. It invokes gh workflow run against a trusted repo. Warning: do not add checkout/download here, GH_ACCESS_TOKEN would make it dangerous.
   workflow_run:
     workflows:
       - "Deploy Release Artifact"
