@@ -137,7 +137,7 @@ export class FilePermissions {
    */
   public static findUntrustedAncestorReason(startDirectory: string): string | undefined {
     let current: string = PathEx.realPathSync(PathEx.resolve(startDirectory));
-    for (;;) {
+    while (true) {
       const parent: string = PathEx.dirname(current);
 
       // On Windows, stop before inspecting the volume root itself.
