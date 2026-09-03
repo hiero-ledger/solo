@@ -35,9 +35,9 @@ describe('HelmExecutionBuilder', (): void => {
       expect(builder.flag('--atomic')).to.equal(builder);
     });
 
-    it('should throw error if flag is null', (): void => {
+    it('should throw error if flag is empty', (): void => {
       const builder: HelmExecutionBuilder = new HelmExecutionBuilder();
-      expect((): HelmExecutionBuilder => builder.flag(null as any)).to.throw('flag must not be null');
+      expect((): HelmExecutionBuilder => builder.flag('')).to.throw('flag must not be null');
     });
 
     it('should throw error if flag does not start with a dash', (): void => {

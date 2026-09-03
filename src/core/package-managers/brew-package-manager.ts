@@ -100,22 +100,22 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
         continue;
       }
       const [, key, rawValue]: string[] = match;
-      const value: string = BrewPackageManager.expandShellValue(rawValue);
       if (key === 'PATH') {
-        BrewPackageManager.registerPathAdditions(value);
+        BrewPackageManager.registerPathAdditions(rawValue);
       } else {
-        SubprocessEnvironment.setSessionVariable(key, value);
+        SubprocessEnvironment.setSessionVariable(key, BrewPackageManager.expandShellValue(rawValue));
       }
     }
   }
 
   /**
-   * Registers the new directories from a shellenv `PATH` value as session path prepends, preserving
-   * order. The brew value is split on the `:` brew hardcodes; this flow only runs on Linux.
+   * Registers the new directories from a raw shellenv `PATH` value as session path prepends, preserving order.
+   * References to the existing PATH are dropped, never expanded and re-split on the `:` brew hardcodes.
    */
-  private static registerPathAdditions(pathValue: string): void {
+  private static registerPathAdditions(rawPathValue: string): void {
+    const literalValue: string = rawPathValue.replaceAll(/\$(\{PATH[^}]*\}|PATH\b)/g, '');
     const currentSegments: Set<string> = new Set<string>(SubprocessEnvironment.currentPath().split(PathEx.delimiter));
-    const newSegments: string[] = pathValue
+    const newSegments: string[] = BrewPackageManager.expandShellValue(literalValue)
       .split(':')
       .filter((segment: string): boolean => Boolean(segment) && !currentSegments.has(segment));
     // prependSessionPath puts each directory in front, so iterate in reverse to preserve order.
