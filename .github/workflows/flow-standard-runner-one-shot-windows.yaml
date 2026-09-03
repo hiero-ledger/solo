@@ -139,12 +139,11 @@ jobs:
         run: |
           $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE "Ubuntu\$env:WSL_UBUNTU_VERSION\x64"
           $installerPath = Join-Path $cacheDirectory $env:WSL_UBUNTU_INSTALLER_FILE
-          $completeMarker = Join-Path $cacheDirectory '.complete'
           $cacheHit = '${{ steps.restore_ubuntu_wsl_installer.outputs.cache-hit }}'
           $valid = $false
           $validationResult = 'cache miss'
 
-          if ((Test-Path -LiteralPath $installerPath) -and (Test-Path -LiteralPath $completeMarker)) {
+          if (Test-Path -LiteralPath $installerPath) {
             $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($actualHash -eq $env:WSL_UBUNTU_INSTALLER_SHA256) {
               $valid = $true
@@ -154,7 +153,7 @@ jobs:
               $validationResult = "invalid SHA-256: $actualHash"
             }
           } elseif (Test-Path -LiteralPath $cacheDirectory) {
-            $validationResult = 'installer or completion marker is missing'
+            $validationResult = 'installer is missing'
           }
 
           if (-not $valid -and (Test-Path -LiteralPath $cacheDirectory)) {
@@ -306,12 +305,11 @@ jobs:
         run: |
           $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE "Ubuntu\$env:WSL_UBUNTU_VERSION\x64"
           $installerPath = Join-Path $cacheDirectory $env:WSL_UBUNTU_INSTALLER_FILE
-          $completeMarker = Join-Path $cacheDirectory '.complete'
           $cacheHit = '${{ steps.restore_ubuntu_wsl_installer_after_failure.outputs.cache-hit }}'
           $valid = $false
           $validationResult = 'cache miss'
 
-          if ((Test-Path -LiteralPath $installerPath) -and (Test-Path -LiteralPath $completeMarker)) {
+          if (Test-Path -LiteralPath $installerPath) {
             $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($actualHash -eq $env:WSL_UBUNTU_INSTALLER_SHA256) {
               $valid = $true
@@ -320,7 +318,7 @@ jobs:
               $validationResult = "invalid SHA-256: $actualHash"
             }
           } elseif (Test-Path -LiteralPath $cacheDirectory) {
-            $validationResult = 'installer or completion marker is missing'
+            $validationResult = 'installer is missing'
           }
 
           if (-not $valid -and (Test-Path -LiteralPath $cacheDirectory)) {
@@ -347,9 +345,8 @@ jobs:
           $distributionName = 'Ubuntu-24.04'
           $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE "Ubuntu\$env:WSL_UBUNTU_VERSION\x64"
           $installerPath = Join-Path $cacheDirectory $env:WSL_UBUNTU_INSTALLER_FILE
-          $completeMarker = Join-Path $cacheDirectory '.complete'
 
-          if (-not (Test-Path -LiteralPath $installerPath) -or -not (Test-Path -LiteralPath $completeMarker)) {
+          if (-not (Test-Path -LiteralPath $installerPath)) {
             Write-Host 'Validated Ubuntu WSL installer is unavailable; continuing to web fallback.'
             Add-Content -Path $env:GITHUB_OUTPUT -Value 'installed=false'
             exit 0
