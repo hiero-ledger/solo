@@ -5,13 +5,13 @@
  *
  * Per hiero-ledger/solo#4004, this class is the chokepoint for user-controlled values
  * (CLI flags, interactive prompts, environment variables) before they reach hostile sinks
- * (shell commands, Helm templates, JSON parsers, regex constructors, filesystem paths).
+ * (Helm templates, JSON parsers, filesystem paths).
  *
  * The top-level {@link UserInput.sanitize} method applies a conservative pass that removes
  * inputs which are dangerous in every context: null bytes and path-traversal sequences.
- * Context-specific escapers (`escapeShell`, `escapeHelmTemplate`, `escapeRegex`,
- * `safeJsonKey`, `safeFilenameComponent`) handle the cases that need stricter treatment
- * for a specific sink.
+ * Context-specific helpers (`escapeHelmTemplate`, `safeJsonKey`, `safeFilenameComponent`)
+ * handle the cases that need stricter treatment for a specific sink. Regex escaping lives in
+ * {@link Regex.escape} (`src/business/utils/regex.ts`).
  */
 export class UserInput {
   /**
@@ -50,26 +50,6 @@ export class UserInput {
   }
 
   /**
-   * Escape a value so it is safe to pass as a single shell argument in double-quoted
-   * context. The intended use is constructing a shell command string for `bash -c` or
-   * similar. **Prefer passing arguments as an array to `spawn`/`execFile` without
-   * `shell: true` over relying on this method** — that route is structurally
-   * injection-safe and does not need escaping. Use this only when a shell is unavoidable.
-   *
-   * @param input - the user-supplied value to escape.
-   * @returns the escaped value, suitable to wrap in `"..."` in a shell command.
-   */
-  public static escapeShell(input: string): string {
-    if (typeof input !== 'string') {
-      return input;
-    }
-    // POSIX shell metacharacters in double-quote context. Backslash must come first so it
-    // doesn't re-escape the escapes we add below.
-
-    return input.replaceAll('\\', String.raw`\\`).replaceAll(/(["$`!])/g, String.raw`\$1`);
-  }
-
-  /**
    * Escape a value so Helm's Go template engine treats it as a literal string rather than
    * a template directive. Helm allows backslash-escaping of `{` and `}` in `--set` values
    * and values-file strings.
@@ -82,20 +62,6 @@ export class UserInput {
       return input;
     }
     return input.replaceAll('{', String.raw`\{`).replaceAll('}', String.raw`\}`);
-  }
-
-  /**
-   * Escape a string so it can be embedded literally inside a regular-expression pattern.
-   * Use this when a user-supplied value becomes part of a `new RegExp(...)` invocation.
-   *
-   * @param input - the user-supplied value.
-   * @returns the value with all regex metacharacters escaped.
-   */
-  public static escapeRegex(input: string): string {
-    if (typeof input !== 'string') {
-      return input;
-    }
-    return input.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
   }
 
   /**
