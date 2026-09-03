@@ -94,9 +94,12 @@ jobs:
                 forbidden: /fatal:|RPC failed|index-pack failed|Repository not found|could not read Username/,
               },
               {
+                // The distribution is fetched by `Setup WSL2`, by its retry, and by an explicit
+                // web-download fallback. Any of the three can be the step that runs out of time,
+                // so all three gate this rule: run 33757121299 timed out in the fallback alone.
                 description: 'WSL distribution download exceeded its budget',
-                stepPrefixes: ['setup wsl2'],
-                required: /The action 'Setup WSL2' has timed out after \d+ minutes?/,
+                stepPrefixes: ['setup wsl2', 'retry setup wsl2', 'install ubuntu wsl distribution fallback'],
+                required: /The action '(Setup WSL2|Retry Setup WSL2|Install Ubuntu WSL distribution fallback)' has timed out after \d+ minutes?/,
                 forbidden: /error TS\d{4}/,
               },
               {
