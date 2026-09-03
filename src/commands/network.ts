@@ -180,7 +180,6 @@ export class NetworkCommand extends BaseCommand {
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
-      flags.wrapsCopyParallel,
       flags.tssEnabled,
       flags.blockNodeMessageSizeSoftLimitBytes,
       flags.blockNodeMessageSizeHardLimitBytes,
@@ -972,7 +971,6 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
       flags.gossipEndpointPort,
       flags.serviceEndpointPort,
-      flags.wrapsCopyParallel,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -2028,7 +2026,7 @@ export class NetworkCommand extends BaseCommand {
             );
 
             return task.newListr(subTasks, {
-              concurrent: config.wrapsCopyParallel,
+              concurrent: constants.EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL,
               rendererOptions: {
                 collapseSubtasks: false,
               },

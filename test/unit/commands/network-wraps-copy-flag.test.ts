@@ -4,34 +4,22 @@ import {expect} from 'chai';
 import {beforeEach, describe, it} from 'mocha';
 import {Flags} from '../../../src/commands/flags.js';
 import {NetworkCommand} from '../../../src/commands/network.js';
-import {type CommandFlag} from '../../../src/types/command-flag.js';
+import * as constants from '../../../src/core/constants.js';
 import {resetForTest} from '../../test-container.js';
 
-describe('wraps copy parallel flag', (): void => {
+describe('wraps copy parallel env toggle', (): void => {
   beforeEach((): void => {
     resetForTest();
   });
 
-  it('is registered in the flag registry', (): void => {
-    expect(Flags.allFlags).to.include(Flags.wrapsCopyParallel);
-    expect(Flags.allFlagsMap.get(Flags.wrapsCopyParallel.name)).to.equal(Flags.wrapsCopyParallel);
+  it('is not exposed as a CLI flag', (): void => {
+    const deployFlags = [...NetworkCommand.DEPLOY_FLAGS_LIST.optional, ...NetworkCommand.DEPLOY_FLAGS_LIST.required];
+
+    expect(Flags.allFlags.some((flag): boolean => flag.name === 'wraps-copy-parallel')).to.be.false;
+    expect(deployFlags.some((flag): boolean => flag.name === 'wraps-copy-parallel')).to.be.false;
   });
 
-  it('defaults to the sequential copy that predates the flag', (): void => {
-    expect(Flags.wrapsCopyParallel.definition.type).to.equal('boolean');
-    expect(Flags.wrapsCopyParallel.definition.defaultValue).to.be.false;
-  });
-
-  it('is offered by consensus network deploy', (): void => {
-    const deployFlags: CommandFlag[] = [
-      ...NetworkCommand.DEPLOY_FLAGS_LIST.optional,
-      ...NetworkCommand.DEPLOY_FLAGS_LIST.required,
-    ];
-
-    expect(deployFlags).to.include(Flags.wrapsCopyParallel);
-  });
-
-  it('does not prompt, so a non-interactive deploy keeps the default', (): void => {
-    expect(Flags.wrapsCopyParallel.prompt).to.be.undefined;
+  it('defaults to the sequential copy unless explicitly enabled via env var', (): void => {
+    expect(constants.EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL).to.be.false;
   });
 });

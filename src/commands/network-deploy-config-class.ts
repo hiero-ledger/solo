@@ -78,7 +78,6 @@ export interface NetworkDeployConfigClass {
   javaFlightRecorderConfiguration: string;
   wrapsEnabled: boolean;
   wrapsKeyPath: string;
-  wrapsCopyParallel: boolean;
   tssEnabled: boolean;
   minioEnabled: boolean;
 }
