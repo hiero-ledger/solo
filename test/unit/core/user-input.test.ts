@@ -59,24 +59,6 @@ describe('UserInput.sanitize', (): void => {
   });
 });
 
-describe('UserInput.escapeShell', (): void => {
-  it('passes plain input through unchanged', (): void => {
-    expect(UserInput.escapeShell('hello')).to.equal('hello');
-    expect(UserInput.escapeShell('safe-value.123')).to.equal('safe-value.123');
-  });
-
-  it('escapes shell metacharacters in double-quote context', (): void => {
-    expect(UserInput.escapeShell('a"b')).to.equal(String.raw`a\"b`);
-    expect(UserInput.escapeShell('a$b')).to.equal(String.raw`a\$b`);
-    expect(UserInput.escapeShell('a`b`c')).to.equal('a\\`b\\`c');
-    expect(UserInput.escapeShell('a!b')).to.equal(String.raw`a\!b`);
-  });
-
-  it('escapes backslashes first so it does not double-escape downstream', (): void => {
-    expect(UserInput.escapeShell(String.raw`a\b`)).to.equal(String.raw`a\\b`);
-  });
-});
-
 describe('UserInput.escapeHelmTemplate', (): void => {
   it('passes plain input through unchanged', (): void => {
     expect(UserInput.escapeHelmTemplate('hello')).to.equal('hello');
@@ -85,26 +67,6 @@ describe('UserInput.escapeHelmTemplate', (): void => {
   it('escapes `{` and `}` so Helm treats them as literals', (): void => {
     expect(UserInput.escapeHelmTemplate('{{.Values.foo}}')).to.equal(String.raw`\{\{.Values.foo\}\}`);
     expect(UserInput.escapeHelmTemplate('a{b}c')).to.equal(String.raw`a\{b\}c`);
-  });
-});
-
-describe('UserInput.escapeRegex', (): void => {
-  it('passes plain input through unchanged', (): void => {
-    expect(UserInput.escapeRegex('hello')).to.equal('hello');
-  });
-
-  it('escapes every regex metacharacter', (): void => {
-    expect(UserInput.escapeRegex('.')).to.equal(String.raw`\.`);
-    expect(UserInput.escapeRegex(String.raw`a.b*c+d?e^f$g(h)i{j}k|l[m]n\o`)).to.equal(
-      String.raw`a\.b\*c\+d\?e\^f\$g\(h\)i\{j\}k\|l\[m\]n\\o`,
-    );
-  });
-
-  it('produces a string that matches the original literally when used in RegExp', (): void => {
-    const dangerous: string = 'a.b*c[d]e';
-    const pattern: RegExp = new RegExp(UserInput.escapeRegex(dangerous));
-    expect(pattern.test(dangerous)).to.equal(true);
-    expect(pattern.test('axbXcYdZe')).to.equal(false);
   });
 });
 

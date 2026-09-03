@@ -104,4 +104,15 @@ describe('core/templates', (): void => {
       }).to.throw(/Cannot parse node alias/);
     });
   });
+
+  describe('renderOneShotOutputDirectory', (): void => {
+    it('joins the deployment name under the solo home directory', (): void => {
+      expect(Templates.renderOneShotOutputDirectory('my-deploy').endsWith('one-shot-my-deploy')).to.equal(true);
+    });
+
+    it('neutralizes path separators in the deployment name so it stays a single component', (): void => {
+      const directory: string = Templates.renderOneShotOutputDirectory('a/b/../c');
+      expect(directory.endsWith('one-shot-a_b_.._c')).to.equal(true);
+    });
+  });
 });
