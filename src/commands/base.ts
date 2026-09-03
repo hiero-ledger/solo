@@ -48,6 +48,7 @@ import {LoadDockerImageOptionsBuilder} from '../integration/kind/model/load-dock
 import {checkDockerImageExists} from '../core/helpers.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {getEnvironmentVariable} from '../core/constants.js';
 
 interface DockerDesktopContainerdCheckResult {
@@ -292,6 +293,19 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   protected splitImageNameTag(imageReference: string): {name: string; tag: string} {
+    const firstSegment: string = imageReference.split('/', 1)[0];
+    const explicitRegistryReference: boolean =
+      (firstSegment.includes('.') || firstSegment.includes(':') || firstSegment === 'localhost') &&
+      imageReference.includes('/');
+
+    if (explicitRegistryReference || this.isLocalRegistryImageReference(imageReference)) {
+      const parsedReference: ParsedImageReference = ImageReference.parseImageReference(imageReference);
+      return {
+        name: `${parsedReference.registry}/${parsedReference.repository}`,
+        tag: parsedReference.tag,
+      };
+    }
+
     const colonIndex: number = imageReference.lastIndexOf(':');
     if (colonIndex === -1) {
       throw new SoloErrors.validation.illegalArgument(
@@ -310,7 +324,12 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
-    const targetContexts: Context[] = [...new Set<Context>([...this.remoteConfig.getContexts(), clusterContext])];
+    const additionalKindContexts: Context[] = this.remoteConfig
+      .getContexts()
+      .filter(
+        (context: Context): boolean => context.startsWith('kind-') && context !== clusterContext,
+      );
+    const targetContexts: Context[] = [...new Set<Context>([clusterContext, ...additionalKindContexts])];
     const nonKindContexts: Context[] = targetContexts.filter(
       (context: Context): boolean => !context.startsWith('kind-'),
     );

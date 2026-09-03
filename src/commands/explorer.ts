@@ -425,8 +425,16 @@ export class ExplorerCommand extends BaseCommand {
               .set('image.tag', parsedReference.tag)
               .setLiteral('image.pullPolicy', 'Never');
           } else if (this.isLocalImageReference(config.componentImage)) {
-            // Local-looking ref but not in Docker — plain tag override, K8s will pull from registry.
-            explorerChartValues.set('image.tag', parsedReference.tag);
+            // Explicit local registry refs keep their registry/repository metadata even when Docker is missing.
+            if (this.isLocalRegistryImageReference(config.componentImage)) {
+              explorerChartValues
+                .setLiteral('image.registry', parsedReference.registry)
+                .setLiteral('image.repository', parsedReference.repository)
+                .set('image.tag', parsedReference.tag);
+            } else {
+              // Local-looking ref but not in Docker — plain tag override, K8s will pull from registry.
+              explorerChartValues.set('image.tag', parsedReference.tag);
+            }
           } else {
             // Explicit registry reference.
             explorerChartValues

@@ -291,6 +291,35 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(valueArguments).to.include('image.pullPolicy=Never');
   });
 
+  it('should preserve tagless local registry refs with implicit latest tags', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+        },
+      },
+    };
+    sinon.stub(blockNodeCommandInternal, 'isLocalImageAvailableInDocker').returns(true);
+
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: false,
+      componentImage: 'localhost:5001/block-node-server',
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+    expect(valueArguments).to.include('image.registry=localhost:5001');
+    expect(valueArguments).to.include('image.repository=block-node-server');
+    expect(valueArguments).to.include('image.tag=latest');
+    expect(valueArguments).to.include('image.pullPolicy=Never');
+  });
+
   it('should use the block node release name as the Helm instance label selector', (): void => {
     const labels: string[] = Templates.renderBlockNodeLabels(1);
 

@@ -374,26 +374,35 @@ export class BlockNodeCommand extends BaseCommand {
 
     if ('componentImage' in config && config.componentImage) {
       if (this.isLocalImageReference(config.componentImage)) {
-        const {name: localImageName, tag: rawTag} = this.splitImageNameTag(config.componentImage);
-        const localImageTag: string = SemanticVersion.getValidSemanticVersion(rawTag, false, 'Block node image tag');
-        if (this.isLocalImageAvailableInDocker(`${localImageName}:${localImageTag}`)) {
-          // Image found locally — kind-load task will load it; set pullPolicy: Never.
-          if (this.isLocalRegistryImageReference(config.componentImage)) {
-            const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+        if (this.isLocalRegistryImageReference(config.componentImage)) {
+          const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+          if (this.isLocalImageAvailableInDocker(config.componentImage)) {
+            // Image found locally — kind-load task will load it; set pullPolicy: Never.
             chartValues
               .setLiteral('image.registry', parsedReference.registry)
               .set('image.repository', parsedReference.repository)
-              .set('image.tag', localImageTag)
+              .set('image.tag', parsedReference.tag)
               .set('image.pullPolicy', 'Never');
           } else {
+            // Preserve the explicit registry/repository when a local registry image is pulled remotely.
+            chartValues
+              .setLiteral('image.registry', parsedReference.registry)
+              .set('image.repository', parsedReference.repository)
+              .set('image.tag', parsedReference.tag);
+          }
+        } else {
+          const {name: localImageName, tag: rawTag} = this.splitImageNameTag(config.componentImage);
+          const localImageTag: string = SemanticVersion.getValidSemanticVersion(rawTag, false, 'Block node image tag');
+          if (this.isLocalImageAvailableInDocker(`${localImageName}:${localImageTag}`)) {
+            // Image found locally — kind-load task will load it; set pullPolicy: Never.
             chartValues
               .set('image.repository', localImageName)
               .set('image.tag', localImageTag)
               .set('image.pullPolicy', 'Never');
+          } else {
+            // Not in local Docker — plain tag override so K8s can pull from a registry.
+            chartValues.set('image.tag', localImageTag);
           }
-        } else {
-          // Not in local Docker — plain tag override so K8s can pull from a registry.
-          chartValues.set('image.tag', localImageTag);
         }
       } else {
         const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
@@ -1713,7 +1722,7 @@ export class BlockNodeCommand extends BaseCommand {
   private getLivenessCheckPortNumber(chartVersion: string, componentImage?: string): number {
     let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(chartVersion);
 
-    if (componentImage && this.isLocalImageReference(componentImage)) {
+    if (componentImage && this.isLocalImageReference(componentImage) && !this.isLocalRegistryImageReference(componentImage)) {
       const tag: string = this.splitImageNameTag(componentImage).tag;
       const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
       if (blockNodeVersion.lessThan(imageVersion)) {
@@ -1746,7 +1755,11 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     const deployConfig: BlockNodeDeployConfigClass = config as BlockNodeDeployConfigClass;
-    if (deployConfig.componentImage && this.isLocalImageReference(deployConfig.componentImage)) {
+    if (
+      deployConfig.componentImage &&
+      this.isLocalImageReference(deployConfig.componentImage) &&
+      !this.isLocalRegistryImageReference(deployConfig.componentImage)
+    ) {
       const tag: string = this.splitImageNameTag(deployConfig.componentImage).tag;
       componentImageVersion = new SemanticVersion<string>(tag);
     }
