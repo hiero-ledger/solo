@@ -24,6 +24,7 @@ import {K8ClientBase} from '../../k8-client-base.js';
 import {KubeError} from '../../../errors/kube-error.js';
 import {KubeMissingArgumentError} from '../../../errors/kube-missing-argument-error.js';
 import {KubePodNotFoundError} from '../../../errors/kube-pod-not-found-error.js';
+import {KubePodPhaseTimeoutError} from '../../../errors/kube-pod-phase-timeout-error.js';
 import {KubePodCreationFailedError} from '../../../errors/kube-pod-creation-failed-error.js';
 import {KubePodTerminationTimeoutError} from '../../../errors/kube-pod-termination-timeout-error.js';
 import * as constants from '../../../../../core/constants.js';
@@ -57,6 +58,12 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   private static readonly FATAL_TERMINATED_REASONS: ReadonlySet<string> = new Set(['OOMKilled']);
 
   private static readonly FATAL_ERROR_RETRY_THRESHOLD: number = 3;
+
+  /** Caps how many warning events are quoted when reporting why a pod never reached its expected phase. */
+  private static readonly MAX_REPORTED_WARNING_EVENTS: number = 3;
+
+  /** How often, in poll attempts, pod state is repeated at info level for runs that do not enable debug logging. */
+  private static readonly POD_WAIT_LOG_INTERVAL_ATTEMPTS: number = 30;
 
   /**
    * Higher retry allowance for the Docker Desktop containerd-socket error, which is a
@@ -340,6 +347,10 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
     return new Promise<Pod[]>((resolve, reject): void => {
       let attempts: number = 0;
+      // Retained so that a timeout can report whether the pod was never seen at all or was seen but never started.
+      let lastObservedPhase: string | undefined;
+      // Name of the newest pod while it has no node assigned, so a timeout can explain why it could not be scheduled.
+      let unscheduledPodName: string | undefined;
       const fatalErrorStreakByPod: Map<string, {count: number; error: string}> = new Map<
         string,
         {count: number; error: string}
@@ -357,10 +368,6 @@ export class K8ClientPods extends K8ClientBase implements Pods {
             timeoutSeconds: Duration.ofMinutes(5).toMillis(),
           });
 
-          this.logger.debug(
-            `[attempt: ${attempts}/${maxAttempts}] ${response.items?.length} pod(s) found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
-          );
-
           if (response.items?.length > 0) {
             // Sort pods by creation timestamp descending (newest first)
             // eslint-disable-next-line unicorn/no-array-sort
@@ -369,6 +376,22 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               const bTime: number = b.metadata?.creationTimestamp?.getTime() || 0;
               return bTime - aTime;
             });
+
+            // Report the phase and the assigned node, not just the count: a pod that is present but unscheduled
+            // (no node assigned) fails for entirely different reasons than one that is scheduled but not yet started.
+            unscheduledPodName = sortedItems[0].spec?.nodeName ? undefined : sortedItems[0].metadata?.name;
+            const podState: string =
+              `${response.items.length} pod(s) found [labelSelector: ${labelSelector}, namespace:${namespace.name}] ` +
+              `[newest: ${sortedItems[0].metadata?.name}, phase: ${sortedItems[0].status?.phase}, ` +
+              `node: ${sortedItems[0].spec?.nodeName ?? '<unscheduled>'}]`;
+
+            this.logger.debug(`[attempt: ${attempts}/${maxAttempts}] ${podState}`);
+
+            // Repeat periodically at info so the phase and node reach the log without --debug, which is what a
+            // post-mortem needs to tell "never scheduled" apart from "scheduled but slow to start".
+            if (attempts % K8ClientPods.POD_WAIT_LOG_INTERVAL_ATTEMPTS === 0) {
+              this.logger.info(`[attempt: ${attempts}/${maxAttempts}] ${podState}`);
+            }
 
             // When a createdAfter cutoff is provided, skip pods that existed before the
             // cutoff (e.g. a terminating predecessor from a recreate migration).
@@ -423,10 +446,16 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 this.kubeConfig,
                 this.kubectlInstallationDirectory,
               );
+              lastObservedPhase = newestItem.status?.phase;
               if (phases.has(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
                 return resolve([pod]);
               }
             }
+          } else {
+            unscheduledPodName = undefined;
+            this.logger.debug(
+              `[attempt: ${attempts}/${maxAttempts}] 0 pod(s) found [labelSelector: ${labelSelector}, namespace:${namespace.name}]`,
+            );
           }
         } catch (error) {
           this.logger.info('Error occurred while waiting for pods, retrying', error);
@@ -434,6 +463,12 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
         if (++attempts < maxAttempts) {
           setTimeout((): Promise<void> => check(resolve, reject), delay);
+        } else if (lastObservedPhase) {
+          // Kubernetes already recorded why the pod is stuck; surface that rather than making the caller go and find it.
+          const diagnostics: string = await this.collectSchedulingDiagnostics(namespace, unscheduledPodName);
+          return reject(
+            new KubePodPhaseTimeoutError(`labels:${labelSelector}`, [...phases], lastObservedPhase, diagnostics),
+          );
         } else {
           return reject(new KubePodNotFoundError(`labels:${labelSelector}`));
         }
@@ -441,6 +476,73 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
       check(resolve, reject);
     });
+  }
+
+  /**
+   * Best-effort context for a pod that never reached the expected phase: the warning events Kubernetes recorded
+   * against it and, when it was never scheduled, how many nodes actually satisfy its node selector. Both answer
+   * questions that are otherwise only reachable by hand with kubectl after the run has already failed.
+   */
+  private async collectSchedulingDiagnostics(
+    namespace: NamespaceName,
+    unscheduledPodName: string | undefined,
+  ): Promise<string> {
+    const details: string[] = [];
+
+    if (unscheduledPodName) {
+      const warnings: string[] = await this.readRecentWarningEvents(namespace, unscheduledPodName);
+      if (warnings.length > 0) {
+        details.push(`recent warning events: ${warnings.join(' | ')}`);
+      }
+
+      const nodeSummary: string | undefined = await this.summarizeSelectorMatchingNodes(namespace, unscheduledPodName);
+      if (nodeSummary) {
+        details.push(nodeSummary);
+      }
+    }
+
+    return details.join('; ');
+  }
+
+  private async readRecentWarningEvents(namespace: NamespaceName, podName: string): Promise<string[]> {
+    try {
+      const events: {items?: CoreV1Event[]} = await this.kubeClient.listNamespacedEvent({
+        namespace: namespace.name,
+        fieldSelector: `involvedObject.name=${podName},involvedObject.namespace=${namespace.name}`,
+      });
+
+      return (events?.items ?? [])
+        .filter((event: CoreV1Event): boolean => event.type === 'Warning' && Boolean(event.message))
+        .slice(-K8ClientPods.MAX_REPORTED_WARNING_EVENTS)
+        .map((event: CoreV1Event): string => `${event.reason}: ${event.message}`);
+    } catch {
+      // Diagnostics only: the underlying timeout is the error worth reporting, so never mask it with an events failure.
+      return [];
+    }
+  }
+
+  private async summarizeSelectorMatchingNodes(namespace: NamespaceName, podName: string): Promise<string | undefined> {
+    try {
+      const pod: V1Pod = await this.kubeClient.readNamespacedPod({name: podName, namespace: namespace.name});
+      const selector: Record<string, string> = pod.spec?.nodeSelector ?? {};
+      const selectorEntries: [string, string][] = Object.entries(selector);
+      const nodes: {items?: {metadata?: {labels?: Record<string, string>}}[]} = await this.kubeClient.listNode();
+      const nodeItems: {metadata?: {labels?: Record<string, string>}}[] = nodes?.items ?? [];
+
+      const matching: number = nodeItems.filter((node): boolean =>
+        selectorEntries.every(([key, value]: [string, string]): boolean => node.metadata?.labels?.[key] === value),
+      ).length;
+
+      const selectorText: string =
+        selectorEntries.length > 0
+          ? selectorEntries.map(([key, value]: [string, string]): string => `${key}=${value}`).join(',')
+          : '<none>';
+
+      return `${matching} of ${nodeItems.length} node(s) match nodeSelector {${selectorText}}`;
+    } catch {
+      // Diagnostics only: listing nodes may be forbidden for the caller, which must not turn into a different error.
+      return undefined;
+    }
   }
 
   public async waitForPodsToTerminate(

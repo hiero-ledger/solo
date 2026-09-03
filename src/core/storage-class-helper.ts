@@ -36,15 +36,31 @@ export class StorageClassHelper {
     const k8: K8 = this.k8Factory.getK8(context);
     const storageClasses: StorageClass[] = await k8.storageClasses().list();
 
+    // Record what was on offer, so a later "why did it pick that one" is answerable from the log alone.
+    this.logger.info(
+      `StorageClasses available in context ${context}: ${
+        storageClasses.length > 0
+          ? storageClasses
+              .map((storageClass: StorageClass): string => StorageClassHelper.describeStorageClass(storageClass))
+              .join('; ')
+          : '<none>'
+      }`,
+    );
+
     if (userSuppliedClass) {
-      return this.validateUserClass(storageClasses, userSuppliedClass);
+      const validated: string = this.validateUserClass(storageClasses, userSuppliedClass);
+      const matched: StorageClass | undefined = storageClasses.find(
+        (storageClass: StorageClass): boolean => storageClass.name === validated,
+      );
+      this.logger.info(`Using user-supplied StorageClass: ${StorageClassHelper.describeStorageClass(matched)}`);
+      return validated;
     }
 
     const defaultClass: StorageClass | undefined = storageClasses.find(
       (storageClass: StorageClass): boolean => storageClass.isDefault,
     );
     if (defaultClass) {
-      this.logger.debug(`Using default StorageClass: ${defaultClass.name}`);
+      this.logger.info(`Using default StorageClass: ${StorageClassHelper.describeStorageClass(defaultClass)}`);
       return defaultClass.name;
     }
 
@@ -52,11 +68,43 @@ export class StorageClassHelper {
       (storageClass: StorageClass): boolean => storageClass.provisioner === constants.LOCAL_PATH_PROVISIONER,
     );
     if (localPathClass) {
-      this.logger.debug(`Using existing ${constants.LOCAL_PATH_PROVISIONER} StorageClass: ${localPathClass.name}`);
+      this.logger.info(
+        `Using existing ${constants.LOCAL_PATH_PROVISIONER} StorageClass: ${StorageClassHelper.describeStorageClass(localPathClass)}`,
+      );
       return localPathClass.name;
     }
 
     return this.installLocalPath(k8);
+  }
+
+  /**
+   * Everything about a StorageClass that shapes whether, where and how a volume gets provisioned. With
+   * `WaitForFirstConsumer` a stalled provisioner surfaces as pods that never get scheduled, and an `allowedTopologies`
+   * restriction that does not overlap with where a pod may run has the same effect — neither is obvious after the
+   * fact without these values.
+   */
+  private static describeStorageClass(storageClass: StorageClass): string {
+    const details: string[] = [
+      `provisioner: ${storageClass.provisioner || '<unknown>'}`,
+      `volumeBindingMode: ${storageClass.volumeBindingMode ?? '<unset>'}`,
+      `reclaimPolicy: ${storageClass.reclaimPolicy ?? '<unset>'}`,
+      `isDefault: ${storageClass.isDefault}`,
+    ];
+
+    if (storageClass.allowVolumeExpansion !== undefined) {
+      details.push(`allowVolumeExpansion: ${storageClass.allowVolumeExpansion}`);
+    }
+    if (storageClass.allowedTopologyKeys?.length > 0) {
+      details.push(`allowedTopologyKeys: ${storageClass.allowedTopologyKeys.join(',')}`);
+    }
+    if (storageClass.mountOptions?.length > 0) {
+      details.push(`mountOptions: ${storageClass.mountOptions.join(',')}`);
+    }
+    if (storageClass.parameterKeys?.length > 0) {
+      details.push(`parameterKeys: {${storageClass.parameterKeys.join(', ')}}`);
+    }
+
+    return `${storageClass.name} [${details.join(', ')}]`;
   }
 
   private validateUserClass(storageClasses: StorageClass[], userSuppliedClass: string): string {

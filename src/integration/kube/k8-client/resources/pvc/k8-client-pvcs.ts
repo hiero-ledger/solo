@@ -14,7 +14,8 @@ import {Duration} from '../../../../../core/time/duration.js';
 import {type Pvc} from '../../../resources/pvc/pvc.js';
 import {KubePvcCreationFailedError} from '../../../errors/kube-pvc-creation-failed-error.js';
 import {K8ClientPvc} from './k8-client-pvc.js';
-import {type PvcReference} from '../../../resources/pvc/pvc-reference.js';
+import {PvcReference} from '../../../resources/pvc/pvc-reference.js';
+import {PvcName} from '../../../resources/pvc/pvc-name.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
@@ -41,7 +42,21 @@ export class K8ClientPvcs implements Pvcs {
   }
 
   public async list(namespace: NamespaceName, labels: string[]): Promise<string[]> {
-    const pvcs: string[] = [];
+    const items: V1PersistentVolumeClaim[] = await this.listItems(namespace, labels);
+
+    return items.map((item: V1PersistentVolumeClaim): string => item.metadata!.name as string);
+  }
+
+  public async listWithStatus(namespace: NamespaceName, labels?: string[]): Promise<Pvc[]> {
+    const items: V1PersistentVolumeClaim[] = await this.listItems(namespace, labels);
+
+    return items.map(
+      (item: V1PersistentVolumeClaim): Pvc =>
+        new K8ClientPvc(PvcReference.of(namespace, PvcName.of(item.metadata!.name as string)), item.status?.phase),
+    );
+  }
+
+  private async listItems(namespace: NamespaceName, labels?: string[]): Promise<V1PersistentVolumeClaim[]> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
 
     let resp: V1PersistentVolumeClaimList;
@@ -55,11 +70,7 @@ export class K8ClientPvcs implements Pvcs {
       KubeApiResponse.throwError(error, ResourceOperation.LIST, ResourceType.PERSISTENT_VOLUME_CLAIM, namespace, '');
     }
 
-    for (const item of resp.items) {
-      pvcs.push(item.metadata!.name as string);
-    }
-
-    return pvcs;
+    return resp.items;
   }
 
   public async create(pvcReference: PvcReference, labels: Record<string, string>, accessModes: string[]): Promise<Pvc> {

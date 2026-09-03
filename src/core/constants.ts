@@ -269,6 +269,11 @@ export const ACCOUNT_UPDATE_BATCH_SIZE: number = +getEnvironmentVariable('ACCOUN
 
 export const POD_PHASE_RUNNING: string = 'Running';
 
+export const PVC_PHASE_BOUND: string = 'Bound';
+
+/** Label the solo-deployment chart applies to every consensus node volume claim template. */
+export const SOLO_NODE_PVC_LABEL_SELECTOR: string = 'solo.hedera.com/type=node-pvc';
+
 export const POD_CONDITION_INITIALIZED: string = 'Initialized';
 export const POD_CONDITION_READY: string = 'Ready';
 
@@ -458,6 +463,11 @@ export const JVM_DEBUG_PORT: number = 5005;
 
 export const PODS_RUNNING_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_RUNNING_MAX_ATTEMPTS') || 60 * 15;
 export const PODS_RUNNING_DELAY: number = +getEnvironmentVariable('PODS_RUNNING_DELAY') || 1000;
+
+// Consensus node PVC binding. Provisioning is serialized by the provisioner and scales with the number of nodes
+// (each consensus node declares 13 volume claims), so this is budgeted separately from the pod start-up wait above.
+export const PVC_BOUND_MAX_ATTEMPTS: number = +getEnvironmentVariable('PVC_BOUND_MAX_ATTEMPTS') || 60 * 15;
+export const PVC_BOUND_DELAY: number = +getEnvironmentVariable('PVC_BOUND_DELAY') || 1000;
 
 // Node Checks
 export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =

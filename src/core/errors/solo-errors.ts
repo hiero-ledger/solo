@@ -266,6 +266,7 @@ import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupporte
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
+import {PvcBindTimeoutSoloError} from './classes/system/pvc-bind-timeout-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
 import {IngressClassListFailedSoloError} from './classes/system/ingress-class-list-failed-solo-error.js';
 import {MultipleItemsFoundSoloError} from './classes/system/multiple-items-found-solo-error.js';
@@ -781,6 +782,7 @@ export class SoloErrors {
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
+    readonly pvcBindTimeout: typeof PvcBindTimeoutSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
     readonly ingressClassListFailed: typeof IngressClassListFailedSoloError;
     readonly multipleItemsFound: typeof MultipleItemsFoundSoloError;
@@ -859,6 +861,7 @@ export class SoloErrors {
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
+    pvcBindTimeout: PvcBindTimeoutSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
     ingressClassListFailed: IngressClassListFailedSoloError,
     multipleItemsFound: MultipleItemsFoundSoloError,

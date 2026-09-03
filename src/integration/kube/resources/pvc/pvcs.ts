@@ -23,6 +23,17 @@ export interface Pvcs {
   list(namespace: NamespaceName, labels?: string[]): Promise<string[]>;
 
   /**
+   * Get the persistent volume claims for the given namespace along with their binding phase. Use this instead of
+   * {@link list} when the caller needs to know whether the claims have been bound, for example while waiting on
+   * volume provisioning before pods can be scheduled.
+   * @param namespace - the namespace of the persistent volume claims to return
+   * @param [labels] - labels
+   * @returns list of persistent volume claims, each carrying its binding phase
+   * @throws {SoloError} if the persistent volume claims could not be listed
+   */
+  listWithStatus(namespace: NamespaceName, labels?: string[]): Promise<Pvc[]>;
+
+  /**
    * Create a persistent volume claim
    * @param pvcReference - the persistent volume claim reference
    * @param labels - the labels to apply to the persistent volume claim

@@ -64,6 +64,8 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {type Pvc} from '../integration/kube/resources/pvc/pvc.js';
+import {type Pvcs} from '../integration/kube/resources/pvc/pvcs.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
@@ -87,6 +89,12 @@ interface NetworkDeployContext {
 
 @injectable()
 export class NetworkCommand extends BaseCommand {
+  /** Caps how many outstanding claim names are listed when the bind wait times out. */
+  private static readonly MAX_REPORTED_UNBOUND_PVCS: number = 5;
+
+  /** How often, in poll attempts, bind progress is mirrored into the log for non-TTY runs such as CI. */
+  private static readonly PVC_BIND_LOG_INTERVAL_ATTEMPTS: number = 15;
+
   private profileValuesFile?: Record<ClusterReferenceName, string>;
 
   public constructor(
@@ -182,6 +190,98 @@ export class NetworkCommand extends BaseCommand {
       flags.blockNodeMessageSizeHardLimitBytes,
     ],
   };
+
+  /**
+   * Waits until every consensus node volume claim is bound. Provisioners bind claims serially and each consensus node
+   * declares a full set of them, so on a sizable network this runs for a while before any node pod can be scheduled.
+   * Reporting the bind count makes that phase visible instead of it looking like the pods are stuck.
+   */
+  private waitForNetworkPvcs(): SoloListrTask<NetworkDeployContext> {
+    return {
+      title: 'Check node persistent volume claims are bound',
+      skip: (context_): boolean => !context_.config.persistentVolumeClaims,
+      task: (context_, task): SoloListr<NetworkDeployContext> => {
+        const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
+        const config: NetworkDeployConfigClass = context_.config;
+
+        for (const context of config.contexts) {
+          subTasks.push({
+            title: `Check volume claims in cluster: ${chalk.yellow(context)}`,
+            task: async (_, subTask): Promise<void> => {
+              await this.waitForBoundPvcs(context, config.namespace, subTask);
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {
+          concurrent: true,
+          rendererOptions: {
+            collapseSubtasks: false,
+          },
+        });
+      },
+    };
+  }
+
+  private async waitForBoundPvcs(
+    context: string,
+    namespace: NamespaceName,
+    task: SoloListrTaskWrapper<NetworkDeployContext>,
+  ): Promise<void> {
+    const pvcs: Pvcs = this.k8Factory.getK8(context).pvcs();
+    const baseTitle: string = task.title;
+    let claims: Pvc[] = [];
+    let unbound: Pvc[] = [];
+    let reportedTotal: number = 0;
+
+    for (let attempt: number = 0; attempt < constants.PVC_BOUND_MAX_ATTEMPTS; attempt++) {
+      claims = await pvcs.listWithStatus(namespace, [constants.SOLO_NODE_PVC_LABEL_SELECTOR]);
+      unbound = claims.filter((claim: Pvc): boolean => claim.phase !== constants.PVC_PHASE_BOUND);
+      const bound: number = claims.length - unbound.length;
+
+      task.title = `${baseTitle} [${bound}/${claims.length} bound]`;
+
+      // Announce the scale once the claims exist: provisioners bind them serially, so the total is what determines
+      // how long this phase runs.
+      if (claims.length > 0 && reportedTotal !== claims.length) {
+        reportedTotal = claims.length;
+        this.logger.info(
+          `Waiting for ${claims.length} consensus node volume claim(s) to bind [namespace: ${namespace.name}, context: ${context}]`,
+        );
+      }
+
+      // The listr title only exists on a TTY, so mirror progress into the log that CI collects. Logged at info so it
+      // is present without --debug, and only periodically so a long bind does not flood the log.
+      if (attempt % NetworkCommand.PVC_BIND_LOG_INTERVAL_ATTEMPTS === 0) {
+        this.logger.info(
+          `[attempt: ${attempt}/${constants.PVC_BOUND_MAX_ATTEMPTS}] ${bound}/${claims.length} volume claim(s) bound ` +
+            `[namespace: ${namespace.name}, context: ${context}]`,
+        );
+      }
+
+      // The claims are created by the chart, so an empty list means they have not appeared yet rather than that
+      // there is nothing to wait for.
+      if (claims.length > 0 && unbound.length === 0) {
+        this.logger.info(
+          `All ${claims.length} consensus node volume claim(s) bound [namespace: ${namespace.name}, context: ${context}]`,
+        );
+        return;
+      }
+
+      await sleep(Duration.ofMillis(constants.PVC_BOUND_DELAY));
+    }
+
+    const unboundNames: string[] = unbound.map((claim: Pvc): string => claim.pvcReference.name.toString());
+    const reportedNames: string[] =
+      unboundNames.length > NetworkCommand.MAX_REPORTED_UNBOUND_PVCS
+        ? [
+            ...unboundNames.slice(0, NetworkCommand.MAX_REPORTED_UNBOUND_PVCS),
+            `and ${unboundNames.length - NetworkCommand.MAX_REPORTED_UNBOUND_PVCS} more`,
+          ]
+        : unboundNames;
+
+    throw new SoloErrors.system.pvcBindTimeout(claims.length - unbound.length, claims.length, reportedNames);
+  }
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {
     return {
@@ -1743,6 +1843,7 @@ export class NetworkCommand extends BaseCommand {
             });
           },
         },
+        this.waitForNetworkPvcs(),
         this.waitForNetworkPods(),
         {
           title: 'Check proxy pods are running',

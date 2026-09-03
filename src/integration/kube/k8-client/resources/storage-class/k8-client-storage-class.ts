@@ -7,5 +7,11 @@ export class K8ClientStorageClass implements StorageClass {
     public readonly name: string,
     public readonly provisioner: string,
     public readonly isDefault: boolean,
+    public readonly volumeBindingMode?: string,
+    public readonly reclaimPolicy?: string,
+    public readonly allowVolumeExpansion?: boolean,
+    public readonly parameterKeys?: string[],
+    public readonly mountOptions?: string[],
+    public readonly allowedTopologyKeys?: string[],
   ) {}
 }
