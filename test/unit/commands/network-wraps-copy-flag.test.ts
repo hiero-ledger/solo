@@ -6,6 +6,7 @@ import {Flags} from '../../../src/commands/flags.js';
 import {NetworkCommand} from '../../../src/commands/network.js';
 import * as constants from '../../../src/core/constants.js';
 import {resetForTest} from '../../test-container.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 
 describe('wraps copy parallel env toggle', (): void => {
   beforeEach((): void => {
@@ -13,7 +14,10 @@ describe('wraps copy parallel env toggle', (): void => {
   });
 
   it('is not exposed as a CLI flag', (): void => {
-    const deployFlags = [...NetworkCommand.DEPLOY_FLAGS_LIST.optional, ...NetworkCommand.DEPLOY_FLAGS_LIST.required];
+    const deployFlags: CommandFlag[] = [
+      ...NetworkCommand.DEPLOY_FLAGS_LIST.optional,
+      ...NetworkCommand.DEPLOY_FLAGS_LIST.required,
+    ];
 
     expect(Flags.allFlags.some((flag): boolean => flag.name === 'wraps-copy-parallel')).to.be.false;
     expect(deployFlags.some((flag): boolean => flag.name === 'wraps-copy-parallel')).to.be.false;
