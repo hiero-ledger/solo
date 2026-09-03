@@ -94,6 +94,27 @@ describe('UserInput.safeJsonKey', (): void => {
   });
 });
 
+describe('UserInput.stripUnsafeJsonKeys', (): void => {
+  it('drops prototype-pollution keys at every depth', (): void => {
+    const parsed: Record<string, unknown> = JSON.parse(
+      '{"a":1,"__proto__":{"polluted":true},"nested":{"constructor":9,"b":2}}',
+    );
+    const cleaned: Record<string, unknown> = UserInput.stripUnsafeJsonKeys(parsed);
+    expect(cleaned).to.deep.equal({a: 1, nested: {b: 2}});
+    expect(Object.prototype.hasOwnProperty.call(cleaned, '__proto__')).to.equal(false);
+  });
+
+  it('filters object keys inside arrays', (): void => {
+    const value: unknown[] = [{constructor: 1, keep: 2}, 'plain', 3];
+    expect(UserInput.stripUnsafeJsonKeys(value)).to.deep.equal([{keep: 2}, 'plain', 3]);
+  });
+
+  it('passes primitives through unchanged', (): void => {
+    expect(UserInput.stripUnsafeJsonKeys('x')).to.equal('x');
+    expect(UserInput.stripUnsafeJsonKeys(42)).to.equal(42);
+  });
+});
+
 describe('UserInput.safeFilenameComponent', (): void => {
   it('passes safe filename components through unchanged', (): void => {
     expect(UserInput.safeFilenameComponent('foo.bar')).to.equal('foo.bar');

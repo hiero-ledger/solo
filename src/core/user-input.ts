@@ -90,6 +90,35 @@ export class UserInput {
   }
 
   /**
+   * Recursively rebuild a value parsed from untrusted JSON/YAML, dropping every object key that
+   * {@link safeJsonKey} rejects. This closes prototype-pollution vectors (`__proto__`,
+   * `constructor`, `prototype`, …) that `JSON.parse` / `yaml.parse` surface as own properties
+   * before the graph is merged into other objects.
+   *
+   * Arrays and primitives pass through structurally; only object keys are filtered. Plain data
+   * graphs (the shape produced by JSON/YAML parsing) are the intended input — class instances are
+   * not preserved.
+   *
+   * @param value - the parsed, untrusted value.
+   * @returns the value with prototype-pollution keys removed at every depth.
+   */
+  public static stripUnsafeJsonKeys<T>(value: T): T {
+    if (Array.isArray(value)) {
+      return value.map((element: unknown): unknown => UserInput.stripUnsafeJsonKeys(element)) as T;
+    }
+    if (value !== null && typeof value === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+        if (UserInput.safeJsonKey(key)) {
+          result[key] = UserInput.stripUnsafeJsonKeys(entry);
+        }
+      }
+      return result as T;
+    }
+    return value;
+  }
+
+  /**
    * Normalize a single path component for use as a filename. Replaces any character
    * outside `[A-Za-z0-9._-]` with `_`. Intended for use when the input becomes part of a
    * filename and must work across macOS, Linux, and Windows.
