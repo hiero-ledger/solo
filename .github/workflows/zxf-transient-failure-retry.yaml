@@ -52,30 +52,30 @@ env:
 jobs:
   retry-transient-failure:
     name: 'Retry Transient Failure'
-    # Only a run that completed and concluded in failure is eligible. A run that was cancelled -
-    # by `cancel-in-progress` when a newer commit arrives, or by hand - concludes as 'cancelled'
-    # even when one of its jobs had already failed, so it never reaches the retry logic.
+    # Only a completed run that concluded in failure is eligible. A cancelled or interrupted run
+    # does not reach the retry path, and a stale run is not retried once the job-level gate has
+    # already rejected it.
     if: >-
       ${{
         github.event.workflow_run.status == 'completed' &&
         startsWith(github.event.workflow_run.event, 'pull_request') &&
         github.event.workflow_run.conclusion == 'failure'
       }}
-    runs-on: hiero-solo-linux-medium
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
       actions: write # reads the observed run's job logs and reruns its failed jobs
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
       - name: Rerun Failed Jobs With A Transient Signature
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
+          github-token: ${{ github.token }}
           script: |
             const { owner, repo } = context.repo;
             const run = context.payload.workflow_run;
@@ -95,14 +95,14 @@ jobs:
               },
               {
                 description: 'WSL distribution download exceeded its budget',
-                stepPrefixes: ['setup wsl2', 'retry setup wsl2', 'install ubuntu wsl distribution fallback'],
-                required: /The action '(Setup WSL2|Retry Setup WSL2|Install Ubuntu WSL distribution fallback)' has timed out after \d+ minutes?/,
+                stepPrefixes: ['setup wsl2'],
+                required: /The action 'Setup WSL2' has timed out after \d+ minutes?/,
                 forbidden: /error TS\d{4}/,
               },
               {
                 description: 'kind could not bind a host port held by a leaked cluster',
                 stepPrefixes: [],
-                required: /port is already allocated|driver failed programming external connectivity/,
+                required: /docker: Error response from daemon:[\s\S]{0,200}(port is already allocated|driver failed programming external connectivity)/,
                 forbidden: /error TS\d{4}/,
               },
               {
@@ -143,9 +143,8 @@ jobs:
               owner, repo, run_id: run.id, filter: 'latest', per_page: 100,
             });
 
-            // A cancelled job means the run was interrupted part way through, which in this repo
-            // almost always means a newer commit superseded it. Retrying then spends runners on
-            // code that is already stale, so the whole run is left alone.
+            // A cancelled job means the run was interrupted before the final state could settle.
+            // Retrying a stale or partial run is not safe, so the whole run is left alone.
             const cancelledJobs = jobs.filter(job => job.conclusion === 'cancelled');
             if (cancelledJobs.length > 0) {
               core.info(
