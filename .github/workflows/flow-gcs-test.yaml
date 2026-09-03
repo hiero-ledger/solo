@@ -151,7 +151,7 @@ jobs:
       - name: Restore Solo Bin Cache
         id: solo-bin-cache
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-bin-cache
+        uses: $/.github/actions/solo-bin-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts') }}
@@ -159,7 +159,7 @@ jobs:
       - name: Restore Solo Image Cache
         id: solo-image-cache
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
@@ -203,14 +203,14 @@ jobs:
 
       - name: Save Solo Bin Cache
         if: ${{ steps.check.outputs.run == 'true' && github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-bin-cache
+        uses: $/.github/actions/solo-bin-cache
         with:
           operation: save
           key-suffix: ${{ hashFiles('version.ts') }}
 
       - name: Save Solo Image Cache
         if: ${{ steps.check.outputs.run == 'true' && github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: save
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}

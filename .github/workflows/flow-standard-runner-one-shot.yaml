@@ -116,7 +116,7 @@ jobs:
         # create ~/.solo before the "Assert Clean Environment" step runs, failing that assertion.
         id: solo-bin-cache
         if: ${{ matrix.install-mode == 'source' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-bin-cache
+        uses: $/.github/actions/solo-bin-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts') }}
@@ -127,7 +127,7 @@ jobs:
         # defeat that mode's no-cached-images purpose.
         id: solo-image-cache
         if: ${{ matrix.install-mode == 'source' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
@@ -229,7 +229,7 @@ jobs:
 
       - name: Save Solo Bin Cache
         if: ${{ matrix.install-mode == 'source' && github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-bin-cache
+        uses: $/.github/actions/solo-bin-cache
         with:
           operation: save
           key-suffix: ${{ hashFiles('version.ts') }}

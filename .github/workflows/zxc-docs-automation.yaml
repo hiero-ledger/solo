@@ -90,7 +90,7 @@ jobs:
       - name: Restore Solo Bin Cache
         id: solo-bin-cache
         if: ${{ !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-bin-cache
+        uses: $/.github/actions/solo-bin-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts') }}
@@ -103,7 +103,7 @@ jobs:
 
       - name: Save Solo Bin Cache
         if: ${{ github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-bin-cache
+        uses: $/.github/actions/solo-bin-cache
         with:
           operation: save
           key-suffix: ${{ hashFiles('version.ts') }}
