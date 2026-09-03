@@ -81,7 +81,7 @@ jobs:
 
   code-style:
     name: Code Style
-    uses: ./.github/workflows/zxc-code-style.yaml
+    uses: $/.github/workflows/zxc-code-style.yaml
     with:
       custom-job-label: Standard
 
@@ -91,7 +91,7 @@ jobs:
       contents: read
       checks: write # zxc-unit-test.yaml publishes a unit test report check run
       pull-requests: write # zxc-unit-test.yaml comments the report on the pull request
-    uses: ./.github/workflows/zxc-unit-test.yaml
+    uses: $/.github/workflows/zxc-unit-test.yaml
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true') && !cancelled() }}
     needs:
       - generate_matrix
@@ -102,7 +102,7 @@ jobs:
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true') && !cancelled() }}
-    uses: ./.github/workflows/zxc-e2e-test.yaml
+    uses: $/.github/workflows/zxc-e2e-test.yaml
     needs:
       - code-style
       - generate_matrix
@@ -136,7 +136,7 @@ jobs:
       contents: read
       checks: write # zxc-code-analysis.yaml publishes an E2E test report check run
       pull-requests: write # zxc-code-analysis.yaml comments the report on the pull request
-    uses: ./.github/workflows/zxc-code-analysis.yaml
+    uses: $/.github/workflows/zxc-code-analysis.yaml
     needs:
       - unit-tests
       - e2e-tests
