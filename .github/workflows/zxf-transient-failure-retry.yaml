@@ -14,10 +14,11 @@
 # limitations under the License.
 ##
 
-# Reruns the failed jobs of a pull request workflow when, and only when, the failure carries a
-# known transient infrastructure signature. Every rule below was derived from the failed job logs
-# of a five day window; a failure that does not match one is left alone so that a real regression
-# stays red instead of being hidden behind a rerun.
+# Reruns the failed jobs of a pull request workflow when, and only when, every failed job carries a
+# known transient infrastructure signature. Every rule below was derived from the failed job logs of
+# a five day window; a failure that does not match one is left alone so that a real regression stays
+# red instead of being hidden behind a rerun. The rerun endpoint works at run level and cannot
+# target a subset, so a run mixing transient and genuine failures is not retried at all.
 name: 'ZXF: Transient Failure Retry'
 
 on:
@@ -189,6 +190,19 @@ jobs:
               core.info(
                 `${run.name} run ${run.id} (attempt ${run.run_attempt}) failed without a transient ` +
                 `signature. Failed jobs: ${failedJobSummary}. Leaving the run alone.`
+              );
+              return;
+            }
+
+            // `rerun-failed-jobs` is a run level endpoint: it reruns every failed job and their
+            // dependents, not the subset matched above. A run mixing a transient failure with a
+            // real regression would therefore rerun the regression too. Retry only when every
+            // failed job is transient; a mixed run is left alone and stays red for a human.
+            if (reasons.length !== failedJobs.length) {
+              core.info(
+                `${run.name} run ${run.id} mixes transient and non-transient failures ` +
+                `(${reasons.length} of ${failedJobs.length} failed jobs are transient). ` +
+                `Failed jobs: ${failedJobSummary}. Leaving the run alone.`
               );
               return;
             }
