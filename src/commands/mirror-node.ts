@@ -2179,10 +2179,22 @@ export class MirrorNodeCommand extends BaseCommand {
         {
           title: 'Uninstall mirror ingress controller',
           // No skip guard: chartManager.uninstall() no-ops when the release is absent, and the
-          // IngressClass / ConfigMap / TLS secret deletions below tolerate missing resources. The
-          // ingress controller must be torn down even when its Helm release name cannot be
-          // re-detected, otherwise the chart, IngressClass, and TLS secret leak after destroy.
+          // namespace-scoped ConfigMap / TLS secret deletions below tolerate missing resources, so
+          // they must run even when the ingress controller's Helm release name cannot be re-detected
+          // (otherwise the chart and TLS secret leak after destroy). The cluster-scoped IngressClass
+          // is the exception — see the ingressControllerInstalled gate below.
           task: async (context_): Promise<void> => {
+            // Whether THIS deployment installed an ingress controller. Checked before the uninstall
+            // below (which would make it false afterwards). The IngressClass is cluster-scoped and
+            // shares a fixed name across mirror-node deployments, so it is only deleted when this
+            // deployment actually used ingress — a no-ingress destroy must not remove an IngressClass
+            // still in use by another deployment in the same cluster.
+            const ingressControllerInstalled: boolean = await this.chartManager.isChartInstalled(
+              context_.config.namespace,
+              context_.config.ingressReleaseName,
+              context_.config.clusterContext,
+            );
+
             if (
               await this.k8Factory
                 .getK8(context_.config.clusterContext)
@@ -2200,17 +2212,20 @@ export class MirrorNodeCommand extends BaseCommand {
               context_.config.ingressReleaseName,
               context_.config.clusterContext,
             );
-            // delete ingress class if found one
-            const existingIngressClasses: IngressClass[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .ingressClasses()
-              .list();
-            for (const ingressClass of existingIngressClasses) {
-              if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
-                await this.k8Factory
-                  .getK8(context_.config.clusterContext)
-                  .ingressClasses()
-                  .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+
+            // delete ingress class if found one — only when this deployment used ingress
+            if (ingressControllerInstalled) {
+              const existingIngressClasses: IngressClass[] = await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .ingressClasses()
+                .list();
+              for (const ingressClass of existingIngressClasses) {
+                if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
+                  await this.k8Factory
+                    .getK8(context_.config.clusterContext)
+                    .ingressClasses()
+                    .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+                }
               }
             }
 
