@@ -1722,11 +1722,15 @@ export class BlockNodeCommand extends BaseCommand {
   private getLivenessCheckPortNumber(chartVersion: string, componentImage?: string): number {
     let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(chartVersion);
 
-    if (componentImage && this.isLocalImageReference(componentImage) && !this.isLocalRegistryImageReference(componentImage)) {
+    if (componentImage && this.isLocalImageReference(componentImage)) {
       const tag: string = this.splitImageNameTag(componentImage).tag;
-      const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
-      if (blockNodeVersion.lessThan(imageVersion)) {
-        blockNodeVersion = imageVersion;
+      try {
+        const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
+        if (blockNodeVersion.lessThan(imageVersion)) {
+          blockNodeVersion = imageVersion;
+        }
+      } catch {
+        // non-semver tags (e.g. implicit latest on tagless local registry refs) cannot drive the port choice
       }
     }
 
@@ -1755,13 +1759,13 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     const deployConfig: BlockNodeDeployConfigClass = config as BlockNodeDeployConfigClass;
-    if (
-      deployConfig.componentImage &&
-      this.isLocalImageReference(deployConfig.componentImage) &&
-      !this.isLocalRegistryImageReference(deployConfig.componentImage)
-    ) {
+    if (deployConfig.componentImage && this.isLocalImageReference(deployConfig.componentImage)) {
       const tag: string = this.splitImageNameTag(deployConfig.componentImage).tag;
-      componentImageVersion = new SemanticVersion<string>(tag);
+      try {
+        componentImageVersion = new SemanticVersion<string>(tag);
+      } catch {
+        // non-semver tags (e.g. implicit latest on tagless local registry refs) do not bump the component version
+      }
     }
 
     const finalVersion: SemanticVersion<string> =

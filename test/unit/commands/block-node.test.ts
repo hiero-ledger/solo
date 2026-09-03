@@ -135,6 +135,22 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.39.0')).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
   });
 
+  it('should use a semver tag on a Kind-attached local registry image to pick the readiness port', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(
+      blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0', 'localhost:5001/block-node-server:0.40.0'),
+    ).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
+  });
+
+  it('should ignore a tagless local registry ref (implicit latest) when picking the readiness port', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0', 'localhost:5001/block-node-server')).to.equal(
+      constants.BLOCK_NODE_PORT,
+    );
+  });
+
   it('should configure the RSA mirror bootstrap source for block-stream consensus versions', async (): Promise<void> => {
     const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
     blockNodeCommandInternal.remoteConfig = {

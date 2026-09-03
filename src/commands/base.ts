@@ -293,12 +293,7 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   protected splitImageNameTag(imageReference: string): {name: string; tag: string} {
-    const firstSegment: string = imageReference.split('/', 1)[0];
-    const explicitRegistryReference: boolean =
-      (firstSegment.includes('.') || firstSegment.includes(':') || firstSegment === 'localhost') &&
-      imageReference.includes('/');
-
-    if (explicitRegistryReference || this.isLocalRegistryImageReference(imageReference)) {
+    if (this.isLocalRegistryImageReference(imageReference)) {
       const parsedReference: ParsedImageReference = ImageReference.parseImageReference(imageReference);
       return {
         name: `${parsedReference.registry}/${parsedReference.repository}`,
@@ -326,9 +321,7 @@ export abstract class BaseCommand extends ShellRunner {
   protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
     const additionalKindContexts: Context[] = this.remoteConfig
       .getContexts()
-      .filter(
-        (context: Context): boolean => context.startsWith('kind-') && context !== clusterContext,
-      );
+      .filter((context: Context): boolean => context.startsWith('kind-') && context !== clusterContext);
     const targetContexts: Context[] = [...new Set<Context>([clusterContext, ...additionalKindContexts])];
     const nonKindContexts: Context[] = targetContexts.filter(
       (context: Context): boolean => !context.startsWith('kind-'),
