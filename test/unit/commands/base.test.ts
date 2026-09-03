@@ -352,7 +352,8 @@ describe('BaseCommand', (): void => {
         baseCommandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-first'),
       ).to.be.rejectedWith(
         "Component image 'block-node-server:0.38.0' requires Kind image loading, but target cluster context(s) " +
-          "'remote-cluster' are not Kind clusters. Push the image to a registry reachable from every target cluster",
+          "'remote-cluster' are not Kind clusters. Push the image to a registry reachable from every target " +
+          'cluster and pass that registry image reference to --component-image.',
       );
     });
   });
