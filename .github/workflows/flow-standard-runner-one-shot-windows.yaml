@@ -173,6 +173,12 @@ jobs:
           - Validation: $validationResult
           "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
 
+      - name: Fail early when verified Ubuntu WSL installer cache is unavailable
+        if: ${{ !cancelled() && github.ref != 'refs/heads/main' && steps.validate_ubuntu_wsl_installer.outputs.valid != 'true' }}
+        shell: pwsh
+        run: |
+          throw 'Verified Ubuntu WSL installer cache is unavailable. Online Ubuntu acquisition is disabled on non-main runs; rerun after a main workflow seeds the setup-wsl cache.'
+
       - name: Setup WSL2
         id: setup_wsl2
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
@@ -297,44 +303,9 @@ jobs:
           path: ${{ runner.tool_cache }}\Ubuntu\${{ env.WSL_UBUNTU_VERSION }}\x64
           key: ${{ env.WSL_UBUNTU_CACHE_KEY }}
 
-      - name: Validate Ubuntu WSL installer cache for fallback
-        id: validate_ubuntu_wsl_installer_after_failure
-        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' }}
-        shell: pwsh
-        timeout-minutes: 1
-        run: |
-          $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE "Ubuntu\$env:WSL_UBUNTU_VERSION\x64"
-          $installerPath = Join-Path $cacheDirectory $env:WSL_UBUNTU_INSTALLER_FILE
-          $cacheHit = '${{ steps.restore_ubuntu_wsl_installer_after_failure.outputs.cache-hit }}'
-          $valid = $false
-          $validationResult = 'cache miss'
-
-          if (Test-Path -LiteralPath $installerPath) {
-            $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actualHash -eq $env:WSL_UBUNTU_INSTALLER_SHA256) {
-              $valid = $true
-              $validationResult = 'valid SHA-256'
-            } else {
-              $validationResult = "invalid SHA-256: $actualHash"
-            }
-          } elseif (Test-Path -LiteralPath $cacheDirectory) {
-            $validationResult = 'installer is missing'
-          }
-
-          if (-not $valid -and (Test-Path -LiteralPath $cacheDirectory)) {
-            Write-Warning "Discarding invalid Ubuntu WSL installer cache: $validationResult"
-            Remove-Item -LiteralPath $cacheDirectory -Recurse -Force
-          }
-
-          if (-not $valid -and $cacheHit -eq 'true') {
-            throw "Restored Ubuntu WSL installer cache failed validation: $validationResult"
-          }
-
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "valid=$($valid.ToString().ToLowerInvariant())"
-
       - name: Install cached Ubuntu WSL distribution fallback
         id: install_cached_ubuntu_wsl
-        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' && steps.validate_ubuntu_wsl_installer_after_failure.outputs.valid == 'true' }}
+        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' }}
         # Bypass both setup-wsl's downloader and WSL's online downloader when the validated
         # repository cache is available. Retry Setup WSL2 still runs afterwards to configure
         # the distribution's packages and the wsl-bash shell wrapper.
@@ -347,9 +318,7 @@ jobs:
           $installerPath = Join-Path $cacheDirectory $env:WSL_UBUNTU_INSTALLER_FILE
 
           if (-not (Test-Path -LiteralPath $installerPath)) {
-            Write-Host 'Validated Ubuntu WSL installer is unavailable; continuing to web fallback.'
-            Add-Content -Path $env:GITHUB_OUTPUT -Value 'installed=false'
-            exit 0
+            throw "Verified Ubuntu WSL installer is unavailable after setup failure: $installerPath"
           }
 
           $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -370,33 +339,11 @@ jobs:
 
           Add-Content -Path $env:GITHUB_OUTPUT -Value 'installed=true'
 
-      - name: Install Ubuntu WSL distribution web fallback
-        id: install_web_ubuntu_wsl
-        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' && steps.install_cached_ubuntu_wsl.outputs.installed != 'true' }}
-        # A last-resort path for a cache miss. Marking it continue-on-error lets the bounded
-        # retry below decide the job outcome instead of suppressing the retry after this fails.
-        continue-on-error: true
-        timeout-minutes: 5
-        shell: pwsh
-        run: |
-          $distributionName = 'Ubuntu-24.04'
-          $installedDistributions = @(wsl.exe --list --quiet 2>$null)
-          if ($installedDistributions -match [regex]::Escape($distributionName)) {
-            Write-Host "WSL distribution already installed: $distributionName"
-            exit 0
-          }
-
-          Write-Host "Installing $distributionName through WSL web download"
-          & "$env:SystemRoot\System32\wsl.exe" --install --web-download --distribution $distributionName --no-launch
-          if ($LASTEXITCODE -ne 0) {
-            throw "wsl.exe failed to install $distributionName with exit code $LASTEXITCODE"
-          }
-
       - name: Retry Setup WSL2
         id: retry_setup_wsl2
         if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' }}
-        # Run after either fallback even if it failed. Without !cancelled(), GitHub's implicit
-        # success() check skips this retry after a failed web-download fallback.
+        # Run after the cached fallback even if it failed. Without !cancelled(), GitHub's
+        # implicit success() check skips this retry after the fallback fails.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         timeout-minutes: 5
         with:
