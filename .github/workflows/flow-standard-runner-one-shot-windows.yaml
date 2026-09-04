@@ -204,7 +204,7 @@ jobs:
           Write-Host "Seeded verified Ubuntu WSL installer cache: $installerPath"
 
       - name: Save seeded Ubuntu WSL installer cache
-        if: ${{ success() && steps.seed_ubuntu_wsl_installer.outputs.valid == 'true' }}
+        if: ${{ success() && github.ref == 'refs/heads/main' && steps.seed_ubuntu_wsl_installer.outputs.valid == 'true' }}
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ runner.tool_cache }}\Ubuntu\${{ env.WSL_UBUNTU_VERSION }}\x64
