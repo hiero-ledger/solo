@@ -306,6 +306,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CONTAINER_ENGINE_NOT_RUNNING: 'SOLO-5080',
   POD_NOT_READY: 'SOLO-5081',
   PORT_FORWARD_STOP_FAILED: 'SOLO-5082',
+  PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5083',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
