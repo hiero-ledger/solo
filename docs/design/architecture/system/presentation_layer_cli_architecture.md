@@ -161,7 +161,6 @@ flags may be specified at any level of the command hierarchy.
 | one-shot    | < single & multi & falcon & show > | < deploy & destroy & prepare & deployment & accounts >             |
 | cache       | < images & charts > | < pull & load & list & clear & prune & status >                                   |
 
-
 #### Example Commands
 
 ```bash
@@ -222,7 +221,6 @@ The CLI application is designed around the following high-level entities (aka co
 | **Mirror Node**   | `mirror-node`                 | `mirror`                      | Manage Hedera Mirror Node in solo network | Mirror Node operations for creating, modifying, and destroying resources. These commands require the presence of an existing deployment.                                       |
 | **One Shot**      |                               | `one-shot`                    |                                           | Quick start commands for new and returning users who need a preset environment type. These commands use reasonable defaults to provide a single command out of box experience. |
 | **Cache**         |                               | `cache`                       |                                           | Manage solo cached items.                                                                                                                                                      |
-
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

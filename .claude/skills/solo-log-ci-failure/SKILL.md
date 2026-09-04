@@ -31,7 +31,7 @@ GitHub artifacts auto-purge after 7 days. The script downloads key log files and
 > `project` scope (for the board additions in step 7). Verify with `gh auth status`.
 > If missing, run: `gh auth refresh -h github.com -s gist -s project`
 
----
+***
 
 ## Reducing permission prompts
 
@@ -46,7 +46,7 @@ can allowlist it by exact path so Claude can run it without per-call prompts:
 This allowlists only that specific named script — not `gh` broadly — so the scope of trust
 matches exactly what was reviewed.
 
----
+***
 
 ## Supported URL formats
 
@@ -56,7 +56,7 @@ matches exactly what was reviewed.
 | Run only | `https://github.com/hiero-ledger/solo/actions/runs/30336845771` |
 | Suite/logs | `https://github.com/hiero-ledger/solo/suites/82215623504/logs?attempt=1` |
 
----
+***
 
 ## Usage (one Bash call per URL)
 
@@ -70,6 +70,7 @@ bash ~/.claude/skills/solo-log-ci-failure/log-ci-failure.sh "<workflow-url>" [<p
 (`I_kwDOLMTWdc8AAAABIo7dFw`). Override when the failure belongs to a different initiative.
 
 The script:
+
 1. Fetches run and job metadata
 2. Downloads job log and best-matching artifact
 3. Finds the first step with `conclusion: "failure"` and slices the job log to that step's time
@@ -117,7 +118,7 @@ Issue bodies now prioritize the most informative failure context in this order:
 For `Error: Executing command: /path/cmd --flags url`, the command and image/URL are extracted
 (e.g. `crane quay.io/minio/operator:v7.1.1`) to keep the title concise.
 
----
+***
 
 ## Pre-resolved IDs
 
@@ -128,15 +129,15 @@ For `Error: Executing command: /path/cmd --flags url`, the command and image/URL
 | Label: Bug | `LA_kwDOLMTWdc8AAAABg4dJNg` |
 | Label: P0-🔥 | `LA_kwDOLMTWdc8AAAABg4dJZQ` |
 | **Solo CLI Program Board** | `PVT_kwDOCq2Q984BQs6I` |
-| &nbsp;&nbsp;Status field | `PVTSSF_lADOCq2Q984BQs6Izg-vs_E` |
-| &nbsp;&nbsp;Status: Ready | `61e4505c` |
-| &nbsp;&nbsp;Priority field | `PVTSSF_lADOCq2Q984BQs6Izg-vtZ0` |
-| &nbsp;&nbsp;Priority: P0 | `79628723` |
+|   Status field | `PVTSSF_lADOCq2Q984BQs6Izg-vs_E` |
+|   Status: Ready | `61e4505c` |
+|   Priority field | `PVTSSF_lADOCq2Q984BQs6Izg-vtZ0` |
+|   Priority: P0 | `79628723` |
 | **Solo X Team** | `PVT_kwDOCq2Q984A6EW6` |
-| &nbsp;&nbsp;Status field | `PVTSSF_lADOCq2Q984A6EW6zguwhjU` |
-| &nbsp;&nbsp;Status: Ready | `36d4dfb8` |
-| &nbsp;&nbsp;Priority field | `PVTSSF_lADOCq2Q984A6EW6zguwhkA` |
-| &nbsp;&nbsp;Priority: P0-🔥 | `95df2dcd` |
+|   Status field | `PVTSSF_lADOCq2Q984A6EW6zguwhjU` |
+|   Status: Ready | `36d4dfb8` |
+|   Priority field | `PVTSSF_lADOCq2Q984A6EW6zguwhkA` |
+|   Priority: P0-🔥 | `95df2dcd` |
 
 ## Current quarter initiative issues
 

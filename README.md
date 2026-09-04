@@ -31,7 +31,7 @@ npm install -g @hiero-ledger/solo
 
 ## Releases
 
-Solo releases are supported for one month after their release date. LTS (Long-Term Support) versions are supported for three months. Upgrade to the latest version to benefit from new features and improvements. 
+Solo releases are supported for one month after their release date. LTS (Long-Term Support) versions are supported for three months. Upgrade to the latest version to benefit from new features and improvements.
 
 ### Current Releases
 
