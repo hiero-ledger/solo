@@ -47,7 +47,10 @@ runs:
     - name: Build Cache Metadata
       id: cache-metadata
       shell: bash
-      run: |
+      # operation/key-prefix/key-suffix are this action's own declared inputs, set by trusted
+      # callers in this repo — not attacker-controllable PR data. Tracked for a real fix
+      # (switching to env: instead of inline expansion) in issue #5931.
+      run: | # zizmor: ignore[template-injection]
         set -euo pipefail
 
         case "${{ inputs.operation }}" in
@@ -77,7 +80,9 @@ runs:
       id: inspect
       if: ${{ inputs.operation == 'save' }}
       shell: bash
-      run: |
+      # cache-path is this action's own declared input, set by trusted callers in this repo —
+      # not attacker-controllable PR data. Tracked for a real fix in issue #5931.
+      run: | # zizmor: ignore[template-injection]
         set -euo pipefail
 
         # The path arrives double quoted, so bash never tilde expands it; expand a leading
