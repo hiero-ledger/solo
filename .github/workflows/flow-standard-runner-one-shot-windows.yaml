@@ -309,7 +309,6 @@ jobs:
         # Bypass both setup-wsl's downloader and WSL's online downloader when the validated
         # repository cache is available. Retry Setup WSL2 still runs afterwards to configure
         # the distribution's packages and the wsl-bash shell wrapper.
-        continue-on-error: true
         timeout-minutes: 3
         shell: pwsh
         run: |
@@ -341,9 +340,11 @@ jobs:
 
       - name: Retry Setup WSL2
         id: retry_setup_wsl2
-        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' }}
-        # Run after the cached fallback even if it failed. Without !cancelled(), GitHub's
-        # implicit success() check skips this retry after the fallback fails.
+        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' && steps.install_cached_ubuntu_wsl.outcome == 'success' }}
+        # Only retry after the cached fallback installed the distribution. This explicit
+        # condition bypasses GitHub's implicit success() check after the first setup failure.
+        # A failed cached fallback stops the job rather than allowing this action to download
+        # Ubuntu online again.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         timeout-minutes: 5
         with:
