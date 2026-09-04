@@ -547,7 +547,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
           case ComponentTypes.RelayNodes: {
             this.updateComponentVersion(
               componentType,
-              new SemanticVersion<string>(flags.relayReleaseTag.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.relayVersion.definition.defaultValue as string),
             );
             break;
           }
