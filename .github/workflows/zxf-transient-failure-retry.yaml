@@ -85,18 +85,13 @@ jobs:
             const run = context.payload.workflow_run;
             const maxRunAttempts = Number(process.env.MAX_RUN_ATTEMPTS);
 
-            // Each rule needs a failed step whose name matches one of its prefixes (an empty list
-            // matches any failed step), the `required` signature present in the job log, and the
-            // `forbidden` signature absent. Matching on the log as well as the step name keeps a
+            // Signature rules for failures that are not step timeouts; timeouts are handled
+            // generically above. Each rule needs a failed step whose name matches one of its
+            // prefixes (an empty list matches any failed step), the `required` signature present
+            // in the job log, and the `forbidden` signature absent. Matching on the log as well as the step name keeps a
             // deterministic failure in an infrastructure step - a moved dependency version, a bad
             // ref, a compile error - from being retried, which only burns runners and hides the bug.
             const rules = [
-              {
-                description: 'checkout could not reach the remote',
-                stepPrefixes: ['checkout'],
-                required: /The action 'Checkout[^']*' has timed out after \d+ minutes?/,
-                forbidden: /fatal:|RPC failed|index-pack failed|Repository not found|could not read Username/,
-              },
               {
                 // The runner downloads every referenced action before the first step runs, so a
                 // stall at codeload.github.com fails the implicit `Set up job` step. The runner
@@ -107,15 +102,6 @@ jobs:
                 stepPrefixes: ['set up job'],
                 required: /Action '[^']*' download has timed out|Failed to download archive '[^']*' after \d+ attempts/,
                 forbidden: /Unable to resolve action|error TS\d{4}/,
-              },
-              {
-                // The distribution is fetched by `Setup WSL2`, by its retry, and by an explicit
-                // web-download fallback. Any of the three can be the step that runs out of time,
-                // so all three gate this rule: run 33757121299 timed out in the fallback alone.
-                description: 'WSL distribution download exceeded its budget',
-                stepPrefixes: ['setup wsl2', 'retry setup wsl2', 'install ubuntu wsl distribution fallback'],
-                required: /The action '(Setup WSL2|Retry Setup WSL2|Install Ubuntu WSL distribution fallback)' has timed out after \d+ minutes?/,
-                forbidden: /error TS\d{4}/,
               },
               {
                 description: 'kind could not bind a host port held by a leaked cluster',
@@ -130,6 +116,30 @@ jobs:
                 forbidden: /error TS\d{4}|Failed to run task "build:compile"/,
               },
             ];
+
+            // A step killed by its own `timeout-minutes` budget reports a generic error naming the
+            // step, and the API exposes no structured cause - a step carries only a name, a
+            // conclusion and timestamps - so this log line is the sole signal:
+            //
+            //   ##[error]The action 'Setup Node' has timed out after 5 minutes.
+            //
+            // Steps that prepare the environment - fetching sources, toolchains, packages, images -
+            // run out of time because the network stalled, and a fresh runner is the remedy, so any
+            // of them is retried without needing a rule of its own. Steps that execute Solo are
+            // excluded: `Run E2E Tests` timed out in four of the audited logs and every one was a
+            // reproducible product hang, so retrying those would only hide the bug.
+            const environmentStepPattern =
+              /^(set up job|harden runner|checkout|set ?up|install|configure|bootstrap|restore|retry)\b/i;
+
+            // A setup step can also fail for a settled reason no rerun will change - a bad ref or
+            // credentials, an unresolvable action, a compile error - which vetoes a timeout retry.
+            const settledFailurePattern =
+              /fatal:|RPC failed|index-pack failed|Repository not found|could not read Username|Unable to resolve action|error TS\d{4}/;
+
+            const escapeForRegExp = (text) => text.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            const stepRanOutOfTime = (stepName, log) =>
+              new RegExp(`The action '${escapeForRegExp(stepName)}' has timed out after \\d+ minutes?`).test(log);
 
             const readJobLog = async (jobId) => {
               try {
@@ -178,15 +188,18 @@ jobs:
             const reasons = [];
 
             for (const job of failedJobs) {
-              const failedStepNames = (job.steps ?? [])
-                .filter(step => step.conclusion === 'failure')
-                .map(step => step.name.toLowerCase());
+              // Rule prefixes compare lower case, but the timeout error quotes the step name
+              // exactly as written, so the original casing has to survive.
+              const failedSteps = (job.steps ?? []).filter(step => step.conclusion === 'failure').map(step => step.name);
+              const failedStepNames = failedSteps.map(name => name.toLowerCase());
 
               const candidates = rules.filter(rule =>
                 rule.stepPrefixes.length === 0 ||
                 failedStepNames.some(name => rule.stepPrefixes.some(prefix => name.startsWith(prefix))));
 
-              if (candidates.length === 0) {
+              const environmentSteps = failedSteps.filter(name => environmentStepPattern.test(name));
+
+              if (candidates.length === 0 && environmentSteps.length === 0) {
                 continue;
               }
 
@@ -198,6 +211,12 @@ jobs:
               const matched = candidates.find(rule => rule.required.test(log) && !rule.forbidden.test(log));
               if (matched) {
                 reasons.push(`${job.name}: ${matched.description}`);
+                continue;
+              }
+
+              const timedOutStep = environmentSteps.find(name => stepRanOutOfTime(name, log));
+              if (timedOutStep && !settledFailurePattern.test(log)) {
+                reasons.push(`${job.name}: '${timedOutStep}' exceeded its time budget`);
               }
             }
 
