@@ -34,7 +34,6 @@ on:
       - ready_for_review
 
 permissions:
-  actions: write
   contents: read
 
 concurrency:
@@ -50,8 +49,6 @@ env:
   WSL_UBUNTU_INSTALLER_FILE: 'ubuntu-24.04.4-wsl-amd64.wsl'
   WSL_UBUNTU_INSTALLER_URL: 'https://releases.ubuntu.com/24.04.4/ubuntu-24.04.4-wsl-amd64.wsl'
   WSL_UBUNTU_INSTALLER_SHA256: '9b2f7730dc68227dd04a9f3e5eab86ad85caf556b8606ad94f1f29ff5c4fd3f5'
-  # Cache key and tool-cache path used by setup-wsl for Ubuntu 24.04.4.
-  WSL_UBUNTU_CACHE_KEY: '2:distributionDirectory_Ubuntu_24.4.4'
 
 jobs:
   standard-runner-one-shot-windows:
@@ -134,7 +131,7 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ runner.tool_cache }}\Ubuntu\${{ env.WSL_UBUNTU_VERSION }}\x64
-          key: ${{ env.WSL_UBUNTU_CACHE_KEY }}
+          key: ubuntu-wsl-installer-v1-${{ env.WSL_UBUNTU_VERSION }}-${{ env.WSL_UBUNTU_INSTALLER_SHA256 }}
 
       - name: Validate restored Ubuntu WSL installer cache
         id: validate_ubuntu_wsl_installer
@@ -183,19 +180,9 @@ jobs:
           - Validation: $validationResult
           "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
 
-      - name: Delete invalid Ubuntu WSL installer cache from main
-        if: ${{ success() && github.ref == 'refs/heads/main' && steps.restore_ubuntu_wsl_installer.outputs.cache-hit == 'true' && steps.validate_ubuntu_wsl_installer.outputs.valid != 'true' }}
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $cacheKey = [uri]::EscapeDataString($env:WSL_UBUNTU_CACHE_KEY)
-          $cacheRef = [uri]::EscapeDataString($env:GITHUB_REF)
-          gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/caches?key=$cacheKey&ref=$cacheRef"
-
-      - name: Seed verified Ubuntu WSL installer cache from main
+      - name: Seed verified Ubuntu WSL installer cache
         id: seed_ubuntu_wsl_installer
-        if: ${{ success() && github.ref == 'refs/heads/main' && steps.validate_ubuntu_wsl_installer.outputs.valid != 'true' }}
+        if: ${{ success() && steps.validate_ubuntu_wsl_installer.outputs.valid != 'true' }}
         shell: pwsh
         timeout-minutes: 10
         run: |
@@ -221,28 +208,10 @@ jobs:
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ runner.tool_cache }}\Ubuntu\${{ env.WSL_UBUNTU_VERSION }}\x64
-          key: ${{ env.WSL_UBUNTU_CACHE_KEY }}
-
-      - name: Report Ubuntu WSL installer cache availability
-        id: ubuntu_wsl_installer
-        if: ${{ success() }}
-        shell: pwsh
-        run: |
-          $available = '${{ steps.validate_ubuntu_wsl_installer.outputs.valid }}' -eq 'true' -or '${{ steps.seed_ubuntu_wsl_installer.outputs.valid }}' -eq 'true'
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "available=$($available.ToString().ToLowerInvariant())"
-          if (-not $available) {
-            $summary = @(
-              '## Windows WSL integration skipped'
-              ''
-              'The verified Ubuntu installer cache was unavailable or invalid. This PR did not attempt online Ubuntu acquisition. A main run will seed a missing cache; an invalid cache is deleted and replaced on main.'
-            ) -join [Environment]::NewLine
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary
-            Write-Warning 'Skipping WSL-dependent integration steps because the verified Ubuntu installer cache is unavailable.'
-          }
+          key: ubuntu-wsl-installer-v1-${{ env.WSL_UBUNTU_VERSION }}-${{ env.WSL_UBUNTU_INSTALLER_SHA256 }}
 
       - name: Setup WSL2
         id: setup_wsl2
-        if: ${{ success() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
         # container mode with no Docker Desktop to switch it. WSL2 + Docker inside it replicates
         # what Docker Desktop does for Windows users, exposing a Linux daemon via TCP.
@@ -337,12 +306,10 @@ jobs:
           egress-policy: audit
 
       - name: Restart WSL
-        if: ${{ success() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
         run: wsl --shutdown
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Install Docker in WSL2
-        if: ${{ success() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
         shell: wsl-bash {0}
         timeout-minutes: 10
         run: |
@@ -388,7 +355,6 @@ jobs:
           ss -tlnp | grep 2375
 
       - name: Forward Docker TCP Port from WSL2 to Windows
-        if: ${{ success() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
@@ -402,7 +368,6 @@ jobs:
           docker info
 
       - name: Render Kind Config for WSL Docker Daemon
-        if: ${{ success() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
@@ -438,7 +403,6 @@ jobs:
           "SOLO_KIND_CLUSTER_CONFIG_FILE=$renderedConfig" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: One-Shot Single Deploy
-        if: ${{ success() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
         shell: pwsh
         timeout-minutes: 70
         env:
@@ -448,7 +412,6 @@ jobs:
           npm run solo -- one-shot single deploy --dev
 
       - name: Check Port Forwarding Still Works After Deploy
-        if: ${{ success() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
@@ -456,7 +419,7 @@ jobs:
           npm run solo -- deployment diagnostics connections -d one-shot --check
 
       - name: Collect Diagnostics on Failure
-        if: ${{ failure() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
+        if: ${{ failure() }}
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
@@ -464,7 +427,7 @@ jobs:
           npm run solo -- deployment diagnostics logs -q --dev; $true
 
       - name: One-Shot Single Destroy
-        if: ${{ always() && steps.ubuntu_wsl_installer.outputs.available == 'true' }}
+        if: always()
         shell: pwsh
         timeout-minutes: 15
         run: |
