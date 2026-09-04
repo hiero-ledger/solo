@@ -188,9 +188,8 @@ jobs:
         # The verified restore above uses the pinned action's cache key so this action finds
         # the installer in its tool cache before it considers an Ubuntu download.
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
-        continue-on-error: true
-        # A healthy setup completes in about one minute. Bound a stalled action so the
-        # recovery path can run instead of consuming the previous ten-minute timeout.
+        # A healthy setup completes in about one minute. Bound a stalled action so a
+        # distribution problem is reported promptly instead of consuming ten minutes.
         timeout-minutes: 3
         with:
           distribution: Ubuntu-24.04
@@ -204,7 +203,7 @@ jobs:
             software-properties-common
 
       - name: Capture WSL2 diagnostics after setup failure
-        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' }}
         shell: pwsh
         continue-on-error: true
         timeout-minutes: 1
@@ -270,93 +269,6 @@ jobs:
             Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'system-events.txt') |
             Format-List
           Write-Host '::endgroup::'
-
-      - name: Recover incomplete WSL2 installation
-        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
-        shell: pwsh
-        # The timed-out action can leave its wsl.exe child process and a partially registered
-        # distribution behind. Remove both before retrying the installation from a clean state.
-        continue-on-error: true
-        timeout-minutes: 1
-        run: |
-          Get-Process -Name wsl -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-          wsl --shutdown
-          wsl --unregister Ubuntu-24.04
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'Ubuntu-24.04 was not registered after the failed installation.'
-          }
-          $installerCacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE 'Ubuntu\24.4.4\x64'
-          $installerPath = Join-Path $installerCacheDirectory 'ubuntu-24.04.4-wsl-amd64.wsl'
-          if ((Test-Path -LiteralPath $installerCacheDirectory) -and -not (Test-Path -LiteralPath $installerPath)) {
-            Write-Warning "Removing incomplete Ubuntu installer cache: $installerCacheDirectory"
-            Remove-Item -LiteralPath $installerCacheDirectory -Recurse -Force -ErrorAction SilentlyContinue
-          }
-          exit 0
-
-      - name: Rehydrate verified Ubuntu WSL installer cache after setup failure
-        id: restore_ubuntu_wsl_installer_after_failure
-        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' }}
-        # setup-wsl or wsl.exe can consume the local installer before failing. Restore the
-        # action's repository cache again so the direct fallback below still has an input file.
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ${{ runner.tool_cache }}\Ubuntu\${{ env.WSL_UBUNTU_VERSION }}\x64
-          key: ${{ env.WSL_UBUNTU_CACHE_KEY }}
-
-      - name: Install cached Ubuntu WSL distribution fallback
-        id: install_cached_ubuntu_wsl
-        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' }}
-        # Bypass both setup-wsl's downloader and WSL's online downloader when the validated
-        # repository cache is available. Retry Setup WSL2 still runs afterwards to configure
-        # the distribution's packages and the wsl-bash shell wrapper.
-        timeout-minutes: 3
-        shell: pwsh
-        run: |
-          $distributionName = 'Ubuntu-24.04'
-          $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE "Ubuntu\$env:WSL_UBUNTU_VERSION\x64"
-          $installerPath = Join-Path $cacheDirectory $env:WSL_UBUNTU_INSTALLER_FILE
-
-          if (-not (Test-Path -LiteralPath $installerPath)) {
-            throw "Verified Ubuntu WSL installer is unavailable after setup failure: $installerPath"
-          }
-
-          $actualHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualHash -ne $env:WSL_UBUNTU_INSTALLER_SHA256) {
-            throw "Cached Ubuntu WSL installer SHA-256 mismatch: $actualHash"
-          }
-
-          $installedDistributions = @(wsl.exe --list --quiet 2>$null)
-          if ($installedDistributions -match [regex]::Escape($distributionName)) {
-            Write-Host "WSL distribution already installed from the validated cache: $distributionName"
-          } else {
-            Write-Host "Installing $distributionName from the validated repository cache"
-            & "$env:SystemRoot\System32\wsl.exe" --install --from-file $installerPath --no-launch --name $distributionName
-            if ($LASTEXITCODE -ne 0) {
-              throw "wsl.exe failed to install $distributionName from the validated cache with exit code $LASTEXITCODE"
-            }
-          }
-
-          Add-Content -Path $env:GITHUB_OUTPUT -Value 'installed=true'
-
-      - name: Retry Setup WSL2
-        id: retry_setup_wsl2
-        if: ${{ !cancelled() && steps.setup_wsl2.outcome == 'failure' && steps.install_cached_ubuntu_wsl.outcome == 'success' }}
-        # Only retry after the cached fallback installed the distribution. This explicit
-        # condition bypasses GitHub's implicit success() check after the first setup failure.
-        # A failed cached fallback stops the job rather than allowing this action to download
-        # Ubuntu online again.
-        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
-        timeout-minutes: 5
-        with:
-          distribution: Ubuntu-24.04
-          wsl-version: 2
-          use-cache: true
-          set-as-default: true
-          additional-packages: |
-            apt-transport-https
-            ca-certificates
-            curl
-            software-properties-common
 
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
