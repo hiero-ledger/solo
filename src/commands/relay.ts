@@ -76,6 +76,7 @@ interface RelayDeployConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
+  operatorSecretName: string;
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
@@ -114,6 +115,7 @@ interface RelayUpgradeConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
+  operatorSecretName: string;
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
@@ -251,11 +253,9 @@ export class RelayCommand extends BaseCommand {
     componentImage,
     replicaCount,
     loadBalancerEnabled,
-    operatorId,
-    operatorKey,
+    operatorSecretName,
     namespace,
     domainName,
-    context,
     releaseName,
     deployment,
     mirrorNamespace,
@@ -305,6 +305,44 @@ export class RelayCommand extends BaseCommand {
       chartValues.set('relay.service.type', 'LoadBalancer').set('ws.service.type', 'LoadBalancer');
     }
 
+    chartValues.set('relay.existingSecret', operatorSecretName).set('ws.existingSecret', operatorSecretName);
+
+    if (!nodeAliases) {
+      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
+    }
+
+    const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
+
+    chartValues
+      .setLiteral('relay.config.HEDERA_NETWORK', networkJsonString)
+      .setLiteral('ws.config.HEDERA_NETWORK', networkJsonString);
+
+    if (domainName) {
+      chartValues
+        .set('relay.ingress.enabled', true)
+        .set('relay.ingress.hosts[0].host', domainName)
+        .set('relay.ingress.hosts[0].paths[0].path', '/')
+        .set('relay.ingress.hosts[0].paths[0].pathType', 'ImplementationSpecific');
+    }
+
+    chartValues.filesFromCommaSeparatedInput(valuesFile);
+
+    return chartValues;
+  }
+
+  /**
+   * Resolves the operator id/key to use for the relay (from flags, a per-account k8s secret, or the
+   * default), then stores them in a dedicated Kubernetes secret so they never need to be passed to Helm
+   * as plaintext `--set` values.
+   */
+  private async createOperatorSecret({
+    operatorId,
+    operatorKey,
+    namespace,
+    context,
+    releaseName,
+    deployment,
+  }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
     const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
 
     let operatorKeyUsing: string;
@@ -340,33 +378,19 @@ export class RelayCommand extends BaseCommand {
       });
 
     if (!isOperatorSecretCreated) {
-      throw new SoloError(`Failed to create operator credentials secret ${operatorSecretName}`);
+      throw new SoloErrors.component.relayOperatorSecretCreationFailed(operatorSecretName);
     }
 
-    valuesArgument += ` --set relay.existingSecret=${operatorSecretName}`;
-    valuesArgument += ` --set ws.existingSecret=${operatorSecretName}`;
+    return operatorSecretName;
+  }
 
-    if (!nodeAliases) {
-      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
-    }
-
-    const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
-
-    chartValues
-      .setLiteral('relay.config.HEDERA_NETWORK', networkJsonString)
-      .setLiteral('ws.config.HEDERA_NETWORK', networkJsonString);
-
-    if (domainName) {
-      chartValues
-        .set('relay.ingress.enabled', true)
-        .set('relay.ingress.hosts[0].host', domainName)
-        .set('relay.ingress.hosts[0].paths[0].path', '/')
-        .set('relay.ingress.hosts[0].paths[0].pathType', 'ImplementationSpecific');
-    }
-
-    chartValues.filesFromCommaSeparatedInput(valuesFile);
-
-    return chartValues;
+  private createOperatorSecretTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Create relay operator credentials secret',
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        config.operatorSecretName = await this.createOperatorSecret(config);
+      },
+    };
   }
 
   /**
@@ -720,6 +744,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.addRelayComponent(),
         this.checkChartIsInstalledTask(),
+        this.createOperatorSecretTask(),
         this.prepareChartValuesTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
         this.checkRelayIsRunningTask(),
@@ -858,6 +883,7 @@ export class RelayCommand extends BaseCommand {
             }
           },
         },
+        this.createOperatorSecretTask(),
         this.prepareChartValuesTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.UPGRADE),
         this.checkRelayIsRunningTask(),
