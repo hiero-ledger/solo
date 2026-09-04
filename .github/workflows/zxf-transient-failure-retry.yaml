@@ -34,6 +34,10 @@ on:
       - 'Install Validation (Podman Runtime)'
       - 'Performance Test Solo Deployment'
       - 'CodeQL'
+    # `completed` is the only usable activity type here: a workflow_run trigger fires regardless
+    # of the upstream conclusion and GitHub offers no conclusion filter, so the failure check has
+    # to live in the job condition below. The runs this creates for successful upstream workflows
+    # skip that condition and never occupy a runner.
     types:
       - completed
 
