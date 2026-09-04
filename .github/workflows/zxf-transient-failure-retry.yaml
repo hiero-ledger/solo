@@ -94,6 +94,17 @@ jobs:
                 forbidden: /fatal:|RPC failed|index-pack failed|Repository not found|could not read Username/,
               },
               {
+                // The runner downloads every referenced action before the first step runs, so a
+                // stall at codeload.github.com fails the implicit `Set up job` step. The runner
+                // has already retried internally ("after 3 attempts"), so the archive is
+                // genuinely unreachable rather than misreferenced; a bad ref reports "Unable to
+                // resolve action" instead and must not be retried.
+                description: 'action archive download timed out',
+                stepPrefixes: ['set up job'],
+                required: /Action '[^']*' download has timed out|Failed to download archive '[^']*' after \d+ attempts/,
+                forbidden: /Unable to resolve action|error TS\d{4}/,
+              },
+              {
                 // The distribution is fetched by `Setup WSL2`, by its retry, and by an explicit
                 // web-download fallback. Any of the three can be the step that runs out of time,
                 // so all three gate this rule: run 33757121299 timed out in the fallback alone.
