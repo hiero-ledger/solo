@@ -292,6 +292,7 @@ describe('BaseCommand', (): void => {
       'hiero-explorer:my-build',
       'hiero-json-rpc-relay:local',
       'myimage:latest',
+      'localhost:5001/block-node-server',
       'localhost:5001/block-node-server:0.38.0',
     ];
 
@@ -348,104 +349,104 @@ describe('BaseCommand', (): void => {
       );
     });
 
-    it('should explain how to make an image available to a non-Kind target context', async (): Promise<void> => {
-      const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
-      baseCommandInternal.remoteConfig = {
-        getContexts: (): Context[] => ['remote-cluster'],
-      };
+   it('should explain how to make an image available to a non-Kind target context', async (): Promise<void> => {
+     const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
+     baseCommandInternal.remoteConfig = {
+       getContexts: (): Context[] => ['remote-cluster'],
+     };
 
-      await expect(
-        baseCommandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-first'),
-      ).to.be.rejectedWith(
-        "Component image source 'block-node-server:0.38.0' from --component-image requires Kind image loading, but target " +
-          "cluster context(s) 'remote-cluster' are not Kind clusters. Push the image to a registry reachable from every target cluster",
-      );
-    });
+     await expect(
+       baseCommandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-first'),
+     ).to.be.rejectedWith(
+       "Component image source 'block-node-server:0.38.0' from --component-image requires Kind image loading, but target " +
+         "cluster context(s) 'remote-cluster' are not Kind clusters. Push the image to a registry reachable from every target cluster",
+     );
+   });
   });
 
   describe('kindLoadComponentImageArchive', (): void => {
-    it('should load an image archive into every Kind target context', async (): Promise<void> => {
-      const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
-      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-component-image-archive-test-'));
-      const componentImageArchive: string = PathEx.join(temporaryDirectory, 'block-node-server.tar');
-      fs.writeFileSync(componentImageArchive, 'image archive');
+   it('should load an image archive into every Kind target context', async (): Promise<void> => {
+     const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
+     const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-component-image-archive-test-'));
+     const componentImageArchive: string = PathEx.join(temporaryDirectory, 'block-node-server.tar');
+     fs.writeFileSync(componentImageArchive, 'image archive');
 
-      try {
-        const loadImageArchiveStub: SinonStub = sinon.stub().resolves();
-        const kindClient: KindClient = {loadImageArchive: loadImageArchiveStub} as unknown as KindClient;
+     try {
+       const loadImageArchiveStub: SinonStub = sinon.stub().resolves();
+       const kindClient: KindClient = {loadImageArchive: loadImageArchiveStub} as unknown as KindClient;
 
-        baseCommandInternal.remoteConfig = {
-          getContexts: (): Context[] => ['kind-first', 'kind-second'],
-        };
-        baseCommandInternal.depManager = {
-          getExecutable: async (): Promise<string> => 'kind',
-        };
-        baseCommandInternal.kindBuilder = {
-          executable: (): {build: () => Promise<KindClient>} => ({
-            build: async (): Promise<KindClient> => kindClient,
-          }),
-        };
+       baseCommandInternal.remoteConfig = {
+         getContexts: (): Context[] => ['kind-first', 'kind-second'],
+       };
+       baseCommandInternal.depManager = {
+         getExecutable: async (): Promise<string> => 'kind',
+       };
+       baseCommandInternal.kindBuilder = {
+         executable: (): {build: () => Promise<KindClient>} => ({
+           build: async (): Promise<KindClient> => kindClient,
+         }),
+       };
 
-        await baseCommandInternal.kindLoadComponentImageArchive(componentImageArchive, 'kind-first');
+       await baseCommandInternal.kindLoadComponentImageArchive(componentImageArchive, 'kind-first');
 
-        expect(loadImageArchiveStub).to.have.been.calledTwice;
-        expect(loadImageArchiveStub).to.have.been.calledWith(componentImageArchive, sinon.match.has('name', 'first'));
-        expect(loadImageArchiveStub).to.have.been.calledWith(componentImageArchive, sinon.match.has('name', 'second'));
-      } finally {
-        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
-      }
-    });
+       expect(loadImageArchiveStub).to.have.been.calledTwice;
+       expect(loadImageArchiveStub).to.have.been.calledWith(componentImageArchive, sinon.match.has('name', 'first'));
+       expect(loadImageArchiveStub).to.have.been.calledWith(componentImageArchive, sinon.match.has('name', 'second'));
+     } finally {
+       fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+     }
+   });
 
-    it('should reject an image archive when any target context is not a Kind cluster', async (): Promise<void> => {
-      const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
-      baseCommandInternal.remoteConfig = {
-        getContexts: (): Context[] => ['remote-cluster'],
-      };
+   it('should reject an image archive when any target context is not a Kind cluster', async (): Promise<void> => {
+     const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
+     baseCommandInternal.remoteConfig = {
+       getContexts: (): Context[] => ['remote-cluster'],
+     };
 
-      await expect(
-        baseCommandInternal.kindLoadComponentImageArchive('/tmp/block-node-server.tar', 'kind-first'),
-      ).to.be.rejectedWith(
-        "Component image source '/tmp/block-node-server.tar' from --component-image-archive requires Kind image loading",
-      );
-    });
+     await expect(
+       baseCommandInternal.kindLoadComponentImageArchive('/tmp/block-node-server.tar', 'kind-first'),
+     ).to.be.rejectedWith(
+       "Component image source '/tmp/block-node-server.tar' from --component-image-archive requires Kind image loading",
+     );
+   });
 
-    it('should require an image reference with an image archive', async (): Promise<void> => {
-      const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
+   it('should require an image reference with an image archive', async (): Promise<void> => {
+     const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
 
-      await expect(
-        baseCommandInternal.loadComponentImage(undefined, '/tmp/block-node-server.tar', 'kind-first'),
-      ).to.be.rejectedWith(
-        '--component-image-archive requires --component-image to identify the image in the archive.',
-      );
-    });
+     await expect(
+       baseCommandInternal.loadComponentImage(undefined, '/tmp/block-node-server.tar', 'kind-first'),
+     ).to.be.rejectedWith(
+       '--component-image-archive requires --component-image to identify the image in the archive.',
+     );
+   });
 
-    it('should reject a missing image archive path', async (): Promise<void> => {
-      const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
-      const missingArchivePath: string = PathEx.join(os.tmpdir(), 'missing-block-node-server.tar');
+   it('should reject a missing image archive path', async (): Promise<void> => {
+     const baseCommandInternal: BaseCommandInternal = baseCmd as unknown as BaseCommandInternal;
+     const missingArchivePath: string = PathEx.join(os.tmpdir(), 'missing-block-node-server.tar');
 
-      await expect(
-        baseCommandInternal.loadComponentImage('block-node-server:0.38.0', missingArchivePath, 'kind-first'),
-      ).to.be.rejectedWith(`File does not exist: ${missingArchivePath}`);
-    });
+     await expect(
+       baseCommandInternal.loadComponentImage('block-node-server:0.38.0', missingArchivePath, 'kind-first'),
+     ).to.be.rejectedWith(`File does not exist: ${missingArchivePath}`);
+   });
   });
 
-  describe('kindClusterNameFromContext', (): void => {
-    before((): void => {
-      resetForTest();
-      // @ts-expect-error - allow to create instance of abstract class
-      baseCmd = new BaseCommand();
-    });
+ describe('kindClusterNameFromContext', (): void => {
+   before((): void => {
+     resetForTest();
+     // @ts-expect-error - allow to create instance of abstract class
+     baseCmd = new BaseCommand();
+   });
 
-    it('should strip kind- prefix from context', (): void => {
-      // @ts-expect-error - TS2445: protected method
-      expect(baseCmd.kindClusterNameFromContext('kind-solo-cluster')).to.equal('solo-cluster');
-    });
+   it('should strip kind- prefix from context', (): void => {
+     // @ts-expect-error - TS2445: protected method
+     expect(baseCmd.kindClusterNameFromContext('kind-solo-cluster')).to.equal('solo-cluster');
+   });
 
-    it('should return context unchanged when no kind- prefix', (): void => {
-      // @ts-expect-error - TS2445: protected method
-      expect(baseCmd.kindClusterNameFromContext('my-cluster')).to.equal('my-cluster');
-    });
-  });
+   it('should return context unchanged when no kind- prefix', (): void => {
+     // @ts-expect-error - TS2445: protected method
+     expect(baseCmd.kindClusterNameFromContext('my-cluster')).to.equal('my-cluster');
+   });
+ });
 
   describe('dockerDesktopPreflightTask', (): void => {
     let command: TestBaseCommand;

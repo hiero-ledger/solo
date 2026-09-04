@@ -165,26 +165,26 @@ describe('RelayCommand unit tests', (): void => {
     expect(valueArguments).to.include('ws.image.pullPolicy=Never');
   });
 
-  it('should use a Never pull policy for an image from an archive', async (): Promise<void> => {
-    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
-    sinon.stub(relayCommandInternal, 'isComponentImageAvailableForKind').returns(true);
-    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+it('should use a Never pull policy for an image from an archive', async (): Promise<void> => {
+  const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+  sinon.stub(relayCommandInternal, 'isComponentImageAvailableForKind').returns(true);
+  sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valueArguments: string[] = await prepareRelayValueArguments(
-      relayCommandInternal,
-      createRelayConfig({
-        [flags.componentImage.constName]: 'ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.61.0',
-        [flags.componentImageArchive.constName]: '/artifacts/hiero-json-rpc-relay.tar',
-      }),
-    );
+  const valueArguments: string[] = await prepareRelayValueArguments(
+    relayCommandInternal,
+    createRelayConfig({
+      [flags.componentImage.constName]: 'ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.61.0',
+      [flags.componentImageArchive.constName]: '/artifacts/hiero-json-rpc-relay.tar',
+    }),
+  );
 
-    expect(valueArguments).to.include('relay.image.registry=ghcr.io');
-    expect(valueArguments).to.include('relay.image.repository=hiero-ledger/hiero-json-rpc-relay');
-    expect(valueArguments).to.include('relay.image.pullPolicy=Never');
-    expect(valueArguments).to.include('ws.image.pullPolicy=Never');
-  });
+  expect(valueArguments).to.include('relay.image.registry=ghcr.io');
+  expect(valueArguments).to.include('relay.image.repository=hiero-ledger/hiero-json-rpc-relay');
+  expect(valueArguments).to.include('relay.image.pullPolicy=Never');
+  expect(valueArguments).to.include('ws.image.pullPolicy=Never');
+});
 
-  it('should set relay and ws service type to LoadBalancer when load balancer is enabled', async (): Promise<void> => {
+it('should set relay and ws service type to LoadBalancer when load balancer is enabled', async (): Promise<void> => {
     const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');

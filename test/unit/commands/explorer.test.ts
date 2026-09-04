@@ -68,6 +68,7 @@ type ExplorerCommandInternal = {
     componentImageArchive: string | undefined,
     clusterContext: string,
   ) => Promise<void>;
+  kindLoadComponentImage: (componentImage: string, clusterContext: string) => Promise<void>;
 };
 
 const createNamespace: (namespaceName: string) => NamespaceName = (namespaceName: string): NamespaceName =>
