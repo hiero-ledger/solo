@@ -645,13 +645,7 @@ export class SubprocessEnvironment {
       (prefix: string): string => normalize(prefix),
     );
 
-    const environment: Record<string, string> = {};
     const withheldNames: string[] = [];
-    for (const [name, value] of Object.entries(process.env)) {
-      if (value === undefined) {
-        continue;
-      }
-    };
 
     const isAllowedName: (name: string) => boolean = (name: string): boolean => {
       const normalized: string = normalize(name);
