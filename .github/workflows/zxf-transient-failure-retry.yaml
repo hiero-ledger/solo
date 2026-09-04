@@ -123,15 +123,27 @@ jobs:
             //
             //   ##[error]The action 'Setup Node' has timed out after 5 minutes.
             //
-            // Steps that prepare the environment - fetching sources, toolchains, packages, images -
-            // run out of time because the network stalled, and a fresh runner is the remedy, so any
-            // of them is retried without needing a rule of its own. Steps that execute Solo are
-            // excluded: `Run E2E Tests` timed out in four of the audited logs and every one was a
-            // reproducible product hang, so retrying those would only hide the bug.
-            const environmentStepPattern =
-              /^(set up job|harden runner|checkout|set ?up|install|configure|bootstrap|restore|retry)\b/i;
+            // Two families of step are retried when they run out of time, so neither needs a rule
+            // of its own. Steps that prepare the environment - fetching sources, toolchains,
+            // packages, images - stall on the network, and a fresh runner is the remedy. Steps that
+            // build the project stall the same way: a successful `Compile Project` averages 30
+            // seconds against a 300 second budget, so exhausting that budget is a ten-fold
+            // deviation - a stall in `npm ci` or in `npx tsc` - rather than a slow build. A real
+            // compile error fails in seconds instead, and `error TS####` vetoes the retry anyway.
+            //
+            // Steps that execute Solo are excluded: `Run E2E Tests` timed out in four of the
+            // audited logs and every one was a reproducible product hang, so retrying those would
+            // only hide the bug.
+            // A step that runs or serves something can occupy its whole budget by design or hang on a
+            // product bug, so it is never retried even when its name opens with a retryable verb.
+            // `Build and Start Metrics Plotter tool` is the case that matters: it leaves a
+            // foreground server listening on 127.0.0.1:8123 and can only ever end by timing out.
+            const longRunningStepPattern = /\b(start|serve|run|test|deploy|destroy|launch|migrate)\b/i;
 
-            // A setup step can also fail for a settled reason no rerun will change - a bad ref or
+            const retryableStepPattern =
+              /^(set up job|harden runner|checkout|set ?up|install|configure|bootstrap|restore|retry|build|compile|pack)\b/i;
+
+            // Such a step can also fail for a settled reason no rerun will change - a bad ref or
             // credentials, an unresolvable action, a compile error - which vetoes a timeout retry.
             const settledFailurePattern =
               /fatal:|RPC failed|index-pack failed|Repository not found|could not read Username|Unable to resolve action|error TS\d{4}/;
@@ -197,9 +209,10 @@ jobs:
                 rule.stepPrefixes.length === 0 ||
                 failedStepNames.some(name => rule.stepPrefixes.some(prefix => name.startsWith(prefix))));
 
-              const environmentSteps = failedSteps.filter(name => environmentStepPattern.test(name));
+              const retryableSteps = failedSteps.filter(
+                name => retryableStepPattern.test(name) && !longRunningStepPattern.test(name));
 
-              if (candidates.length === 0 && environmentSteps.length === 0) {
+              if (candidates.length === 0 && retryableSteps.length === 0) {
                 continue;
               }
 
@@ -214,7 +227,7 @@ jobs:
                 continue;
               }
 
-              const timedOutStep = environmentSteps.find(name => stepRanOutOfTime(name, log));
+              const timedOutStep = retryableSteps.find(name => stepRanOutOfTime(name, log));
               if (timedOutStep && !settledFailurePattern.test(log)) {
                 reasons.push(`${job.name}: '${timedOutStep}' exceeded its time budget`);
               }
