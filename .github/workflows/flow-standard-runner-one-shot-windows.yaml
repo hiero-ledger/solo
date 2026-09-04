@@ -231,11 +231,12 @@ jobs:
           $available = '${{ steps.validate_ubuntu_wsl_installer.outputs.valid }}' -eq 'true' -or '${{ steps.seed_ubuntu_wsl_installer.outputs.valid }}' -eq 'true'
           Add-Content -Path $env:GITHUB_OUTPUT -Value "available=$($available.ToString().ToLowerInvariant())"
           if (-not $available) {
-            @"
-            ## Windows WSL integration skipped
-
-            The verified Ubuntu installer cache was unavailable or invalid. This PR did not attempt online Ubuntu acquisition. A `main` run will seed a missing cache; an invalid cache is deleted and replaced on `main`.
-            "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            $summary = @(
+              '## Windows WSL integration skipped'
+              ''
+              'The verified Ubuntu installer cache was unavailable or invalid. This PR did not attempt online Ubuntu acquisition. A main run will seed a missing cache; an invalid cache is deleted and replaced on main.'
+            ) -join [Environment]::NewLine
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary
             Write-Warning 'Skipping WSL-dependent integration steps because the verified Ubuntu installer cache is unavailable.'
           }
 
