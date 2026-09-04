@@ -24,7 +24,6 @@ import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.
 import {type NodeAddContext} from './config-interfaces/node-add-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
-import {type NodeFreezeContext} from './config-interfaces/node-freeze-context.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {Templates} from '../../core/templates.js';
@@ -1168,25 +1167,31 @@ export class NodeCommandHandlers extends CommandHandler {
   public async start(argv: ArgvStruct): Promise<boolean> {
     argv = addFlagsToArgv(argv, NodeFlags.START_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
+    const restoringState: boolean =
+      typeof argv[flags.stateFile.name] === 'string' && argv[flags.stateFile.name].length > 0;
 
-    await this.commandAction(
-      argv,
-      [
-        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(
-          argv,
-          this.configs.startConfigBuilder.bind(this.configs),
-          leaseWrapper.lease,
-          true,
-          false,
-        ),
-        this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
-        this.tasks.identifyExistingNodes(),
-        this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
-        this.tasks.startNodes('nodeAliases'),
-        // Must precede checkNodesAndProxiesAreActive: when --debug-node-alias is set the JVM starts
-        // with suspend=y and will never reach ACTIVE until a debugger connects via this port-forward.
-        this.tasks.enableDebuggerPortForwarding(),
+    const startTasks: SoloListrTask<AnyListrContext>[] = [
+      this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
+      this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease, true, false),
+      this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
+      this.tasks.identifyExistingNodes(),
+      this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
+      this.tasks.startNodes('nodeAliases'),
+      // Must precede checkNodesAndProxiesAreActive: when --debug-node-alias is set the JVM starts
+      // with suspend=y and will never reach ACTIVE until a debugger connects via this port-forward.
+      this.tasks.enableDebuggerPortForwarding(),
+    ];
+
+    if (restoringState) {
+      // A freeze-captured archive is expected to restore into FREEZE_COMPLETE.
+      // Do not require ACTIVE or run ACTIVE-only TSS/start-event tasks for it.
+      startTasks.push(
+        this.tasks.checkAllNodesAreFrozen('nodeAliases'),
+        this.tasks.checkNodeProxiesAreActive(),
+        this.changeAllNodePhases(DeploymentPhase.FROZEN),
+      );
+    } else {
+      startTasks.push(
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
         this.tasks.enablePortForwarding(true),
         this.tasks.emitNodeStartedEvent(),
@@ -1194,9 +1199,12 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
         this.tasks.addNodeStakes(),
-        // TODO only show this if we are not running in one-shot mode
-        // this.tasks.showUserMessages(),
-      ],
+      );
+    }
+
+    await this.commandAction(
+      argv,
+      startTasks,
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error starting node',
       leaseWrapper.lease,
@@ -1252,7 +1260,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
-        this.tasks.drainBlockStreamAfterFreeze<NodeFreezeContext>(),
+        this.tasks.waitForFrozenStateToBeStable('existingNodeAliases'),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],
