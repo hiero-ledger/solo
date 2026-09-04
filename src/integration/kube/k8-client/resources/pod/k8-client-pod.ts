@@ -303,7 +303,7 @@ export class K8ClientPod implements Pod {
         detached: true,
         commandProfile: SubprocessCommandProfile.KUBECTL,
         environmentVariablesToAppend: {
-          PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+          PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`,
         },
         useShell: false,
       });
