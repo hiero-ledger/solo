@@ -25,7 +25,15 @@ import {NodeUpdateTest} from './tests/node-update-test.js';
 import {main} from '../../../src/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
-import {PrivateKey, AccountCreateTransaction, Hbar, HbarUnit, AccountId} from '@hiero-ledger/sdk';
+import {
+  PrivateKey,
+  AccountCreateTransaction,
+  Hbar,
+  HbarUnit,
+  AccountId,
+  type TransactionResponse,
+  type TransactionReceipt,
+} from '@hiero-ledger/sdk';
 
 export function testSeparateNodeUpdate(
   argv: Argv,
@@ -58,16 +66,16 @@ export function testSeparateNodeUpdate(
         argv.getArg<DeploymentName>(flags.deployment),
         argv.getArg<boolean>(flags.forcePortForward),
       );
-      const privateKey = PrivateKey.generateED25519();
-      const amount = 100;
+      const privateKey: PrivateKey = PrivateKey.generateED25519();
+      const amount: number = 100;
 
-      const newAccount = await new AccountCreateTransaction()
+      const newAccount: TransactionResponse = await new AccountCreateTransaction()
         .setKeyWithoutAlias(privateKey)
         .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
         .execute(accountManager._nodeClient);
 
-      const getReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-      const accountId = getReceipt.accountId.toString();
+      const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+      const accountId: string = getReceipt.accountId.toString();
       logger.info(`New account created for updated node: ${accountId}`);
       argv.setArg(flags.newAccountNumber, accountId);
       newAccountId = accountId;
@@ -190,7 +198,7 @@ export function testSeparateNodeUpdate(
     }).timeout(timeout);
 
     it('the consensus nodes accountId should be the newAccountId', async (): Promise<void> => {
-      // read config.txt file from first node, read config.txt line by line, it should not contain value of newAccountId
+      // the account-id label on the first node's pod should reflect the newAccountId
       const pods: Pod[] = await k8Factory
         .default()
         .pods()

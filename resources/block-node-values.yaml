@@ -1,10 +1,19 @@
 resources:
   requests:
-    cpu: "500m"
-    memory: "128M"
-  limits:
     cpu: "1"
-    memory: "128M"
+    memory: "80Mi"
+  limits:
+    cpu: "2"
+    memory: "160Mi"
+
+# Use solo-dev image by default so block-node bootstrap plugins are available
+# without Maven resolution.
+image:
+  repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
+
+# Disable chart-time plugin resolution and use plugins bundled in the image.
+plugins:
+  names:
 
 blockNode:
   # NOTE: for Block Node logging, see this link:
@@ -26,6 +35,8 @@ blockNode:
     MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
     BACKFILL_FETCH_BATCH_SIZE: "5"
     BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+    ROSTER_BOOTSTRAP_TSS_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+    SERVER_SOCKET_RECEIVE_BUFFER_SIZE_BYTES: "131072"
   persistence:
     archive:
       size: 1Gi

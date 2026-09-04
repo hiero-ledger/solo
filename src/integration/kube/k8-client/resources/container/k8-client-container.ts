@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {KubeContainerOperationFailedError} from '../../../errors/kube-container-operation-failed-error.js';
+import {KubeContainerInvalidPathError} from '../../../errors/kube-container-invalid-path-error.js';
+import {KubeIllegalArgumentError} from '../../../errors/kube-illegal-argument-error.js';
+import {KubeMissingArgumentError} from '../../../errors/kube-missing-argument-error.js';
 import {container} from 'tsyringe-neo';
 import {type Container} from '../../../resources/container/container.js';
 import {type TDirectoryData} from '../../../t-directory-data.js';
 import {type ContainerReference} from '../../../resources/container/container-reference.js';
-import {IllegalArgumentError} from '../../../../../core/errors/illegal-argument-error.js';
-import {MissingArgumentError} from '../../../../../core/errors/missing-argument-error.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -24,9 +25,12 @@ import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
+import {SubprocessEnvironment} from '../../../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../../../core/subprocess-command-profile.js';
 import type * as stream from 'node:stream';
 import {platform} from 'node:process';
 import {PathEx} from '../../../../../business/utils/path-ex.js';
+import eol from 'eol';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -44,6 +48,25 @@ export class K8ClientContainer implements Container {
     return this.kubeConfig.getCurrentContext();
   }
 
+  /**
+   * Waits until the pod for this container reference is visible in the API before
+   * `copyTo`, `copyFrom`, or `execContainer`.
+   *
+   * Uses {@link Pods.waitForPodByReference} and maps failures to
+   * {@link IllegalArgumentError} with the pod name.
+   *
+   * @param maxAttempts - forwarded to {@link Pods.waitForPodByReference} (default 20)
+   * @param delayMs - forwarded to {@link Pods.waitForPodByReference} (default 3000 ms)
+   */
+  private async waitForPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
+    const podName: string = this.containerReference.parentReference.name.toString();
+    try {
+      await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
+    } catch {
+      throw new KubeIllegalArgumentError(`Invalid pod ${podName}`);
+    }
+  }
+
   private async execKubectl(
     arguments_: string[],
     outputPassThroughStream?: stream.PassThrough,
@@ -59,7 +82,10 @@ export class K8ClientContainer implements Container {
         constants.KUBECTL,
         fullArguments,
         {
-          env: {...process.env, PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+          shell: false,
+          env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL, {
+            PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`,
+          }),
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: os.platform() === 'win32',
         },
@@ -83,14 +109,19 @@ export class K8ClientContainer implements Container {
       });
 
       childProcess.on('error', (error): void => {
-        reject(new SoloError(`container call: ${callMessage}, failed to start: ${error?.message}`));
+        reject(new KubeContainerOperationFailedError(`container call: ${callMessage}, failed to start`, error));
       });
 
       childProcess.on('close', (code): void => {
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
-          reject(new SoloError(`container call: ${callMessage}, failed with code ${code}: ${stderr || stdout}`));
+          reject(
+            new KubeContainerOperationFailedError(
+              `container call: ${callMessage}, failed with code ${code}`,
+              new Error(stderr || stdout),
+            ),
+          );
         }
       });
     });
@@ -123,15 +154,13 @@ export class K8ClientContainer implements Container {
         await this.execKubectl(arguments_);
 
         if (!fs.existsSync(verifyPath)) {
-          throw new SoloError(`copy failed: missing file at ${verifyPath}`);
+          throw new KubeContainerInvalidPathError('copy verification', verifyPath);
         }
 
         const stat: fs.Stats = fs.statSync(verifyPath);
 
         if (expectedSize !== undefined && stat.size !== expectedSize) {
-          throw new SoloError(
-            `copy verification failed: expected size ${expectedSize} but found ${stat.size} at ${verifyPath}`,
-          );
+          throw new KubeContainerInvalidPathError('copy size verification', verifyPath);
         }
 
         return;
@@ -166,12 +195,10 @@ export class K8ClientContainer implements Container {
     sourcePath = this.toKubectlSafePath(sourcePath);
     destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForPod();
 
     if (!fs.existsSync(destinationDirectory)) {
-      throw new SoloError(`invalid destination path: ${destinationDirectory}`);
+      throw new KubeContainerInvalidPathError('destination', destinationDirectory);
     }
 
     this.logger.info(
@@ -180,7 +207,7 @@ export class K8ClientContainer implements Container {
 
     let entries: TDirectoryData[] = await this.listDir(sourcePath);
     if (entries.length !== 1) {
-      throw new SoloError(`copyFrom: invalid source path: ${sourcePath}`);
+      throw new KubeContainerInvalidPathError('copyFrom source', sourcePath);
     }
     // handle symbolic link
     if (entries[0].name.includes(' -> ')) {
@@ -189,7 +216,7 @@ export class K8ClientContainer implements Container {
       const redirectSourcePath: string = `${path.dirname(sourcePath)}/${targetSuffix}`;
       entries = await this.listDir(redirectSourcePath);
       if (entries.length !== 1) {
-        throw new SoloError(`copyFrom: invalid source path: ${redirectSourcePath}`);
+        throw new KubeContainerInvalidPathError('copyFrom redirect source', redirectSourcePath);
       }
     }
 
@@ -216,16 +243,14 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForPod();
 
     if (!(await this.hasDir(destinationDirectory))) {
-      throw new SoloError(`invalid destination path: ${destinationDirectory}`);
+      throw new KubeContainerInvalidPathError('destination', destinationDirectory);
     }
 
     if (!fs.existsSync(sourcePath)) {
-      throw new SoloError(`invalid source path: ${sourcePath}`);
+      throw new KubeContainerInvalidPathError('source', sourcePath);
     }
 
     const remoteDestination: string = `${namespace.name}/${podName}:${destinationDirectory}`;
@@ -239,8 +264,21 @@ export class K8ClientContainer implements Container {
     let temporaryTar: string | undefined;
 
     try {
+      const sourceFileName: string = path.basename(sourcePath);
+      if (sourceFileName.endsWith('.sh') && os.platform() === 'win32') {
+        // For text files on Windows, convert line endings to LF to avoid issues in Linux containers.
+        temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
+        const temporarySourcePath: string = PathEx.join(temporaryDirectory, sourceFileName);
+        let content: string = fs.readFileSync(sourcePath, 'utf8');
+
+        // Convert CRLF to LF
+        content = eol.lf(content);
+
+        // Write back
+        fs.writeFileSync(temporarySourcePath, content);
+        localPathToCopy = temporarySourcePath;
+      }
       if (filter) {
-        const sourceFileName: string = path.basename(sourcePath);
         const sourceDirectory: string = path.dirname(sourcePath);
 
         temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
@@ -254,7 +292,7 @@ export class K8ClientContainer implements Container {
         localPathToCopy = PathEx.join(temporaryDirectory, sourceFileName);
 
         if (!fs.existsSync(localPathToCopy)) {
-          throw new SoloError(`filtered source path does not exist: ${localPathToCopy}`);
+          throw new KubeContainerInvalidPathError('filtered source', localPathToCopy);
         }
       }
 
@@ -291,12 +329,10 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForPod();
 
     if (!cmd) {
-      throw new MissingArgumentError('command cannot be empty');
+      throw new KubeMissingArgumentError('command cannot be empty');
     }
 
     const command: string[] = Array.isArray(cmd) ? cmd : cmd.split(' ');
@@ -307,10 +343,10 @@ export class K8ClientContainer implements Container {
 
     const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
 
-    // During rolling restarts, kubelet may report "container not found" for a few seconds
-    // even when the pod object is present. Retry that transient state.
+    // Retry transient exec failures that occur before the command runs: kubelet reporting "container not found" during rolling restarts, and API server to kubelet tunnel errors (connection upgrade, dial, timeout).
     const maxAttempts: number = 30;
-    const retryableContainerNotReady: RegExp = /(container not found|unable to upgrade connection)/i;
+    const retryableTransientFailure: RegExp =
+      /(container not found|unable to upgrade connection|internal error occurred: timeout occurred|error dialing backend|connection reset by peer)/i;
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -318,32 +354,57 @@ export class K8ClientContainer implements Container {
       } catch (error) {
         const message: string = error instanceof Error ? error.message : `${error}`;
 
-        if (!retryableContainerNotReady.test(message) || attempt === maxAttempts) {
+        if (!retryableTransientFailure.test(message) || attempt === maxAttempts) {
           throw error;
         }
 
+        this.logger.warn(
+          `execContainer: transient failure on attempt ${attempt} of ${maxAttempts} [podName: ${podName} -n ${namespace.name} -c ${containerName}], retrying: ${message}`,
+        );
         await sleep(Duration.ofMillis(1000));
       }
     }
 
-    throw new SoloError(
-      `container call failed after retries: ${podName} -n ${namespace.name} -c ${containerName} -- ${command.join(' ')}`,
-    );
+    throw new KubeContainerOperationFailedError(`exec ${command.join(' ')}`, new Error('failed after retries'));
   }
 
   public async hasDir(destinationPath: string): Promise<boolean> {
+    const maxAttempts: number = 3;
+
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const result: string = await this.probeDirectory(destinationPath);
+
+      if (result === 'true' || result === 'false') {
+        return result === 'true';
+      }
+
+      // an exec stream cut mid-flight (e.g. containerd restart) can exit 0 with no output, so only the literal probe answers are trusted
+      this.logger.warn(
+        `hasDir: unexpected probe output '${result}' on attempt ${attempt} of ${maxAttempts} [podName: ${this.containerReference.parentReference.name} -c ${this.containerReference.name}, path: ${destinationPath}]`,
+      );
+
+      if (attempt < maxAttempts) {
+        await sleep(Duration.ofMillis(attempt * 1000));
+      }
+    }
+
+    throw new KubeContainerOperationFailedError(
+      `hasDir ${destinationPath}`,
+      new Error('directory probe returned no usable output after retries'),
+    );
+  }
+
+  private async probeDirectory(destinationPath: string): Promise<string> {
     const bashScript: string = `[[ -d "${destinationPath}" ]] && echo -n "true" || echo -n "false"`;
     try {
-      const result: string = await this.execContainer(['bash', '-c', bashScript]);
-      return result === 'true';
+      return await this.execContainer(['bash', '-c', bashScript]);
     } catch (error) {
       this.logger.debug(
         `hasDir failed using bash for ${this.containerReference.parentReference.name}:${this.containerReference.name}, retrying with /bin/sh`,
         error,
       );
       const shScript: string = `[ -d "${destinationPath}" ] && echo -n "true" || echo -n "false"`;
-      const result: string = await this.execContainer(['/bin/sh', '-c', shScript]);
-      return result === 'true';
+      return await this.execContainer(['/bin/sh', '-c', shScript]);
     }
   }
 
@@ -382,10 +443,7 @@ export class K8ClientContainer implements Container {
         }
       }
     } catch (error) {
-      throw new SoloError(
-        `unable to check file in '${this.containerReference.parentReference.name}':${this.containerReference.name}' - ${destinationPath}: ${error.message}`,
-        error,
-      );
+      throw new KubeContainerOperationFailedError(`check file ${destinationPath}`, error);
     }
 
     return false;
@@ -429,10 +487,7 @@ export class K8ClientContainer implements Container {
 
       return items;
     } catch (error) {
-      throw new SoloError(
-        `unable to check path in '${this.containerReference.parentReference.name}':${this.containerReference.name}' - ${destinationPath}: ${error.message}`,
-        error,
-      );
+      throw new KubeContainerOperationFailedError(`list dir ${destinationPath}`, error);
     }
   }
 

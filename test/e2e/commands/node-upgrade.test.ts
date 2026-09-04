@@ -7,7 +7,6 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
-import {InitTest} from './tests/init-test.js';
 import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {DeploymentTest} from './tests/deployment-test.js';
 import {ConsensusNodeTest} from './tests/consensus-node-test.js';
@@ -23,12 +22,13 @@ import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-c
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
+import {TEST_UPGRADE_FROM_VERSION} from '../../../version-test.js';
 
 const testName: string = 'node-upgrade-test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('Node Upgrade Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
@@ -65,7 +65,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         after(async (): Promise<void> => {
           await preDestroy(endToEndTestSuite);
-        });
+        }).timeout(Duration.ofMinutes(5).toMillis());
 
         beforeEach(async (): Promise<void> => {
           testLogger.info(`${testName}: resetting containers for each test`);
@@ -73,14 +73,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished resetting containers for each test`);
         });
 
-        InitTest.init(options);
         ClusterReferenceTest.connect(options);
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
         ConsensusNodeTest.keys(options);
 
-        NetworkTest.deploy(options);
-        ConsensusNodeTest.setup(options);
+        NetworkTest.deploy(options, TEST_UPGRADE_FROM_VERSION);
+
+        ConsensusNodeTest.setup(options, TEST_UPGRADE_FROM_VERSION);
         ConsensusNodeTest.start(options);
         DeploymentTest.info(options);
         DeploymentTest.verifyDeploymentConfigInfo(options);

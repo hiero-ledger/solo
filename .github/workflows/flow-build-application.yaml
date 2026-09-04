@@ -39,15 +39,15 @@ on:
       - 'release/*'
 
 concurrency:
-  # One run per branch. A new push cancels any in-progress run for the same
-  # branch, saving runner resources. workflow_dispatch runs are not cancelled —
-  # each manual trigger gets its own group via run_id.
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'auto' }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 defaults:
   run:
     shell: bash
+
+permissions:
+  contents: read
 
 jobs:
   generate_matrix:
@@ -56,12 +56,12 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Read JSON and Set Matrix Output
         id: set_matrix
@@ -81,13 +81,17 @@ jobs:
 
   code-style:
     name: Code Style
-    uses: ./.github/workflows/zxc-code-style.yaml
+    uses: $/.github/workflows/zxc-code-style.yaml
     with:
       custom-job-label: Standard
 
   unit-tests:
     name: Unit Tests
-    uses: ./.github/workflows/zxc-unit-test.yaml
+    permissions:
+      contents: read
+      checks: write # zxc-unit-test.yaml publishes a unit test report check run
+      pull-requests: write # zxc-unit-test.yaml comments the report on the pull request
+    uses: $/.github/workflows/zxc-unit-test.yaml
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true') && !cancelled() }}
     needs:
       - generate_matrix
@@ -98,7 +102,7 @@ jobs:
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
     if: ${{ (github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true') && !cancelled() }}
-    uses: ./.github/workflows/zxc-e2e-test.yaml
+    uses: $/.github/workflows/zxc-e2e-test.yaml
     needs:
       - code-style
       - generate_matrix
@@ -128,7 +132,11 @@ jobs:
 
   analyze:
     name: Analyze
-    uses: ./.github/workflows/zxc-code-analysis.yaml
+    permissions:
+      contents: read
+      checks: write # zxc-code-analysis.yaml publishes an E2E test report check run
+      pull-requests: write # zxc-code-analysis.yaml comments the report on the pull request
+    uses: $/.github/workflows/zxc-code-analysis.yaml
     needs:
       - unit-tests
       - e2e-tests

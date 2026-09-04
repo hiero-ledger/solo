@@ -27,6 +27,16 @@ defaults:
         value: 6g
       - name: JAVA_OPTS
         value: "-XX:+UseG1GC -XX:MaxDirectMemorySize=1500m --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
+  # Chart default of 32 starves load tests; tunnel=1h leaks slots across runs;
+  # 1s probes flap under load and cycle the pod NotReady. 
+  haproxy:
+    maxconn: 1024
+    timeouts:
+      tunnel: "5m"
+    probes:
+      livenessPeriodSeconds: 10
+      readinessPeriodSeconds: 10
+      startupPeriodSeconds: 5
 
 minio-server:
   tenant:

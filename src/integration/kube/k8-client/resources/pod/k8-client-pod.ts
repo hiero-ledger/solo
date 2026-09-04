@@ -3,7 +3,8 @@
 import {type Pod} from '../../../resources/pod/pod.js';
 import {PortUtilities} from '../../../../../business/utils/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {KubeContainerOperationFailedError} from '../../../errors/kube-container-operation-failed-error.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {StatusCodes} from 'http-status-codes';
@@ -27,7 +28,11 @@ import {ContainerName} from '../../../resources/container/container-name.js';
 import {PodName} from '../../../resources/pod/pod-name.js';
 import {K8ClientPodCondition} from './k8-client-pod-condition.js';
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
+import {K8ClientContainerStatus} from './k8-client-container-status.js';
+import {type ContainerStatus} from '../../../resources/pod/container-status.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
+import {SubprocessCommandProfile} from '../../../../../core/subprocess-command-profile.js';
+import {SubprocessEnvironment} from '../../../../../core/subprocess-environment.js';
 import chalk from 'chalk';
 import http from 'node:http';
 import os from 'node:os';
@@ -53,17 +58,20 @@ export class K8ClientPod implements Pod {
     public readonly containerCommand?: string[],
     public readonly conditions?: PodCondition[],
     public readonly podIp?: string,
+    public readonly creationTimestamp?: Date,
     public readonly deletionTimestamp?: Date,
+    public readonly phase?: string,
+    public readonly allContainerStatuses?: ContainerStatus[],
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
-  public async killPod(): Promise<void> {
+  public async killPod(gracePeriodSeconds: number = 1): Promise<void> {
     try {
       await this.kubeClient.deleteNamespacedPod({
         name: this.podReference.name.toString(),
         namespace: this.podReference.namespace.toString(),
-        gracePeriodSeconds: 1,
+        gracePeriodSeconds,
       });
 
       let podExists: boolean = true;
@@ -79,12 +87,18 @@ export class K8ClientPod implements Pod {
     } catch (error) {
       const errorMessage: string = `Failed to delete pod ${this.podReference.name.name} in namespace ${this.podReference.namespace}: ${error.message}`;
 
-      if (error.body?.code === StatusCodes.NOT_FOUND || error.response?.body?.code === StatusCodes.NOT_FOUND) {
+      // ApiException reports the HTTP status on error.code with an unparsed string body,
+      // so the body-based checks alone miss it and a pod that is already gone fails the kill.
+      if (
+        KubeApiResponse.isNotFound(error) ||
+        error.body?.code === StatusCodes.NOT_FOUND ||
+        error.response?.body?.code === StatusCodes.NOT_FOUND
+      ) {
         this.logger.info(`Pod not found: ${errorMessage}`, error);
         return;
       }
 
-      throw new SoloError(errorMessage, error);
+      throw new KubeContainerOperationFailedError(errorMessage, error);
     }
   }
 
@@ -94,6 +108,7 @@ export class K8ClientPod implements Pod {
    * @param podPort The pod port to forward to
    * @param reuse - if true, reuse the port number from previous port forward operation
    * @param persist - if true, errors in port-forwarding will restart the port-forwarding, even after ts process has ended
+   * @param isRetry
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
@@ -102,9 +117,12 @@ export class K8ClientPod implements Pod {
     podPort: number,
     reuse?: boolean,
     persist: boolean = false,
+    externalAddress?: string,
     isRetry: boolean = false,
   ): Promise<number> {
     let availablePort: number = localPort;
+    const localBindAddress: string = externalAddress || constants.LOCAL_HOST;
+    const isWindows: boolean = os.platform() === 'win32';
 
     try {
       // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
@@ -145,40 +163,49 @@ export class K8ClientPod implements Pod {
             this.podReference.name.toString(),
           ]);
         } catch (error) {
-          throw new SoloError(
-            `process list for port-forward failed. Error: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          throw new KubeContainerOperationFailedError('process list for port-forward', error);
         }
 
-        // if length of result is 1 then could not find previous port forward running, then we can use next available port
-        if (!matchedProcesses || matchedProcesses.length === 0) {
-          this.logger.warn(
-            `matching process list for port-forward returned no output: podReference: ${this.podReference.name.toString()}`,
-          );
-        }
-        if (matchedProcesses.length > 1) {
-          // extract local port number from command output
-          const splitArray: string[] = matchedProcesses[0].cmd.split(/\s+/).filter(Boolean);
+        // Reuse an existing port-forward when at least one matching process is running.
+        if (matchedProcesses.length > 0) {
+          // Extract local port number from command output.
+          // Persist mode commands can have extra trailing args (e.g. kubectl path),
+          // so do not assume the last token is local:remote.
+          const portMappingPattern: RegExp = /^(\d{1,5}):(\d{1,5})$/;
+          let parsedPort: number | undefined;
 
-          // The port number should be the last element in the command
-          // It might be in the format localPort:podPort
-          const lastElement: string = splitArray.at(-1);
-          if (lastElement === undefined) {
-            throw new SoloError(
-              `Failed to extract port: lastElement is undefined in command output: ${matchedProcesses[0].cmd}`,
-            );
+          for (const process of matchedProcesses) {
+            if (!process.cmd) {
+              continue;
+            }
+            const tokens: string[] = process.cmd.split(/\s+/).filter(Boolean);
+            for (const token of tokens) {
+              const match: RegExpMatchArray | null = token.match(portMappingPattern);
+              if (match) {
+                const localPortCandidate: number = Number.parseInt(match[1], 10);
+                if (!Number.isNaN(localPortCandidate) && localPortCandidate > 0 && localPortCandidate <= 65_535) {
+                  parsedPort = localPortCandidate;
+                  break;
+                }
+              }
+            }
+            if (parsedPort !== undefined) {
+              break;
+            }
           }
-          const extractedString: string = lastElement.split(':')[0];
-          this.logger.debug(`extractedString = ${extractedString}`);
-          const parsedPort: number = Number.parseInt(extractedString, 10);
-          if (Number.isNaN(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
-            throw new SoloError(`Invalid port extracted: ${extractedString}.`);
-          } else {
+
+          if (parsedPort !== undefined) {
             availablePort = parsedPort;
             this.logger.info(`Reuse already enabled port ${availablePort}`);
+            // port forward already enabled
+            return availablePort;
           }
-          // port forward already enabled
-          return availablePort;
+
+          this.logger.warn(
+            `Unable to extract reusable local port from existing port-forward command(s): ${matchedProcesses
+              .map((process): string => process.cmd)
+              .join(' | ')}`,
+          );
         }
       }
 
@@ -186,12 +213,12 @@ export class K8ClientPod implements Pod {
       availablePort = await PortUtilities.findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
 
       if (availablePort === localPort) {
-        this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
+        this.logger.showUserUnlessOneShot(chalk.yellow(`Using requested port ${localPort}`));
       } else {
         this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
       this.logger.debug(
-        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
+        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${localBindAddress}:${availablePort}`,
       );
 
       this.logger.warn(
@@ -202,21 +229,28 @@ export class K8ClientPod implements Pod {
       // If the persist flag is set, we need to run the port-forward in a detached process that restarts on failure even after the typescript process ends.
       const __filename: string = fileURLToPath(import.meta.url);
       const __dirname: string = path.dirname(__filename);
-      // When running via tsx (dev/test), __filename ends in .ts; use tsx to run the .ts source.
-      // In a compiled build it ends in .js; use node to run the compiled .js.
-      const isTsx: boolean = __filename.endsWith('.ts');
-      const persistScriptExtension: string = isTsx ? '.ts' : '.js';
-      const persistCmd: string = isTsx ? 'tsx' : 'node';
-      const persistPortForwardScriptPath: string = path.resolve(
-        __dirname,
-        `persist-port-forward${persistScriptExtension}`,
-      );
 
       let cmd: string;
       let cmdArguments: string[];
       if (persist) {
+        // When running via tsx (dev/test), __filename ends in .ts; use tsx to run the .ts source.
+        // In a compiled build it ends in .js; use node to run the compiled .js.
+        const isTsx: boolean = __filename.endsWith('.ts');
+        const persistScriptExtension: string = isTsx ? '.ts' : '.js';
+        const useDirectNodeRuntime: boolean = isWindows;
+        let persistCmd: string = isTsx ? 'tsx' : 'node';
+        if (useDirectNodeRuntime) {
+          persistCmd = process.execPath;
+        }
+        const persistRuntimeArguments: string[] = useDirectNodeRuntime && isTsx ? ['--import', 'tsx'] : [];
+        const persistPortForwardScriptPath: string = path.resolve(
+          __dirname,
+          `persist-port-forward${persistScriptExtension}`,
+        );
+
         cmd = persistCmd;
         cmdArguments = [
+          ...persistRuntimeArguments,
           persistPortForwardScriptPath,
           this.podReference.namespace.name,
           `pods/${this.podReference.name}`,
@@ -224,8 +258,13 @@ export class K8ClientPod implements Pod {
           `${availablePort}:${podPort}`,
           constants.KUBECTL,
           this.kubectlInstallationDirectory,
-          '&',
         ];
+
+        // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
+        // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
+        if (!isWindows) {
+          cmdArguments.push(localBindAddress);
+        }
       } else {
         cmd = constants.KUBECTL;
         cmdArguments = [
@@ -234,43 +273,41 @@ export class K8ClientPod implements Pod {
           this.podReference.namespace.name,
           '--context',
           this.kubeConfig.currentContext,
-          `pods/${this.podReference.name}`,
-          `${availablePort}:${podPort}`,
         ];
+
+        // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
+        // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
+        if (!isWindows) {
+          cmdArguments.push('--address', localBindAddress);
+        }
+
+        cmdArguments.push(`pods/${this.podReference.name}`, `${availablePort}:${podPort}`);
+
+        if (isWindows) {
+          cmdArguments = ['--headless', cmd, ...cmdArguments];
+          cmd = String.raw`C:\Windows\System32\conhost.exe`;
+        }
       }
 
-      if (os.platform() === 'win32') {
-        const argumentsLength: number = cmdArguments.length;
-        cmdArguments = cmdArguments.map((anArgument, index): string => {
-          if (index < argumentsLength - 1) {
-            return `"${anArgument}",`;
-          }
-          return `"${anArgument}"`;
-        });
-        cmdArguments = [
-          'Start-Process',
-          '-FilePath',
-          `"${cmd}"`,
-          '-WindowStyle',
-          'Hidden',
-          '-ArgumentList',
-          ...cmdArguments,
-        ];
-        cmd = 'powershell.exe';
-      }
-
-      await new ShellRunner().run(cmd, cmdArguments, true, true, {
-        PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+      // shell:false to eliminate shell-injection; ShellRunner's detached spawn handles backgrounding.
+      await new ShellRunner().run(cmd, cmdArguments, {
+        verbose: true,
+        detached: true,
+        commandProfile: SubprocessCommandProfile.KUBECTL,
+        environmentVariablesToAppend: {
+          PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`,
+        },
+        useShell: false,
       });
 
       return availablePort;
     } catch (error) {
-      if (os.platform() === 'win32' && !isRetry && error?.message?.includes('listen EACCES')) {
+      if (isWindows && !isRetry && error?.message?.includes('listen EACCES')) {
         // handle the case where port forwarding fails on Windows due to an issue with the WinNAT service.
         // Restarting the WinNAT service can resolve the issue, and then we can retry starting the port forwarder.
         // Example: listen EACCES: permission denied 127.0.0.1:50211
         try {
-          await new ShellRunner().run('net stop winnat');
+          await new ShellRunner().run('net', ['stop', 'winnat']);
         } catch (stopError) {
           const errorMessage: string =
             `Failed to stop WinNAT service: ${stopError.message}. Please open an administrator level terminal on Windows` +
@@ -278,16 +315,16 @@ export class K8ClientPod implements Pod {
             'Solo destroy command and try your Solo deploy commands again.  If you are unable to run as administrator, ' +
             'you may try rebooting your machine to resolve the issue.';
           this.logger.error(errorMessage, stopError);
-          throw new SoloError(errorMessage, stopError);
+          throw new KubeContainerOperationFailedError(errorMessage, stopError);
         }
-        await new ShellRunner().run('net start winnat');
+        await new ShellRunner().run('net', ['start', 'winnat']);
         this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
         await sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
-        return await this.portForward(localPort, podPort, reuse, persist, true);
+        return await this.portForward(localPort, podPort, reuse, persist, externalAddress, true);
       }
 
-      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}]: ${error.message}`;
-      throw new SoloError(message, error);
+      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${localBindAddress}:${availablePort}]: ${error.message}`;
+      throw new KubeContainerOperationFailedError(message, error);
     }
   }
 
@@ -314,16 +351,14 @@ export class K8ClientPod implements Pod {
       return;
     }
 
-    this.logger.showUser(chalk.yellow(`Stopping port-forward for port [${port}]`));
+    this.logger.showUserUnlessOneShot(chalk.yellow(`Stopping port-forward for port [${port}]`));
 
     try {
       let matchedProcesses: ProcessInfo[] = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);
       try {
         matchedProcesses = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);
       } catch (error) {
-        throw new SoloError(
-          `process list for port-forward failed. Error: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        throw new KubeContainerOperationFailedError('process list for port-forward', error);
       }
 
       this.logger.debug(`Found ${matchedProcesses.length} processes matching port-forward and port ${port}`);
@@ -360,7 +395,7 @@ export class K8ClientPod implements Pod {
     } catch (error) {
       const errorMessage: string = `Error stopping port-forward for port ${port}: ${error.message}`;
       this.logger.error(errorMessage);
-      throw new SoloError(errorMessage, error);
+      throw new KubeContainerOperationFailedError(errorMessage, error);
     }
   }
 
@@ -403,6 +438,11 @@ export class K8ClientPod implements Pod {
       return undefined;
     }
 
+    const allContainerStatuses: K8ClientContainerStatus[] = [
+      ...(v1Pod.status?.initContainerStatuses ?? []),
+      ...(v1Pod.status?.containerStatuses ?? []),
+    ].map((status): K8ClientContainerStatus => K8ClientContainerStatus.from(status));
+
     return new K8ClientPod(
       PodReference.of(NamespaceName.of(v1Pod.metadata?.namespace), PodName.of(v1Pod.metadata?.name)),
       pods,
@@ -418,7 +458,10 @@ export class K8ClientPod implements Pod {
         (condition): K8ClientPodCondition => new K8ClientPodCondition(condition.type, condition.status),
       ),
       v1Pod.status?.podIP,
+      v1Pod.metadata?.creationTimestamp ? new Date(v1Pod.metadata.creationTimestamp) : undefined,
       v1Pod.metadata.deletionTimestamp ? new Date(v1Pod.metadata.deletionTimestamp) : undefined,
+      v1Pod.status?.phase,
+      allContainerStatuses,
     );
   }
 }

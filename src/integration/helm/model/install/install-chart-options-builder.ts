@@ -15,17 +15,15 @@ export class InstallChartOptionsBuilder {
   private _passCredentials: boolean = false;
   private _password?: string;
   private _repo?: string;
-  private _set?: string[];
+  private _valueArguments: string[] = [];
   private _skipCrds: boolean = false;
   private _timeout?: string;
   private _username?: string;
-  private _values?: string[];
   private _verify: boolean = false;
   private _version?: string;
   private _waitFor: boolean = false;
   private _kubeContext?: string;
   private _namespace?: string;
-  private _extraArgs?: string;
 
   private constructor() {}
 
@@ -139,13 +137,13 @@ export class InstallChartOptionsBuilder {
   }
 
   /**
-   * set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+   * ordered Helm value arguments to pass directly to Helm.
    *
-   * @param valueOverride set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+   * @param valueArguments ordered Helm value arguments to pass directly to Helm.
    * @returns the current InstallChartOptionsBuilder.
    */
-  public set(valueOverride: string[]): InstallChartOptionsBuilder {
-    this._set = valueOverride;
+  public valueArguments(valueArguments: string[]): InstallChartOptionsBuilder {
+    this._valueArguments = [...valueArguments];
     return this;
   }
 
@@ -179,17 +177,6 @@ export class InstallChartOptionsBuilder {
    */
   public username(username: string): InstallChartOptionsBuilder {
     this._username = username;
-    return this;
-  }
-
-  /**
-   * specify values in a YAML file or a URL (can specify multiple).
-   *
-   * @param values specify values in a YAML file or a URL (can specify multiple).
-   * @returns the current InstallChartOptionsBuilder.
-   */
-  public values(values: string[]): InstallChartOptionsBuilder {
-    this._values = values;
     return this;
   }
 
@@ -233,10 +220,6 @@ export class InstallChartOptionsBuilder {
   }
 
   /**
-   * build the InstallChartOptions.
-   * @returns the created InstallChartOptions.
-   */
-  /**
    * Sets the Kubernetes context to use.
    * @param context The Kubernetes context.
    * @returns This builder instance.
@@ -258,15 +241,9 @@ export class InstallChartOptionsBuilder {
   }
 
   /**
-   * Sets additional arguments to pass to the helm command.
-   * @param arguments_ The additional arguments.
-   * @returns This builder instance.
+   * build the InstallChartOptions.
+   * @returns the created InstallChartOptions.
    */
-  public extraArgs(arguments_: string): InstallChartOptionsBuilder {
-    this._extraArgs = arguments_;
-    return this;
-  }
-
   public build(): InstallChartOptions {
     return new InstallChartOptions(
       this._atomic,
@@ -278,17 +255,15 @@ export class InstallChartOptionsBuilder {
       this._passCredentials,
       this._password,
       this._repo,
-      this._set,
+      [...this._valueArguments],
       this._skipCrds,
       this._timeout,
       this._username,
-      this._values,
       this._verify,
       this._version,
       this._waitFor,
       this._kubeContext,
       this._namespace,
-      this._extraArgs,
     );
   }
 }

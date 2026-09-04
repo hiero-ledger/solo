@@ -1,0 +1,453 @@
+##
+# Copyright (C) 2023-2026 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: 'Windows One-Shot Deploy and Destroy'
+# Compatibility gate: verifies that Solo one-shot deploy continues to work on native Windows.
+# Solo runs natively in PowerShell on a standard GitHub-hosted Windows runner.
+# Docker runs inside WSL2 (replicating how Docker Desktop works for Windows users) and is
+# exposed to Windows via DOCKER_HOST=tcp://localhost:2375.
+# Any PR that breaks Solo on Windows will cause this workflow to fail.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+  DOCKER_HOST: tcp://localhost:2375
+  ACTIONS_STEP_DEBUG: 'true'
+  ACTIONS_RUNNER_DEBUG: 'true'
+
+jobs:
+  standard-runner-one-shot-windows:
+    name: Windows Deploy and Destroy
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Windows Diagnostics
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Write-Host "::group::Windows Version:"
+          winver
+          Write-Host "::endgroup::"
+          Write-Host "::group::System Information:"
+          systeminfo
+          Write-Host "::endgroup::"
+          Write-Host "::group::CPU Information:"
+          Get-CimInstance -ClassName Win32_Processor | Select-Object -Property Name, NumberOfCores, NumberOfLogicalProcessors
+          Write-Host "::endgroup::"
+          Write-Host "::group::Environment Variables:"
+          Write-Host "HOME: $env:HOME"
+          Write-Host "USERPROFILE: $env:USERPROFILE"
+          Write-Host "GITHUB_WORKSPACE: $env:GITHUB_WORKSPACE"
+          Write-Host "Current Working Directory: $(Get-Location)"
+          Write-Host "::endgroup::"
+          Write-Host "::group::Existing WSL Config:"
+          Get-Content -Path "$env:USERPROFILE\.wslconfig" -ErrorAction SilentlyContinue || Write-Host "No existing .wslconfig"
+          Write-Host "::endgroup::"
+
+      - name: Exclude Directory from Antivirus Scanning
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # Exclude the project directory from Windows Defender Antivirus scanning to improve performance.
+          # This is especially important for Docker in WSL2, which accesses the project files via a bind mount.
+          $projectPath = "$env:GITHUB_WORKSPACE"
+          Write-Host "Excluding $projectPath from antivirus scanning"
+          Add-MpPreference -ExclusionPath $projectPath
+
+      - name: WSL Config
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # Configure WSL to use 12 GB of RAM
+          $wslconfig = @"
+          [wsl2]
+          memory=12GB
+          swap=2GB
+          "@
+          Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value $wslconfig
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: '24'
+
+      - name: Install Task
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Project
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          task build:compile
+
+      - name: Validate Ubuntu WSL cache
+        shell: pwsh
+        timeout-minutes: 1
+        run: |
+          $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE 'Ubuntu\24.4.4\x64'
+          $installerPath = Join-Path $cacheDirectory 'ubuntu-24.04.4-wsl-amd64.wsl'
+          $completeMarker = Join-Path $cacheDirectory '.complete'
+          $valid = (
+            (Test-Path -LiteralPath $installerPath) -and
+            (Test-Path -LiteralPath $completeMarker) -and
+            ((Get-Item -LiteralPath $installerPath).Length -gt 100MB)
+          )
+
+          if ($valid) {
+            Write-Host "Ubuntu WSL cache is valid: $installerPath"
+          } elseif (Test-Path -LiteralPath $cacheDirectory) {
+            Write-Warning "Removing incomplete Ubuntu WSL cache: $cacheDirectory"
+            Remove-Item -LiteralPath $cacheDirectory -Recurse -Force
+          } else {
+            Write-Host "Ubuntu WSL cache is not present; setup-wsl will download it."
+          }
+
+      - name: Setup WSL2
+        id: setup_wsl2
+        # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
+        # container mode with no Docker Desktop to switch it. WSL2 + Docker inside it replicates
+        # what Docker Desktop does for Windows users, exposing a Linux daemon via TCP.
+        # use-cache is enabled so the distribution installer is cached across runs via
+        # actions/cache instead of re-downloaded every time — this workflow was intermittently
+        # timing out on the fresh download from a shared runner's network.
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        continue-on-error: true
+        # A healthy setup completes in about one minute. Bound a stalled action so the
+        # recovery path can run instead of consuming the previous ten-minute timeout.
+        timeout-minutes: 3
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          # The setup-wsl cache has hung on hosted runners while resolving this distribution.
+          use-cache: false
+          set-as-default: true
+          additional-packages: |
+            apt-transport-https
+            ca-certificates
+            curl
+            software-properties-common
+
+      - name: Capture WSL2 diagnostics after setup failure
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          $diagnosticsDirectory = Join-Path $env:RUNNER_TEMP 'wsl-diagnostics'
+          New-Item -ItemType Directory -Path $diagnosticsDirectory -Force | Out-Null
+
+          Write-Host '::group::WSL processes'
+          Get-Process -Name wsl,wslhost,vmmemWSL -ErrorAction SilentlyContinue |
+            Select-Object Id,ProcessName,StartTime,CPU,Responding |
+            Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'processes.txt')
+          Write-Host '::endgroup::'
+
+          Write-Host '::group::WSL services'
+          Get-Service -Name WslService,LxssManager -ErrorAction SilentlyContinue |
+            Select-Object Name,Status,StartType |
+            Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'services.txt')
+          Write-Host '::endgroup::'
+
+          Write-Host '::group::Ubuntu installer cache'
+          $installerCacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE 'Ubuntu\24.4.4\x64'
+          $installerPath = Join-Path $installerCacheDirectory 'ubuntu-24.04.4-wsl-amd64.wsl'
+          if (Test-Path -LiteralPath $installerPath) {
+            Get-Item -LiteralPath $installerPath |
+              Select-Object FullName,Length,LastWriteTime |
+              Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'installer-cache.txt')
+          } else {
+            Write-Warning "Ubuntu installer is missing: $installerPath"
+            "Missing: $installerPath" | Set-Content -Path (Join-Path $diagnosticsDirectory 'installer-cache.txt')
+          }
+          Write-Host '::endgroup::'
+
+          function Invoke-WslDiagnostic {
+            param(
+              [string]$Name,
+              [string[]]$Arguments
+            )
+
+            $outputPath = Join-Path $diagnosticsDirectory "$Name.txt"
+            $errorPath = Join-Path $diagnosticsDirectory "$Name.error.txt"
+            $wslProcess = Start-Process -FilePath "$env:SystemRoot\System32\wsl.exe" -ArgumentList $Arguments `
+              -NoNewWindow -PassThru -RedirectStandardOutput $outputPath -RedirectStandardError $errorPath
+            if (-not $wslProcess.WaitForExit(10000)) {
+              Write-Warning "wsl.exe $Name did not exit within 10 seconds; terminating it."
+              Stop-Process -Id $wslProcess.Id -Force -ErrorAction SilentlyContinue
+            }
+            Write-Host "::group::wsl.exe $Name"
+            Get-Content -Path $outputPath,$errorPath -ErrorAction SilentlyContinue
+            Write-Host '::endgroup::'
+          }
+
+          Invoke-WslDiagnostic -Name 'status' -Arguments @('--status')
+          Invoke-WslDiagnostic -Name 'version' -Arguments @('--version')
+          Invoke-WslDiagnostic -Name 'list' -Arguments @('--list','--all','--verbose')
+
+          Write-Host '::group::Recent WSL-related system events'
+          Get-WinEvent -FilterHashtable @{
+            LogName = 'System'
+            StartTime = (Get-Date).AddMinutes(-15)
+          } -ErrorAction SilentlyContinue |
+            Where-Object ProviderName -Match 'Lxss|Wsl|Hyper-V' |
+            Select-Object TimeCreated,ProviderName,Id,LevelDisplayName,Message |
+            Tee-Object -FilePath (Join-Path $diagnosticsDirectory 'system-events.txt') |
+            Format-List
+          Write-Host '::endgroup::'
+
+      - name: Recover incomplete WSL2 installation
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        shell: pwsh
+        # The timed-out action can leave its wsl.exe child process and a partially registered
+        # distribution behind. Remove both before retrying the installation from a clean state.
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          Get-Process -Name wsl -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          wsl --shutdown
+          wsl --unregister Ubuntu-24.04
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Ubuntu-24.04 was not registered after the failed installation.'
+          }
+          $installerCacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE 'Ubuntu\24.4.4\x64'
+          $installerPath = Join-Path $installerCacheDirectory 'ubuntu-24.04.4-wsl-amd64.wsl'
+          if ((Test-Path -LiteralPath $installerCacheDirectory) -and -not (Test-Path -LiteralPath $installerPath)) {
+            Write-Warning "Removing incomplete Ubuntu installer cache: $installerCacheDirectory"
+            Remove-Item -LiteralPath $installerCacheDirectory -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          exit 0
+
+      - name: Install Ubuntu WSL distribution fallback
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        # Bypass setup-wsl's downloadTool path when the hosted tool cache is incomplete.
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $distributionName = 'Ubuntu-24.04'
+          $installedDistributions = @(wsl.exe --list --quiet 2>$null)
+          if ($installedDistributions -match [regex]::Escape($distributionName)) {
+            Write-Host "WSL distribution already installed: $distributionName"
+            exit 0
+          }
+
+          Write-Host "Installing $distributionName through WSL web download"
+          & "$env:SystemRoot\System32\wsl.exe" --install --web-download --distribution $distributionName --no-launch
+          if ($LASTEXITCODE -ne 0) {
+            throw "wsl.exe failed to install $distributionName with exit code $LASTEXITCODE"
+          }
+
+      - name: Retry Setup WSL2
+        if: ${{ steps.setup_wsl2.outcome == 'failure' }}
+        # Retry once after removing the process and distribution left by the timed-out setup action.
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        timeout-minutes: 5
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          use-cache: true
+          set-as-default: true
+          additional-packages: |
+            apt-transport-https
+            ca-certificates
+            curl
+            software-properties-common
+
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Restart WSL
+        run: wsl --shutdown
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Install Docker in WSL2
+        shell: wsl-bash {0}
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          WORKSPACE="$PWD"
+          cat > /tmp/install-docker.sh << EOF
+            #!/usr/bin/env bash
+            set -euo pipefail
+            # Diagnostics information to help debug Docker installation issues in WSL2.
+            echo "::group::CPU (lscpu):"
+            lscpu
+            echo "::endgroup::"
+            echo "::group::Memory (free -h):"
+            free -h
+            echo "::endgroup::"
+            # Ubuntu 24.04 uses iptables-nft by default which prevents Docker from starting in WSL2.
+            # iptables must be installed before alternatives can be switched.
+            echo "::group::Adding Docker APT Repository"
+            apt-get install -y -q iptables
+            update-alternatives --set iptables /usr/sbin/iptables-legacy
+            update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+            mkdir -p /etc/apt/keyrings
+            cp $WORKSPACE/.github/workflows/resources/docker-apt-public-gpg-key.key /etc/apt/keyrings/docker.asc
+            chmod 644 /etc/apt/keyrings/docker.asc
+            echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+            apt-get update -q
+            echo "::endgroup::"
+            echo "::group::Installing Docker Engine"
+            apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
+            echo "::endgroup::"
+            echo "::group::Starting Docker Daemon"
+            # Skip systemd — start dockerd directly with both Unix socket and TCP listener.
+            # This is simpler and more reliable in WSL2 CI than fighting systemd service overrides.
+            systemctl disable --now docker.service docker.socket || true
+            nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
+            sleep 20
+            echo "::endgroup::"
+            echo "::group::Docker Info:"
+            docker info
+            echo "::endgroup::"
+          EOF
+          sudo -n -E -- bash /tmp/install-docker.sh
+          ss -tlnp | grep 2375
+
+      - name: Forward Docker TCP Port from WSL2 to Windows
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # WSL2 on Windows Server 2022 uses NAT mode — localhost does not automatically
+          # forward to services inside WSL2. Explicitly proxy port 2375 to the WSL2 VM IP.
+          $wslIp = (wsl hostname -I).Trim().Split()[0]
+          Write-Host "WSL2 IP: $wslIp"
+          netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
+          netsh interface portproxy show all
+          Start-Sleep -Seconds 5
+          docker info
+
+      - name: Render Kind Config for WSL Docker Daemon
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # Kind runs from Windows, but Docker daemon runs in WSL2 Linux.
+          # Convert the mounted patches path to a Linux path so Docker can bind it correctly.
+          # This is not needed when running with Docker Desktop for Windows, which automatically translates bind mount 
+          # paths, but is required for raw WSL2. 
+          if ($env:GITHUB_WORKSPACE -match '^([A-Za-z]):\\(.*)$') {
+            $drive = $Matches[1].ToLowerInvariant()
+            $rest = $Matches[2] -replace '\\', '/'
+            $linuxWorkspacePath = "/mnt/$drive/$rest"
+          } else {
+            # Fallback for non-standard layouts.
+            $wslPathInput = $env:GITHUB_WORKSPACE -replace '\\', '/'
+            $linuxWorkspacePath = (wsl wslpath -a "$wslPathInput").Trim()
+          }
+
+          if ([string]::IsNullOrWhiteSpace($linuxWorkspacePath)) {
+            throw "Failed to convert workspace path '$env:GITHUB_WORKSPACE' to WSL path"
+          }
+
+          $linuxPatchesPath = "$linuxWorkspacePath/resources/patches"
+
+          $sourceConfig = Join-Path $env:GITHUB_WORKSPACE "resources/templates/small-memory/kind-config.yaml"
+          $renderedConfig = Join-Path $env:RUNNER_TEMP "kind-config-windows-wsl.yaml"
+
+          $configContent = Get-Content -Path $sourceConfig -Raw
+          $configContent = $configContent -replace "hostPath:\s*\./resources/templates/small-memory/patches", "hostPath: $linuxPatchesPath"
+          Set-Content -Path $renderedConfig -Value $configContent
+
+          Write-Host "Rendered Kind config: $renderedConfig"
+          Write-Host "Linux patches hostPath: $linuxPatchesPath"
+          "SOLO_KIND_CLUSTER_CONFIG_FILE=$renderedConfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: One-Shot Single Deploy
+        shell: pwsh
+        timeout-minutes: 70
+        env:
+          ENABLE_IMAGE_CACHE: 'false'
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- one-shot single deploy --dev
+
+      - name: Check Port Forwarding Still Works After Deploy
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment diagnostics connections -d one-shot --check
+
+      - name: Collect Diagnostics on Failure
+        if: ${{ failure() }}
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment diagnostics logs -q --dev; $true
+
+      - name: One-Shot Single Destroy
+        if: always()
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- one-shot single destroy --quiet-mode --dev; $true
+
+      - name: Stage logs for upload
+        if: always()
+        shell: pwsh
+        timeout-minutes: 1
+        run: |
+          $stagingDirectory = Join-Path $env:RUNNER_TEMP 'solo-logs'
+          New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
+          $soloLogsDirectory = Join-Path $stagingDirectory 'solo'
+          if (Test-Path -LiteralPath 'C:\Users\runneradmin\.solo\logs') {
+            Copy-Item -Path 'C:\Users\runneradmin\.solo\logs' -Destination $soloLogsDirectory -Recurse -Force
+          }
+          $wslDiagnosticsDirectory = Join-Path $env:RUNNER_TEMP 'wsl-diagnostics'
+          if (Test-Path -LiteralPath $wslDiagnosticsDirectory) {
+            Copy-Item -Path $wslDiagnosticsDirectory -Destination (Join-Path $stagingDirectory 'wsl-diagnostics') -Recurse -Force
+          }
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: standard-runner-one-shot-windows-logs
+          path: ${{ runner.temp }}\solo-logs
+          overwrite: true
+          if-no-files-found: warn

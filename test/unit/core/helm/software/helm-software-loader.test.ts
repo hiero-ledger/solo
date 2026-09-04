@@ -9,6 +9,41 @@ import {HelmSoftwareLoader} from '../../../../../src/integration/helm/resource/h
 import {OperatingSystem} from '../../../../../src/business/utils/operating-system.js';
 import {SemanticVersion} from '../../../../../src/business/utils/semantic-version.js';
 
+const installHelmAndVerify: () => Promise<void> = async (): Promise<void> => {
+  const helmPath: string = await HelmSoftwareLoader.getHelmExecutablePath();
+  expect(helmPath).to.not.be.null;
+  expect(existsSync(helmPath)).to.be.true;
+
+  // Check if file is executable
+  try {
+    execSync(`test -x "${helmPath}"`, {stdio: 'ignore'});
+  } catch {
+    expect.fail('Helm executable should be executable');
+  }
+
+  // Check filename
+  const expectedFilename: string = OperatingSystem.isWin32() ? 'helm.exe' : 'helm';
+  expect(helmPath.endsWith(expectedFilename)).to.be.true;
+
+  // Check version
+  let helmVersion: string;
+  try {
+    helmVersion = execSync(`"${helmPath}" version --short`, {encoding: 'utf8'}).trim();
+  } catch {
+    expect.fail('Failed to execute helm version command');
+  }
+
+  expect(helmVersion).to.not.be.empty;
+  if (helmVersion.toLowerCase().startsWith('v')) {
+    helmVersion = helmVersion.slice(1);
+  }
+
+  const actualVersion: SemanticVersion<string> = new SemanticVersion<string>(helmVersion);
+  const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>('3.12.0');
+  expect(actualVersion).to.not.be.null;
+  expect(actualVersion.greaterThanOrEqual(minimumVersion.toString())).to.be.true;
+};
+
 describe('Helm Software Loader Test', (): void => {
   const currentPlatform: NodeJS.Platform = platform();
   const currentArch: string = arch();
@@ -17,41 +52,6 @@ describe('Helm Software Loader Test', (): void => {
     linux: ['x64', 'arm64'],
     darwin: ['x64', 'arm64'],
     win32: ['x64'],
-  };
-
-  const installHelmAndVerify: () => Promise<void> = async (): Promise<void> => {
-    const helmPath: string = await HelmSoftwareLoader.getHelmExecutablePath();
-    expect(helmPath).to.not.be.null;
-    expect(existsSync(helmPath)).to.be.true;
-
-    // Check if file is executable
-    try {
-      execSync(`test -x "${helmPath}"`, {stdio: 'ignore'});
-    } catch {
-      expect.fail('Helm executable should be executable');
-    }
-
-    // Check filename
-    const expectedFilename: string = OperatingSystem.isWin32() ? 'helm.exe' : 'helm';
-    expect(helmPath.endsWith(expectedFilename)).to.be.true;
-
-    // Check version
-    let helmVersion: string;
-    try {
-      helmVersion = execSync(`"${helmPath}" version --short`, {encoding: 'utf8'}).trim();
-    } catch {
-      expect.fail('Failed to execute helm version command');
-    }
-
-    expect(helmVersion).to.not.be.empty;
-    if (helmVersion.toLowerCase().startsWith('v')) {
-      helmVersion = helmVersion.slice(1);
-    }
-
-    const actualVersion: SemanticVersion<string> = new SemanticVersion<string>(helmVersion);
-    const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>('3.12.0');
-    expect(actualVersion).to.not.be.null;
-    expect(actualVersion.greaterThanOrEqual(minimumVersion.toString())).to.be.true;
   };
 
   // Run tests only if current platform/arch is supported

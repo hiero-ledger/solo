@@ -10,12 +10,12 @@ import {type BuildNodeImagesOptions} from '../../../../../src/integration/kind/m
 import {BuildNodeImageTypes} from '../../../../../src/integration/kind/model/build-node-images/build-node-image-type.js';
 import {BuildNodeImagesOptionsBuilder} from '../../../../../src/integration/kind/model/build-node-images/build-node-images-options-builder.js';
 
-describe('DefaultKindClient - buildNodeImage', () => {
+describe('DefaultKindClient - buildNodeImage', (): void => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
@@ -25,32 +25,32 @@ describe('DefaultKindClient - buildNodeImage', () => {
     sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as any);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('should build a node image and return the response correctly', async () => {
-    const expectedOutput = 'Image build completed successfully';
+  it('should build a node image and return the response correctly', async (): Promise<void> => {
+    const expectedOutput: string = 'Image build completed successfully';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<BuildNodeImagesResponse> => {
       return Promise.resolve(new responseClass(expectedOutput));
     });
 
-    const options = BuildNodeImagesOptionsBuilder.builder()
+    const options: BuildNodeImagesOptions = BuildNodeImagesOptionsBuilder.builder()
       .image('kindest/node:v1.29.0')
       .arch('amd64')
       .baseImage('docker.io/kindest/base:v20250214-acbabc1a')
       .type(BuildNodeImageTypes.SOURCE)
       .build();
 
-    const result = await client.buildNodeImage(options);
+    const result: BuildNodeImagesResponse = await client.buildNodeImage(options);
 
     expect(result).to.be.instanceOf(BuildNodeImagesResponse);
     // We can't directly access _rawOutput since it's protected, but we can verify the instance
     expect(result).to.not.be.undefined;
   });
 
-  it('should throw if responseAs throws', async () => {
+  it('should throw if responseAs throws', async (): Promise<void> => {
     executionStub.responseAs.rejects(new Error('build failed'));
 
     const options: BuildNodeImagesOptions = BuildNodeImagesOptionsBuilder.builder()
@@ -65,8 +65,8 @@ describe('DefaultKindClient - buildNodeImage', () => {
     }
   });
 
-  it('should pass options to execution builder correctly', async () => {
-    executionStub.responseAs.callsFake((responseClass: any) => {
+  it('should pass options to execution builder correctly', async (): Promise<void> => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<BuildNodeImagesResponse> => {
       return Promise.resolve(new responseClass('Success'));
     });
 
@@ -80,7 +80,7 @@ describe('DefaultKindClient - buildNodeImage', () => {
       'argument',
     );
 
-    const options = BuildNodeImagesOptionsBuilder.builder()
+    const options: BuildNodeImagesOptions = BuildNodeImagesOptionsBuilder.builder()
       .image('kindest/node:v1.30.0')
       .arch('arm64')
       .baseImage('custom/base:latest')
@@ -99,8 +99,8 @@ describe('DefaultKindClient - buildNodeImage', () => {
     expect(argumentSpy.calledWith('type', BuildNodeImageTypes.URL)).to.be.true;
   });
 
-  it('should work with no options provided', async () => {
-    executionStub.responseAs.callsFake((responseClass: any) => {
+  it('should work with no options provided', async (): Promise<void> => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<BuildNodeImagesResponse> => {
       return Promise.resolve(new responseClass('Default build completed'));
     });
 
@@ -116,8 +116,8 @@ describe('DefaultKindClient - buildNodeImage', () => {
     expect(subcommandsSpy.calledWith('build', 'node-image')).to.be.true;
   });
 
-  it('should handle partial options', async () => {
-    executionStub.responseAs.callsFake((responseClass: any) => {
+  it('should handle partial options', async (): Promise<void> => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<BuildNodeImagesResponse> => {
       return Promise.resolve(new responseClass('Partial options build completed'));
     });
 

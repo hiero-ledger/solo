@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../core/errors/solo-errors.js';
 import {TransformationType, type TransformFnParams} from 'class-transformer';
 import {type DeploymentPhase} from '../remote/deployment-phase.js';
 import {type LedgerPhase} from '../remote/ledger-phase.js';
-import {UnsupportedOperationError} from '../../../../business/errors/unsupported-operation-error.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 export class Transformations {
   private constructor() {
-    throw new UnsupportedOperationError('This class cannot be instantiated');
+    throw new SoloErrors.internal.unsupportedOperation('This class cannot be instantiated');
   }
 
   public static readonly SemanticVersion: ({value, type}: TransformFnParams) => string | SemanticVersion<string> = ({

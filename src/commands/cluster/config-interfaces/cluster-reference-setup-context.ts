@@ -4,6 +4,5 @@ import {type ClusterReferenceSetupConfigClass} from './cluster-reference-setup-c
 
 export interface ClusterReferenceSetupContext {
   config: ClusterReferenceSetupConfigClass;
-  valuesArg: string;
   context: string;
 }

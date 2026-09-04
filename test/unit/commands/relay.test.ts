@@ -1,131 +1,223 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon, {type SinonStub} from 'sinon';
-import {describe, it, beforeEach} from 'mocha';
 import {expect} from 'chai';
-import * as Base64 from 'js-base64';
-
+import {afterEach, beforeEach, describe, it} from 'mocha';
+import sinon from 'sinon';
+import {container} from 'tsyringe-neo';
 import {RelayCommand} from '../../../src/commands/relay.js';
-import {SecretType} from '../../../src/integration/kube/resources/secret/secret-type.js';
+import {Flags as flags} from '../../../src/commands/flags.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import * as constants from '../../../src/core/constants.js';
-import {type Secret} from '../../../src/integration/kube/resources/secret/secret.js';
+import {resetForTest} from '../../test-container.js';
+import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
+import {type ArgvStruct} from '../../../src/types/aliases.js';
+
+interface RelayCommandInternal {
+  prepareNetworkJsonString: (nodeAliases: string[], namespace: NamespaceName, deployment: string) => Promise<string>;
+  prepareHelmChartValuesForRelay: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
+  isLocalImageAvailableInDocker: (componentImage: string) => boolean;
+}
+
+const prepareRelayValueArguments: (
+  relayCommandInternal: RelayCommandInternal,
+  configuration: Record<string, unknown>,
+) => Promise<string[]> = async (
+  relayCommandInternal: RelayCommandInternal,
+  configuration: Record<string, unknown>,
+  // eslint-disable-next-line unicorn/no-await-expression-member
+): Promise<string[]> => (await relayCommandInternal.prepareHelmChartValuesForRelay(configuration)).toArguments();
+
+const createRelayConfig: (overrides?: Record<string, unknown>) => Record<string, unknown> = (
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> => ({
+  [flags.valuesFile.constName]: '',
+  nodeAliases: ['node1'],
+  [flags.chainId.constName]: '',
+  [flags.relayReleaseTag.constName]: '',
+  [flags.componentImage.constName]: '',
+  [flags.replicaCount.constName]: 1,
+  [flags.operatorId.constName]: '0.0.2',
+  [flags.operatorKey.constName]: 'operator-key',
+  [flags.namespace.constName]: NamespaceName.of('solo-e2e'),
+  [flags.domainName.constName]: undefined,
+  context: 'kind-solo-cluster',
+  releaseName: 'relay-1',
+  [flags.deployment.constName]: 'deployment',
+  [flags.mirrorNamespace.constName]: 'solo-e2e',
+  mirrorNodeReleaseName: 'mirror-1',
+  ...overrides,
+});
 
 describe('RelayCommand unit tests', (): void => {
-  const namespace: NamespaceName = NamespaceName.of('relay-cmd-unit');
-  const context: string = 'relay-cmd-unit-context';
-  const releaseName: string = 'relay-0';
-  const operatorSecretName: string = `${releaseName}-operator`;
-
-  let instance: RelayCommand;
-  let secretsListStub: SinonStub;
-  let secretsCreateOrReplaceStub: SinonStub;
-  let loggerStub: {info: SinonStub; debug: SinonStub};
-
-  function baseConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-    return {
-      valuesFile: undefined,
-      nodeAliases: ['node1'],
-      chainId: undefined,
-      relayReleaseTag: undefined,
-      replicaCount: undefined,
-      operatorId: '0.0.2',
-      operatorKey: undefined,
-      namespace,
-      domainName: undefined,
-      context,
-      releaseName,
-      deployment: 'deployment',
-      mirrorNamespace: 'mirror-ns',
-      ...overrides,
-    };
-  }
+  let relayCommand: RelayCommand;
 
   beforeEach((): void => {
-    secretsListStub = sinon.stub().resolves([]);
-    secretsCreateOrReplaceStub = sinon.stub().resolves(true);
-    loggerStub = {info: sinon.stub(), debug: sinon.stub()};
-
-    const secretsStub: object = {
-      list: secretsListStub,
-      createOrReplace: secretsCreateOrReplaceStub,
-    };
-    const k8Stub: object = {secrets: sinon.stub().returns(secretsStub)};
-    const k8FactoryStub: object = {getK8: sinon.stub().returns(k8Stub)};
-
-    instance = Object.create(RelayCommand.prototype) as RelayCommand;
-    (instance as unknown as {k8Factory: object}).k8Factory = k8FactoryStub;
-    (instance as unknown as {logger: object}).logger = loggerStub;
-
-    sinon
-      .stub(instance as unknown as {prepareNetworkJsonString: () => Promise<string>}, 'prepareNetworkJsonString')
-      .resolves('{}');
+    resetForTest();
+    relayCommand = container.resolve(RelayCommand);
+    sinon.stub(relayCommand as unknown as RelayCommandInternal, 'isLocalImageAvailableInDocker').returns(false);
   });
 
-  it('never passes operator id or key via helm --set, and creates a k8s secret instead', async (): Promise<void> => {
-    const operatorKey: string = 'test-operator-key';
-    const config: Record<string, unknown> = baseConfig({operatorKey});
-
-    const valuesArgument: string = await (
-      instance as unknown as {prepareValuesArgForRelay: (config: Record<string, unknown>) => Promise<string>}
-    ).prepareValuesArgForRelay(config);
-
-    expect(valuesArgument).to.not.include('OPERATOR_ID_MAIN=0.0.2');
-    expect(valuesArgument).to.not.include(`OPERATOR_KEY_MAIN=${operatorKey}`);
-    expect(valuesArgument).to.not.include('relay.config.OPERATOR_ID_MAIN');
-    expect(valuesArgument).to.not.include('relay.config.OPERATOR_KEY_MAIN');
-    expect(valuesArgument).to.not.include('ws.config.OPERATOR_ID_MAIN');
-    expect(valuesArgument).to.not.include('ws.config.OPERATOR_KEY_MAIN');
-    expect(valuesArgument).to.not.include(operatorKey);
-
-    expect(valuesArgument).to.include(`--set relay.existingSecret=${operatorSecretName}`);
-    expect(valuesArgument).to.include(`--set ws.existingSecret=${operatorSecretName}`);
-
-    expect(secretsCreateOrReplaceStub.calledOnce).to.be.true;
-    const [calledNamespace, calledName, calledType, calledData] = secretsCreateOrReplaceStub.firstCall.args as [
-      NamespaceName,
-      string,
-      SecretType,
-      Record<string, string>,
-    ];
-    expect(calledNamespace).to.equal(namespace);
-    expect(calledName).to.equal(operatorSecretName);
-    expect(calledType).to.equal(SecretType.OPAQUE);
-    expect(calledData.OPERATOR_ID_MAIN).to.equal(Base64.encode('0.0.2'));
-    expect(calledData.OPERATOR_KEY_MAIN).to.equal(Base64.encode(operatorKey));
+  afterEach((): void => {
+    sinon.restore();
   });
 
-  it('uses the operator key from an existing k8s secret when the flag is not provided', async (): Promise<void> => {
-    const existingKey: string = 'key-from-secret';
-    const foundSecret: Secret = {
-      data: {privateKey: Base64.encode(existingKey)},
-      name: 'account-secret',
-      namespace: namespace.name,
-      type: SecretType.OPAQUE,
-      labels: {},
-    };
-    secretsListStub.resolves([foundSecret]);
+  it('should apply relayReleaseTag to relay and ws image tags', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
 
-    const config: Record<string, unknown> = baseConfig();
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valuesArgument: string = await (
-      instance as unknown as {prepareValuesArgForRelay: (config: Record<string, unknown>) => Promise<string>}
-    ).prepareValuesArgForRelay(config);
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.relayReleaseTag.constName]: '0.77.0',
+      }),
+    );
 
-    expect(valuesArgument).to.not.include(existingKey);
-
-    const calledData: Record<string, string> = secretsCreateOrReplaceStub.firstCall.args[3];
-    expect(calledData.OPERATOR_KEY_MAIN).to.equal(Base64.encode(existingKey));
+    expect(valueArguments).to.include('relay.image.tag=0.77.0');
+    expect(valueArguments).to.include('ws.image.tag=0.77.0');
   });
 
-  it('falls back to the default operator key when no flag or k8s secret is available', async (): Promise<void> => {
-    const config: Record<string, unknown> = baseConfig();
+  it('should use mirror ingress for REST and direct mirror node service for web3 URL', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
 
-    await (
-      instance as unknown as {prepareValuesArgForRelay: (config: Record<string, unknown>) => Promise<string>}
-    ).prepareValuesArgForRelay(config);
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const calledData: Record<string, string> = secretsCreateOrReplaceStub.firstCall.args[3];
-    expect(calledData.OPERATOR_KEY_MAIN).to.equal(Base64.encode(constants.OPERATOR_KEY));
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.mirrorNamespace.constName]: 'mirror-ns',
+        mirrorNodeReleaseName: 'mirror-1',
+      }),
+    );
+
+    expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
+      'relay.config.MIRROR_NODE_URL=http://mirror-ingress-controller-mirror-ns.mirror-ns.svc.cluster.local',
+    );
+    expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
+      'relay.config.MIRROR_NODE_URL_WEB3=http://mirror-1-web3.mirror-ns.svc.cluster.local',
+    );
+    expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
+      'ws.config.MIRROR_NODE_URL=http://mirror-ingress-controller-mirror-ns.mirror-ns.svc.cluster.local',
+    );
+  });
+
+  it('should accept full relay image reference and set relay/ws image registry repository and tag', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.componentImage.constName]: 'docker.io/library/v400.0',
+      }),
+    );
+
+    expect(valueArguments).to.include('relay.image.registry=docker.io');
+    expect(valueArguments).to.include('ws.image.registry=docker.io');
+    expect(valueArguments).to.include('relay.image.repository=library/v400.0');
+    expect(valueArguments).to.include('ws.image.repository=library/v400.0');
+    expect(valueArguments).to.include('relay.image.tag=latest');
+    expect(valueArguments).to.include('ws.image.tag=latest');
+  });
+
+  it('should accept docker hub shorthand and infer docker.io/library repository', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.componentImage.constName]: 'redis:7',
+      }),
+    );
+
+    expect(valueArguments).to.include('relay.image.registry=docker.io');
+    expect(valueArguments).to.include('ws.image.registry=docker.io');
+    expect(valueArguments).to.include('relay.image.repository=library/redis');
+    expect(valueArguments).to.include('ws.image.repository=library/redis');
+    expect(valueArguments).to.include('relay.image.tag=7');
+    expect(valueArguments).to.include('ws.image.tag=7');
+  });
+
+  it('should use a Never pull policy for an available Kind-attached local registry image', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+    sinon.restore();
+    sinon.stub(relayCommandInternal, 'isLocalImageAvailableInDocker').returns(true);
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.componentImage.constName]: 'localhost:5001/hiero-json-rpc-relay:0.61.0',
+      }),
+    );
+
+    expect(valueArguments).to.include('relay.image.registry=localhost:5001');
+    expect(valueArguments).to.include('relay.image.repository=hiero-json-rpc-relay');
+    expect(valueArguments).to.include('relay.image.pullPolicy=Never');
+    expect(valueArguments).to.include('ws.image.pullPolicy=Never');
+  });
+
+  it('should set relay and ws service type to LoadBalancer when load balancer is enabled', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.loadBalancerEnabled.constName]: true,
+      }),
+    );
+
+    expect(valueArguments).to.include('relay.service.type=LoadBalancer');
+    expect(valueArguments).to.include('ws.service.type=LoadBalancer');
+  });
+
+  it('should not override service types when load balancer is disabled', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(relayCommandInternal, createRelayConfig());
+
+    expect(valueArguments).to.not.include('relay.service.type=LoadBalancer');
+    expect(valueArguments).to.not.include('ws.service.type=LoadBalancer');
+  });
+
+  it('should reject plain tag value for componentImage', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    try {
+      await prepareRelayValueArguments(
+        relayCommandInternal,
+        createRelayConfig({
+          [flags.componentImage.constName]: 'latest',
+        }),
+      );
+      expect.fail('Expected prepareHelmChartValuesForRelay to throw');
+    } catch (error) {
+      expect(error.message).to.include('Invalid image reference format: latest');
+    }
+  });
+
+  it('wraps an add() Initialize failure in RelayDeployFailedSoloError exactly once', async (): Promise<void> => {
+    sinon.stub(relayCommand.localConfig, 'load').rejects(new Error('boom'));
+
+    try {
+      await relayCommand.add({_: []} as unknown as ArgvStruct);
+      expect.fail('Expected add() to throw');
+    } catch (error) {
+      expect(error).to.be.instanceOf(SoloErrors.component.relayDeployFailed);
+      expect(error.message).to.equal('Error deploying relay: boom');
+      expect(error.cause.message).to.equal('boom');
+    }
   });
 });

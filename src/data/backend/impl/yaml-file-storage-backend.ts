@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type ObjectStorageBackend} from '../api/object-storage-backend.js';
 import {FileStorageBackend} from './file-storage-backend.js';
 import {StorageBackendError} from '../api/storage-backend-error.js';
 import yaml from 'yaml';
-import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
 import {PathEx} from '../../../business/utils/path-ex.js';
 
 export class YamlFileStorageBackend extends FileStorageBackend implements ObjectStorageBackend {
@@ -33,7 +33,7 @@ export class YamlFileStorageBackend extends FileStorageBackend implements Object
 
   public async writeObject(key: string, data: object): Promise<void> {
     if (!data) {
-      throw new IllegalArgumentError('data must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('data must not be null or undefined');
     }
 
     const filePath: string = PathEx.join(this.basePath, key);

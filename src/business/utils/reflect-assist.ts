@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {UnsupportedOperationError} from '../errors/unsupported-operation-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type Refreshable} from '../../data/configuration/spi/refreshable.js';
 import {type ObjectStorageBackend} from '../../data/backend/api/object-storage-backend.js';
 import {type Persistable} from '../../data/configuration/spi/persistable.js';
 
 export class ReflectAssist {
   private constructor() {
-    throw new UnsupportedOperationError('utility classes and cannot be instantiated');
+    throw new SoloErrors.internal.unsupportedOperation('utility classes and cannot be instantiated');
   }
 
   /**

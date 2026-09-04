@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import {SoloError} from '../../solo-error.js';
+import {ErrorOwnership} from '../../error-ownership.js';
+import {ErrorCodeRegistry} from '../../error-code-registry.js';
+
+/**
+ * @description Thrown when a resolved path falls outside the allowed base directory; the message names the resolved path
+ * and the base. solo blocks path traversal for safety, so this means the supplied path escaped the
+ * permitted directory — for example `..` segments or an absolute path outside the base.
+ */
+export class PathTraversalDetectedSoloError extends SoloError {
+  protected override readonly retryable: boolean = false;
+  protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
+
+  public constructor(resolvedPath: string, resolvedBase: string) {
+    super({
+      message: `Path traversal detected: ${resolvedPath} is outside the allowed base directory ${resolvedBase}`,
+      code: ErrorCodeRegistry.PATH_TRAVERSAL_DETECTED,
+      troubleshootingSteps:
+        'Provide a path that is within the allowed base directory\n' +
+        'Avoid using ".." path components that escape the base directory',
+    });
+  }
+}

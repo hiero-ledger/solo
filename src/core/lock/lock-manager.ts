@@ -4,7 +4,8 @@ import {Flags as flags} from '../../commands/flags.js';
 import {type ConfigManager} from '../config-manager.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
-import {type Lock, type LockRenewalService} from './lock.js';
+import {type Lock} from './lock.js';
+import {type LockRenewalService} from './lock-renewal-service.js';
 import {IntervalLock} from './interval-lock.js';
 import {LockHolder} from './lock-holder.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -13,6 +14,7 @@ import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {LockAcquisitionError} from './lock-acquisition-error.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../constants.js';
 
 /**
  * Manages the acquisition and renewal of locks.
@@ -99,7 +101,7 @@ export class LockManager {
     const namespace: NamespaceName = deploymentNamespace || clusterSetupNamespace;
 
     if (!(await this.k8Factory.default().namespaces().has(namespace))) {
-      await this.k8Factory.default().namespaces().create(namespace);
+      await this.k8Factory.default().namespaces().create(namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
 
       if (!(await this.k8Factory.default().namespaces().has(namespace))) {
         throw new LockAcquisitionError(`failed to create the '${namespace}' namespace`);

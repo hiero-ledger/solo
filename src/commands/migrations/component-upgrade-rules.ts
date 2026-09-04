@@ -109,15 +109,13 @@
 
 import fs from 'node:fs';
 import * as constants from '../../core/constants.js';
-import {
-  type ComponentUpgradeBoundaryRule,
-  type ComponentUpgradeMigrationConfig,
-  type ComponentUpgradeMigrationConfigFile,
-  type ComponentUpgradeMigrationStep,
-} from './component-upgrade-rules-types.js';
+import {type ComponentUpgradeBoundaryRule} from './component-upgrade-boundary-rule.js';
+import {type ComponentUpgradeMigrationConfig} from './component-upgrade-migration-config.js';
+import {type ComponentUpgradeMigrationConfigFile} from './component-upgrade-migration-config-file.js';
+import {type ComponentUpgradeMigrationStep} from './component-upgrade-migration-step.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
 
-export {type ComponentUpgradeMigrationStep} from './component-upgrade-rules-types.js';
+export {type ComponentUpgradeMigrationStep} from './component-upgrade-migration-step.js';
 
 /**
  * Static utility for loading component migration rules and planning upgrade paths.
@@ -395,12 +393,10 @@ export class ComponentUpgradeMigrationRules {
     // Step 1: Normalize all boundary versions and filter to those crossed during this upgrade.
     // A boundary is crossed when: currentVersion < boundaryVersion AND targetVersion >= boundaryVersion.
     const crossed: ComponentUpgradeBoundaryRule[] = componentConfig.boundaries
-      .map(
-        (boundary): ComponentUpgradeBoundaryRule => ({
-          ...boundary,
-          version: new SemanticVersion<string>(boundary.version).toString(),
-        }),
-      )
+      .map((boundary): ComponentUpgradeBoundaryRule => ({
+        ...boundary,
+        version: new SemanticVersion<string>(boundary.version).toString(),
+      }))
       .filter(
         (boundary): boolean =>
           current.lessThan(new SemanticVersion<string>(boundary.version)) &&

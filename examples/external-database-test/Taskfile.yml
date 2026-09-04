@@ -33,7 +33,7 @@ vars:
 
 tasks:
   default:
-    desc: create the cluster, solo init, solo cluster-ref create, solo keys consensus generate, solo consensus network deploy
+    desc: create the cluster, solo cluster-ref create, solo keys consensus generate, solo consensus network deploy
     cmds:
       # Install Solo CLI
       - cmd: |
@@ -43,8 +43,6 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
-      # Run solo init to install dependencies
-      - cmd: $SOLO_COMMAND init --dev
 
       # Create Kind cluster"
       - cmd: |
@@ -61,11 +59,8 @@ tasks:
       # Set kubectl context
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
-      # Solo init
-      - cmd: $SOLO_COMMAND init
-
       # Solo cluster-ref config setup
-      - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
+      - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev --minio false
 
       # Solo cluster-ref config connect
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
@@ -78,6 +73,9 @@ tasks:
 
       # Solo node keys
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+
+      # Solo block node add
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
       # Solo network deploy
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev

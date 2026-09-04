@@ -18,7 +18,7 @@ network:
   --log4j2-xml: ""
   --pvcs: false
   --quiet-mode: false
-  --release-tag: "v0.65.0"
+  --release-tag: "${SOLO_RELEASE_TAG}"
   --settings-txt: ""
   --values-file: ""
   --grpc-tls-certificate-path: ""
@@ -52,7 +52,7 @@ network:
 # Setup configuration for consensus nodes
 setup:
   --cache-dir: ""
-  --release-tag: "v0.65.0"
+  --release-tag: "${SOLO_RELEASE_TAG}"
   --app: ""
   --app-config: ""
   --quiet-mode: false
@@ -69,6 +69,7 @@ consensusNode:
   --state-file: ""
   --stake-amounts: ""
   --force-port-forward: true
+  --external-address: ""
 
 # Mirror node deployment configuration
 mirrorNode:
@@ -81,6 +82,7 @@ mirrorNode:
   --mirror-static-ip: ""
   --domain-name: ""
   --force-port-forward: true
+  --external-address: ""
   --quiet-mode: false
   --pinger: true
   --operator-id: ""
@@ -112,6 +114,7 @@ relayNode:
   --operator-id: ""
   --operator-key: ""
   --force-port-forward: true
+  --external-address: ""
   --quiet-mode: false
   --mirror-node-id: null
   --mirror-namespace: ""
@@ -120,7 +123,7 @@ relayNode:
 blockNode:
   --chart-dir: ""
   --block-node-chart-version: ""
-  --release-tag: "0.65.0"
+  --release-tag: "${SOLO_RELEASE_TAG_NO_V}"
   --image-tag: ""
   --values-file: ""
   --enable-ingress: false
@@ -144,6 +147,7 @@ explorerNode:
   --explorer-static-ip: ""
   --cluster-setup-namespace: ""
   --force-port-forward: true
+  --external-address: ""
   --quiet-mode: false
   --mirror-node-id: null
   --mirror-namespace: ""

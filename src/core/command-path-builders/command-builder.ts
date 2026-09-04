@@ -1,18 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../errors/solo-error.js';
-import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
+import {SoloErrors} from '../errors/solo-errors.js';
+import {type AnyObject, type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
-import {type CommandDefinition} from '../../types/index.js';
+import {type CommandDefinition, type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
 import {type CommandFlags} from '../../types/flag-types.js';
 import {Flags as flags} from '../../commands/flags.js';
-import {inject, injectable} from 'tsyringe-neo';
+import {container, inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
-import {InitCommand} from '../../commands/init/init.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
-import {ListrContext, ListrRendererValue} from 'listr2';
+import {Listr, type ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../constants.js';
+import {SpinnerListrOptions} from '../spinner-listr-options.js';
+import {type Deprecation} from '../../types/deprecation.js';
+import {Deprecations} from '../deprecations.js';
+import {type DeprecationRegistry} from '../deprecation-registry.js';
+import {type DependencyManager} from '../dependency-managers/index.js';
+import {type ChartManager} from '../chart-manager.js';
+import {type ClusterTaskManager} from '../cluster-task-manager.js';
+import {BaseCommand} from '../../commands/base.js';
+
+export const ONE_SHOT_COMMAND: string = 'one-shot';
+export const SINGLE_SUBCOMMAND: string = 'single';
+export const SINGLE_DEPLOY: string = 'deploy';
+export const SINGLE_DESTROY: string = 'destroy';
 
 @injectable()
 export class Subcommand {
@@ -25,31 +37,71 @@ export class Subcommand {
     public readonly flags: CommandFlags,
     public readonly dependencies: string[] = [],
     public readonly createCluster: boolean = false,
-    @inject(InjectTokens.InitCommand) private readonly initCommand?: InitCommand,
+    public readonly deprecated?: Deprecation,
     @inject(InjectTokens.TaskList)
     private readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+    @inject(InjectTokens.DependencyManager) private readonly depManager?: DependencyManager,
+    @inject(InjectTokens.ChartManager) private readonly chartManager?: ChartManager,
+    @inject(InjectTokens.ClusterTaskManager) private readonly clusterTaskManager?: ClusterTaskManager,
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
   ) {
-    this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
+    this.depManager = patchInject(depManager, InjectTokens.DependencyManager, this.constructor.name);
+    this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
+    this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, this.constructor.name);
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public async installDependencies(): Promise<void> {
-    const tasks: any = this.taskList.newTaskList(
-      [
-        ...this.initCommand.installDependenciesTasks({
-          deps: this.dependencies,
-          createCluster: this.createCluster,
-        }),
-      ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+  public async installDependencies(
+    useSmallMemoryCluster: boolean = false,
+    collapseTasks: boolean = false,
+  ): Promise<void> {
+    if (!this.dependencies || this.dependencies.length === 0) {
+      return;
+    }
+
+    const taskItems: SoloListrTask<AnyObject>[] = [
+      BaseCommand.dockerDesktopPreflightTask(this.logger),
+      {
+        title: 'Check dependencies',
+        task: async (_: AnyObject, task: SoloListrTaskWrapper<AnyObject>): Promise<unknown> => {
+          const subTasks: SoloListrTask<AnyObject>[] = this.depManager.taskCheckDependencies<AnyObject>(
+            this.dependencies,
+          );
+          return task.newListr(subTasks, {
+            concurrent: true,
+            rendererOptions: {
+              collapseSubtasks: false,
+            },
+          });
+        },
+      },
+    ];
+
+    if (this.dependencies.includes(constants.HELM)) {
+      taskItems.push({
+        title: 'Setup chart manager',
+        task: async (): Promise<void> => {
+          await this.chartManager.setup();
+        },
+      });
+    }
+
+    if (this.createCluster) {
+      taskItems.push(...this.clusterTaskManager.setupLocalClusterTasks(useSmallMemoryCluster));
+    }
+
+    const tasks: Listr<AnyObject, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
+      taskItems,
+      collapseTasks ? SpinnerListrOptions.build(true) : constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       this.name,
     );
     if (this.taskList.parentTaskListMap.size === 0) {
       try {
         await tasks.run();
-      } catch (error: Error | any) {
-        throw new SoloError(`Could not install dependencies: ${error.message}`, error);
+      } catch (error) {
+        throw new SoloErrors.system.dependencyInstallFailed('dependencies', error);
       }
     }
   }
@@ -62,6 +114,7 @@ export class CommandGroup {
   public constructor(
     public readonly name: string,
     public readonly description: string,
+    public readonly deprecated?: Deprecation,
   ) {}
 
   public addSubcommand(subcommand: Subcommand): CommandGroup {
@@ -85,13 +138,42 @@ export class CommandBuilder {
     return this;
   }
 
+  /**
+   * Appends a `[DEPRECATED: ...]` marker to a command/subcommand description when it is deprecated, so the
+   * deprecation is visible in `--help` output and therefore in the scraped documentation.
+   */
+  private static describeWithDeprecation(description: string, deprecation?: Deprecation): string {
+    return deprecation ? `${description} [DEPRECATED: ${Deprecations.formatHelpMarker(deprecation)}]` : description;
+  }
+
   public build(): CommandDefinition {
     const commandGroups: CommandGroup[] = this.commandGroups;
     const logger: SoloLogger = this.logger;
+    const deprecationRegistry: DeprecationRegistry = container.resolve<DeprecationRegistry>(
+      InjectTokens.DeprecationRegistry,
+    );
 
     const commandName: string = this.name;
     const commandDescription: string = this.description;
     const demandCommand: string = `select a ${commandName} command`;
+
+    // Register deprecations synchronously here (not inside the lazy yargs `builder` closures below, which
+    // only run when yargs processes a specific command path) so the full set is available to non-runtime
+    // consumers such as the build-time removal reminder and the documentation generator.
+    for (const commandGroup of commandGroups) {
+      if (commandGroup.deprecated) {
+        deprecationRegistry.registerCommand(`${commandName} ${commandGroup.name}`, 'command', commandGroup.deprecated);
+      }
+      for (const subcommand of commandGroup.subcommands) {
+        if (subcommand.deprecated) {
+          deprecationRegistry.registerCommand(
+            `${commandName} ${commandGroup.name} ${subcommand.name}`,
+            'subcommand',
+            subcommand.deprecated,
+          );
+        }
+      }
+    }
 
     return {
       command: commandName,
@@ -100,14 +182,16 @@ export class CommandBuilder {
         for (const commandGroup of commandGroups) {
           yargs.command({
             command: commandGroup.name,
-            desc: commandGroup.description,
+            desc: CommandBuilder.describeWithDeprecation(commandGroup.description, commandGroup.deprecated),
             builder: (yargs: AnyYargs): AnyYargs => {
               for (const subcommand of commandGroup.subcommands) {
+                const subcommandPath: string = `${commandName} ${commandGroup.name} ${subcommand.name}`;
+
                 const handlerDefinition: CommandDefinition = {
                   command: subcommand.name,
-                  desc: subcommand.description,
+                  desc: CommandBuilder.describeWithDeprecation(subcommand.description, subcommand.deprecated),
                   handler: async (argv): Promise<void> => {
-                    const commandPath: string = `${commandName} ${commandGroup.name} ${subcommand.name}`;
+                    const commandPath: string = subcommandPath;
 
                     logger.info(`==== Running '${commandPath}' ===`);
 
@@ -115,21 +199,33 @@ export class CommandBuilder {
                       subcommand.commandHandlerClass,
                     );
 
-                    await subcommand.installDependencies();
+                    const isOneShotSingleDeploy: boolean =
+                      commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DEPLOY}`;
+                    const isOneShotSingleDestroy: boolean =
+                      commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DESTROY}`;
+                    const useSmallMemoryCluster: boolean = isOneShotSingleDeploy;
+
+                    // Collapse the dependency-install preamble (e.g. 'Check dependencies', 'Setup chart
+                    // manager') to single spinner lines for one-shot single deploy (gated on parallel
+                    // mode) and one-shot single destroy, matching their respective pipelines.
+                    const collapseDependencyTasks: boolean =
+                      (isOneShotSingleDeploy && argv[flags.parallelDeploy.name] !== false) || isOneShotSingleDestroy;
+
+                    await subcommand.installDependencies(useSmallMemoryCluster, collapseDependencyTasks);
                     const response: boolean = await handlerCallback(argv);
 
                     logger.info(`==== Finished running '${commandPath}'====`);
 
                     if (!response) {
-                      throw new SoloError(`Error running ${commandPath}, expected return value to be true`);
+                      throw new SoloErrors.internal.commandReturnedFalse(commandName, commandPath);
                     }
                   },
                 };
 
                 if (subcommand.flags) {
                   handlerDefinition.builder = (y: AnyYargs): void => {
-                    flags.setRequiredCommandFlags(y, ...subcommand.flags.required);
-                    flags.setOptionalCommandFlags(y, ...subcommand.flags.optional);
+                    flags.setRequiredCommandFlags(y, subcommand.flags.required, subcommandPath);
+                    flags.setOptionalCommandFlags(y, subcommand.flags.optional, subcommandPath);
                   };
                 }
 

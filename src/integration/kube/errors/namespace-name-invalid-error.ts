@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 
 const RFC_1123_POSTFIX: (prefix: string) => string = (
   prefix: string,
@@ -8,7 +8,7 @@ const RFC_1123_POSTFIX: (prefix: string) => string = (
     "A DNS 1123 label must consist of lower case alphanumeric characters, '-' " +
     "or '.', must not exceed 63 characters, and must start and end with an alphanumeric character.`;
 
-export class NamespaceNameInvalidError extends SoloError {
+export class NamespaceNameInvalidError extends KubeError {
   public static NAMESPACE_NAME_INVALID: (name: string) => string = (name: string): string =>
     RFC_1123_POSTFIX(`Namespace name '${name}'`);
 
@@ -19,51 +19,11 @@ export class NamespaceNameInvalidError extends SoloError {
    * @param cause - optional underlying cause of the error.
    * @param meta - optional metadata to be reported.
    */
-  public constructor(namespaceName: string, cause: Error | any = {}, meta: any = {}) {
-    super(NamespaceNameInvalidError.NAMESPACE_NAME_INVALID(namespaceName), cause, meta);
-  }
-}
-
-export class ContainerNameInvalidError extends SoloError {
-  public static CONTAINER_NAME_INVALID: (name: string) => string = (name: string): string =>
-    RFC_1123_POSTFIX(`Container name '${name}'`);
-
-  /**
-   * Instantiates a new error with a message and an optional cause.
-   *
-   * @param containerName - the invalid container name.
-   * @param cause - optional underlying cause of the error.
-   * @param meta - optional metadata to be reported.
-   */
-  public constructor(containerName: string, cause: Error | any = {}, meta: any = {}) {
-    super(ContainerNameInvalidError.CONTAINER_NAME_INVALID(containerName), cause, meta);
-  }
-}
-
-export class MissingPodReferenceError extends SoloError {
-  public static MISSING_POD_REF: string = 'Pod ref is required.';
-
-  /**
-   * Instantiates a new error with a message and an optional cause.
-   *
-   * @param cause - optional underlying cause of the error.
-   * @param meta - optional metadata to be reported.
-   */
-  public constructor(cause: Error | any = {}, meta: any = {}) {
-    super(MissingPodReferenceError.MISSING_POD_REF, cause, meta);
-  }
-}
-
-export class MissingContainerNameError extends SoloError {
-  public static MISSING_CONTAINER_NAME: string = 'Container Name is required.';
-
-  /**
-   * Instantiates a new error with a message and an optional cause.
-   *
-   * @param cause - optional underlying cause of the error.
-   * @param meta - optional metadata to be reported.
-   */
-  public constructor(cause: Error | any = {}, meta: any = {}) {
-    super(MissingContainerNameError.MISSING_CONTAINER_NAME, cause, meta);
+  public constructor(namespaceName: string, cause?: Error | unknown, meta: object = {}) {
+    super(
+      NamespaceNameInvalidError.NAMESPACE_NAME_INVALID(namespaceName),
+      cause instanceof Error ? cause : undefined,
+      meta,
+    );
   }
 }

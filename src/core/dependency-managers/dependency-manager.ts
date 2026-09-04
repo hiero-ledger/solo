@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import os from 'node:os';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {ShellRunner} from '../shell-runner.js';
 import {HelmDependencyManager} from './helm-dependency-manager.js';
 import {container, inject, injectable} from 'tsyringe-neo';
 import * as constants from '../constants.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
-import {type SoloListrTask} from '../../types/index.js';
+import {type SoloListrTask, type SoloListrTaskWrapper} from '../../types/index.js';
 import {KindDependencyManager} from './kind-dependency-manager.js';
 import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
 import {PodmanDependencyManager} from './podman-dependency-manager.js';
 import {VfkitDependencyManager} from './vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from './gvproxy-dependency-manager.js';
+import {NetavarkDependencyManager} from './netavark-dependency-manager.js';
+import {AardvarkDnsDependencyManager} from './aardvark-dns-dependency-manager.js';
+import {CraneDependencyManager} from './crane-dependency-manager.js';
 
 export type DependencyManagerType =
   | HelmDependencyManager
@@ -20,7 +23,10 @@ export type DependencyManagerType =
   | KubectlDependencyManager
   | PodmanDependencyManager
   | VfkitDependencyManager
-  | GvproxyDependencyManager;
+  | GvproxyDependencyManager
+  | NetavarkDependencyManager
+  | AardvarkDnsDependencyManager
+  | CraneDependencyManager;
 
 @injectable()
 export class DependencyManager extends ShellRunner {
@@ -33,6 +39,9 @@ export class DependencyManager extends ShellRunner {
     @inject(InjectTokens.PodmanDependencyManager) podmanDependencyManager?: PodmanDependencyManager,
     @inject(InjectTokens.VfkitDependencyManager) vfkitDependencyManager?: VfkitDependencyManager,
     @inject(InjectTokens.GvproxyDependencyManager) gvproxyDependencyManager?: GvproxyDependencyManager,
+    @inject(InjectTokens.NetavarkDependencyManager) netavarkDependencyManager?: NetavarkDependencyManager,
+    @inject(InjectTokens.AardvarkDnsDependencyManager) aardvarkDnsDependencyManager?: AardvarkDnsDependencyManager,
+    @inject(InjectTokens.CraneDependencyManager) craneDependencyManager?: CraneDependencyManager,
   ) {
     super();
     this.dependancyManagerMap = new Map();
@@ -66,6 +75,21 @@ export class DependencyManager extends ShellRunner {
       constants.GVPROXY,
       gvproxyDependencyManager || container.resolve(InjectTokens.GvproxyDependencyManager),
     );
+
+    this.dependancyManagerMap.set(
+      constants.NETAVARK,
+      netavarkDependencyManager || container.resolve(InjectTokens.NetavarkDependencyManager),
+    );
+
+    this.dependancyManagerMap.set(
+      constants.AARDVARK_DNS,
+      aardvarkDnsDependencyManager || container.resolve(InjectTokens.AardvarkDnsDependencyManager),
+    );
+
+    this.dependancyManagerMap.set(
+      constants.CRANE,
+      craneDependencyManager || container.resolve(InjectTokens.CraneDependencyManager),
+    );
   }
 
   public async getDependency(dependency: string): Promise<DependencyManagerType> {
@@ -73,7 +97,7 @@ export class DependencyManager extends ShellRunner {
     if (manager) {
       return manager;
     }
-    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
+    throw new SoloErrors.system.dependencyManagerNotFound(dependency);
   }
 
   /**
@@ -90,7 +114,7 @@ export class DependencyManager extends ShellRunner {
     }
 
     if (!status) {
-      throw new SoloError(`Dependency '${dependency}' is not found`);
+      throw new SoloErrors.system.dependencyNotFound(dependency);
     }
 
     this.logger.debug(`Dependency '${dependency}' is found`);
@@ -111,10 +135,27 @@ export class DependencyManager extends ShellRunner {
 
   public taskCheckDependencies<T>(dependencies: string[]): SoloListrTask<T>[] {
     return dependencies.map(
-      (dependency): {title: string; task: () => Promise<boolean>; skip: () => Promise<boolean>} => {
+      (
+        dependency,
+      ): {
+        title: string;
+        task: (_context: T, task: SoloListrTaskWrapper<T>) => Promise<boolean>;
+        skip: () => Promise<boolean>;
+      } => {
         return {
           title: `Check dependency: ${dependency} [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`,
-          task: (): Promise<boolean> => this.checkDependency(dependency),
+          task: async (_context: T, task: SoloListrTaskWrapper<T>): Promise<boolean> => {
+            const result: boolean = await this.checkDependency(dependency);
+            try {
+              const manager: DependencyManagerType = await this.getDependency(dependency);
+              const executablePath: string = await manager.getExecutable();
+              const version: string = await manager.getVersion(executablePath);
+              task.title = `Check dependency: ${dependency} v${version} (${executablePath}) [OS: ${os.platform()}, Release: ${os.release()}, Arch: ${os.arch()}]`;
+            } catch {
+              // best-effort: version display is informational only; ignore failures
+            }
+            return result;
+          },
           skip: (): Promise<boolean> => this.skipDependency(dependency),
         };
       },
@@ -126,6 +167,6 @@ export class DependencyManager extends ShellRunner {
     if (manager) {
       return await manager.getExecutable();
     }
-    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
+    throw new SoloErrors.system.dependencyManagerNotFound(dependency);
   }
 }

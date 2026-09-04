@@ -1,0 +1,277 @@
+##
+# Copyright (C) 2023-2026 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+# Night test checks some non critical functions or features not captured by PR tests
+# or Example tests, such as JVM Debugger
+
+name: "Nightly Extended Tests"
+
+on:
+  schedule:
+    # Run every weekday at 6 AM UTC (covers Central Daylight Time)
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "24"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
+jobs:
+  prepare-setup:
+    name: Prepare Setup
+    runs-on: hiero-solo-linux-medium
+    timeout-minutes: 15
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: ${{ inputs.node-version || '24' }}
+          cache: npm
+
+      - name: Configure npm registry
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
+      - name: Install Dependencies
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: npm ci
+
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
+    needs:
+      - prepare-setup
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+
+          # Read script-only test array for matrix runner.
+          JSON_CONTENT=$(jq -c '.tests | map(select(.type == "script"))' .github/workflows/support/extended-test-matrix.json)
+
+          echo "JSON_CONTENT: $JSON_CONTENT"
+
+          # Set workflow outputs.
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
+  matrix-tests:
+    name: Extended Test (${{ matrix.test.name }})
+    runs-on: hiero-solo-linux-large
+    needs:
+      - generate_matrix
+    timeout-minutes: ${{ matrix.test.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: ${{ inputs.node-version || '24' }}
+          cache: npm
+
+      - name: Configure npm registry
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
+      - name: Install Dependencies
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: npm ci
+
+      - name: Install jq
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: "v1.31.4"
+
+      - name: Setup Kind
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
+      - name: Run Test (${{ matrix.test.name }})
+        timeout-minutes: ${{ matrix.test.timeout_minutes }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
+          TEST_NAME: ${{ matrix.test.name }}
+          TEST_DESCRIPTION: ${{ matrix.test.description }}
+        run: |
+          echo "Running test: ${{ matrix.test.name }}"
+          echo "Description: ${{ matrix.test.description }}"
+          echo "Type: ${{ matrix.test.type }}"
+          echo "Path: ${{ matrix.test.path }}"
+
+          echo "Executing script: ${{ matrix.test.path }}"
+          if [ -f "${{ matrix.test.path }}" ]; then
+            chmod +x "${{ matrix.test.path }}"
+            "${{ matrix.test.path }}"
+          else
+            echo "Error: Script file not found at ${{ matrix.test.path }}"
+            exit 1
+          fi
+
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
+      - name: Cleanup Kind Clusters
+        if: ${{ always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "Cleaning up clusters for test: ${{ matrix.test.name }}"
+          for cluster in $(kind get clusters 2>/dev/null); do
+            echo "Deleting cluster: $cluster"
+            kind delete cluster -n "$cluster" || true
+          done
+          rm -rf ~/.solo
+
+      - name: Send Slack Notification on Failure
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && failure() }}
+        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: Nightly Extended Test Failed - ${{ matrix.test.name }}
+          SLACK_MESSAGE: |
+            *Test:* ${{ matrix.test.name }}
+            *Description:* ${{ matrix.test.description }}
+            *Type:* ${{ matrix.test.type }}
+            *Branch:* `${{ github.ref_name }}`
+            *Commit:* ${{ github.sha }}
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_FOOTER: ${{ github.workflow }}
+
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: solo-logs-${{ matrix.test.name }}
+          path: |
+            ~/.solo/logs/*
+            /tmp/solo-node-start.log
+            /tmp/solo-jdwp-probe.log
+            /tmp/solo-${{ matrix.test.name }}*.log
+          if-no-files-found: ignore
+
+  one-shot-timing:
+    name: Extended Test (one-shot-timing)
+    needs:
+      - generate_matrix
+    uses: $/.github/workflows/flow-one-shot-timing.yaml
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+
+  ledger-reset-warm-start-timing:
+    name: Extended Test (ledger-reset-warm-start-timing)
+    needs:
+      - generate_matrix
+    uses: $/.github/workflows/flow-ledger-reset-warm-start-timing.yaml
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+
+  flow-performance-test:
+    name: Extended Test (flow-performance-test)
+    permissions:
+      contents: read
+      actions: read # flow-performance-test.yaml polls the current workflow run
+    needs:
+      - generate_matrix
+    # No `secrets:` block: this workflow only uses secrets.GITHUB_TOKEN, which GitHub provides to
+    # called workflows automatically and which cannot be passed explicitly.
+    uses: $/.github/workflows/flow-performance-test.yaml
+    with:
+      cn-edge-version: v0.75.1

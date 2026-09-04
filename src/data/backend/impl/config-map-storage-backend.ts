@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type StorageBackend} from '../api/storage-backend.js';
 import {StorageOperation} from '../api/storage-operation.js';
-import {MissingArgumentError} from '../../../core/errors/missing-argument-error.js';
 import {type ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
 import {StorageBackendError} from '../api/storage-backend-error.js';
 
@@ -13,7 +13,7 @@ import {StorageBackendError} from '../api/storage-backend-error.js';
 export class ConfigMapStorageBackend implements StorageBackend {
   public constructor(protected readonly configMap: ConfigMap) {
     if (!this.configMap) {
-      throw new MissingArgumentError('ConfigMapStorageBackend is missing the configMap argument');
+      throw new SoloErrors.validation.missingArgument('ConfigMapStorageBackend is missing the configMap argument');
     }
   }
 
@@ -59,6 +59,9 @@ export class ConfigMapStorageBackend implements StorageBackend {
 
       if (data && Object.keys(data).length > 0) {
         const value: string = data[key];
+        if (typeof value !== 'string') {
+          throw new StorageBackendError(`config map is missing key: ${key}`);
+        }
         return Buffer.from(value, 'utf8');
       } else {
         throw new StorageBackendError(`config map is empty: ${key}`);

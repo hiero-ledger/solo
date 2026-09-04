@@ -8,6 +8,12 @@ env:
       else
         echo "npm run solo --"
       fi
+  # Temporary workaround for block node live-stream importer instability during
+  # version-upgrade tests. Keep record streams enabled for mirror services while
+  # still exercising block node deploy/upgrade.
+  BLOCK_STREAM_STREAM_MODE: BOTH
+  BLOCK_STREAM_WRITER_MODE: FILE_AND_GRPC
+  DISABLE_IMPORTER_SPRING_PROFILES: "true"
 
 vars:
   NODE_IDENTIFIERS: "node1,node2"
@@ -19,15 +25,20 @@ vars:
   CLUSTER_REFERENCE: "kind-version-upgrade-test-cluster"
 
   # Previous versions (current minus one)
-  PREV_CN_VERSION: "v0.70.0"
-  PREV_MIRROR_VERSION: "v0.150.0"
-  PREV_EXPLORER_VERSION: "25.1.1"
-  PREV_RELAY_VERSION: "0.72.0"
-  PREV_BLOCK_VERSION: "v0.28.0"
+  PREV_CN_VERSION:
+    sh: sed -n "s/.*TEST_UPGRADE_FROM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_MIRROR_VERSION:
+    sh: sed -n "s/.*PREV_MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_EXPLORER_VERSION:
+    sh: sed -n "s/.*PREV_EXPLORER_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_RELAY_VERSION:
+    sh: sed -n "s/.*PREV_RELAY_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_BLOCK_VERSION:
+    sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 
   # Current versions to upgrade to
-  CURRENT_MIRROR_VERSION: "v0.152.0"
-
+  CURRENT_MIRROR_VERSION:
+    sh: sed -n "s/^export const MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
@@ -36,8 +47,6 @@ tasks:
   default:
     desc: Run full version upgrade test scenario
     cmds:
-      # Run solo init to install dependencies
-      - cmd: $SOLO_COMMAND init --dev
       - task: setup-cluster
       - task: deploy-old-versions
       - task: upgrade-components
@@ -68,9 +77,6 @@ tasks:
 
       # Set kubectl context
       - cmd: kubectl config set-context {{ .CONTEXT }}
-
-      # Solo init
-      - cmd: $SOLO_COMMAND init
 
       # Solo cluster-ref config setup
       - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
@@ -132,15 +138,16 @@ tasks:
   upgrade-components:
     desc: Upgrade all components to current versions
     cmds:
-      # Upgrade mirror node
+      # Upgrade mirror node to solo's current default version so the target tracks version.ts instead of a stale pin
       - cmd: |
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
-          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }}
+          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }} \
+          --pinger
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Upgrade network to main with local build path
       - cmd: |
-          export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' ../../version.ts)
+          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \

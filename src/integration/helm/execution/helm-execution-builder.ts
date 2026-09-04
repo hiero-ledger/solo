@@ -7,6 +7,9 @@ import {patchInject} from '../../../core/dependency-injection/container-helper.j
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import * as constants from '../../../core/constants.js';
 import {ExecutionBuilder} from '../../execution-builder.js';
+import {type ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
+import {SubprocessEnvironment} from '../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 
 @injectable()
 /**
@@ -37,11 +40,6 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
   private readonly _optionsWithMultipleValues: Array<{key: string; value: string[]}> = [];
 
   /**
-   * The flags to be passed to the helm command.
-   */
-  private readonly _flags: string[] = [];
-
-  /**
    * The positional arguments to be passed to the helm command.
    */
   private readonly _positionals: string[] = [];
@@ -50,6 +48,8 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
    * The environment variables to be set when executing the helm command.
    */
   private readonly _environmentVariables: Map<string, string> = new Map();
+
+  private readonly _orderedArguments: string[] = [];
 
   /**
    * Creates a new HelmExecutionBuilder instance.
@@ -83,6 +83,7 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     if (!commands) {
       throw new Error('commands must not be null');
     }
+
     this._subcommands.push(...commands);
     return this;
   }
@@ -97,10 +98,17 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
+
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
+
     this._arguments.set(name, value);
+    return this;
+  }
+
+  public arguments(...arguments_: string[]): HelmExecutionBuilder {
+    this._orderedArguments.push(...arguments_);
     return this;
   }
 
@@ -114,9 +122,11 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
+
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
+
     this._optionsWithMultipleValues.push({key: name, value});
     return this;
   }
@@ -130,6 +140,7 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
+
     this._positionals.push(value);
     return this;
   }
@@ -144,23 +155,12 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
+
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
-    this._environmentVariables.set(name, value);
-    return this;
-  }
 
-  /**
-   * Adds a flag to the helm execution.
-   * @param flag the flag to be added
-   * @returns this builder
-   */
-  public flag(flag: string): HelmExecutionBuilder {
-    if (!flag) {
-      throw new Error('flag must not be null');
-    }
-    this._flags.push(flag);
+    this._environmentVariables.set(name, value);
     return this;
   }
 
@@ -169,37 +169,50 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
    * @returns the HelmExecution instance
    */
   public build(): HelmExecution {
-    const command: string[] = this.buildCommand();
-    const environment: Record<string, string> = {...process.env};
+    const invocation: ExternalCommandInvocation = this.buildCommand();
+    const environment: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM);
+
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
+
     this.prefixPath(environment, this.helmInstallationDirectory);
 
-    return new HelmExecution(command, environment, this.logger);
+    return new HelmExecution(
+      {
+        ...invocation,
+        environmentVariables: environment,
+      },
+      this.logger,
+    );
   }
 
   /**
    * Builds the command array for the helm execution.
    * @returns the command array
    */
-  private buildCommand(): string[] {
-    const command: string[] = [this.helmExecutable, ...this._subcommands, ...this._flags];
+  private buildCommand(): ExternalCommandInvocation {
+    const commandArguments: string[] = [...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
-      command.push(`--${key}`, value);
+      commandArguments.push(`--${key}`, value);
     }
 
     for (const entry of this._optionsWithMultipleValues) {
       for (const value of entry.value) {
-        command.push(`--${entry.key}`, value);
+        commandArguments.push(`--${entry.key}`, value);
       }
     }
 
-    command.push(...this._positionals);
+    commandArguments.push(...this._orderedArguments, ...this._positionals);
 
-    this.logger.debug(`Helm command: helm ${command.slice(1).join(' ')}`);
+    const redactedCommand: string[] = HelmExecution.redactCommand([this.helmExecutable, ...commandArguments]);
 
-    return command;
+    this.logger.debug(`Helm command: ${redactedCommand.join(' ')}`);
+
+    return {
+      commandPathOrName: this.helmExecutable,
+      commandArguments,
+    };
   }
 }

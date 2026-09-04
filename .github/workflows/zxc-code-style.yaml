@@ -27,7 +27,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -39,12 +39,7 @@ defaults:
     shell: bash
 
 permissions:
-  id-token: write
   contents: read
-  actions: read
-  pull-requests: write
-  checks: write
-  statuses: write
 
 jobs:
   code-style:
@@ -52,21 +47,21 @@ jobs:
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ inputs.node-version }}
 
@@ -82,6 +77,32 @@ jobs:
           command: |
             npm ci
 
+      - name: Check SoloError Subclasses Registered in SoloErrors
+        run: |
+          missing=""
+          while IFS= read -r file; do
+            class_name=$(grep -oE "^export class [A-Za-z]+" "$file" | awk '{print $3}')
+            if [ -n "$class_name" ] && ! grep -q "$class_name" src/core/errors/solo-errors.ts; then
+              missing="$missing\n  $class_name ($file)"
+            fi
+          done < <(find src/core/errors/classes -name "*.ts" -type f)
+          if [ -n "$missing" ]; then
+            echo "✘ The following SoloError subclasses are missing from solo-errors.ts:"
+            printf "%b\n" "$missing"
+            exit 1
+          fi
+          echo "✔ All SoloError subclasses are registered in solo-errors.ts"
+
+      - name: Check for Duplicate Error Codes
+        run: |
+          duplicates=$(grep -oE "'SOLO-[0-9]+'" src/core/errors/error-code-registry.ts | tr -d "'" | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "✘ Duplicate error codes found in error-code-registry.ts:"
+            echo "$duplicates"
+            exit 1
+          fi
+          echo "✔ No duplicate error codes found"
+
       - name: Check Code Style
         run: |
           task check
@@ -89,6 +110,8 @@ jobs:
 
       - name: Compare warnings with target branch
         if: ${{ github.event_name == 'pull_request' }}
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
         run: |
           get_warnings() {
             file="$1"
@@ -100,7 +123,7 @@ jobs:
             fi
           }
           # Determine the PR target (base) branch
-          target_branch="${{ github.event.pull_request.base.ref }}"
+          target_branch="${TARGET_BRANCH}"
           echo "Target branch: $target_branch"
           # Fetch and check out the target branch from origin
           git fetch origin "$target_branch":"$target_branch"

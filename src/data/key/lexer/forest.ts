@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {Lexer} from './lexer.js';
 import {type KeyFormatter} from '../key-formatter.js';
 import {ConfigKeyFormatter} from '../config-key-formatter.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {type Node} from './node.js';
 import {type LexerInternalNode} from './lexer-internal-node.js';
 import {type LexerLeafNode} from './lexer-leaf-node.js';
@@ -14,11 +14,11 @@ export class Forest {
     public readonly formatter: KeyFormatter,
   ) {
     if (!lexer) {
-      throw new IllegalArgumentError('lexer must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('lexer must not be null or undefined');
     }
 
     if (!formatter) {
-      throw new IllegalArgumentError('formatter must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('formatter must not be null or undefined');
     }
   }
 
@@ -31,7 +31,7 @@ export class Forest {
 
   public static fromLexer(lexer: Lexer, formatter: KeyFormatter = ConfigKeyFormatter.instance()): Forest {
     if (!lexer) {
-      throw new IllegalArgumentError('lexer must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('lexer must not be null or undefined');
     }
 
     return new Forest(lexer, formatter);
@@ -39,7 +39,7 @@ export class Forest {
 
   public has(key: string): boolean {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     return this.nodeFor(key) !== null;
@@ -47,7 +47,7 @@ export class Forest {
 
   public valueFor(key: string): string {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     const node: Node = this.nodeFor(key);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {IllegalArgumentError} from '../errors/illegal-argument-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {MathEx} from '../util/math-ex.js';
 import {Time} from './time.js';
 
@@ -468,7 +468,7 @@ export class Duration {
    */
   private static checkValidNanos(nanos: number): void {
     if (!Duration.isValidNanos(nanos)) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         'The nanoseconds value must be zero or greater and less than or equal to 999,999,999',
       );
     }

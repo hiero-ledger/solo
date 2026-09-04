@@ -10,35 +10,17 @@ export class InjectTokens {
   public static DevelopmentMode: symbol = Symbol.for('DevelopmentMode');
   public static OsPlatform: symbol = Symbol.for('OsPlatform');
   public static OsArch: symbol = Symbol.for('OsArch');
-  public static HelmInstallationDirectory: symbol = Symbol.for('HelmInstallationDirectory');
-  public static KindInstallationDirectory: symbol = Symbol.for('KindInstallationDirectory');
-  public static KubectlInstallationDirectory: symbol = Symbol.for('KubectlInstallationDirectory');
-  public static PodmanInstallationDirectory: symbol = Symbol.for('PodmanInstallationDirectory');
-  public static PodmanDependenciesInstallationDirectory: symbol = Symbol.for('PodmanDependenciesInstallationDirectory');
-  public static HelmVersion: symbol = Symbol.for('HelmVersion');
-  public static KindVersion: symbol = Symbol.for('KindVersion');
-  public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
-  public static PodmanVersion: symbol = Symbol.for('PodmanVersion');
-  public static VfkitVersion: symbol = Symbol.for('VfkitVersion');
-  public static GvproxyVersion: symbol = Symbol.for('GvproxyVersion');
   public static SystemAccounts: symbol = Symbol.for('SystemAccounts');
   public static CacheDir: symbol = Symbol.for('CacheDir');
   public static LockRenewalService: symbol = Symbol.for('LockRenewalService');
   public static LockManager: symbol = Symbol.for('LockManager');
   public static SoloEventBus: symbol = Symbol.for('SoloEventBus');
+  public static DeprecationRegistry: symbol = Symbol.for('DeprecationRegistry');
   public static K8Factory: symbol = Symbol.for('K8Factory');
   public static SoloLogger: symbol = Symbol.for('SoloLogger');
   public static PackageDownloader: symbol = Symbol.for('PackageDownloader');
   public static Zippy: symbol = Symbol.for('Zippy');
-  public static DependencyManager: symbol = Symbol.for('DependencyManager');
   public static Helm: symbol = Symbol.for('Helm');
-  public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
-  public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
-  public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
-  public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
-  public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');
-  public static VfkitDependencyManager: symbol = Symbol.for('VfkitDependencyManager');
-  public static GvproxyDependencyManager: symbol = Symbol.for('GvproxyDependencyManager');
   public static KindBuilder: symbol = Symbol.for('KindBuilder');
   public static ChartManager: symbol = Symbol.for('ChartManager');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');
@@ -56,10 +38,10 @@ export class InjectTokens {
   public static NodeCommand: symbol = Symbol.for('NodeCommand');
   public static DeploymentCommand: symbol = Symbol.for('DeploymentCommand');
   public static ExplorerCommand: symbol = Symbol.for('ExplorerCommand');
-  public static InitCommand: symbol = Symbol.for('InitCommand');
   public static MirrorNodeCommand: symbol = Symbol.for('MirrorNodeCommand');
   public static NetworkCommand: symbol = Symbol.for('NetworkCommand');
   public static RelayCommand: symbol = Symbol.for('RelayCommand');
+  public static CacheCommand: symbol = Symbol.for('CacheCommand');
   public static ClusterCommandTasks: symbol = Symbol.for('ClusterCommandTasks');
   public static ClusterCommandHandlers: symbol = Symbol.for('ClusterCommandHandlers');
   public static NodeCommandTasks: symbol = Symbol.for('NodeCommandTasks');
@@ -82,22 +64,63 @@ export class InjectTokens {
   public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
   public static OneShotCommand: symbol = Symbol.for('OneShotCommand');
   public static OneShotState: symbol = Symbol.for('OneShotState');
+  public static OneShotDeployOrchestrator: symbol = Symbol.for('OneShotDeployOrchestrator');
+  public static OneShotDestroyOrchestrator: symbol = Symbol.for('OneShotDestroyOrchestrator');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
   public static BackupRestoreCommand: symbol = Symbol.for('BackupRestoreCommand');
   public static OsPackageManager: symbol = Symbol.for('OsPackageManager');
-  public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
-  public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
   public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
   public static PostgresSharedResource: symbol = Symbol.for('PostgresSharedResource');
   public static SharedResourceManager: symbol = Symbol.for('SharedResourceManager');
 
+  // Dependencies
+  public static DependencyManager: symbol = Symbol.for('DependencyManager');
+  public static HelmExecutionBuilder: symbol = Symbol.for('HelmExecutionBuilder');
+  public static HelmDependencyManager: symbol = Symbol.for('HelmDependencyManager');
+  public static KindDependencyManager: symbol = Symbol.for('KindDependencyManager');
+  public static KubectlDependencyManager: symbol = Symbol.for('KubectlDependencyManager');
+  public static PodmanDependencyManager: symbol = Symbol.for('PodmanDependencyManager');
+  public static VfkitDependencyManager: symbol = Symbol.for('VfkitDependencyManager');
+  public static GvproxyDependencyManager: symbol = Symbol.for('GvproxyDependencyManager');
+  public static NetavarkDependencyManager: symbol = Symbol.for('NetavarkDependencyManager');
+  public static AardvarkDnsDependencyManager: symbol = Symbol.for('AardvarkDnsDependencyManager');
+  public static CraneDependencyManager: symbol = Symbol.for('CraneDependencyManager');
+
+  // Dependency Directories
+  public static HelmInstallationDirectory: symbol = Symbol.for('HelmInstallationDirectory');
+  public static KindInstallationDirectory: symbol = Symbol.for('KindInstallationDirectory');
+  public static KubectlInstallationDirectory: symbol = Symbol.for('KubectlInstallationDirectory');
+  public static PodmanInstallationDirectory: symbol = Symbol.for('PodmanInstallationDirectory');
+  public static PodmanDependenciesInstallationDirectory: symbol = Symbol.for('PodmanDependenciesInstallationDirectory');
+  public static CraneInstallationDirectory: symbol = Symbol.for('CraneInstallationDirectory');
+
+  // Dependency Versions
+  public static HelmVersion: symbol = Symbol.for('HelmVersion');
+  public static KindVersion: symbol = Symbol.for('KindVersion');
+  public static KubectlVersion: symbol = Symbol.for('KubectlVersion');
+  public static PodmanVersion: symbol = Symbol.for('PodmanVersion');
+  public static VfkitVersion: symbol = Symbol.for('VfkitVersion');
+  public static GvproxyVersion: symbol = Symbol.for('GvproxyVersion');
+  public static NetavarkVersion: symbol = Symbol.for('NetavarkVersion');
+  public static AardvarkDnsVersion: symbol = Symbol.for('AardvarkDnsVersion');
+  public static CraneVersion: symbol = Symbol.for('CraneVersion');
+
+  // Cache
+  public static CacheHandlerRegistry: symbol = Symbol.for('CacheHandlerRegistry');
+  public static CacheCatalogStore: symbol = Symbol.for('CacheCatalogStore');
+  public static CacheHealthInspector: symbol = Symbol.for('CacheHealthInspector');
+  public static ImageCacheHandlerBuilder: symbol = Symbol.for('ImageCacheHandlerBuilder');
+  public static ContainerEngineClient: symbol = Symbol.for('ContainerEngineClient');
+  public static ContainerEngineResourceInspector: symbol = Symbol.for('ContainerEngineResourceInspector');
+
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
+  public static InitCommandDefinition: symbol = Symbol.for('InitCommandDefinition');
   public static ClusterReferenceCommandDefinition: symbol = Symbol.for('ClusterReferenceCommandDefinition');
   public static ConsensusCommandDefinition: symbol = Symbol.for('ConsensusCommandDefinition');
   public static DeploymentCommandDefinition: symbol = Symbol.for('DeploymentCommandDefinition');
@@ -106,6 +129,7 @@ export class InjectTokens {
   public static LedgerCommandDefinition: symbol = Symbol.for('LedgerCommandDefinition');
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
+  public static CacheCommandDefinition: symbol = Symbol.for('CacheCommandDefinition');
   public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
   public static RapidFireCommandDefinition: symbol = Symbol.for('RapidFireCommandDefinition');
 }

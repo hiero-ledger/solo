@@ -24,6 +24,9 @@ export class NetworkTest extends BaseCommandTest {
     enableLocalBuildPathTesting: boolean,
     localBuildReleaseTag: string,
     loadBalancerEnabled: boolean,
+    tssEnabled: boolean,
+    wrapsEnabled: boolean,
+    releaseTagOverride?: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
@@ -44,14 +47,25 @@ export class NetworkTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.loadBalancerEnabled));
     }
 
-    if (enableLocalBuildPathTesting) {
+    if (!tssEnabled) {
+      argv.push(`--no-${Flags.tssEnabled.name}`);
+    }
+
+    // TSS is enabled by default; enabling WRAPs exercises recursive hinTS/TSS aggregation (CN >= v0.74).
+    if (wrapsEnabled) {
+      argv.push(optionFromFlag(Flags.wrapsEnabled));
+    }
+
+    if (releaseTagOverride) {
+      argv.push(optionFromFlag(Flags.releaseTag), releaseTagOverride);
+    } else if (enableLocalBuildPathTesting) {
       argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
     }
     argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static deploy(options: BaseTestOptions, releaseTagOverride?: string): void {
     const {
       testName,
       deployment,
@@ -60,6 +74,8 @@ export class NetworkTest extends BaseCommandTest {
       enableLocalBuildPathTesting,
       localBuildReleaseTag,
       loadBalancerEnabled,
+      tssEnabled,
+      wrapsEnabled,
       clusterReferenceNameArray,
       consensusNodesCount,
     } = options;
@@ -73,6 +89,9 @@ export class NetworkTest extends BaseCommandTest {
           enableLocalBuildPathTesting,
           localBuildReleaseTag,
           loadBalancerEnabled,
+          tssEnabled,
+          wrapsEnabled,
+          releaseTagOverride,
         ),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
@@ -183,6 +202,6 @@ export class NetworkTest extends BaseCommandTest {
         k8Factory.getK8(contexts[1]).secrets().list(namespace),
         'Secrets should be deleted in cluster[1]',
       ).eventually.to.have.lengthOf(0);
-    }).timeout(Duration.ofMinutes(2).toMillis());
+    }).timeout(Duration.ofMinutes(4).toMillis());
   }
 }

@@ -27,12 +27,13 @@ prometheus.endpointEnabled,                    true                        # dif
 merkleDb.initialCapacity,                        5000
 merkleDb.maxNumOfKeys,                           5000
 merkleDb.hashesRamToDiskThreshold,                  0
-merkleDb.hashStoreRamBufferSize,                10000
+merkleDb.hashStoreRamBufferSize,                 5000
 merkleDb.longListChunkSize,                     65536
-merkleDb.leafRecordCacheSize,                   65536
+merkleDb.leafRecordCacheSize,                   32768
 merkleDb.maxFileChannelsPerFileReader,              2
 merkleDb.maxThreadsPerFileChannel,                  1
 merkleDb.compactionThreads,                         1
+merkleDb.maxCompactionLevel,                        5
 merkleDb.percentHalfDiskHashMapFlushThreads,       50.0
 merkleDb.numHalfDiskHashMapFlushThreads,            1
 merkleDb.iteratorInputBufferBytes,             1048576

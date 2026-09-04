@@ -28,17 +28,17 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
+      consensus-node-version:
+        description: "Consensus node release tag to use"
+        type: string
+        required: false
+        default: ""
       released-or-latest:
         description: "Use released or latest version"
         type: boolean
         required: false
         default: false
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -46,6 +46,11 @@ on:
         default: ""
       use-release-example-zip:
         description: "Download example zip from latest release and run from extracted directory."
+        type: boolean
+        required: false
+        default: false
+      use-reduced-test-matrix:
+        description: "Use reduced test matrix for faster execution (only runs a subset of examples)."
         type: boolean
         required: false
         default: false
@@ -55,17 +60,17 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "22"
+        default: "24"
+      consensus-node-version:
+        description: "Consensus node release tag to use"
+        type: string
+        required: false
+        default: ""
       released-or-latest:
         description: "Use released or latest version"
         type: boolean
         required: false
         default: false
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -76,19 +81,35 @@ on:
         type: boolean
         required: false
         default: false
+      use-reduced-test-matrix:
+        description: "Use reduced test matrix for faster execution (only runs a subset of examples)."
+        type: boolean
+        required: false
+        default: false
   push:
     branches:
+      - main
+      - 'release/*'
       - trunk-merge/**
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
 
 permissions:
   contents: read
-  actions: read
 
 env:
-  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
 
 jobs:
@@ -99,13 +120,13 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Generate Matrix
@@ -114,19 +135,20 @@ jobs:
         run: |
           EXAMPLE_DIR="${{ inputs.example-directory }}"
           STANDARD_MATRIX_FILE=".github/workflows/support/examples-test-matrix.json"
-          TRUNK_MATRIX_FILE=".github/workflows/support/examples-trunkio-matrix.json"
+          REDUCED_MATRIX_FILE=".github/workflows/support/examples-reduced-matrix.json"
           EVENT_NAME="${{ github.event_name }}"
           REF_NAME="${{ github.ref_name }}"
+          USE_REDUCED_TEST_MATRIX="${{ inputs.use-reduced-test-matrix }}"
 
-          if [[ "${EVENT_NAME}" == "push" && "${REF_NAME}" == trunk-merge/* ]]; then
-            echo "Detected trunk.io merge queue context (push to ${REF_NAME})."
-            SOURCE_MATRIX_JSON=$(cat "${TRUNK_MATRIX_FILE}")
+          if [[ "${REF_NAME}" == trunk-merge/* || "${EVENT_NAME}" == "push" || "${EVENT_NAME}" == "pull_request" || "${USE_REDUCED_TEST_MATRIX}" == "true" ]]; then
+            echo "Using reduced matrix (${EVENT_NAME}:${REF_NAME}, use-reduced-test-matrix=${USE_REDUCED_TEST_MATRIX})."
+            SOURCE_MATRIX_JSON=$(cat "${REDUCED_MATRIX_FILE}")
           else
-            echo "Non-trunk merge queue context detected (${EVENT_NAME}:${REF_NAME})."
-            echo "Using concatenated matrix from standard + trunkio files."
-            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${STANDARD_MATRIX_FILE}" "${TRUNK_MATRIX_FILE}")
+            echo "Reduced-matrix conditions not met (${EVENT_NAME}:${REF_NAME}, use-reduced-test-matrix=${USE_REDUCED_TEST_MATRIX})."
+            echo "Using concatenated matrix from standard + reduced files."
+            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${REDUCED_MATRIX_FILE}" "${STANDARD_MATRIX_FILE}")
           fi
-          
+
           if [ -n "$EXAMPLE_DIR" ]; then
             # Filter to specific example
             echo "Filtering matrix for example directory: $EXAMPLE_DIR"
@@ -143,9 +165,9 @@ jobs:
             echo "Using all examples from selected matrix source"
             JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c .)
           fi
-          
+
           echo "Generated matrix: $JSON_CONTENT"
-          
+
           # Set the output variable 'matrix' with the JSON content
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
@@ -159,23 +181,23 @@ jobs:
       fail-fast: false
       matrix:
         example: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 3
+      max-parallel: 4
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: ${{ inputs.node-version || '22' }}
+          node-version: ${{ inputs.node-version || '24' }}
           cache: npm
 
       - name: Configure npm registry
@@ -192,14 +214,14 @@ jobs:
             npm ci
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           go-version: '1.22.3'
@@ -207,19 +229,38 @@ jobs:
       - name: Install grpcurl
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@d00c28104be4b06f4dd887196ccfc57b054aa069 # v1.9.3
+
+      - name: Resolve consensus node version and Java version
+        id: resolve-consensus-java
+        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .github/workflows/script/helper.sh
+          consensus_node_version="$(extract_version HEDERA_PLATFORM_VERSION version.ts)"
+          normalized_version="$(echo "${consensus_node_version}" | sed -E 's/^v//; s/-.*$//')"
+
+          java_version="21"
+          if printf '%s\n' '0.73.0' "${normalized_version}" | sort -C -V; then
+            java_version="25"
+          fi
+
+          echo "consensus-node-version=${consensus_node_version}" >> "${GITHUB_OUTPUT}"
+          echo "java-version=${java_version}" >> "${GITHUB_OUTPUT}"
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
-          java-version: 21.0.1
+          java-version: ${{ steps.resolve-consensus-java.outputs.java-version }}
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           cache-read-only: false
@@ -231,7 +272,8 @@ jobs:
           max_attempts: 3
           timeout_minutes: 30
           command: |
-            export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+            source .github/workflows/script/helper.sh
+            export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
             cd ..
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
@@ -240,8 +282,25 @@ jobs:
             cd ../solo
 
       - name: Build Application
+        if: ${{ !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
+
+      - name: Restore Solo Bin Cache
+        id: solo-bin-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-bin-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts') }}
+
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Cache Helm chart tarballs
         # helm dependency build pulls OCI chart tarballs (e.g. bitnamicharts/redis)
@@ -253,11 +312,26 @@ jobs:
         # subsequent run sharing the same version.ts hash. Docker Hub is contacted at most
         # once per version bump — preventing anonymous rate-limit 429s.
         if: ${{ matrix.example.local-java-build }}
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.solo/helm-chart-cache
           key: helm-chart-deps-${{ runner.os }}-${{ hashFiles('version.ts') }}
           restore-keys: helm-chart-deps-${{ runner.os }}-
+
+      - name: Install Helm
+        if: ${{ !cancelled() && !failure() }}
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: 'v3.14.2'
+
+      - name: Install Kind
+        if: ${{ !cancelled() && !failure() }}
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        with:
+          install_only: true
+          version: 'v0.29.0'
+          node_image: 'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211'
+          kubectl_version: 'v1.32.2'
 
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
@@ -340,7 +414,7 @@ jobs:
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"
-          
+
           # Export environment variables for Taskfile.
           # Release ZIP examples are not executed from the Solo repo checkout, so they must use released Solo CLI.
           if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then
@@ -349,19 +423,30 @@ jobs:
             export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
           fi
           echo "USE_RELEASED_VERSION: $USE_RELEASED_VERSION"
-          
+
+          if [ "${{ matrix.example.one-shot-with-block-node }}" != "" ] && [ "${{ matrix.example.one-shot-with-block-node }}" != "null" ]; then
+            export ONE_SHOT_WITH_BLOCK_NODE="${{ matrix.example.one-shot-with-block-node }}"
+            echo "ONE_SHOT_WITH_BLOCK_NODE: ${ONE_SHOT_WITH_BLOCK_NODE}"
+          fi
+
+          if [ "${{ matrix.example.block-node-enabled }}" != "" ] && [ "${{ matrix.example.block-node-enabled }}" != "null" ]; then
+            export BLOCK_NODE_ENABLED="${{ matrix.example.block-node-enabled }}"
+            echo "BLOCK_NODE_ENABLED: ${BLOCK_NODE_ENABLED}"
+          fi
+
           # Check if Taskfile.yml exists
           if [ ! -f "Taskfile.yml" ]; then
             echo "Warning: No Taskfile.yml found in ${{ matrix.example.directory }}"
             exit 1
           fi
-          
+
           # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
           # cancellation (e.g. triggered by a new commit on this PR) terminates the
           # test immediately rather than waiting up to 45 minutes for it to finish
           # on its own.
           echo "Starting task..."
-          export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' ../../version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+          source ../../.github/workflows/script/helper.sh
+          export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION ../../version.ts)
           TASK_PID=""
           TASK_PGID=""
           TASK_RC=0
@@ -380,6 +465,9 @@ jobs:
               fi
               wait "${TASK_PID}" 2>/dev/null || true
             fi
+            echo "Task was cancelled/timed out. Collecting deployment diagnostics logs..."
+            cd ../..
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT
@@ -396,20 +484,35 @@ jobs:
           TASK_PGID=""
           trap - SIGTERM SIGINT
 
-          if [ "${TASK_RC}" -ne 0 ]; then
-            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
-            cd ../..
-            npm run solo-test -- deployment diagnostics logs -q --dev || true
-            cd "examples/${{ matrix.example.directory }}"
+          echo "Always collecting deployment diagnostics logs after task completion..."
+          cd ../..
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
+          cd "examples/${{ matrix.example.directory }}"
 
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_RC}."
             exit "${TASK_RC}"
           fi
 
           echo "Task completed successfully"
 
+      - name: Save Solo Bin Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-bin-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts') }}
+
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'schedule' && !cancelled() && failure() }}
-        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
@@ -421,7 +524,7 @@ jobs:
             *Directory:* `${{ steps.prepare_example.outputs.display_dir }}`
             *Branch:* `${{ github.ref_name }}`
             *Commit:* ${{ github.sha }}
-            
+
             :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
           SLACK_FOOTER: ${{ github.workflow }}
 

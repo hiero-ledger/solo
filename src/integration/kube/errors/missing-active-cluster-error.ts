@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 
-export class MissingActiveClusterError extends SoloError {
+export class MissingActiveClusterError extends KubeError {
   public static MISSING_ACTIVE_CLUSTER: string =
     'No active kubernetes cluster found. Please create a cluster and set current context.';
 

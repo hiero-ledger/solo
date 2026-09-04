@@ -9,8 +9,11 @@ export class UpgradeChartOptionsBuilder {
   private _namespace?: string;
   private _kubeContext?: string;
   private _reuseValues: boolean = false;
-  private _extraArgs?: string;
+  private _valueArguments: string[] = [];
   private _version?: string;
+  private _install: boolean = false;
+  private _createNamespace: boolean = false;
+  private _dependencyUpdate: boolean = false;
 
   private constructor() {}
 
@@ -49,12 +52,30 @@ export class UpgradeChartOptionsBuilder {
   }
 
   /**
-   * Sets additional arguments to pass to the helm command.
-   * @param arguments_ The additional arguments.
+   * Sets ordered Helm value arguments.
+   * @param valueArguments Ordered Helm value arguments.
    * @returns This builder instance.
    */
-  public extraArgs(arguments_: string): UpgradeChartOptionsBuilder {
-    this._extraArgs = arguments_;
+  public valueArguments(valueArguments: string[]): UpgradeChartOptionsBuilder {
+    this._valueArguments = [...valueArguments];
+    return this;
+  }
+
+  /**
+   * Specify whether to install if release is not found
+   * @param install
+   */
+  public install(install: boolean): UpgradeChartOptionsBuilder {
+    this._install = install;
+    return this;
+  }
+
+  /**
+   * Specify whether to create the namespace if not found
+   * @param createNamespace
+   */
+  public createNamespace(createNamespace: boolean): UpgradeChartOptionsBuilder {
+    this._createNamespace = createNamespace;
     return this;
   }
 
@@ -68,13 +89,26 @@ export class UpgradeChartOptionsBuilder {
     return this;
   }
 
+  /**
+   * Sets whether to run helm dependency update before upgrading.
+   * @param dependencyUpdate Whether to update dependencies.
+   * @returns This builder instance.
+   */
+  public dependencyUpdate(dependencyUpdate: boolean): UpgradeChartOptionsBuilder {
+    this._dependencyUpdate = dependencyUpdate;
+    return this;
+  }
+
   public build(): UpgradeChartOptions {
     return new UpgradeChartOptions(
       this._namespace,
       this._kubeContext,
       this._reuseValues,
-      this._extraArgs,
+      [...this._valueArguments],
       this._version,
+      this._install,
+      this._createNamespace,
+      this._dependencyUpdate,
     );
   }
 }

@@ -12,6 +12,8 @@ export class EndToEndTestSuiteBuilder {
   private clusterCount: number;
   private consensusNodesCount: number;
   private loadBalancerEnabled: boolean;
+  private tssEnabled: boolean = true;
+  private wrapsEnabled: boolean;
   private pinger: boolean;
   private realm: number;
   private shard: number;
@@ -26,6 +28,7 @@ export class EndToEndTestSuiteBuilder {
   private logXml: string;
   private settingsTxt: string;
   private javaFlightRecorderConfiguration: string;
+  private chainId: number;
 
   private testSuiteCallback: (
     endToEndTestSuite: EndToEndTestSuite,
@@ -64,6 +67,16 @@ export class EndToEndTestSuiteBuilder {
 
   public withLoadBalancerEnabled(loadBalancerEnabled: boolean): this {
     this.loadBalancerEnabled = loadBalancerEnabled;
+    return this;
+  }
+
+  public withTssEnabled(tssEnabled: boolean): this {
+    this.tssEnabled = tssEnabled;
+    return this;
+  }
+
+  public withWrapsEnabled(wrapsEnabled: boolean): this {
+    this.wrapsEnabled = wrapsEnabled;
     return this;
   }
 
@@ -147,6 +160,11 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  public withChainId(chainId: number): this {
+    this.chainId = chainId;
+    return this;
+  }
+
   public build(): EndToEndTestSuite {
     if (!this.testName || !this.testSuiteName || !this.testSuiteCallback) {
       throw new Error('Missing required properties to build EndToEndTestSuite');
@@ -159,6 +177,8 @@ export class EndToEndTestSuiteBuilder {
       this.clusterCount || 1, // Default to 1 if not specified
       this.consensusNodesCount || 1,
       this.loadBalancerEnabled || false,
+      this.tssEnabled,
+      this.wrapsEnabled || false,
       this.pinger || false,
       this.realm || 0,
       this.shard || 0,
@@ -173,6 +193,7 @@ export class EndToEndTestSuiteBuilder {
       this.logXml,
       this.settingsTxt,
       this.javaFlightRecorderConfiguration,
+      this.chainId || 0,
       this.testSuiteCallback,
     );
   }

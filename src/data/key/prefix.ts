@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {UnsupportedOperationError} from '../../business/errors/unsupported-operation-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {Regex} from '../../business/utils/regex.js';
 import {type KeyFormatter} from './key-formatter.js';
 import {ConfigKeyFormatter} from './config-key-formatter.js';
@@ -10,7 +10,7 @@ export class Prefix {
 
   private constructor() {
     // Utility class
-    throw new UnsupportedOperationError('Cannot instantiate utility class');
+    throw new SoloErrors.internal.unsupportedOperation('Cannot instantiate utility class');
   }
 
   public static add(key: string, prefix?: string, formatter: KeyFormatter = ConfigKeyFormatter.instance()): string {

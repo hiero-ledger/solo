@@ -14,7 +14,13 @@ describe('LayeredModelConfigSource', (): void => {
 
   it('test modelData getter and setter', (): void => {
     // @ts-expect-error - testing protected constructor
-    const source = new LayeredModelConfigSource('key', {}, new YamlFileStorageBackend('.'), {});
+    const source: LayeredModelConfigSource<string> = new LayeredModelConfigSource(
+      'key',
+      {},
+      new YamlFileStorageBackend('.'),
+      {},
+    );
+    // @ts-expect-error - testing protected setter
     source.modelData = 'modelData';
     expect(source.modelData).to.equal('modelData');
   });

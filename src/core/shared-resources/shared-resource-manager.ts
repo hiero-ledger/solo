@@ -8,12 +8,29 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {type ChartManager} from '../chart-manager.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import * as constants from '../../core/constants.js';
+import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
+import {HelmSchedulingValues} from '../util/helm-scheduling-values.js';
 
 @injectable()
 export class SharedResourceManager {
+  private static readonly ROLE_SCHEDULING_KEY: string = 'solo.hashgraph.io/role';
+  private static readonly POSTGRES_SCHEDULING_SOURCE_PATHS: string[] = ['postgresql.postgresql', 'postgresql.primary'];
+  private static readonly REDIS_SCHEDULING_SOURCE_PATHS: string[] = ['redis', 'redis.master', 'redis.replica'];
+  private static readonly REDIS_SCHEDULING_TARGET_PATHS: string[] = ['redis.master', 'redis.replica'];
+  private static readonly REDIS_ROLE_FALLBACK_PATHS: string[] = [
+    'postgresql.postgresql',
+    'postgresql.primary',
+    'importer',
+    'grpc',
+    'rest',
+    'restjava',
+    'web3',
+    'monitor',
+  ];
+
   private postgresEnabled: boolean = false;
   private redisEnabled: boolean = false;
-  private additionalValuesArgument: string = '';
+  private additionalChartValues: HelmChartValues = new HelmChartValues();
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -25,8 +42,12 @@ export class SharedResourceManager {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
   }
 
-  public setAdditionalValuesArgument(additionalArguments: string): void {
-    this.additionalValuesArgument = additionalArguments;
+  public setAdditionalChartValues(additionalChartValues: HelmChartValues): void {
+    this.additionalChartValues = additionalChartValues.clone();
+  }
+
+  public setSchedulingChartValues(sourceChartValues: HelmChartValues): void {
+    this.additionalChartValues.add(SharedResourceManager.buildSchedulingChartValues(sourceChartValues));
   }
 
   public enablePostgres(): void {
@@ -68,7 +89,7 @@ export class SharedResourceManager {
     chartDirectory: string,
     soloChartVersion: string,
     context?: string,
-    valuesArgumentsMap?: Record<string, string>,
+    valuesArgumentsMap?: Record<string, HelmChartValue>,
   ): Promise<boolean> {
     const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
       namespace,
@@ -83,18 +104,15 @@ export class SharedResourceManager {
       return false;
     }
 
-    valuesArgumentsMap = {
-      ...valuesArgumentsMap,
-      'postgresql.enabled': this.postgresEnabled.toString(),
-      'redis.enabled': this.redisEnabled.toString(),
-    };
+    const chartValues: HelmChartValues = new HelmChartValues()
+      .setMany({
+        ...valuesArgumentsMap,
+        'postgresql.enabled': this.postgresEnabled,
+        'redis.enabled': this.redisEnabled,
+      })
+      .add(this.additionalChartValues);
 
-    const values: string = Object.entries(valuesArgumentsMap)
-      .map(([key, value]): string => `--set ${key}=${value}`)
-      .join(' ');
-
-    const fullValues: string = this.additionalValuesArgument ? `${values} ${this.additionalValuesArgument}` : values;
-    this.additionalValuesArgument = '';
+    this.additionalChartValues = new HelmChartValues();
 
     await this.chartManager.install(
       namespace,
@@ -102,10 +120,27 @@ export class SharedResourceManager {
       constants.SOLO_SHARED_RESOURCES_CHART,
       chartDirectory || constants.SOLO_TESTING_CHART_URL,
       soloChartVersion,
-      fullValues,
+      chartValues,
       context,
     );
 
     return true;
+  }
+
+  private static buildSchedulingChartValues(sourceChartValues: HelmChartValues): HelmChartValues {
+    return HelmSchedulingValues.buildMappedSchedulingChartValues(sourceChartValues, [
+      {
+        sourcePaths: SharedResourceManager.POSTGRES_SCHEDULING_SOURCE_PATHS,
+        targetPaths: ['postgresql.primary'],
+      },
+      {
+        fallback: {
+          key: SharedResourceManager.ROLE_SCHEDULING_KEY,
+          sourcePaths: SharedResourceManager.REDIS_ROLE_FALLBACK_PATHS,
+        },
+        sourcePaths: SharedResourceManager.REDIS_SCHEDULING_SOURCE_PATHS,
+        targetPaths: SharedResourceManager.REDIS_SCHEDULING_TARGET_PATHS,
+      },
+    ]);
   }
 }

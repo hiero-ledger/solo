@@ -6,9 +6,10 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
+import {SubprocessCommandProfile} from '../subprocess-command-profile.js';
 import {PackageDownloader} from '../package-downloader.js';
-import util from 'node:util';
-import {SoloError} from '../errors/solo-error.js';
+import {format} from 'node:util';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const KUBECTL_RELEASE_BASE_URL: string = 'https://dl.k8s.io/release';
@@ -39,7 +40,7 @@ export class KubectlDependencyManager extends BaseDependencyManager {
    * Get the Kubectl artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(
+    return format(
       OperatingSystem.isWin32() ? KUBECTL_WINDOWS_ARTIFACT_TEMPLATE : KUBECTL_ARTIFACT_TEMPLATE,
       this.getRequiredVersion(),
       OperatingSystem.getFormattedPlatform(),
@@ -54,14 +55,11 @@ export class KubectlDependencyManager extends BaseDependencyManager {
       // Using the null device ensures kubectl only reports the client version without any
       // server or credential-related operations.
       const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
-      const output: string[] = await this.run(
-        `"${executableWithPath}" version --client`,
-        [],
-        false,
-        false,
-        {KUBECONFIG: nullDevice},
-        30_000,
-      );
+      const output: string[] = await this.run(executableWithPath, ['version', '--client'], {
+        commandProfile: SubprocessCommandProfile.KUBECTL,
+        environmentVariablesToAppend: {KUBECONFIG: nullDevice},
+        timeoutMs: 30_000,
+      });
       this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {
@@ -75,10 +73,10 @@ export class KubectlDependencyManager extends BaseDependencyManager {
           }
         }
       }
-    } catch (error: any) {
-      throw new SoloError('Failed to check kubectl version', error);
+    } catch (error) {
+      throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl', error);
     }
-    throw new SoloError('Failed to check kubectl version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl');
   }
 
   protected getDownloadURL(): string {

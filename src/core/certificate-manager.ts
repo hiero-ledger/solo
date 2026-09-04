@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {Flags as flags} from '../commands/flags.js';
 import fs from 'node:fs';
 import {Templates} from './templates.js';
@@ -46,9 +45,9 @@ export class CertificateManager {
     switch (type) {
       //? HAProxy
       case GrpcProxyTlsEnums.GRPC: {
-        const certData = fs.readFileSync(cert).toString();
-        const keyData = fs.readFileSync(key).toString();
-        const pem = `${certData}\n${keyData}`;
+        const certData: string = fs.readFileSync(cert).toString();
+        const keyData: string = fs.readFileSync(key).toString();
+        const pem: string = `${certData}\n${keyData}`;
 
         return {
           'tls.pem': Buffer.from(pem).toString('base64'),
@@ -73,25 +72,27 @@ export class CertificateManager {
    * @param key - file path to the key file
    * @param type - the certificate type if it's for gRPC or gRPC Web
    */
-  private async copyTlsCertificate(nodeAlias: NodeAlias, cert: string, key: string, type: GrpcProxyTlsEnums) {
+  private async copyTlsCertificate(
+    nodeAlias: NodeAlias,
+    cert: string,
+    key: string,
+    type: GrpcProxyTlsEnums,
+  ): Promise<void> {
     try {
       const data: Record<string, string> = this.buildSecret(cert, key, type);
-      const name = Templates.renderGrpcTlsCertificatesSecretName(nodeAlias, type);
-      const namespace = this.getNamespace();
-      const labels = Templates.renderGrpcTlsCertificatesSecretLabelObject(nodeAlias, type);
+      const name: string = Templates.renderGrpcTlsCertificatesSecretName(nodeAlias, type);
+      const namespace: NamespaceName = this.getNamespace();
+      const labels: Record<string, string> = Templates.renderGrpcTlsCertificatesSecretLabelObject(nodeAlias, type);
 
-      const isSecretCreated = await this.k8Factory
+      const isSecretCreated: boolean = await this.k8Factory
         .default()
         .secrets()
         .createOrReplace(namespace, name, SecretType.OPAQUE, data, labels);
       if (!isSecretCreated) {
-        throw new SoloError(`failed to create secret for TLS certificates for node '${nodeAlias}'`);
+        throw new SoloErrors.component.certificateSecretCreationFailed(nodeAlias);
       }
-    } catch (error: Error | any) {
-      const errorMessage =
-        'failed to copy tls certificate to secret ' +
-        `'${Templates.renderGrpcTlsCertificatesSecretName(nodeAlias, type)}': ${error.message}`;
-      throw new SoloError(errorMessage, error);
+    } catch (error) {
+      throw new SoloErrors.component.certificateSecretCreationFailed(nodeAlias, error);
     }
   }
 
@@ -130,16 +131,13 @@ export class CertificateManager {
     };
 
     if (grpcTlsParsedValues.certs.length !== grpcTlsParsedValues.keys.length) {
-      throw new SoloError(
-        "The structure of the gRPC TLS Certificate doesn't match" +
-          `Certificates: ${grpcTlsCertificatePathsUnparsed}, Keys: ${grpcTlsKeyPathsUnparsed}`,
-      );
+      throw new SoloErrors.component.grpcTlsCertMismatch(grpcTlsCertificatePathsUnparsed, grpcTlsKeyPathsUnparsed);
     }
 
     if (grpcTlsParsedValues.certs.length !== grpcTlsParsedValues.keys.length) {
-      throw new SoloError(
-        "The structure of the gRPC Web TLS Certificate doesn't match" +
-          `Certificates: ${grpcWebTlsCertificatePathsUnparsed}, Keys: ${grpcWebTlsKeyPathsUnparsed}`,
+      throw new SoloErrors.component.grpcWebTlsCertMismatch(
+        grpcWebTlsCertificatePathsUnparsed,
+        grpcWebTlsKeyPathsUnparsed,
       );
     }
 
@@ -149,9 +147,9 @@ export class CertificateManager {
       }
 
       for (const [index, cert_] of certs.entries()) {
-        const nodeAlias = cert_.nodeAlias;
-        const cert = cert_.filePath;
-        const key = keys[index].filePath;
+        const nodeAlias: NodeAlias = cert_.nodeAlias;
+        const cert: string = cert_.filePath;
+        const key: string = keys[index].filePath;
 
         subTasks.push({
           title: `${title} for node ${nodeAlias}`,
@@ -179,12 +177,12 @@ export class CertificateManager {
   private parseAndValidate(input: string, type: string): {nodeAlias: NodeAlias; filePath: string}[] {
     return input.split(',').map((line, index) => {
       if (!line.includes('=')) {
-        throw new SoloError(`Failed to parse input ${input} of type ${type} on ${line}, index ${index}`);
+        throw new SoloErrors.component.certificateParsingFailed(input, type, line as unknown as number, index);
       }
 
       const [nodeAlias, filePath] = line.split('=') as [NodeAlias, string];
       if (!nodeAlias?.length || !filePath?.length) {
-        throw new SoloError(`Failed to parse input ${input} of type ${type} on ${line}, index ${index}`);
+        throw new SoloErrors.component.certificateParsingFailed(input, type, line as unknown as number, index);
       }
 
       let fileExists = false;
@@ -194,7 +192,7 @@ export class CertificateManager {
         fileExists = false;
       }
       if (!fileExists) {
-        throw new SoloError(`File doesn't exist on path ${input} input of type ${type} on ${line}, index ${index}`);
+        throw new SoloErrors.component.certificateFileNotFound(input, type, line as unknown as number, index);
       }
 
       return {nodeAlias, filePath};
@@ -204,7 +202,7 @@ export class CertificateManager {
   private getNamespace() {
     const ns = this.configManager.getFlag<NamespaceName>(flags.namespace);
     if (!ns) {
-      throw new MissingArgumentError('namespace is not set');
+      throw new SoloErrors.validation.missingArgument('namespace is not set');
     }
     return ns;
   }

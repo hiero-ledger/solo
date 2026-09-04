@@ -159,6 +159,8 @@ describe('PodmanDependencyManager', (): void => {
       undefined,
       undefined,
       undefined,
+      undefined,
+      undefined,
     );
     expect(podmanDependencyManager.getRequiredVersion()).to.equal(version.PODMAN_VERSION);
   });
@@ -171,6 +173,8 @@ describe('PodmanDependencyManager', (): void => {
       undefined,
       undefined,
       undefined,
+      undefined,
+      undefined,
     );
     expect(podmanDependencyManager.isInstalledLocally()).not.to.be.ok;
   });
@@ -179,6 +183,8 @@ describe('PodmanDependencyManager', (): void => {
     const podmanDependencyManager: PodmanDependencyManager = new PodmanDependencyManager(
       undefined,
       temporaryDirectory,
+      undefined,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -201,6 +207,8 @@ describe('PodmanDependencyManager', (): void => {
         undefined,
         undefined,
         undefined,
+        undefined,
+        undefined,
       );
 
       // Mock fetch for fetchReleaseInfo
@@ -219,7 +227,7 @@ describe('PodmanDependencyManager', (): void => {
       const executableWithPath: string = '/usr/local/bin/podman';
       sandbox
         .stub(ShellRunner.prototype, 'run')
-        .withArgs(`"${executableWithPath}" --version`)
+        .withArgs(executableWithPath, ['--version'])
         .resolves([`podman version ${PODMAN_VERSION}`]);
       const version: string = await podmanDependencyManager.getVersion(executableWithPath);
       expect(version).to.equal(PODMAN_VERSION);
@@ -230,7 +238,7 @@ describe('PodmanDependencyManager', (): void => {
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('Failed to check podman version');
       }
     });
@@ -240,7 +248,7 @@ describe('PodmanDependencyManager', (): void => {
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('Failed to check podman version');
       }
     });
@@ -248,7 +256,7 @@ describe('PodmanDependencyManager', (): void => {
     it('shouldInstall should return false when Docker is installed', async (): Promise<void> => {
       sandbox
         .stub(ShellRunner.prototype, 'run')
-        .withArgs(`"${constants.DOCKER}" --version`)
+        .withArgs(constants.DOCKER, ['--version'])
         .resolves(['Docker version 20.10.8']);
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.false;
@@ -257,7 +265,7 @@ describe('PodmanDependencyManager', (): void => {
     it('shouldInstall should return true when Docker is not installed', async (): Promise<void> => {
       sandbox
         .stub(ShellRunner.prototype, 'run')
-        .withArgs(`"${constants.DOCKER}" --version`)
+        .withArgs(constants.DOCKER, ['--version'])
         .rejects(new Error('Docker not found'));
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.true;
@@ -272,17 +280,37 @@ describe('PodmanDependencyManager', (): void => {
         undefined,
         undefined,
         undefined,
+        undefined,
+        undefined,
       );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('amd64');
 
       // Test arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'arm64', undefined, undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'arm64',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
 
       // Test aarch64 to arm64 conversion
-      manager = new PodmanDependencyManager(undefined, temporaryDirectory, 'aarch64', undefined, undefined, undefined);
+      manager = new PodmanDependencyManager(
+        undefined,
+        temporaryDirectory,
+        'aarch64',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      );
       // @ts-expect-error TS2341: Property getArch is protected
       expect(manager.getArch()).to.equal('arm64');
     });
@@ -295,6 +323,8 @@ describe('PodmanDependencyManager', (): void => {
         undefined,
         temporaryDirectory,
         'x64',
+        undefined,
+        undefined,
         undefined,
         undefined,
         undefined,
@@ -316,8 +346,9 @@ describe('PodmanDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
-        expect(error.message).to.include('GitHub API request failed with status 404');
+      } catch (error) {
+        expect(error.message).to.include('GitHub API request');
+        expect(error.message).to.include('returned HTTP 404');
       }
     });
 
@@ -328,7 +359,7 @@ describe('PodmanDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('No releases found');
       }
     });
@@ -340,8 +371,8 @@ describe('PodmanDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
-        expect(error.message).to.include('No matching asset found for');
+      } catch (error) {
+        expect(error.message).to.include('No matching GitHub release asset found');
       }
     });
   });
@@ -361,13 +392,15 @@ describe('PodmanDependencyManager', (): void => {
         undefined,
         undefined,
         undefined,
+        undefined,
+        undefined,
       );
       podmanDependencyManager.uninstallLocal();
       runStub = sandbox.stub(podmanDependencyManager, 'run');
 
       // Mock fetch for fetchReleaseInfo
       originalFetch = globalThis.fetch;
-      globalThis.fetch = sandbox.stub() as any;
+      globalThis.fetch = sandbox.stub();
       fetchStub = globalThis.fetch as SinonStub;
 
       // Configure fetch to return valid mock response
@@ -398,7 +431,7 @@ describe('PodmanDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalPodmanPath}" --version`).resolves([`podman version ${version.PODMAN_VERSION}`]);
+      runStub.withArgs(fakeGlobalPodmanPath, ['--version']).resolves([`podman version ${version.PODMAN_VERSION}`]);
       existsSyncStub.withArgs(`${temporaryDirectory}/podman`).returns(false);
 
       try {
@@ -409,7 +442,7 @@ describe('PodmanDependencyManager', (): void => {
         expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
 
         // Should return global path since it meets requirements
-        expect(await podmanDependencyManager.getExecutable()).to.equal(constants.PODMAN);
+        expect(await podmanDependencyManager.getExecutable()).to.equal(fakeGlobalPodmanPath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -426,9 +459,9 @@ describe('PodmanDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalPodmanPath}" --version`).resolves([`podman version ${PODMAN_LOW_VERSION}`]);
+      runStub.withArgs(fakeGlobalPodmanPath, ['--version']).resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       runStub
-        .withArgs(`"${PathEx.join(temporaryDirectory, 'podman')}" --version`)
+        .withArgs(PathEx.join(temporaryDirectory, 'podman'), ['--version'])
         .resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'podman')).returns(true);
 
@@ -439,7 +472,9 @@ describe('PodmanDependencyManager', (): void => {
 
         expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(fs.existsSync(PathEx.join(temporaryDirectory, 'podman'))).to.be.ok;
-        expect(await podmanDependencyManager.getExecutable()).to.equal(constants.PODMAN);
+        expect(await podmanDependencyManager.getExecutable()).to.equal(
+          PathEx.join(temporaryDirectory, constants.PODMAN),
+        );
       } finally {
         process.env.PATH = originalPath;
       }

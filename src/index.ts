@@ -2,33 +2,48 @@
 
 import chalk from 'chalk';
 import 'dotenv/config';
-// eslint-disable-next-line n/no-extraneous-import
 import 'reflect-metadata';
 import {container} from 'tsyringe-neo';
 import {ListrLogger} from 'listr2';
 
 import * as constants from './core/constants.js';
+import {type AnyObject} from './types/aliases.js';
 import {CustomProcessOutput} from './core/process-output.js';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import {Container} from './core/dependency-injection/container-init.js';
 import {InjectTokens} from './core/dependency-injection/inject-tokens.js';
-import {SoloError} from './core/errors/solo-error.js';
+import {SoloErrors} from './core/errors/solo-errors.js';
+import {type SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
+import {VersionUpdateNotifier} from './core/version-update-notifier.js';
+import {HomebrewDeprecationNotifier} from './core/homebrew-deprecation-notifier.js';
 import {getSoloVersion} from '../version.js';
 
 if (!process.stdout.isTTY) {
   chalk.level = 0;
 }
 
+// eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   try {
-    const developerMode: boolean = argv.includes('--dev');
+    // New files default to 0640 and new directories to 0750. No-op on Windows.
+    process.umask(0o027);
+
+    // `--dev` is the deprecated alias of `--debug`; accept either to raise the log level early.
+    const developerMode: boolean = argv.includes('--debug') || argv.includes('--dev');
     const soloLogLevel: string = developerMode || constants.SOLO_DEV_OUTPUT ? 'debug' : constants.SOLO_LOG_LEVEL;
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, soloLogLevel);
-  } catch (error) {
-    console.error(`Error initializing container: ${error?.message}`, error);
-    throw new SoloError('Error initializing container');
+  } catch (incomingError) {
+    const error: SoloError = new SoloErrors.system.initSystemFilesFailed(
+      incomingError instanceof Error ? incomingError : new Error(String(incomingError)),
+    );
+    if (context.logger) {
+      context.logger.showUserError(error);
+    } else {
+      console.error(`Error initializing container: ${error?.message}`, error);
+    }
+    throw error;
   }
 
   const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
@@ -39,14 +54,14 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
   }
   process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise): void => {
     logger.showUserError(
-      new SoloError(
-        `Unhandled Rejection at: ${JSON.stringify(promise)}, reason: ${JSON.stringify(reason)}, target: ${reason.target?.url}`,
-        reason.error,
+      new SoloErrors.internal.commandReturnedFalse(
+        `Unhandled Rejection at: ${JSON.stringify(promise)}`,
+        `reason: ${JSON.stringify(reason)}`,
       ),
     );
   });
   process.on('uncaughtException', (error, origin): void => {
-    logger.showUserError(new SoloError(`Uncaught Exception: ${error}, origin: ${origin}`, error));
+    logger.showUserError(new SoloErrors.internal.commandReturnedFalse('uncaughtException', String(origin)));
   });
 
   logger.debug('Initializing Solo CLI');
@@ -63,7 +78,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
       const outputArgument: string = argv[outputFlagIndex];
 
       if (outputArgument.startsWith('--output=')) {
-        outputFormat = outputArgument.split('=')[1] ?? '';
+        outputFormat = outputArgument.split('=', 2)[1] ?? '';
       } else if (outputFlagIndex + 1 < argv.length) {
         outputFormat = argv[outputFlagIndex + 1];
       }
@@ -100,5 +115,8 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     throw new SilentBreak('displayed version information, exiting');
   }
 
-  return ArgumentProcessor.process(argv);
+  const result: AnyObject = await ArgumentProcessor.process(argv);
+  await VersionUpdateNotifier.notifyIfUpdateAvailable(logger);
+  HomebrewDeprecationNotifier.notifyIfInstalledViaHomebrew(logger);
+  return result;
 }

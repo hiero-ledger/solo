@@ -23,6 +23,22 @@ export type SystemAccount = {
   privateKey?: string;
 };
 
+export type FormattedSystemAccount = {
+  name: string;
+  accountId: string;
+  publicKey: string;
+  privateKey?: string;
+};
+
+export type FormattedCreatedAccount = {
+  accountId: string;
+  privateKey: string;
+  publicKey: string;
+  balance: string;
+  group: string;
+  publicAddress?: string;
+};
+
 const defaultBalance: Hbar = Hbar.from(1_000_000, HbarUnit.Hbar);
 
 const ecdsaKeys: string[] = [

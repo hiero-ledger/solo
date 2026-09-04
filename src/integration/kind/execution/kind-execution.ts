@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';
+import {type ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
 import {KindExecutionException} from '../errors/kind-execution-exception.js';
 import {KindParserException} from '../errors/kind-parser-exception.js';
 import {type Duration} from '../../../core/time/duration.js';
@@ -12,19 +12,20 @@ export class KindExecution {
   /**
    * The message for a timeout error.
    */
-  private static readonly MSG_TIMEOUT_ERROR = 'Timed out waiting for the process to complete';
+  private static readonly MSG_TIMEOUT_ERROR: string = 'Timed out waiting for the process to complete';
   /**
    * The message for an error deserializing the output into a specified class.
    */
-  private static readonly MSG_DESERIALIZATION_ERROR = 'Failed to deserialize the output into the specified class: %s';
+  private static readonly MSG_DESERIALIZATION_ERROR: string =
+    'Failed to deserialize the output into the specified class: %s';
   /**
    * The message for an error reading the output from the process.
    */
-  private static readonly MSG_READ_OUTPUT_ERROR = 'Failed to read the output from the process';
+  private static readonly MSG_READ_OUTPUT_ERROR: string = 'Failed to read the output from the process';
   /**
    * The message for a deserialization error.
    */
-  private static readonly MSG_LIST_DESERIALIZATION_ERROR =
+  private static readonly MSG_LIST_DESERIALIZATION_ERROR: string =
     'Failed to deserialize the output into a list of the specified class: %s';
 
   private readonly process: ChildProcessWithoutNullStreams;
@@ -32,6 +33,7 @@ export class KindExecution {
   private output: string[] = [];
   private errOutput: string[] = [];
   private exitCodeValue: number | null = null;
+  private spawnError: Error | undefined;
 
   /**
    * Creates a new KindExecution instance.
@@ -39,9 +41,15 @@ export class KindExecution {
    * @param environmentVariables The environment variables to set
    */
   public constructor(command: string[], environmentVariables: Record<string, string>) {
-    this.process = spawn(command.join(' '), {
-      shell: true,
-      env: {...process.env, ...environmentVariables},
+    const [executable, ...commandArguments]: string[] = command;
+    this.process = spawn(executable, commandArguments, {
+      shell: false,
+      env: environmentVariables,
+    });
+    // With shell:false a missing/invalid executable surfaces as an async 'error' event; capture it so it
+    // is never an unhandled exception and can be surfaced by waitFor()/waitForTimeout().
+    this.process.on('error', (error: Error): void => {
+      this.spawnError = error;
     });
   }
 
@@ -49,10 +57,19 @@ export class KindExecution {
    * Waits for the process to complete.
    * @returns A promise that resolves when the process completes
    */
-  async waitFor(): Promise<void> {
+  private async waitFor(): Promise<void> {
     return new Promise((resolve, reject) => {
+      const rejectWithSpawnError: (error: Error) => void = (error: Error): void => {
+        reject(new KindExecutionException(1, `Failed to start process: ${error.message}`, '', error.message));
+      };
+      if (this.spawnError) {
+        rejectWithSpawnError(this.spawnError);
+        return;
+      }
+      this.process.on('error', rejectWithSpawnError);
+
       // const output: string[] = [];
-      this.process.stdout.on('data', d => {
+      this.process.stdout.on('data', (d): void => {
         const items: string[] = d.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
@@ -61,7 +78,7 @@ export class KindExecution {
         }
       });
 
-      this.process.stderr.on('data', d => {
+      this.process.stderr.on('data', (d): void => {
         const items: string[] = d.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
@@ -70,7 +87,7 @@ export class KindExecution {
         }
       });
 
-      this.process.on('close', code => {
+      this.process.on('close', (code): void => {
         this.exitCodeValue = code;
         if (code === 0) {
           resolve();
@@ -93,13 +110,23 @@ export class KindExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves with true if the process completed, or false if it timed out
    */
-  async waitForTimeout(timeout: Duration): Promise<boolean> {
-    const timeoutPromise = new Promise<boolean>(resolve => {
-      setTimeout(() => resolve(false), timeout.toMillis());
+  private async waitForTimeout(timeout: Duration): Promise<boolean> {
+    const timeoutPromise: Promise<boolean> = new Promise((resolve): void => {
+      setTimeout((): void => resolve(false), timeout.toMillis());
     });
 
-    const successPromise = new Promise<boolean>(resolve => {
-      this.process.on('close', code => {
+    const successPromise: Promise<boolean> = new Promise((resolve, reject): void => {
+      // Reject (rather than resolve false) on a spawn failure so the real start-up error surfaces instead
+      // of being masked as a generic timeout by responseAsTimeout()/callTimeout().
+      const rejectWithSpawnError: (error: Error) => void = (error: Error): void => {
+        reject(new KindExecutionException(1, `Failed to start process: ${error.message}`, '', error.message));
+      };
+      if (this.spawnError) {
+        rejectWithSpawnError(this.spawnError);
+        return;
+      }
+      this.process.on('error', rejectWithSpawnError);
+      this.process.on('close', (code): void => {
         resolve(code === 0);
       });
     });
@@ -111,7 +138,7 @@ export class KindExecution {
    * Gets the exit code of the process.
    * @returns The exit code or null if the process hasn't completed
    */
-  exitCode(): number | null {
+  private exitCode(): number | null {
     return this.exitCodeValue;
   }
 
@@ -119,7 +146,7 @@ export class KindExecution {
    * Gets the standard output of the process.
    * @returns concatenated standard output as a string
    */
-  standardOutput(): string {
+  private standardOutput(): string {
     return this.output.join('\n');
   }
 
@@ -127,7 +154,7 @@ export class KindExecution {
    * Gets the standard error of the process.
    * @returns concatenated standard error as a string
    */
-  standardError(): string {
+  private standardError(): string {
     return this.errOutput.join('\n');
   }
 
@@ -136,7 +163,7 @@ export class KindExecution {
    * @param responseClass The class to parse the response into
    * @returns A promise that resolves with the parsed response
    */
-  async responseAs<T>(responseClass: new (...arguments_: any[]) => T): Promise<T> {
+  public async responseAs<T>(responseClass: new (...arguments_: any[]) => T): Promise<T> {
     return this.responseAsTimeout(responseClass, null);
   }
 
@@ -146,41 +173,43 @@ export class KindExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves with the parsed response or rejects on timeout
    */
-  async responseAsTimeout<T>(responseClass: new (...arguments_: any[]) => T, timeout: Duration | null): Promise<T> {
+  private async responseAsTimeout<T>(
+    responseClass: new (...arguments_: any[]) => T,
+    timeout: Duration | null,
+  ): Promise<T> {
     if (timeout === null) {
       await this.waitFor();
     } else {
-      const success = await this.waitForTimeout(timeout);
+      const success: boolean = await this.waitForTimeout(timeout);
       if (!success) {
         throw new KindParserException(KindExecution.MSG_TIMEOUT_ERROR);
       }
     }
 
-    const exitCode = this.exitCode();
+    const exitCode: number = this.exitCode();
     if (exitCode !== 0) {
-      const stdOut = this.standardOutput();
-      const stdError = this.standardError();
+      const stdOut: string = this.standardOutput();
+      const stdError: string = this.standardError();
       throw new KindExecutionException(exitCode, `Process exited with code ${exitCode}`, stdOut, stdError);
     }
     if (responseClass === undefined) {
       return null;
     }
 
-    const stdOut = this.standardOutput();
+    const stdOut: string = this.standardOutput();
 
     // Kind outputs to stdErr, so when the exit code is 0, we can assume stdErr is the expected output logs.
     const stdLogs: string = this.standardError();
 
     // If both stdOut and stdLogs are empty, we throw an error.
-    const output = stdOut || stdLogs;
+    const output: string = stdOut || stdLogs;
     if (!output) {
       throw new KindParserException(KindExecution.MSG_READ_OUTPUT_ERROR);
     }
 
     try {
-      const parsed = output.split(/\r?\n/).filter(line => line.trim() !== '');
-      const result = new responseClass(...parsed);
-      return result;
+      const parsed: string[] = output.split(/\r?\n/).filter((line): boolean => line.trim() !== '');
+      return new responseClass(...parsed);
     } catch {
       throw new KindParserException(KindExecution.MSG_DESERIALIZATION_ERROR.replace('%s', responseClass.name));
     }
@@ -191,7 +220,7 @@ export class KindExecution {
    * @param responseClass The class to parse each item in the response into
    * @returns A promise that resolves with the parsed response list
    */
-  async responseAsList<T>(responseClass: new (...arguments_: any[]) => T): Promise<T[]> {
+  public async responseAsList<T>(responseClass: new (...arguments_: any[]) => T): Promise<T[]> {
     return this.responseAsListTimeout(responseClass, null);
   }
 
@@ -201,29 +230,29 @@ export class KindExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves with the parsed response list or rejects on timeout
    */
-  async responseAsListTimeout<T>(
+  private async responseAsListTimeout<T>(
     responseClass: new (...arguments_: any[]) => T,
     timeout: Duration | null,
   ): Promise<T[]> {
     if (timeout === null) {
       await this.waitFor();
     } else {
-      const success = await this.waitForTimeout(timeout);
+      const success: boolean = await this.waitForTimeout(timeout);
       if (!success) {
         throw new KindParserException(KindExecution.MSG_TIMEOUT_ERROR);
       }
     }
 
-    const exitCode = this.exitCode();
+    const exitCode: number = this.exitCode();
     if (exitCode !== 0) {
-      const stdOut = this.standardOutput();
-      const stdError = this.standardError();
+      const stdOut: string = this.standardOutput();
+      const stdError: string = this.standardError();
       throw new KindExecutionException(exitCode, `Process exited with code ${exitCode}`, stdOut, stdError);
     }
 
-    const output = this.standardOutput();
+    const output: string = this.standardOutput();
     try {
-      const splitOutput = output.split(/\r?\n/).filter(line => line.trim() !== '');
+      const splitOutput: string[] = output.split(/\r?\n/).filter((line): boolean => line.trim() !== '');
       return splitOutput.map(line => new responseClass(...line.split(',')));
     } catch {
       throw new KindParserException(KindExecution.MSG_LIST_DESERIALIZATION_ERROR.replace('%s', responseClass.name));
@@ -234,7 +263,7 @@ export class KindExecution {
    * Executes the command and waits for completion.
    * @returns A promise that resolves when the command completes
    */
-  async call(): Promise<void> {
+  public async call(): Promise<void> {
     await this.callTimeout(null);
   }
 
@@ -243,20 +272,20 @@ export class KindExecution {
    * @param timeout The maximum time to wait, or null to wait indefinitely
    * @returns A promise that resolves when the command completes or rejects on timeout
    */
-  async callTimeout(timeout: Duration | null): Promise<void> {
+  private async callTimeout(timeout: Duration | null): Promise<void> {
     if (timeout === null) {
       await this.waitFor();
     } else {
-      const success = await this.waitForTimeout(timeout);
+      const success: boolean = await this.waitForTimeout(timeout);
       if (!success) {
         throw new KindParserException(KindExecution.MSG_TIMEOUT_ERROR);
       }
     }
 
-    const exitCode = this.exitCode();
+    const exitCode: number = this.exitCode();
     if (exitCode !== 0) {
-      const stdOut = await this.standardOutput();
-      const stdError = await this.standardError();
+      const stdOut: string = this.standardOutput();
+      const stdError: string = this.standardError();
       throw new KindExecutionException(exitCode, `Process exited with code ${exitCode}`, stdOut, stdError);
     }
   }

@@ -193,7 +193,10 @@ else
   fi
 
   # Category aggregation — uses full (untruncated) pod list
-  # Excludes: metallb-system namespace, network-load-generator pods
+  # Excludes from total/category summary:
+  # - metallb-system namespace
+  # - network-load-generator pods
+  # - metrics-server pods
   # Categories:
   #   mirror   — mirror-* pods + solo-shared-resources-postgres/redis
   #   relay    — relay* pods (relay, relay-ws)
@@ -209,6 +212,7 @@ else
       # Strip trailing pod hash suffixes for pattern matching but keep original label
       [[ "$_ns" == "metallb-system" ]] && continue
       [[ "$_pod" == network-load-generator* ]] && continue
+      [[ "$_pod" == metrics-server* ]] && continue
       _mem="${_mem//[^0-9]/}"
       [[ -z "$_mem" ]] && continue
       cat_total=$((cat_total + _mem))
@@ -277,12 +281,6 @@ else
   ASCII+="╚═══════════════════════════════════════════════════════════════╝"$'\n'
   ASCII+=$'\n'
   ASCII+="⏱️  Test Duration: ${DURATION_MIN}.0 minutes (${NUM_POINTS} data points)"$'\n'
-  ASCII+=$'\n'
-  ASCII+="📉 CPU Usage"$'\n'
-  ASCII+="$cpu_chart"$'\n'
-  ASCII+=$'\n'
-  ASCII+="📉 Host Memory Usage (MB)"$'\n'
-  ASCII+="$mem_chart"$'\n'
   ASCII+=$'\n'
   if [[ -n "$pod_cpu_chart" ]]; then
     ASCII+="⚙️  Pod CPU Usage — sum of all containers (millicores)"$'\n'

@@ -3,6 +3,7 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+import {SoloErrors} from '../../errors/solo-errors.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {Templates} from '../../templates.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
@@ -187,10 +188,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     error: Error | unknown,
     labels?: string[],
   ): SoloError {
-    return new SoloError(
+    return new SoloErrors.internal.dataValidation(
       RemoteConfigValidator.buildValidationErrorMessage(displayName, component, labels),
-      error,
       component,
+      error,
     );
   }
 

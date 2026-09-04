@@ -28,6 +28,20 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   @Expose()
   public wrapsEnabled: boolean;
 
+  /**
+   * Deployment-wide override for the soft message-size limit (in bytes) written into each consensus
+   * node's block-nodes.json. When undefined, BlockNodesJsonWrapper falls back to the TSS config default.
+   */
+  @Expose()
+  public blockNodeMessageSizeSoftLimitBytes: number;
+
+  /**
+   * Deployment-wide override for the hard message-size limit (in bytes) written into each consensus
+   * node's block-nodes.json. When undefined, BlockNodesJsonWrapper falls back to the TSS config default.
+   */
+  @Expose()
+  public blockNodeMessageSizeHardLimitBytes: number;
+
   @Expose()
   @Type((): typeof ComponentIdsSchema => ComponentIdsSchema)
   public componentIds: ComponentIdsSchema;
@@ -87,6 +101,8 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     wrapsEnabled?: boolean,
     postgres?: PostgresStateSchema[],
     redis?: RedisStateSchema[],
+    blockNodeMessageSizeSoftLimitBytes?: number,
+    blockNodeMessageSizeHardLimitBytes?: number,
   ) {
     this.ledgerPhase = ledgerPhase;
     this.componentIds = componentIds || new ComponentIdsSchema();
@@ -102,5 +118,7 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     this.wrapsEnabled = wrapsEnabled;
     this.postgres = postgres || [];
     this.redis = redis || [];
+    this.blockNodeMessageSizeSoftLimitBytes = blockNodeMessageSizeSoftLimitBytes;
+    this.blockNodeMessageSizeHardLimitBytes = blockNodeMessageSizeHardLimitBytes;
   }
 }

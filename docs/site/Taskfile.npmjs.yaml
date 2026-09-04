@@ -1,16 +1,16 @@
 version: 3
 tasks:
   npmjs:latest:solo:version:
-    desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hashgraph/solo"
+    desc: "Display the latest version of the Solo CLI from https://www.npmjs.com/package/@hiero-ledger/solo"
     silent: true
     cmds:
       - |
-        LATEST_VERSION=$(npm view @hashgraph/solo version)
-        echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hashgraph/solo: $LATEST_VERSION"
+        LATEST_VERSION=$(npm view @hiero-ledger/solo version)
+        echo "Latest version of Solo CLI from https://www.npmjs.com/package/@hiero-ledger/solo: $LATEST_VERSION"
         mkdir -p build
         echo -n "v$LATEST_VERSION" > build/npmjs-latest-version.txt
 
-  npmjs:list:solo:versions:
+  npmjs:list:solo:versions: # TODO: update before dual publish ends
     desc: Fetch and display all versions of @hashgraph/solo from NPM (with 'v' prefix)
     silent: true
     cmds:

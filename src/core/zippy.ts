@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import fs from 'node:fs';
 import AdmZip from 'adm-zip';
 import * as tar from 'tar';
@@ -28,13 +26,13 @@ export class Zippy {
    */
   async zip(sourcePath: string, destinationPath: string, _verbose = false) {
     if (!sourcePath) {
-      throw new MissingArgumentError('srcPath is required');
+      throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new MissingArgumentError('destPath is required');
+      throw new SoloErrors.validation.missingArgument('destPath is required');
     }
     if (!destinationPath.endsWith('.zip')) {
-      throw new MissingArgumentError('destPath must be a path to a zip file');
+      throw new SoloErrors.validation.missingArgument('destPath must be a path to a zip file');
     }
 
     try {
@@ -51,20 +49,20 @@ export class Zippy {
 
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to unzip ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveUnzipFailed(sourcePath, error);
     }
   }
 
   unzip(sourcePath: string, destinationPath: string, verbose = false) {
     if (!sourcePath) {
-      throw new MissingArgumentError('srcPath is required');
+      throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new MissingArgumentError('destPath is required');
+      throw new SoloErrors.validation.missingArgument('destPath is required');
     }
 
     if (!fs.existsSync(sourcePath)) {
-      throw new IllegalArgumentError('srcPath does not exists', sourcePath);
+      throw new SoloErrors.validation.illegalArgument('srcPath does not exists', sourcePath);
     }
 
     try {
@@ -89,23 +87,23 @@ export class Zippy {
 
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to unzip ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveUnzipFailed(sourcePath, error);
     }
   }
 
   tar(sourcePath: string, destinationPath: string) {
     if (!sourcePath) {
-      throw new MissingArgumentError('srcPath is required');
+      throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new MissingArgumentError('destPath is required');
+      throw new SoloErrors.validation.missingArgument('destPath is required');
     }
     if (!destinationPath.endsWith('.tar.gz')) {
-      throw new MissingArgumentError('destPath must be a path to a tar.gz file');
+      throw new SoloErrors.validation.missingArgument('destPath must be a path to a tar.gz file');
     }
 
     if (!fs.existsSync(sourcePath)) {
-      throw new IllegalArgumentError('srcPath does not exists', sourcePath);
+      throw new SoloErrors.validation.illegalArgument('srcPath does not exists', sourcePath);
     }
 
     try {
@@ -119,20 +117,20 @@ export class Zippy {
       );
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to tar ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveTarFailed(sourcePath, error);
     }
   }
 
   untar(sourcePath: string, destinationPath: string) {
     if (!sourcePath) {
-      throw new MissingArgumentError('srcPath is required');
+      throw new SoloErrors.validation.missingArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new MissingArgumentError('destPath is required');
+      throw new SoloErrors.validation.missingArgument('destPath is required');
     }
 
     if (!fs.existsSync(sourcePath)) {
-      throw new IllegalArgumentError('srcPath does not exists', sourcePath);
+      throw new SoloErrors.validation.illegalArgument('srcPath does not exists', sourcePath);
     }
     if (!fs.existsSync(destinationPath)) {
       fs.mkdirSync(destinationPath);
@@ -146,7 +144,7 @@ export class Zippy {
       });
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to untar ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveUntarFailed(sourcePath, error);
     }
   }
 }

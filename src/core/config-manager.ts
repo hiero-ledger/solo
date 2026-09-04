@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {SoloError} from './errors/solo-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Flags, Flags as flags} from '../commands/flags.js';
 import type * as yargs from 'yargs';
@@ -18,9 +17,14 @@ import {getSoloVersion} from '../../version.js';
 import {isValidEnum} from './util/validation-helpers.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 
-type ConfigMapEntry = {
+interface ConfigMapEntry {
   getUnusedConfigs: () => string[];
-};
+}
+
+interface LegacyVersionAliasMapping {
+  canonical: CommandFlag;
+  legacy: CommandFlag;
+}
 
 /**
  * ConfigManager cache command flag values so that user doesn't need to enter the same values repeatedly.
@@ -41,6 +45,49 @@ export class ConfigManager {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
 
     this.reset();
+  }
+
+  private applyLegacyVersionArgAliases(argv: ArgvStruct): void {
+    const aliasMappings: LegacyVersionAliasMapping[] = [
+      {canonical: flags.consensusNodeVersion, legacy: flags.releaseTag},
+      {canonical: flags.relayVersion, legacy: flags.relayReleaseTag},
+      {canonical: flags.blockNodeVersion, legacy: flags.blockNodeChartVersion},
+    ];
+
+    for (const {canonical, legacy} of aliasMappings) {
+      const canonicalValue: unknown = argv[canonical.name];
+      const legacyValue: unknown = argv[legacy.name];
+
+      if (canonicalValue === undefined && legacyValue !== undefined) {
+        argv[canonical.name] = legacyValue;
+      }
+
+      if (legacyValue === undefined && canonicalValue !== undefined) {
+        argv[legacy.name] = canonicalValue;
+      }
+    }
+  }
+
+  private applyLegacyVersionConfigAliases(activeConfig: AnyObject): void {
+    const aliasMappings: LegacyVersionAliasMapping[] = [
+      {canonical: flags.consensusNodeVersion, legacy: flags.releaseTag},
+      {canonical: flags.relayVersion, legacy: flags.relayReleaseTag},
+      {canonical: flags.blockNodeVersion, legacy: flags.blockNodeChartVersion},
+    ];
+
+    for (const {canonical, legacy} of aliasMappings) {
+      const canonicalValue: unknown = activeConfig.flags[canonical.name];
+      const legacyValue: unknown = activeConfig.flags[legacy.name];
+      let resolvedValue: unknown = canonicalValue;
+      if (resolvedValue === undefined || resolvedValue === '') {
+        resolvedValue = legacyValue;
+      }
+
+      if (resolvedValue !== undefined && resolvedValue !== '') {
+        activeConfig.flags[canonical.name] = resolvedValue;
+        activeConfig.flags[legacy.name] = resolvedValue;
+      }
+    }
   }
 
   /** Reset config */
@@ -86,6 +133,8 @@ export class ConfigManager {
    */
   public applyPrecedence(argv: yargs.Argv<AnyYargs>, aliases: AnyObject): yargs.Argv<AnyYargs> {
     const activeConfig: AnyObject = this.getActiveConfig();
+    this.applyLegacyVersionArgAliases(argv as unknown as ArgvStruct);
+    this.applyLegacyVersionConfigAliases(activeConfig);
     for (const key of Object.keys(aliases)) {
       const flag: CommandFlag = flags.allFlagsMap.get(key);
       if (flag) {
@@ -109,6 +158,8 @@ export class ConfigManager {
     if (!argv || Object.keys(argv).length === 0) {
       return;
     }
+
+    this.applyLegacyVersionArgAliases(argv);
 
     for (const flag of flags.allFlags) {
       if (argv[flag.name] === undefined) {
@@ -139,7 +190,7 @@ export class ConfigManager {
               ? Number.parseInt(value)
               : Number.parseFloat(value);
           } catch (error) {
-            throw new SoloError(`invalid number value '${value}': ${error.message}`, error);
+            throw new SoloErrors.validation.invalidConfigNumberValue(value, error);
           }
           break;
         }
@@ -154,15 +205,17 @@ export class ConfigManager {
           if (isValidEnum(`${value}`, StorageType)) {
             activeConfig.flags[flag.name] = value;
           } else {
-            throw new SoloError(`Invalid storage type value '${value}'`);
+            throw new SoloErrors.validation.invalidStorageType(value);
           }
           break;
         }
         default: {
-          throw new SoloError(`Unsupported field type for flag '${flag.name}': ${flag.definition.type}`);
+          throw new SoloErrors.validation.unsupportedFlagFieldType(flag.name, flag.definition.type);
         }
       }
     }
+
+    this.applyLegacyVersionConfigAliases(activeConfig);
 
     // store last command that was run
     if (argv._) {
@@ -192,6 +245,44 @@ export class ConfigManager {
   }
 
   /**
+   * Record which flags the user explicitly supplied on the command line.
+   *
+   * A flag whose value comes from its default is indistinguishable from an explicitly supplied one
+   * once {@link applyPrecedence} and {@link update} have run, because yargs backfills defaults and
+   * rewrites legacy aliases. Capturing the raw parse here lets later resolution (e.g. upgrade
+   * version precedence, see {@link wasFlagProvidedByUser}) tell the two apart.
+   *
+   * Must be called against the raw parsed argv, before {@link applyPrecedence}.
+   *
+   * @param argv - the raw parsed argv straight from yargs
+   * @param defaulted - yargs' `parsed.defaulted` map: keys populated from their default value
+   */
+  public recordUserSuppliedFlags(argv: ArgvStruct, defaulted: Record<string, boolean>): void {
+    const activeConfig: AnyObject = this.getActiveConfig();
+    const suppliedFlags: Set<string> = new Set<string>();
+    const defaultedKeys: Record<string, boolean> = defaulted ?? {};
+
+    for (const flag of flags.allFlags) {
+      const wasDefaulted: boolean = defaultedKeys[flag.name] === true || defaultedKeys[flag.constName] === true;
+      if (!wasDefaulted && argv[flag.name] !== undefined) {
+        suppliedFlags.add(flag.name);
+      }
+    }
+
+    activeConfig.userSuppliedFlags = suppliedFlags;
+  }
+
+  /**
+   * Whether the user explicitly supplied the given flag on the command line, as opposed to it being
+   * populated from its default value. Relies on {@link recordUserSuppliedFlags} having run for the
+   * current invocation.
+   */
+  public wasFlagProvidedByUser(flag: CommandFlag): boolean {
+    const suppliedFlags: Optional<Set<string>> = this.getActiveConfig().userSuppliedFlags;
+    return suppliedFlags?.has(flag.name) ?? false;
+  }
+
+  /**
    * Return the value of the given flag
    * @returns value of the flag or undefined if flag value is not available
    */
@@ -204,7 +295,7 @@ export class ConfigManager {
   public setFlag<T>(flag: CommandFlag, value: T): void {
     const activeConfig: AnyObject = this.getActiveConfig();
     if (!flag || !flag.name) {
-      throw new MissingArgumentError('flag must have a name');
+      throw new SoloErrors.validation.missingArgument('flag must have a name');
     }
     // if it is a namespace then convert it to NamespaceName
     if (flag.name === flags.namespace.name || flag.name === flags.clusterSetupNamespace.name) {
@@ -261,13 +352,27 @@ export class ConfigManager {
         // add the flags as properties to this class
         if (flags) {
           for (const flag of flags) {
-            this[`_${flag.constName}`] = getFlag(flag);
+            const constNameValue: unknown = getFlag(flag);
+            if (this[`_${flag.constName}`] === undefined && constNameValue !== undefined) {
+              this[`_${flag.constName}`] = constNameValue;
+            }
+
+            // Multiple CLI flags can intentionally share one config constName (legacy + canonical).
+            // Define the accessor only once to avoid property redefinition errors.
+            if (Object.hasOwn(this, flag.constName)) {
+              continue;
+            }
+
+            this[`_${flag.constName}`] = constNameValue;
             Object.defineProperty(this, flag.constName, {
               get(): unknown {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this.usedConfigs.set(flag.constName, this.usedConfigs.get(flag.constName) + 1 || 1);
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 return this[`_${flag.constName}`];
               },
               set(value: unknown): void {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this[`_${flag.constName}`] = value;
               },
             });
@@ -277,13 +382,19 @@ export class ConfigManager {
         // add the extra properties as properties to this class
         if (extraProperties) {
           for (const name of extraProperties) {
+            if (Object.hasOwn(this, name)) {
+              continue;
+            }
             this[`_${name}`] = '';
             Object.defineProperty(this, name, {
               get(): unknown {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this.usedConfigs.set(name, this.usedConfigs.get(name) + 1 || 1);
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 return this[`_${name}`];
               },
               set(value: unknown): void {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this[`_${name}`] = value;
               },
             });

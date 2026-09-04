@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
-import {DataValidationError} from './errors/data-validation-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
@@ -14,6 +11,7 @@ import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
+  type EndpointPortMapping,
   type NamespaceNameAsString,
   type NodeAliasToAddressMapping,
   type PriorityMapping,
@@ -28,7 +26,7 @@ export class Templates {
     return PodName.of(`network-${nodeAlias}-0`);
   }
 
-  private static renderNetworkSvcName(nodeAlias: NodeAlias): string {
+  public static renderNetworkSvcName(nodeAlias: NodeAlias): string {
     return `network-${nodeAlias}-svc`;
   }
 
@@ -58,6 +56,32 @@ export class Templates {
 
   public static renderMirrorNodeDatabaseInitScriptUrl(release: string): string {
     return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/tags/${release}/importer/src/main/resources/db/scripts/init.sh`;
+  }
+
+  public static renderMirrorNodeIngressControllerUrl(mirrorNamespace: NamespaceNameAsString): string {
+    return `http://${constants.MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+  }
+
+  public static renderMirrorNodeRestServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'rest');
+  }
+
+  public static renderMirrorNodeWeb3ServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'web3');
+  }
+
+  private static renderMirrorNodeServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+    serviceName: string,
+  ): string {
+    return `http://${mirrorNodeReleaseName}-${serviceName}.${mirrorNamespace}.svc.cluster.local`;
   }
 
   public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {
@@ -91,14 +115,14 @@ export class Templates {
   public static extractNodeAliasFromPodName(podName: PodName): NodeAlias {
     const parts: string[] = podName.name.split('-');
     if (parts.length !== 3) {
-      throw new DataValidationError(`pod name is malformed : ${podName.name}`, 3, parts.length);
+      throw new SoloErrors.internal.dataValidation(`pod name is malformed : ${podName.name}`, 3, parts.length);
     }
     return parts[1].trim() as NodeAlias;
   }
 
   public static prepareReleasePrefix(tag: string): string {
     if (!tag) {
-      throw new MissingArgumentError('tag cannot be empty');
+      throw new SoloErrors.validation.missingArgument('tag cannot be empty');
     }
 
     const parsed: string[] = tag.split('.');
@@ -152,7 +176,7 @@ export class Templates {
   public static renderStagingDir(cacheDirectory: string, releaseTagOverride: string): string {
     let releaseTag: string = releaseTagOverride;
     if (!cacheDirectory) {
-      throw new IllegalArgumentError('cacheDirectory cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('cacheDirectory cannot be empty');
     }
 
     if (!releaseTag) {
@@ -161,7 +185,7 @@ export class Templates {
 
     const releasePrefix: string = this.prepareReleasePrefix(releaseTag);
     if (!releasePrefix) {
-      throw new IllegalArgumentError('releasePrefix cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('releasePrefix cannot be empty');
     }
 
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));
@@ -177,6 +201,9 @@ export class Templates {
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
+      case constants.NETAVARK:
+      case constants.AARDVARK_DNS:
+      case constants.CRANE:
       case constants.KUBECTL: {
         if (OperatingSystem.isWin32()) {
           return PathEx.join(installationDirectory, `${dependency}.exe`);
@@ -186,7 +213,7 @@ export class Templates {
       }
 
       default: {
-        throw new SoloError(`unknown dependency: ${dependency}`);
+        throw new SoloErrors.validation.unknownTemplateDependency(dependency);
       }
     }
   }
@@ -206,7 +233,7 @@ export class Templates {
       }
     }
 
-    throw new SoloError(`Can't get node id from node ${nodeAlias}`);
+    throw new SoloErrors.validation.unknownNodeAlias(nodeAlias);
   }
 
   public static renderComponentIdFromNodeId(nodeId: NodeId): ComponentId {
@@ -326,7 +353,7 @@ export class Templates {
         : [nodes[index]?.name, data];
 
       if (!nodeAlias) {
-        throw new SoloError(`Node alias for ${addressData} cannot be inferred`);
+        throw new SoloErrors.validation.nodeAliasInferenceFailed(addressData);
       }
 
       const [address, port] = addressData.includes(':') ? addressData.split(':') : [addressData, '8080'];
@@ -337,6 +364,74 @@ export class Templates {
     return mapping;
   }
 
+  /**
+   * Parses a port override used when building the consensus node endpoints written to the genesis network.
+   *
+   * Supported forms:
+   *
+   * 1) A single port applied to every consensus node
+   *    Example: "50211"
+   *
+   * 2) Explicit alias → port pairs, with multiple nodes comma separated
+   *    Example: "node1=50211,node2=50212"
+   *
+   * The two forms can be combined, in which case the alias-less port acts as the default for the nodes that were not
+   * listed explicitly. Example: "50211,node2=50212"
+   *
+   * @param unparsed - input string describing the port override, may be undefined when the flag was not supplied
+   * @returns the default port and the per node alias overrides
+   * @throws SoloError if an alias cannot be parsed or a port is not an integer between 1 and 65535
+   */
+  public static parseNodeAliasToPortMapping(unparsed?: string): EndpointPortMapping {
+    const mapping: EndpointPortMapping = {nodeAliasToPort: {}};
+
+    if (!unparsed || typeof unparsed !== 'string') {
+      return mapping;
+    }
+
+    for (const data of unparsed.split(',')) {
+      if (data.includes('=')) {
+        const [nodeAlias, port] = data.split('=') as [NodeAlias, string];
+
+        if (!nodeAlias) {
+          throw new SoloErrors.validation.nodeAliasParseFailed(data);
+        }
+
+        mapping.nodeAliasToPort[nodeAlias] = Templates.parsePort(port);
+      } else {
+        mapping.defaultPort = Templates.parsePort(data);
+      }
+    }
+
+    return mapping;
+  }
+
+  /**
+   * Resolves the port to use for a consensus node endpoint, preferring the per node override, then the port that the
+   * user supplied for every node, and finally the built in default.
+   *
+   * @param portMapping - the parsed port override, undefined when the flag was not supplied
+   * @param nodeAlias - the consensus node the endpoint is built for
+   * @param defaultPort - the port to use when the user did not override it
+   */
+  public static resolveEndpointPort(
+    portMapping: EndpointPortMapping | undefined,
+    nodeAlias: NodeAlias,
+    defaultPort: number,
+  ): number {
+    return portMapping?.nodeAliasToPort?.[nodeAlias] ?? portMapping?.defaultPort ?? defaultPort;
+  }
+
+  private static parsePort(unparsed: string): number {
+    const port: number = Number(unparsed.trim());
+
+    if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+      throw new SoloErrors.validation.invalidPortNumber(unparsed);
+    }
+
+    return port;
+  }
+
   public static parseNodeAliasToDomainNameMapping(unparsed: string): Record<NodeAlias, string> {
     const mapping: Record<NodeAlias, string> = {};
 
@@ -344,10 +439,10 @@ export class Templates {
       const [nodeAlias, domainName] = data.split('=') as [NodeAlias, string];
 
       if (!nodeAlias || typeof nodeAlias !== 'string') {
-        throw new SoloError(`Can't parse node alias: ${data}`);
+        throw new SoloErrors.validation.nodeAliasParseFailed(data);
       }
       if (!domainName || typeof domainName !== 'string') {
-        throw new SoloError(`Can't parse domain name: ${data}`);
+        throw new SoloErrors.validation.domainNameParseFailed(data);
       }
 
       mapping[nodeAlias] = domainName;
@@ -450,7 +545,7 @@ export class Templates {
   public static renderBlockNodeLabels(id: ComponentId, legacyReleaseName?: string): string[] {
     const releaseName: string = legacyReleaseName ?? Templates.renderBlockNodeName(id);
 
-    return [`app.kubernetes.io/name=${releaseName}`];
+    return [`app.kubernetes.io/instance=${releaseName}`];
   }
 
   public static renderExplorerName(id: ComponentId): string {

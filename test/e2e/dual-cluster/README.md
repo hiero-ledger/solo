@@ -143,7 +143,7 @@ Current Command		: init
 
 ***************************************************************************************
 Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: /Users/user/.solo
-If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.
+If a full reset is needed, delete the directory or relevant sub-directories before running solo again.
 ***************************************************************************************
 Switched to context "kind-solo-e2e-c1".
 
@@ -184,26 +184,6 @@ metallb           	metallb-system	1       	2025-02-14 16:05:08.226466 +0000 UTC	
 metrics-server    	kube-system   	1       	2025-02-14 16:05:07.217358 +0000 UTC	deployed	metrics-server-3.12.2    	0.7.2
 solo-cluster-setup	solo-setup    	1       	2025-02-14 16:05:58.114619 +0000 UTC	deployed	solo-cluster-setup-0.44.0	0.44.0
 Switched to context "kind-solo-e2e-c1".
-```
-
-## Diagnostics
-
-The `./diagnostics/cluster/deploy.sh` deploys a `cluster-diagnostics` deployment (and its pod) with a service that has its external IP exposed.  It is deployed to both clusters, runs Ubuntu, and has most diagnostic software installed.  After ran you can shell into the pod and use the container to run your own troubleshooting commands for verifying network connectivity between the two clusters or DNS resolution, etc.
-
-Calling
-
-```bash
-# from your Solo root directory run:
-$ ./test/e2e/dual-cluster/diagnostics/cluster/deploy.sh
-```
-
-Output:
-
-```bash
-namespace/cluster-diagnostics unchanged
-configmap/cluster-diagnostics-cm unchanged
-service/cluster-diagnostics-svc unchanged
-deployment.apps/cluster-diagnostics unchanged
 ```
 
 ## Cleanup

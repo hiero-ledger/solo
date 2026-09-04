@@ -16,6 +16,7 @@ import {type ComponentFactoryApi} from '../../../core/config/remote/api/componen
 import {type RemoteConfig} from '../config/remote/remote-config.js';
 import {type ComponentTypes} from '../../../core/config/remote/enumerations/component-types.js';
 import {type SemanticVersion} from '../../utils/semantic-version.js';
+import {type DeploymentPhase} from '../../../data/schema/model/remote/deployment-phase.js';
 
 export interface RemoteConfigRuntimeStateApi {
   configuration?: RemoteConfig;
@@ -71,4 +72,6 @@ export interface RemoteConfigRuntimeStateApi {
   updateComponentVersion(type: ComponentTypes, version: SemanticVersion<string>): void;
 
   getComponentVersion(type: ComponentTypes): SemanticVersion<string>;
+
+  getComponentPhasesMap(): Map<ComponentTypes, DeploymentPhase>;
 }

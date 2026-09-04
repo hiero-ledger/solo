@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
-import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
 import {type TssSchema} from '../../../model/solo/tss-schema.js';
 import {type HelmChartSchema} from '../../../model/common/helm-chart-schema.js';
@@ -20,7 +20,7 @@ export class SoloConfigV1Migration implements SchemaMigration {
   public migrate(source: object): Promise<object> {
     if (!source) {
       // We should never pass null or undefined to this method, if this happens we should throw an error
-      throw new IllegalArgumentError('source must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('source must not be null or undefined');
     }
 
     const clone: any = structuredClone(source);
@@ -51,11 +51,11 @@ export class SoloConfigV1Migration implements SchemaMigration {
       readyMaxAttempts: 60,
       readyBackoffSeconds: 3,
       wraps: {
-        artifactsFolderName: 'wraps-v0.2.0',
-        directoryName: 'wraps-v0.2.0',
+        artifactsFolderName: 'data/keys/wraps-v1.0.0',
+        directoryName: 'wraps-v1.0.0',
         allowedKeyFiles: 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
         // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
-        libraryDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+        libraryDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz',
       },
     };
   }
