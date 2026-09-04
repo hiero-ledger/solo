@@ -121,7 +121,9 @@ jobs:
 
       - name: Build Project
         shell: pwsh
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        # npm ci can consume most of the normal five-minute step limit on a
+        # slow hosted runner, leaving no time for compilation.
+        timeout-minutes: 10
         run: |
           task build:compile
 
@@ -174,7 +176,7 @@ jobs:
           "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
 
       - name: Fail early when verified Ubuntu WSL installer cache is unavailable
-        if: ${{ !cancelled() && github.ref != 'refs/heads/main' && steps.validate_ubuntu_wsl_installer.outputs.valid != 'true' }}
+        if: ${{ success() && github.ref != 'refs/heads/main' && steps.validate_ubuntu_wsl_installer.outputs.valid != 'true' }}
         shell: pwsh
         run: |
           throw 'Verified Ubuntu WSL installer cache is unavailable. Online Ubuntu acquisition is disabled on non-main runs; rerun after a main workflow seeds the setup-wsl cache.'
