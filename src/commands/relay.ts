@@ -35,6 +35,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Lock} from '../core/lock/lock.js';
 import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
@@ -75,6 +76,7 @@ interface RelayDeployConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
+  operatorSecretName: string;
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
@@ -113,6 +115,7 @@ interface RelayUpgradeConfigClass {
   nodeAliasesUnparsed: string;
   operatorId: string;
   operatorKey: string;
+  operatorSecretName: string;
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
@@ -250,11 +253,9 @@ export class RelayCommand extends BaseCommand {
     componentImage,
     replicaCount,
     loadBalancerEnabled,
-    operatorId,
-    operatorKey,
+    operatorSecretName,
     namespace,
     domainName,
-    context,
     releaseName,
     deployment,
     mirrorNamespace,
@@ -304,41 +305,7 @@ export class RelayCommand extends BaseCommand {
       chartValues.set('relay.service.type', 'LoadBalancer').set('ws.service.type', 'LoadBalancer');
     }
 
-    const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
-
-    chartValues
-      .set('relay.config.OPERATOR_ID_MAIN', operatorIdUsing)
-      .set('ws.config.OPERATOR_ID_MAIN', operatorIdUsing);
-
-    if (operatorKey) {
-      // use user provided operatorKey if available
-      chartValues.set('relay.config.OPERATOR_KEY_MAIN', operatorKey).set('ws.config.OPERATOR_KEY_MAIN', operatorKey);
-    } else {
-      try {
-        const secrets: Secret[] = await this.k8Factory
-          .getK8(context)
-          .secrets()
-          .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
-
-        if (secrets.length === 0) {
-          this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
-
-          chartValues
-            .set('relay.config.OPERATOR_KEY_MAIN', constants.OPERATOR_KEY)
-            .set('ws.config.OPERATOR_KEY_MAIN', constants.OPERATOR_KEY);
-        } else {
-          this.logger.info('Using operator key from k8s secret');
-
-          const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-
-          chartValues
-            .set('relay.config.OPERATOR_KEY_MAIN', operatorKeyFromK8)
-            .set('ws.config.OPERATOR_KEY_MAIN', operatorKeyFromK8);
-        }
-      } catch (error) {
-        throw new SoloErrors.component.relayOperatorKeyRetrievalFailed(error);
-      }
-    }
+    chartValues.set('relay.existingSecret', operatorSecretName).set('ws.existingSecret', operatorSecretName);
 
     if (!nodeAliases) {
       throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
@@ -361,6 +328,69 @@ export class RelayCommand extends BaseCommand {
     chartValues.filesFromCommaSeparatedInput(valuesFile);
 
     return chartValues;
+  }
+
+  /**
+   * Resolves the operator id/key to use for the relay (from flags, a per-account k8s secret, or the
+   * default), then stores them in a dedicated Kubernetes secret so they never need to be passed to Helm
+   * as plaintext `--set` values.
+   */
+  private async createOperatorSecret({
+    operatorId,
+    operatorKey,
+    namespace,
+    context,
+    releaseName,
+    deployment,
+  }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
+    const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
+
+    let operatorKeyUsing: string;
+    if (operatorKey) {
+      // use user provided operatorKey if available
+      operatorKeyUsing = operatorKey;
+    } else {
+      try {
+        const secrets: Secret[] = await this.k8Factory
+          .getK8(context)
+          .secrets()
+          .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
+
+        if (secrets.length === 0) {
+          this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
+          operatorKeyUsing = constants.OPERATOR_KEY;
+        } else {
+          this.logger.info('Using operator key from k8s secret');
+          operatorKeyUsing = Base64.decode(secrets[0].data.privateKey);
+        }
+      } catch (error) {
+        throw new SoloErrors.component.relayOperatorKeyRetrievalFailed(error);
+      }
+    }
+
+    const operatorSecretName: string = this.renderOperatorSecretName(releaseName);
+    const isOperatorSecretCreated: boolean = await this.k8Factory
+      .getK8(context)
+      .secrets()
+      .createOrReplace(namespace, operatorSecretName, SecretType.OPAQUE, {
+        OPERATOR_ID_MAIN: Base64.encode(operatorIdUsing),
+        OPERATOR_KEY_MAIN: Base64.encode(operatorKeyUsing),
+      });
+
+    if (!isOperatorSecretCreated) {
+      throw new SoloErrors.component.relayOperatorSecretCreationFailed(operatorSecretName);
+    }
+
+    return operatorSecretName;
+  }
+
+  private createOperatorSecretTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Create relay operator credentials secret',
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        config.operatorSecretName = await this.createOperatorSecret(config);
+      },
+    };
   }
 
   /**
@@ -410,6 +440,10 @@ export class RelayCommand extends BaseCommand {
       throw new SoloErrors.validation.relayInvalidComponentId(id);
     }
     return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
+  }
+
+  private renderOperatorSecretName(releaseName: string): string {
+    return `${releaseName}-operator`;
   }
 
   private prepareLegacyReleaseName(nodeAliases: NodeAliases = []): string {
@@ -710,6 +744,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.addRelayComponent(),
         this.checkChartIsInstalledTask(),
+        this.createOperatorSecretTask(),
         this.prepareChartValuesTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
         this.checkRelayIsRunningTask(),
@@ -848,6 +883,7 @@ export class RelayCommand extends BaseCommand {
             }
           },
         },
+        this.createOperatorSecretTask(),
         this.prepareChartValuesTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.UPGRADE),
         this.checkRelayIsRunningTask(),
@@ -946,6 +982,11 @@ export class RelayCommand extends BaseCommand {
           title: 'Destroy JSON RPC Relay',
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+
+            await this.k8Factory
+              .getK8(config.context)
+              .secrets()
+              .delete(config.namespace, this.renderOperatorSecretName(config.releaseName));
 
             const destroyedRelays: string[] = await this.chartManager.getInstalledCharts(
               config.namespace,
