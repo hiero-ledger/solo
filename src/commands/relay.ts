@@ -37,6 +37,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Lock} from '../core/lock/lock.js';
 import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
@@ -261,13 +262,11 @@ export class RelayCommand extends BaseCommand {
     }
 
     const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
-    valuesArgument += ` --set relay.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
-    valuesArgument += ` --set ws.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
+    let operatorKeyUsing: string;
     if (operatorKey) {
       // use user provided operatorKey if available
-      valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKey}`;
-      valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
+      operatorKeyUsing = operatorKey;
     } else {
       try {
         const secrets: Secret[] = await this.k8Factory
@@ -276,18 +275,31 @@ export class RelayCommand extends BaseCommand {
           .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
         if (secrets.length === 0) {
           this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
-          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
+          operatorKeyUsing = constants.OPERATOR_KEY;
         } else {
           this.logger.info('Using operator key from k8s secret');
-          const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
+          operatorKeyUsing = Base64.decode(secrets[0].data.privateKey);
         }
       } catch (error) {
         throw new SoloError(`Error getting operator key: ${error.message}`, error);
       }
     }
+
+    const operatorSecretName: string = this.renderOperatorSecretName(releaseName);
+    const isOperatorSecretCreated: boolean = await this.k8Factory
+      .getK8(context)
+      .secrets()
+      .createOrReplace(namespace, operatorSecretName, SecretType.OPAQUE, {
+        OPERATOR_ID_MAIN: Base64.encode(operatorIdUsing),
+        OPERATOR_KEY_MAIN: Base64.encode(operatorKeyUsing),
+      });
+
+    if (!isOperatorSecretCreated) {
+      throw new SoloError(`Failed to create operator credentials secret ${operatorSecretName}`);
+    }
+
+    valuesArgument += ` --set relay.existingSecret=${operatorSecretName}`;
+    valuesArgument += ` --set ws.existingSecret=${operatorSecretName}`;
 
     if (!nodeAliases) {
       throw new MissingArgumentError('Node IDs must be specified');
@@ -358,6 +370,10 @@ export class RelayCommand extends BaseCommand {
       throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
     }
     return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
+  }
+
+  private renderOperatorSecretName(releaseName: string): string {
+    return `${releaseName}-operator`;
   }
 
   private prepareLegacyReleaseName(nodeAliases: NodeAliases = []): string {
@@ -827,6 +843,11 @@ export class RelayCommand extends BaseCommand {
           title: 'Destroy JSON RPC Relay',
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
+
+            await this.k8Factory
+              .getK8(config.context)
+              .secrets()
+              .delete(config.namespace, this.renderOperatorSecretName(config.releaseName));
 
             this.logger.showList(
               'Destroyed Relays',
