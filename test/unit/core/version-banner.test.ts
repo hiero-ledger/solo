@@ -17,16 +17,26 @@ describe('VersionBanner', (): void => {
     sinon.restore();
   });
 
+  /**
+   * Reads what the banner wrote and puts stdout back.
+   *
+   * The stub covers the same stream mocha's reporter writes test titles to, and the reporter emits a
+   * passing test's title before `afterEach` runs — so leaving it in place for the whole case swallows
+   * every title. Restoring as part of reading keeps the output readable.
+   */
   function written(): string {
-    return standardOutputWrite
+    const output: string = standardOutputWrite
       .getCalls()
       .map((call): string => String(call.args[0]))
       .join('');
+    standardOutputWrite.restore();
+    return output;
   }
 
   it('reports that nothing was requested when no version flag is present', (): void => {
     expect(VersionBanner.writeIfRequested(['node', 'solo.ts', 'deployment', 'create'])).to.be.false;
     expect(standardOutputWrite).to.have.been.callCount(0);
+    standardOutputWrite.restore();
   });
 
   for (const flag of ['-version', '--version', '-v', '--v']) {
@@ -42,6 +52,7 @@ describe('VersionBanner', (): void => {
     VersionBanner.writeIfRequested(['node', 'solo.ts', '--version']);
 
     expect(standardOutputWrite.called, 'the banner must reach stdout directly').to.be.true;
+    standardOutputWrite.restore();
   });
 
   it('renders json for --output=json', (): void => {

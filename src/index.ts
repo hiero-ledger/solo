@@ -25,6 +25,31 @@ if (!process.stdout.isTTY) {
   chalk.level = 0;
 }
 
+/**
+ * The fatal-error handlers registered by the most recent {@link main} call.
+ *
+ * `main()` runs once per CLI invocation but many times per process in the end-to-end tests, and
+ * `process.on` appends. Left unchecked, the Nth call would fan a single `uncaughtException` out to N
+ * reports of the same error — the flood the report cap exists to prevent, arriving from the other
+ * direction. Only our own listeners are removed, never ones registered elsewhere.
+ */
+let fatalErrorHandlers: {rejection: (reason: unknown) => void; exception: (error: Error) => void} | undefined;
+
+function registerFatalErrorHandlers(logger: SoloLogger): void {
+  if (fatalErrorHandlers) {
+    process.off('unhandledRejection', fatalErrorHandlers.rejection);
+    process.off('uncaughtException', fatalErrorHandlers.exception);
+  }
+
+  fatalErrorHandlers = {
+    rejection: (reason: unknown): void => FatalErrorReporter.report(logger, 'unhandledRejection', reason),
+    exception: (error: Error): void => FatalErrorReporter.report(logger, 'uncaughtException', error),
+  };
+
+  process.on('unhandledRejection', fatalErrorHandlers.rejection);
+  process.on('uncaughtException', fatalErrorHandlers.exception);
+}
+
 // eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   // Latch escaped-error reporting per invocation, not per process: the CLI calls main() once, but the
@@ -74,12 +99,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     // save the logger so that solo.ts can use it to properly flush the logs and exit
     context.logger = logger;
   }
-  process.on('unhandledRejection', (reason: unknown): void => {
-    FatalErrorReporter.report(logger, 'unhandledRejection', reason);
-  });
-  process.on('uncaughtException', (error: Error): void => {
-    FatalErrorReporter.report(logger, 'uncaughtException', error);
-  });
+  registerFatalErrorHandlers(logger);
 
   logger.debug('Initializing Solo CLI');
   constants.LISTR_DEFAULT_RENDERER_OPTION.logger = new ListrLogger({processOutput: new CustomProcessOutput(logger)});

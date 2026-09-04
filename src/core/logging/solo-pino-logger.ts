@@ -94,14 +94,10 @@ export class SoloPinoLogger implements SoloLogger {
 
     this.nextTraceId();
 
-    // Ensure logs directory exists. The home directory is resolved from the container so a container
-    // pointed at a different home writes there rather than into the user's real ~/.solo/logs.
+    // The home directory is resolved from the container so a container pointed at a different home
+    // writes there rather than into the user's real ~/.solo/logs. The directory itself is created by
+    // findLogDestinationFailure below, which runs before any stream is built.
     const logsDirectory: string = PathEx.join(SoloPinoLogger.resolveHomeDirectory(homeDirectory), 'logs');
-    try {
-      mkdirSync(logsDirectory, {recursive: true, mode: SoloPinoLogger.LOG_DIRECTORY_MODE});
-    } catch {
-      // no-op: assertLogDestinationsWritable below turns an unusable destination into a diagnosable error
-    }
 
     // Configure dual outputs: NDJSON (machine) + pretty (human)
     const ndjsonFileName: string = 'solo.ndjson';
@@ -456,7 +452,7 @@ export class SoloPinoLogger implements SoloLogger {
    */
   private static findLogDestinationFailure(logsDirectory: string, fileNames: string[]): SoloError | undefined {
     try {
-      mkdirSync(logsDirectory, {recursive: true});
+      mkdirSync(logsDirectory, {recursive: true, mode: SoloPinoLogger.LOG_DIRECTORY_MODE});
       accessSync(logsDirectory, fileSystemConstants.W_OK);
     } catch (error) {
       return new SoloErrors.system.soloLogsDirectoryNotWritable(logsDirectory, error as Error);
@@ -484,7 +480,18 @@ export class SoloPinoLogger implements SoloLogger {
    * see, or a disk that fills mid-run — surfaces as an unhandled stream error rather than as SOLO-5083.
    */
   private static reportStreamFailures(stream: NodeJS.EventEmitter, filePath: string): void {
+    let reported: boolean = false;
+
     stream.on('error', (streamError: Error): void => {
+      // The listener stays attached for the life of the stream: detaching it after the first failure
+      // would make the next failed write an unhandled 'error' event, which crashes the process. Once
+      // the destination is known bad every later failure says the same thing, so only the first is
+      // rendered — otherwise a stream that fails on every flush reproduces the report flood of #5370.
+      if (reported) {
+        return;
+      }
+      reported = true;
+
       FatalErrorReporter.renderToStandardError(
         new SoloErrors.system.soloLogsDirectoryNotWritable(filePath, streamError),
         'WARNING',

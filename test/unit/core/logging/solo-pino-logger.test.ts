@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import {describe, it, beforeEach, afterEach} from 'mocha';
 import sinon, {type SinonStub, type SinonFakeTimers} from 'sinon';
 import {EventEmitter} from 'node:events';
+import {FatalErrorReporter} from '../../../../src/core/fatal-error-reporter.js';
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
@@ -364,11 +365,50 @@ describe('SoloPinoLogger stream configuration', (): void => {
 // Typed view over the writability preflight, which runs before any stream is constructed.
 type LoggerPreflight = {
   findLogDestinationFailure: (logsDirectory: string, fileNames: string[]) => SoloError | undefined;
+  reportStreamFailures: (stream: NodeJS.EventEmitter, filePath: string) => void;
 };
 
 function preflightOf(): LoggerPreflight {
   return SoloPinoLogger as unknown as LoggerPreflight;
 }
+
+describe('SoloPinoLogger stream failure reporting', (): void => {
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  // A destination that fails one write usually fails every write, and each render is the message plus
+  // its troubleshooting steps plus the doc URL. Uncapped that is the #5370 flood moved to stderr.
+  it('renders only the first failure, however many the stream emits', (): void => {
+    const render: SinonStub = sinon.stub(FatalErrorReporter, 'renderToStandardError');
+    // eslint-disable-next-line unicorn/prefer-event-target
+    const stream: EventEmitter = new EventEmitter();
+
+    preflightOf().reportStreamFailures(stream, '/locked/logs/solo.ndjson');
+    for (let index: number = 0; index < 25; index++) {
+      stream.emit('error', new Error('ENOSPC: no space left on device, write'));
+    }
+
+    expect(render).to.have.been.callCount(1);
+    expect((render.firstCall.args[0] as SoloError).getFormattedCode()).to.equal('SOLO-5083');
+  });
+
+  // Detaching after the first failure would leave the next write with no 'error' handler, which throws
+  // out of the emitter and turns a warning into a crash.
+  it('stays attached, so a later failure cannot become an unhandled error event', (): void => {
+    sinon.stub(FatalErrorReporter, 'renderToStandardError');
+    // eslint-disable-next-line unicorn/prefer-event-target
+    const stream: EventEmitter = new EventEmitter();
+
+    preflightOf().reportStreamFailures(stream, '/locked/logs/solo.ndjson');
+    stream.emit('error', new Error('first'));
+
+    expect((): void => {
+      stream.emit('error', new Error('second'));
+    }, 'the second failure must not escape the emitter').to.not.throw();
+    expect(stream.listenerCount('error')).to.equal(1);
+  });
+});
 
 describe('SoloPinoLogger log destination preflight', (): void => {
   // chmod does not restrict writes on Windows, so the denial cases cannot be staged there.
