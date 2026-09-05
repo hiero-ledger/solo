@@ -206,6 +206,19 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
   private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
   private static readonly MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS: string = '0.157.0-0';
+
+  /**
+   * Mapping from Helm chart key to Docker image suffix.
+   * The chart key {@code restjava} maps to Docker image suffix {@code rest-java}.
+   */
+  private static readonly MIRROR_NODE_MODULE_IMAGE_SUFFIXES: ReadonlyMap<string, string> = new Map([
+    ['importer', 'importer'],
+    ['grpc', 'grpc'],
+    ['rest', 'rest'],
+    ['restjava', 'rest-java'],
+    ['web3', 'web3'],
+    ['monitor', 'monitor'],
+  ]);
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -537,35 +550,22 @@ export class MirrorNodeCommand extends BaseCommand {
     const environmentVariablePrefix: string = MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX;
 
     if (config.componentImage) {
-      const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
-      chartValues
-        .setLiteral('importer.image.registry', parsedImageReference.registry)
-        .setLiteral('grpc.image.registry', parsedImageReference.registry)
-        .setLiteral('rest.image.registry', parsedImageReference.registry)
-        .setLiteral('restjava.image.registry', parsedImageReference.registry)
-        .setLiteral('web3.image.registry', parsedImageReference.registry)
-        .setLiteral('monitor.image.registry', parsedImageReference.registry)
-        .setLiteral('importer.image.repository', parsedImageReference.repository)
-        .setLiteral('grpc.image.repository', parsedImageReference.repository)
-        .setLiteral('rest.image.repository', parsedImageReference.repository)
-        .setLiteral('restjava.image.repository', parsedImageReference.repository)
-        .setLiteral('web3.image.repository', parsedImageReference.repository)
-        .setLiteral('monitor.image.repository', parsedImageReference.repository)
-        .setLiteral('importer.image.tag', parsedImageReference.tag)
-        .setLiteral('grpc.image.tag', parsedImageReference.tag)
-        .setLiteral('rest.image.tag', parsedImageReference.tag)
-        .setLiteral('restjava.image.tag', parsedImageReference.tag)
-        .setLiteral('web3.image.tag', parsedImageReference.tag)
-        .setLiteral('monitor.image.tag', parsedImageReference.tag);
+      const baseParsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
 
-      if (this.isLocalImageAvailableInDocker(config.componentImage)) {
+      for (const [chartKey, imageSuffix] of MirrorNodeCommand.MIRROR_NODE_MODULE_IMAGE_SUFFIXES) {
+        const moduleReference: ParsedImageReference = ImageReference.deriveModuleParsedReference(
+          baseParsedReference,
+          imageSuffix,
+        );
         chartValues
-          .setLiteral('importer.image.pullPolicy', 'Never')
-          .setLiteral('grpc.image.pullPolicy', 'Never')
-          .setLiteral('rest.image.pullPolicy', 'Never')
-          .setLiteral('restjava.image.pullPolicy', 'Never')
-          .setLiteral('web3.image.pullPolicy', 'Never')
-          .setLiteral('monitor.image.pullPolicy', 'Never');
+          .setLiteral(`${chartKey}.image.registry`, moduleReference.registry)
+          .setLiteral(`${chartKey}.image.repository`, moduleReference.repository)
+          .setLiteral(`${chartKey}.image.tag`, moduleReference.tag);
+
+        const derivedImage: string = ImageReference.deriveModuleImageReference(config.componentImage, imageSuffix);
+        if (this.isLocalImageAvailableInDocker(derivedImage)) {
+          chartValues.setLiteral(`${chartKey}.image.pullPolicy`, 'Never');
+        }
       }
     } else if (this.shouldApplyMirrorNodeImageTagOverrides(config.mirrorNodeChartDirectory)) {
       this.addMirrorNodeImageTagOverrides(chartValues, config.mirrorNodeVersion);
@@ -800,8 +800,13 @@ export class MirrorNodeCommand extends BaseCommand {
       commandType,
     );
 
-    if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
-      await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
+    if (config.componentImage) {
+      for (const [, imageSuffix] of MirrorNodeCommand.MIRROR_NODE_MODULE_IMAGE_SUFFIXES) {
+        const derivedImage: string = ImageReference.deriveModuleImageReference(config.componentImage, imageSuffix);
+        if (this.isLocalImageAvailableInDocker(derivedImage)) {
+          await this.kindLoadComponentImage(derivedImage, config.clusterContext);
+        }
+      }
     }
 
     await this.upgradeMirrorNodeChart(config, shouldReuseValues);

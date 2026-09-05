@@ -17,6 +17,7 @@ import {type ArgvStruct} from '../../../src/types/aliases.js';
 import path from 'node:path';
 import yaml from 'yaml';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
+import {ImageReference} from '../../../src/business/utils/image-reference.js';
 import {Duration} from '../../../src/core/time/duration.js';
 
 interface MirrorNodeMemoryOverrideConfig {
@@ -677,6 +678,138 @@ describe('MirrorNodeCommand unit tests', (): void => {
     });
   });
 
+  describe('component image prefix expansion', (): void => {
+    it('should derive six module-specific repositories from a simple prefix', (): void => {
+      const chartValues: HelmChartValues = new HelmChartValues();
+      const baseParsed: {registry: string; repository: string; tag: string} = ImageReference.parseImageReference(
+        'hedera-mirror:0.156.0-abc1234',
+      );
+
+      const moduleMap: ReadonlyMap<string, string> = new Map([
+        ['importer', 'importer'],
+        ['grpc', 'grpc'],
+        ['rest', 'rest'],
+        ['restjava', 'rest-java'],
+        ['web3', 'web3'],
+        ['monitor', 'monitor'],
+      ]);
+
+      for (const [chartKey, imageSuffix] of moduleMap) {
+        const moduleReference: {registry: string; repository: string; tag: string} =
+          ImageReference.deriveModuleParsedReference(baseParsed, imageSuffix);
+        chartValues
+          .setLiteral(`${chartKey}.image.registry`, moduleReference.registry)
+          .setLiteral(`${chartKey}.image.repository`, moduleReference.repository)
+          .setLiteral(`${chartKey}.image.tag`, moduleReference.tag);
+      }
+
+      const valuesArguments: string[] = chartValues.toArguments();
+
+      expect(valuesArguments).to.include('importer.image.repository=library/hedera-mirror-importer');
+      expect(valuesArguments).to.include('grpc.image.repository=library/hedera-mirror-grpc');
+      expect(valuesArguments).to.include('rest.image.repository=library/hedera-mirror-rest');
+      expect(valuesArguments).to.include('restjava.image.repository=library/hedera-mirror-rest-java');
+      expect(valuesArguments).to.include('web3.image.repository=library/hedera-mirror-web3');
+      expect(valuesArguments).to.include('monitor.image.repository=library/hedera-mirror-monitor');
+
+      for (const chartKey of moduleMap.keys()) {
+        expect(valuesArguments).to.include(`${chartKey}.image.tag=0.156.0-abc1234`);
+        expect(valuesArguments).to.include(`${chartKey}.image.registry=docker.io`);
+      }
+    });
+
+    it('should preserve registry/repository prefix for all six modules', (): void => {
+      const chartValues: HelmChartValues = new HelmChartValues();
+      const baseParsed: {registry: string; repository: string; tag: string} = ImageReference.parseImageReference(
+        'myprefix/hedera-mirror:0.156.0-abc1234',
+      );
+
+      const moduleMap: ReadonlyMap<string, string> = new Map([
+        ['importer', 'importer'],
+        ['grpc', 'grpc'],
+        ['rest', 'rest'],
+        ['restjava', 'rest-java'],
+        ['web3', 'web3'],
+        ['monitor', 'monitor'],
+      ]);
+
+      for (const [chartKey, imageSuffix] of moduleMap) {
+        const moduleReference: {registry: string; repository: string; tag: string} =
+          ImageReference.deriveModuleParsedReference(baseParsed, imageSuffix);
+        chartValues
+          .setLiteral(`${chartKey}.image.registry`, moduleReference.registry)
+          .setLiteral(`${chartKey}.image.repository`, moduleReference.repository)
+          .setLiteral(`${chartKey}.image.tag`, moduleReference.tag);
+      }
+
+      const valuesArguments: string[] = chartValues.toArguments();
+
+      expect(valuesArguments).to.include('importer.image.repository=myprefix/hedera-mirror-importer');
+      expect(valuesArguments).to.include('grpc.image.repository=myprefix/hedera-mirror-grpc');
+      expect(valuesArguments).to.include('rest.image.repository=myprefix/hedera-mirror-rest');
+      expect(valuesArguments).to.include('restjava.image.repository=myprefix/hedera-mirror-rest-java');
+      expect(valuesArguments).to.include('web3.image.repository=myprefix/hedera-mirror-web3');
+      expect(valuesArguments).to.include('monitor.image.repository=myprefix/hedera-mirror-monitor');
+
+      for (const chartKey of moduleMap.keys()) {
+        expect(valuesArguments).to.include(`${chartKey}.image.tag=0.156.0-abc1234`);
+        expect(valuesArguments).to.include(`${chartKey}.image.registry=docker.io`);
+      }
+    });
+
+    it('should map restjava chart key to rest-java Docker image suffix', (): void => {
+      const baseParsed: {registry: string; repository: string; tag: string} =
+        ImageReference.parseImageReference('hedera-mirror:0.156.0');
+      const restjavaReference: {registry: string; repository: string; tag: string} =
+        ImageReference.deriveModuleParsedReference(baseParsed, 'rest-java');
+
+      expect(restjavaReference.repository).to.equal('library/hedera-mirror-rest-java');
+      expect(restjavaReference.repository).to.not.equal('library/hedera-mirror-restjava');
+    });
+
+    it('should derive six distinct image references for Kind loading', (): void => {
+      const componentImage: string = 'hedera-mirror:0.156.0-abc1234';
+      const moduleMap: ReadonlyMap<string, string> = new Map([
+        ['importer', 'importer'],
+        ['grpc', 'grpc'],
+        ['rest', 'rest'],
+        ['restjava', 'rest-java'],
+        ['web3', 'web3'],
+        ['monitor', 'monitor'],
+      ]);
+
+      const derivedImages: string[] = [];
+      for (const [, imageSuffix] of moduleMap) {
+        derivedImages.push(ImageReference.deriveModuleImageReference(componentImage, imageSuffix));
+      }
+
+      expect(derivedImages).to.have.lengthOf(6);
+      expect(derivedImages).to.include('hedera-mirror-importer:0.156.0-abc1234');
+      expect(derivedImages).to.include('hedera-mirror-grpc:0.156.0-abc1234');
+      expect(derivedImages).to.include('hedera-mirror-rest:0.156.0-abc1234');
+      expect(derivedImages).to.include('hedera-mirror-rest-java:0.156.0-abc1234');
+      expect(derivedImages).to.include('hedera-mirror-web3:0.156.0-abc1234');
+      expect(derivedImages).to.include('hedera-mirror-monitor:0.156.0-abc1234');
+    });
+
+    it('should handle full registry reference for Kind image derivation', (): void => {
+      const componentImage: string = 'registry.example.com/project/hedera-mirror:0.156.0';
+      const moduleMap: ReadonlyMap<string, string> = new Map([
+        ['importer', 'importer'],
+        ['grpc', 'grpc'],
+        ['rest', 'rest'],
+        ['restjava', 'rest-java'],
+        ['web3', 'web3'],
+        ['monitor', 'monitor'],
+      ]);
+
+      const derivedImages: string[] = [];
+      for (const [, imageSuffix] of moduleMap) {
+        derivedImages.push(ImageReference.deriveModuleImageReference(componentImage, imageSuffix));
+      }
+
+      expect(derivedImages).to.include('registry.example.com/project/hedera-mirror-importer:0.156.0');
+      expect(derivedImages).to.include('registry.example.com/project/hedera-mirror-rest-java:0.156.0');
   describe('upgradeMirrorNodeChart', (): void => {
     const transientError: Error = new Error(
       'Post "https://127.0.0.1:33745/api/v1/namespaces/one-shot/secrets?fieldManager=helm": unexpected EOF',

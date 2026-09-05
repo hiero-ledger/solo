@@ -54,4 +54,67 @@ describe('ImageReference', (): void => {
       }).to.throw('Invalid image reference format');
     });
   });
+
+  describe('deriveModuleParsedReference', (): void => {
+    it('should append suffix to the repository', (): void => {
+      const base: ParsedImageReference = {registry: 'docker.io', repository: 'library/hedera-mirror', tag: '0.156.0'};
+      const derived: ParsedImageReference = ImageReference.deriveModuleParsedReference(base, 'importer');
+      expect(derived.registry).to.equal('docker.io');
+      expect(derived.repository).to.equal('library/hedera-mirror-importer');
+      expect(derived.tag).to.equal('0.156.0');
+    });
+
+    it('should handle rest-java suffix correctly', (): void => {
+      const base: ParsedImageReference = {registry: 'docker.io', repository: 'library/hedera-mirror', tag: '0.156.0'};
+      const derived: ParsedImageReference = ImageReference.deriveModuleParsedReference(base, 'rest-java');
+      expect(derived.repository).to.equal('library/hedera-mirror-rest-java');
+    });
+
+    it('should preserve custom registry', (): void => {
+      const base: ParsedImageReference = {registry: 'ghcr.io', repository: 'hiero-ledger/hedera-mirror', tag: 'dev'};
+      const derived: ParsedImageReference = ImageReference.deriveModuleParsedReference(base, 'grpc');
+      expect(derived.registry).to.equal('ghcr.io');
+      expect(derived.repository).to.equal('hiero-ledger/hedera-mirror-grpc');
+      expect(derived.tag).to.equal('dev');
+    });
+
+    it('should not mutate the original reference', (): void => {
+      const base: ParsedImageReference = {registry: 'docker.io', repository: 'library/hedera-mirror', tag: '0.156.0'};
+      ImageReference.deriveModuleParsedReference(base, 'web3');
+      expect(base.repository).to.equal('library/hedera-mirror');
+    });
+  });
+
+  describe('deriveModuleImageReference', (): void => {
+    it('should insert suffix before the tag', (): void => {
+      const derived: string = ImageReference.deriveModuleImageReference('hedera-mirror:0.156.0', 'importer');
+      expect(derived).to.equal('hedera-mirror-importer:0.156.0');
+    });
+
+    it('should handle rest-java suffix', (): void => {
+      const derived: string = ImageReference.deriveModuleImageReference('hedera-mirror:0.156.0', 'rest-java');
+      expect(derived).to.equal('hedera-mirror-rest-java:0.156.0');
+    });
+
+    it('should preserve registry/repository prefix', (): void => {
+      const derived: string = ImageReference.deriveModuleImageReference(
+        'myprefix/hedera-mirror:0.156.0-abc1234',
+        'grpc',
+      );
+      expect(derived).to.equal('myprefix/hedera-mirror-grpc:0.156.0-abc1234');
+    });
+
+    it('should handle full registry references', (): void => {
+      const derived: string = ImageReference.deriveModuleImageReference(
+        'registry.example.com/project/hedera-mirror:0.156.0',
+        'web3',
+      );
+      expect(derived).to.equal('registry.example.com/project/hedera-mirror-web3:0.156.0');
+    });
+
+    it('should handle reference without tag', (): void => {
+      const derived: string = ImageReference.deriveModuleImageReference('hedera-mirror', 'monitor');
+      expect(derived).to.equal('hedera-mirror-monitor');
+    });
+  });
 });
