@@ -451,7 +451,7 @@ export class ExplorerCommand extends BaseCommand {
           }
         }
 
-await this.loadComponentImage(config.componentImage, config.componentImageArchive, config.clusterContext);
+        await this.loadComponentImage(config.componentImage, config.componentImageArchive, config.clusterContext);
 
         await this.chartManager.upgrade(
           config.namespace,

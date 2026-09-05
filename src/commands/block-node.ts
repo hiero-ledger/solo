@@ -375,10 +375,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if ('componentImage' in config && config.componentImage) {
-      const hasComponentImageArchive: boolean = this.hasComponentImageArchiveValue(
-        config.componentImage,
-        config.componentImageArchive,
-      );
+      const hasComponentImageArchive: boolean = this.hasComponentImageArchiveValue(config.componentImageArchive);
       if (this.isLocalImageReference(config.componentImage)) {
         if (this.isLocalRegistryImageReference(config.componentImage)) {
           const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
@@ -400,7 +397,7 @@ export class BlockNodeCommand extends BaseCommand {
           const {name: localImageName, tag: rawTag} = this.splitImageNameTag(config.componentImage);
           const localImageTag: string = SemanticVersion.getValidSemanticVersion(rawTag, false, 'Block node image tag');
           if (this.isLocalImageAvailableInDocker(`${localImageName}:${localImageTag}`) || hasComponentImageArchive) {
-            // Image found locally — kind-load task will load it; set pullPolicy: Never.
+            // Image found locally or loaded from an archive — kind-load task will load it; set pullPolicy: Never.
             chartValues
               .set('image.repository', localImageName)
               .set('image.tag', localImageTag)
@@ -712,7 +709,7 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Load component image into Kind cluster',
       skip: ({config}: BlockNodeDeployContext): boolean => {
         return (
-          !this.hasComponentImageArchiveValue(config.componentImage, config.componentImageArchive) &&
+          !this.hasComponentImageArchiveValue(config.componentImageArchive) &&
           (!config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage))
         );
       },
@@ -1734,7 +1731,8 @@ export class BlockNodeCommand extends BaseCommand {
   /// Block node >= v0.39.0 serves its health endpoints (`/healthz/readyz`) from a dedicated
   /// web server on `BLOCK_NODE_HEALTH_PORT`; earlier versions served them from the gRPC port
   /// (`BLOCK_NODE_PORT`). The effective version is the higher of the requested chart version and
-  /// a local image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
+  /// a local image tag or an archive-sourced image (when set); a plain remote-registry image is
+  /// ignored here since it is pulled as-is and does not drive the effective version choice.
   private getLivenessCheckPortNumber(
     chartVersion: string,
     componentImage?: string,
@@ -1742,7 +1740,10 @@ export class BlockNodeCommand extends BaseCommand {
   ): number {
     let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(chartVersion);
 
-    if (componentImage) {
+    if (
+      componentImage &&
+      (this.isLocalImageReference(componentImage) || this.hasComponentImageArchiveValue(componentImageArchive))
+    ) {
       const tag: string = this.splitImageNameTag(componentImage).tag;
       try {
         const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);

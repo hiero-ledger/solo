@@ -319,10 +319,7 @@ export abstract class BaseCommand extends ShellRunner {
     return checkDockerImageExists(name, tag);
   }
 
-  protected hasComponentImageArchiveValue(
-    componentImage: Optional<string>,
-    componentImageArchive: Optional<string>,
-  ): boolean {
+  protected hasComponentImageArchiveValue(componentImageArchive: Optional<string>): boolean {
     return Boolean(componentImageArchive?.trim());
   }
 
@@ -330,7 +327,7 @@ export abstract class BaseCommand extends ShellRunner {
     componentImage: Optional<string>,
     componentImageArchive: Optional<string>,
   ): void {
-    if (!this.hasComponentImageArchiveValue(componentImage, componentImageArchive)) {
+    if (!this.hasComponentImageArchiveValue(componentImageArchive)) {
       return;
     }
 
@@ -351,7 +348,7 @@ export abstract class BaseCommand extends ShellRunner {
     componentImageArchive: Optional<string>,
     clusterContext: Context,
   ): Promise<void> {
-    if (this.hasComponentImageArchiveValue(componentImage, componentImageArchive)) {
+    if (this.hasComponentImageArchiveValue(componentImageArchive)) {
       this.validateComponentImageArchive(componentImage, componentImageArchive);
       await this.kindLoadComponentImageArchive(componentImageArchive, clusterContext);
       return;
@@ -366,7 +363,7 @@ export abstract class BaseCommand extends ShellRunner {
     componentImage: Optional<string>,
     componentImageArchive: Optional<string>,
   ): boolean {
-    if (this.hasComponentImageArchiveValue(componentImage, componentImageArchive)) {
+    if (this.hasComponentImageArchiveValue(componentImageArchive)) {
       this.validateComponentImageArchive(componentImage, componentImageArchive);
       return true;
     }
@@ -417,7 +414,10 @@ export abstract class BaseCommand extends ShellRunner {
     sourceFlagName: string,
     clusterContext: Context,
   ): Context[] {
-    const targetContexts: Context[] = [...new Set<Context>([...this.remoteConfig.getContexts(), clusterContext])];
+    const additionalKindContexts: Context[] = this.remoteConfig
+      .getContexts()
+      .filter((context: Context): boolean => context.startsWith('kind-') && context !== clusterContext);
+    const targetContexts: Context[] = [...new Set<Context>([clusterContext, ...additionalKindContexts])];
     const nonKindContexts: Context[] = targetContexts.filter(
       (context: Context): boolean => !context.startsWith('kind-'),
     );

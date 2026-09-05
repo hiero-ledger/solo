@@ -70,7 +70,7 @@ interface BlockNodeCommandInternal {
     context: string,
   ) => Promise<{id: number; releaseName: string; isChartInstalled: boolean; isLegacyChartInstalled: boolean}>;
   prepareValuesArgForBlockNode: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
-  getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string) => number;
+  getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string, componentImageArchive?: string) => number;
   isLocalImageAvailableInDocker: (componentImage: string) => boolean;
 }
 
@@ -149,6 +149,26 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0', 'localhost:5001/block-node-server')).to.equal(
       constants.BLOCK_NODE_PORT,
     );
+  });
+
+  it('should ignore a plain remote-registry componentImage tag when picking the readiness port', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(
+      blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0', 'ghcr.io/hiero-ledger/block-node-server:0.40.0'),
+    ).to.equal(constants.BLOCK_NODE_PORT);
+  });
+
+  it('should use a semver tag on an archive-sourced remote-registry componentImage to pick the readiness port', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(
+      blockNodeCommandInternal.getLivenessCheckPortNumber(
+        '0.38.0',
+        'ghcr.io/hiero-ledger/block-node-server:0.40.0',
+        '/tmp/block-node-server.tar',
+      ),
+    ).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
   });
 
   it('should configure the RSA mirror bootstrap source for block-stream consensus versions', async (): Promise<void> => {
@@ -307,66 +327,66 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(valueArguments).to.include('image.pullPolicy=Never');
   });
 
-it('should configure an archived image with a Never pull policy', async (): Promise<void> => {
-  const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
-  testCacheDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-block-node-image-archive-test-'));
-  const componentImageArchive: string = PathEx.join(testCacheDirectory, 'block-node-server.tar');
-  fs.writeFileSync(componentImageArchive, 'image archive');
-  blockNodeCommandInternal.remoteConfig = {
-    getConsensusNodes: (): Array<{name: string}> => [],
-    configuration: {
-      clusters: [],
-      state: {
-        tssEnabled: false,
-        blockNodes: [],
+  it('should configure an archived image with a Never pull policy', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    testCacheDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-block-node-image-archive-test-'));
+    const componentImageArchive: string = PathEx.join(testCacheDirectory, 'block-node-server.tar');
+    fs.writeFileSync(componentImageArchive, 'image archive');
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+        },
       },
-    },
-  };
+    };
 
-  const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
-    blockNodeTssOverlay: false,
-    componentImage: 'ghcr.io/hiero-ledger/block-node-server:0.38.0',
-    componentImageArchive,
-    valuesFile: undefined,
-    releaseName: 'block-node-1',
-    namespace: NamespaceName.of('solo-ns'),
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: false,
+      componentImage: 'ghcr.io/hiero-ledger/block-node-server:0.38.0',
+      componentImageArchive,
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+    expect(valueArguments).to.include('image.registry=ghcr.io');
+    expect(valueArguments).to.include('image.repository=hiero-ledger/block-node-server');
+    expect(valueArguments).to.include('image.tag=0.38.0');
+    expect(valueArguments).to.include('image.pullPolicy=Never');
   });
 
-  const valueArguments: string[] = chartValues.toArguments();
-  expect(valueArguments).to.include('image.registry=ghcr.io');
-  expect(valueArguments).to.include('image.repository=hiero-ledger/block-node-server');
-  expect(valueArguments).to.include('image.tag=0.38.0');
-  expect(valueArguments).to.include('image.pullPolicy=Never');
-});
-
-it('should preserve tagless local registry refs with implicit latest tags', async (): Promise<void> => {
-  const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
-  blockNodeCommandInternal.remoteConfig = {
-    getConsensusNodes: (): Array<{name: string}> => [],
-    configuration: {
-      clusters: [],
-      state: {
-        tssEnabled: false,
-        blockNodes: [],
+  it('should preserve tagless local registry refs with implicit latest tags', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+        },
       },
-    },
-  };
-  sinon.stub(blockNodeCommandInternal, 'isLocalImageAvailableInDocker').returns(true);
+    };
+    sinon.stub(blockNodeCommandInternal, 'isLocalImageAvailableInDocker').returns(true);
 
-  const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
-    blockNodeTssOverlay: false,
-    componentImage: 'localhost:5001/block-node-server',
-    valuesFile: undefined,
-    releaseName: 'block-node-1',
-    namespace: NamespaceName.of('solo-ns'),
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: false,
+      componentImage: 'localhost:5001/block-node-server',
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+    expect(valueArguments).to.include('image.registry=localhost:5001');
+    expect(valueArguments).to.include('image.repository=block-node-server');
+    expect(valueArguments).to.include('image.tag=latest');
+    expect(valueArguments).to.include('image.pullPolicy=Never');
   });
-
-  const valueArguments: string[] = chartValues.toArguments();
-  expect(valueArguments).to.include('image.registry=localhost:5001');
-  expect(valueArguments).to.include('image.repository=block-node-server');
-  expect(valueArguments).to.include('image.tag=latest');
-  expect(valueArguments).to.include('image.pullPolicy=Never');
-});
 
   it('should use the block node release name as the Helm instance label selector', (): void => {
     const labels: string[] = Templates.renderBlockNodeLabels(1);
