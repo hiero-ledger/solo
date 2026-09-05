@@ -45,6 +45,7 @@ import {type ConfigProvider} from '../data/configuration/api/config-provider.js'
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {type KindClient} from '../integration/kind/kind-client.js';
 import {LoadDockerImageOptionsBuilder} from '../integration/kind/model/load-docker-image/load-docker-image-options-builder.js';
+import {LoadImageArchiveOptionsBuilder} from '../integration/kind/model/load-image-archive/load-image-archive-options-builder.js';
 import {checkDockerImageExists} from '../core/helpers.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
@@ -318,24 +319,64 @@ export abstract class BaseCommand extends ShellRunner {
     return checkDockerImageExists(name, tag);
   }
 
-  protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
-    const additionalKindContexts: Context[] = this.remoteConfig
-      .getContexts()
-      .filter((context: Context): boolean => context.startsWith('kind-') && context !== clusterContext);
-    const targetContexts: Context[] = [...new Set<Context>([clusterContext, ...additionalKindContexts])];
-    const nonKindContexts: Context[] = targetContexts.filter(
-      (context: Context): boolean => !context.startsWith('kind-'),
-    );
+  protected hasComponentImageArchiveValue(componentImageArchive: Optional<string>): boolean {
+    return Boolean(componentImageArchive?.trim());
+  }
 
-    if (nonKindContexts.length > 0) {
+  protected validateComponentImageArchive(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+  ): void {
+    if (!this.hasComponentImageArchiveValue(componentImageArchive)) {
+      return;
+    }
+
+    if (!componentImage?.trim()) {
       throw new SoloErrors.validation.illegalArgument(
-        `Component image '${componentImage}' requires Kind image loading, but target cluster context(s) ` +
-          `'${nonKindContexts.join("', '")}' are not Kind clusters. Push the image to a registry reachable ` +
-          'from every target cluster and pass that registry image reference to --component-image.',
-        componentImage,
+        `--${flags.componentImageArchive.name} requires --${flags.componentImage.name} to identify the image in the archive.`,
+        componentImageArchive,
       );
     }
 
+    if (!fs.existsSync(componentImageArchive)) {
+      throw new SoloErrors.system.fileNotFound(componentImageArchive);
+    }
+  }
+
+  protected async loadComponentImage(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+    clusterContext: Context,
+  ): Promise<void> {
+    if (this.hasComponentImageArchiveValue(componentImageArchive)) {
+      this.validateComponentImageArchive(componentImage, componentImageArchive);
+      await this.kindLoadComponentImageArchive(componentImageArchive, clusterContext);
+      return;
+    }
+
+    if (componentImage && this.isLocalImageAvailableInDocker(componentImage)) {
+      await this.kindLoadComponentImage(componentImage, clusterContext);
+    }
+  }
+
+  protected isComponentImageAvailableForKind(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+  ): boolean {
+    if (this.hasComponentImageArchiveValue(componentImageArchive)) {
+      this.validateComponentImageArchive(componentImage, componentImageArchive);
+      return true;
+    }
+
+    return Boolean(componentImage && this.isLocalImageAvailableInDocker(componentImage));
+  }
+
+  protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
+    const targetContexts: Context[] = this.getKindTargetContexts(
+      componentImage,
+      flags.componentImage.name,
+      clusterContext,
+    );
     const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
     const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
 
@@ -347,6 +388,50 @@ export abstract class BaseCommand extends ShellRunner {
         LoadDockerImageOptionsBuilder.builder().name(kindClusterName).build(),
       );
     }
+  }
+
+  protected async kindLoadComponentImageArchive(componentImageArchive: string, clusterContext: Context): Promise<void> {
+    const targetContexts: Context[] = this.getKindTargetContexts(
+      componentImageArchive,
+      flags.componentImageArchive.name,
+      clusterContext,
+    );
+    const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
+    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+
+    for (const targetContext of targetContexts) {
+      const kindClusterName: string = this.kindClusterNameFromContext(targetContext);
+      this.logger.debug(`Loading image archive '${componentImageArchive}' into Kind cluster '${kindClusterName}'`);
+      await kindClient.loadImageArchive(
+        componentImageArchive,
+        LoadImageArchiveOptionsBuilder.builder().name(kindClusterName).build(),
+      );
+    }
+  }
+
+  private getKindTargetContexts(
+    componentImageSource: string,
+    sourceFlagName: string,
+    clusterContext: Context,
+  ): Context[] {
+    const additionalKindContexts: Context[] = this.remoteConfig
+      .getContexts()
+      .filter((context: Context): boolean => context.startsWith('kind-') && context !== clusterContext);
+    const targetContexts: Context[] = [...new Set<Context>([clusterContext, ...additionalKindContexts])];
+    const nonKindContexts: Context[] = targetContexts.filter(
+      (context: Context): boolean => !context.startsWith('kind-'),
+    );
+
+    if (nonKindContexts.length > 0) {
+      throw new SoloErrors.validation.illegalArgument(
+        `Component image source '${componentImageSource}' from --${sourceFlagName} requires Kind image loading, but target ` +
+          `cluster context(s) '${nonKindContexts.join("', '")}' are not Kind clusters. Push the image to a registry ` +
+          'reachable from every target cluster and pass that registry image reference to --component-image.',
+        componentImageSource,
+      );
+    }
+
+    return targetContexts;
   }
 
   protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {
