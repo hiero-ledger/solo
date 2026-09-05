@@ -568,6 +568,8 @@ export class Flags {
       describe:
         'Docker image override. Accepts a registry reference (e.g. ghcr.io/hiero-ledger/block-node-server:0.36.0) ' +
         'or a local reference (e.g. block-node-server:0.36.0-SNAPSHOT). ' +
+        'For Mirror Node, the image acts as a prefix and Solo derives the six module-specific images ' +
+        '(e.g. hedera-mirror:0.156.0 → hedera-mirror-importer:0.156.0, hedera-mirror-rest-java:0.156.0, etc.). ' +
         'Local images found in Docker are automatically loaded into the Kind cluster.',
       defaultValue: '',
       type: 'string',

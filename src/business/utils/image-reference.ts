@@ -75,4 +75,47 @@ export class ImageReference {
 
     return {registry, repository, tag};
   }
+
+  /**
+   * Derives a module-specific {@link ParsedImageReference} by appending {@code -suffix} to the
+   * last path segment of the repository.
+   *
+   * @example
+   * // {registry: 'docker.io', repository: 'library/hedera-mirror', tag: '0.156.0'}
+   * // + suffix 'rest-java'
+   * // → {registry: 'docker.io', repository: 'library/hedera-mirror-rest-java', tag: '0.156.0'}
+   */
+  public static deriveModuleParsedReference(
+    parsedReference: ParsedImageReference,
+    imageSuffix: string,
+  ): ParsedImageReference {
+    return {
+      registry: parsedReference.registry,
+      repository: `${parsedReference.repository}-${imageSuffix}`,
+      tag: parsedReference.tag,
+    };
+  }
+
+  /**
+   * Derives a module-specific image reference string by appending {@code -suffix} to the image
+   * name portion (the last path segment before the tag).
+   *
+   * @example
+   * // 'hedera-mirror:0.156.0' + 'rest-java' → 'hedera-mirror-rest-java:0.156.0'
+   * // 'myprefix/hedera-mirror:0.156.0' + 'grpc' → 'myprefix/hedera-mirror-grpc:0.156.0'
+   */
+  public static deriveModuleImageReference(baseImageReference: string, imageSuffix: string): string {
+    const trimmed: string = baseImageReference.trim();
+    const lastColon: number = trimmed.lastIndexOf(':');
+    const lastSlash: number = trimmed.lastIndexOf('/');
+    const hasTag: boolean = lastColon > lastSlash && lastColon !== -1;
+
+    if (hasTag) {
+      const beforeTag: string = trimmed.slice(0, lastColon);
+      const tag: string = trimmed.slice(lastColon + 1);
+      return `${beforeTag}-${imageSuffix}:${tag}`;
+    }
+
+    return `${trimmed}-${imageSuffix}`;
+  }
 }
