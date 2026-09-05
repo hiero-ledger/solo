@@ -13,10 +13,12 @@ import * as versions from '../../../version.js';
 import {resetForTest} from '../../test-container.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {type SoloListrTask} from '../../../src/types/index.js';
+import {type ArgvStruct} from '../../../src/types/aliases.js';
 import path from 'node:path';
 import yaml from 'yaml';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {ImageReference} from '../../../src/business/utils/image-reference.js';
+import {Duration} from '../../../src/core/time/duration.js';
 
 interface MirrorNodeMemoryOverrideConfig {
   mirrorNodeVersion: string;
@@ -24,26 +26,35 @@ interface MirrorNodeMemoryOverrideConfig {
   componentImage?: string;
 }
 
+interface MirrorNodeRemoteConfigTestState {
+  clusters: {name: string; dnsBaseDomain: string}[];
+  components: {
+    state: {
+      blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
+    };
+  };
+  versions?: {
+    consensusNode: {greaterThanOrEqual: () => boolean};
+    blockNodeChart: {greaterThanOrEqual: () => boolean};
+  };
+  state?: {
+    tssEnabled?: boolean;
+  };
+}
+
 interface MirrorNodeCommandInternal {
   remoteConfig: {
-    configuration: {
-      clusters: {name: string; dnsBaseDomain: string}[];
-      components: {
-        state: {
-          blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
-        };
-      };
-      versions?: {
-        consensusNode: {greaterThanOrEqual: () => boolean};
-        blockNodeChart: {greaterThanOrEqual: () => boolean};
-      };
-    };
+    configuration: MirrorNodeRemoteConfigTestState;
+    _remoteConfig?: MirrorNodeRemoteConfigTestState;
+    phase?: 'loaded' | 'not_loaded';
   };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
     config: MirrorNodeMemoryOverrideConfig,
   ) => void;
   addMirrorNodeImageTagOverrides: (chartValues: HelmChartValues, mirrorNodeVersion: string) => void;
+  shouldApplyMirrorNodeImageTagOverrides: (mirrorNodeChartDirectory: string) => boolean;
+  configManager: {wasFlagProvidedByUser: sinon.SinonStub};
   initializeSharedPostgresDatabaseTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   primePostgresSecretTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   waitForMirrorNodeSchemaTask: () => SoloListrTask<MirrorNodeSchemaWaitTaskContext>;
@@ -81,6 +92,33 @@ interface MirrorNodeSchemaWaitPodsStub {
   waitForReadyStatus: sinon.SinonStub;
 }
 
+interface MirrorNodeChartUpgradeTestConfig {
+  namespace: {name: string};
+  releaseName: string;
+  mirrorNodeChartDirectory?: string;
+  mirrorNodeVersion: string;
+  chartValues: HelmChartValues;
+  clusterContext: string;
+  isChartInstalled: boolean;
+}
+
+interface MirrorNodeChartUpgradeInternal {
+  chartManager: {
+    upgrade: sinon.SinonStub;
+    uninstall: sinon.SinonStub;
+  };
+  upgradeMirrorNodeChart: (config: MirrorNodeChartUpgradeTestConfig, shouldReuseValues: boolean) => Promise<void>;
+}
+
+interface MirrorNodeCommandTrailingCloseInternal {
+  oneShotState: {isActive: () => boolean};
+  taskList: {
+    newTaskList: (...newTaskListParameters: unknown[]) => unknown;
+    registerCloseFunction: (trailingCloseFunction: () => Promise<void>) => void;
+  };
+  accountManager: {close: () => Promise<void>};
+}
+
 type MirrorNodeDatabaseSkip = (context: MirrorNodeDatabaseTaskContext) => boolean;
 
 function getSkipFunction(task: SoloListrTask<MirrorNodeDatabaseTaskContext>): MirrorNodeDatabaseSkip {
@@ -97,6 +135,32 @@ function stubImporterPods(
     getK8: (): {pods: () => MirrorNodeSchemaWaitPodsStub} => ({
       pods: (): MirrorNodeSchemaWaitPodsStub => podsStub,
     }),
+  };
+  return mirrorNodeCommandInternal;
+}
+
+function buildChartUpgradeConfig(isChartInstalled: boolean): MirrorNodeChartUpgradeTestConfig {
+  return {
+    namespace: {name: 'one-shot'},
+    releaseName: 'mirror-1',
+    mirrorNodeVersion: 'v0.159.0',
+    chartValues: new HelmChartValues(),
+    clusterContext: 'kind-kind',
+    isChartInstalled,
+  };
+}
+
+function stubChartUpgrade(command: MirrorNodeCommand): MirrorNodeChartUpgradeInternal {
+  // collapse the retry backoff so the test does not wait for the real delay
+  const ofSecondsStub: sinon.SinonStub = sinon.stub(Duration, 'ofSeconds');
+  ofSecondsStub.callThrough();
+  ofSecondsStub.withArgs(constants.MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS).returns(Duration.ofMillis(1));
+
+  const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal =
+    command as unknown as MirrorNodeChartUpgradeInternal;
+  mirrorNodeCommandInternal.chartManager = {
+    upgrade: sinon.stub().resolves(true),
+    uninstall: sinon.stub().resolves(true),
   };
   return mirrorNodeCommandInternal;
 }
@@ -261,6 +325,33 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesArguments).to.include('web3.image.tag=0.157.0');
   });
 
+  it('should apply mirror node image tag overrides when no local chart directory is used', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+
+    expect(mirrorNodeCommandInternal.shouldApplyMirrorNodeImageTagOverrides('')).to.equal(true);
+  });
+
+  it('should skip mirror node image tag overrides for a local chart directory when the version flag was not provided', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    mirrorNodeCommandInternal.configManager = {wasFlagProvidedByUser: sinon.stub().returns(false)};
+
+    expect(
+      mirrorNodeCommandInternal.shouldApplyMirrorNodeImageTagOverrides('/home/user/hiero-mirror-node/charts'),
+    ).to.equal(false);
+  });
+
+  it('should apply mirror node image tag overrides for a local chart directory when the version flag was explicitly provided', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    mirrorNodeCommandInternal.configManager = {wasFlagProvidedByUser: sinon.stub().returns(true)};
+
+    expect(
+      mirrorNodeCommandInternal.shouldApplyMirrorNodeImageTagOverrides('/home/user/hiero-mirror-node/charts'),
+    ).to.equal(true);
+  });
+
   it('should use block node importer endpoint properties for mirror node 0.157.0', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
@@ -273,6 +364,14 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
         clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
       },
     };
 
@@ -310,6 +409,14 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
         clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
       },
     };
 
@@ -447,6 +554,82 @@ describe('MirrorNodeCommand unit tests', (): void => {
       );
       expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
+    } finally {
+      fs.rmSync(cacheDirection, {recursive: true, force: true});
+    }
+  });
+
+  it('should leave mirror node on consensus streams when consensus node version is not supported', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
+
+    try {
+      mirrorNodeCommandInternal.remoteConfig._remoteConfig = {
+        clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
+        components: {
+          state: {
+            blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+          },
+        },
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => false,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
+      };
+      mirrorNodeCommandInternal.remoteConfig.phase = 'loaded';
+
+      const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
+        cacheDir: cacheDirection,
+        clusterReference: 'kind-a',
+        mirrorNodeVersion: versions.MIRROR_NODE_VERSION,
+      });
+
+      expect(chartValues.toArguments()).to.deep.equal([]);
+    } finally {
+      fs.rmSync(cacheDirection, {recursive: true, force: true});
+    }
+  });
+
+  it('should leave mirror node on consensus streams when TSS is disabled', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
+
+    try {
+      mirrorNodeCommandInternal.remoteConfig = {
+        configuration: {
+          clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
+          components: {
+            state: {
+              blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+            },
+          },
+          versions: {
+            consensusNode: {
+              greaterThanOrEqual: (): boolean => true,
+            },
+            blockNodeChart: {
+              greaterThanOrEqual: (): boolean => true,
+            },
+          },
+          state: {
+            tssEnabled: false,
+          },
+        },
+      };
+
+      const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
+        cacheDir: cacheDirection,
+        clusterReference: 'kind-a',
+        mirrorNodeVersion: versions.MIRROR_NODE_VERSION,
+      });
+
+      expect(chartValues.toArguments()).to.deep.equal([]);
     } finally {
       fs.rmSync(cacheDirection, {recursive: true, force: true});
     }
@@ -627,6 +810,75 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
       expect(derivedImages).to.include('registry.example.com/project/hedera-mirror-importer:0.156.0');
       expect(derivedImages).to.include('registry.example.com/project/hedera-mirror-rest-java:0.156.0');
+  describe('upgradeMirrorNodeChart', (): void => {
+    const transientError: Error = new Error(
+      'Post "https://127.0.0.1:33745/api/v1/namespaces/one-shot/secrets?fieldManager=helm": unexpected EOF',
+    );
+
+    it('retries the chart upgrade after a transient failure and cleans up the fresh install', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal = stubChartUpgrade(mirrorNodeCommand);
+      mirrorNodeCommandInternal.chartManager.upgrade.onFirstCall().rejects(transientError);
+
+      await mirrorNodeCommandInternal.upgradeMirrorNodeChart(buildChartUpgradeConfig(false), false);
+
+      expect(mirrorNodeCommandInternal.chartManager.upgrade.callCount).to.equal(2);
+      expect(mirrorNodeCommandInternal.chartManager.uninstall.callCount).to.equal(1);
+      expect(mirrorNodeCommandInternal.chartManager.uninstall.firstCall.args[1]).to.equal('mirror-1');
+    });
+
+    it('does not uninstall a previously installed release between retries', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal = stubChartUpgrade(mirrorNodeCommand);
+      mirrorNodeCommandInternal.chartManager.upgrade.onFirstCall().rejects(transientError);
+
+      await mirrorNodeCommandInternal.upgradeMirrorNodeChart(buildChartUpgradeConfig(true), true);
+
+      expect(mirrorNodeCommandInternal.chartManager.upgrade.callCount).to.equal(2);
+      expect(mirrorNodeCommandInternal.chartManager.uninstall.called).to.equal(false);
+    });
+
+    it('throws the last error once all attempts are exhausted', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeChartUpgradeInternal = stubChartUpgrade(mirrorNodeCommand);
+      mirrorNodeCommandInternal.chartManager.upgrade.rejects(transientError);
+
+      let thrownError: Error | undefined;
+      try {
+        await mirrorNodeCommandInternal.upgradeMirrorNodeChart(buildChartUpgradeConfig(false), false);
+      } catch (error) {
+        thrownError = error as Error;
+      }
+
+      expect(thrownError).to.equal(transientError);
+      expect(mirrorNodeCommandInternal.chartManager.upgrade.callCount).to.equal(
+        constants.MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS,
+      );
+    });
+  });
+
+  describe('upgrade trailing close function', (): void => {
+    it('should tolerate a missing lease when one-shot deactivates before the trailing close runs', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandTrailingCloseInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandTrailingCloseInternal;
+      const isActiveStub: sinon.SinonStub = sinon
+        .stub(mirrorNodeCommandInternal.oneShotState, 'isActive')
+        .returns(true);
+      sinon.stub(mirrorNodeCommandInternal.taskList, 'newTaskList').returns({isRoot: (): boolean => false});
+      let trailingCloseFunction: (() => Promise<void>) | undefined;
+      sinon
+        .stub(mirrorNodeCommandInternal.taskList, 'registerCloseFunction')
+        .callsFake((closeFunction: () => Promise<void>): void => {
+          trailingCloseFunction = closeFunction;
+        });
+      const accountManagerCloseStub: sinon.SinonStub = sinon
+        .stub(mirrorNodeCommandInternal.accountManager, 'close')
+        .resolves();
+
+      expect(await mirrorNodeCommand.upgrade({} as ArgvStruct)).to.equal(true);
+      expect(trailingCloseFunction).to.be.a('function');
+
+      // one-shot deactivates before trailing close functions run, so the release guard must tolerate a missing lease
+      isActiveStub.returns(false);
+      await trailingCloseFunction();
+      expect(accountManagerCloseStub.calledOnce).to.equal(true);
     });
   });
 });

@@ -60,13 +60,15 @@ jobs:
       build_succeeded: ${{ steps.set-build-succeeded.outputs.build_succeeded }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
       - name: Validate docs-build-label input
+        env:
+          DOCS_BUILD_LABEL_INPUT: ${{ inputs.docs-build-label }}
         run: |
-          DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
+          DOCS_BUILD_LABEL="${DOCS_BUILD_LABEL_INPUT}"
           echo "Validating docs-build-label: ${DOCS_BUILD_LABEL}"
           if [[ "${DOCS_BUILD_LABEL}" == "main" ]]; then
             echo "Input is 'main', no validation needed."
@@ -89,7 +91,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install Task
         uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
@@ -129,14 +131,16 @@ jobs:
         id: hugo-build
         env:
           GH_TOKEN: ${{ secrets.github-token }} # We want this to be null unless we want to pull the existing release artifacts
+          DOCS_BUILD_LABEL_INPUT: ${{ inputs.docs-build-label }}
         run: |
           set -eo pipefail
           cd docs/site
-          DOCS_BUILD_LABEL="${{ inputs.docs-build-label }}"
+          DOCS_BUILD_LABEL="${DOCS_BUILD_LABEL_INPUT}"
+          # GH_TOKEN is inherited from the step environment above.
           if [[ -z ${DOCS_BUILD_LABEL} ]]; then
-            SOLO_CI=true GH_TOKEN=${{ secrets.github-token }} task build 
+            SOLO_CI=true task build
           else
-            SOLO_CI=true GH_TOKEN=${{ secrets.github-token }} HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
+            SOLO_CI=true HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
           fi
 
       # Upload the built site to artifacts

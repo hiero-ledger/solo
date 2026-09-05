@@ -13,6 +13,7 @@ import {type CacheHealthInspector} from '../../../../src/integration/cache/api/c
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type ContainerEngineClient} from '../../../../src/integration/container-engine/container-engine-client.js';
+import {ClusterNodeResumeOutcome} from '../../../../src/integration/container-engine/cluster-node-resume-outcome.js';
 import {type SoloListrTask} from '../../../../src/types/index.js';
 import {type AnyListrContext} from '../../../../src/types/aliases.js';
 
@@ -26,7 +27,7 @@ async function runReturnedLoadTasks(handler: ImageCacheHandler, clusterName: str
 
 describe('ImageCacheHandler pull', (): void => {
   const mirrorRegistryEnvironmentVariable: string = 'KIND_DOCKER_REGISTRY_MIRRORS';
-  const defaultMirrorRegistry: string = 'hub.mirror.docker.lat.ope.eng.hashgraph.io';
+  const defaultMirrorRegistry: string = 'mirror.gcr.io';
   const configuredMirrorRegistry: string = 'custom.registry.example.com';
   let previousMirrorRegistry: string | undefined;
 
@@ -110,6 +111,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -137,6 +139,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -151,7 +154,7 @@ describe('ImageCacheHandler pull', (): void => {
     expect(context.config.results).to.have.lengthOf(0);
   });
 
-  it('should use the Hashgraph mirror by default when no mirror override is set', async (): Promise<void> => {
+  it('should use the first kind-config mirror by default when no mirror override is set', async (): Promise<void> => {
     delete process.env[mirrorRegistryEnvironmentVariable];
 
     const saveImageStub: SinonStub = sinon.stub().resolves();
@@ -163,6 +166,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -190,6 +194,7 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -253,6 +258,7 @@ describe('ImageCacheHandler load', (): void => {
       loadImageArchiveIntoCluster: loadArchiveStub,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(
@@ -278,6 +284,7 @@ describe('ImageCacheHandler load', (): void => {
       loadImageArchiveIntoCluster: loadArchiveStub,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => ['docker.io/library/busybox:1.36.1'],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(
@@ -305,6 +312,7 @@ describe('ImageCacheHandler load', (): void => {
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => {
         throw new Error('cluster unreachable');
       },
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(
@@ -329,6 +337,7 @@ describe('ImageCacheHandler load', (): void => {
       loadImageArchiveIntoCluster: sinon.stub().rejects(new Error('unrecognized image format')),
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+      resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     };
 
     const handler: ImageCacheHandler = new ImageCacheHandler(

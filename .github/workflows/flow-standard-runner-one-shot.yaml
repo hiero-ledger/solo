@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Standard Runner One-Shot Deploy and Destroy"
+name: 'Standard Runner One-Shot Deploy and Destroy'
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
 # using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
@@ -26,7 +26,7 @@ name: "Standard Runner One-Shot Deploy and Destroy"
 #   2. global-package — reproduce a first-time user experience with the published package.
 #      Runs on hiero-solo-linux-large:
 #      - Faithful package: the tarball is built with the same release packaging code that produces
-#        the published artifact (`scripts/Taskfile.release.yml` dual-publish tasks), so
+#        the published artifact, so
 #        `npm install -g` installs `@hiero-ledger/solo` under its real published name, exercising
 #        the path a first-time user hits (packaging, bin, postinstall).
 #      - Separate directory: every `solo` command runs from a directory outside the checkout,
@@ -84,7 +84,7 @@ jobs:
             runner: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -96,7 +96,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install Task
@@ -111,13 +111,23 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      - name: Restore Solo Bin Cache
+        # source mode only: restoring into ~/.solo/bin for the global-package matrix entry would
+        # create ~/.solo before the "Assert Clean Environment" step runs, failing that assertion.
+        id: solo-bin-cache
+        if: ${{ matrix.install-mode == 'source' && !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-bin-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts') }}
+
       - name: Restore Solo Image Cache
         # source mode only: restoring the image cache populates ~/.solo/cache/images, which would
         # both create ~/.solo (failing the global-package "Assert Clean Environment" step) and
         # defeat that mode's no-cached-images purpose.
         id: solo-image-cache
         if: ${{ matrix.install-mode == 'source' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
@@ -151,16 +161,12 @@ jobs:
           echo "Environment is clean."
 
       - name: Pack Solo as the Published Package
-        # Use the same release packaging code that produces the published artifact, renaming to the
-        # @hiero-ledger/solo namespace so `npm install -g` emulates a real user install. `dual-publish:pack`
-        # runs npm install + task build + npm pack; the build runs after the rename, so dist/package.json
-        # is renamed too, matching the real artifact. `dual-publish:restore` runs `git restore .`.
+        # Use the same release packaging code that produces the primary published artifact so
+        # `npm install -g` emulates a real user install of `@hiero-ledger/solo`.
         if: ${{ matrix.install-mode == 'global-package' }}
         timeout-minutes: 10
         run: |
-          task -t scripts/Taskfile.release.yml dual-publish:rename
           task -t scripts/Taskfile.release.yml dual-publish:pack OUTPUT_DIR=output/hl
-          task -t scripts/Taskfile.release.yml dual-publish:restore
 
       - name: Globally Install Solo
         # SOLO_NO_CACHE skips the postinstall image-cache population so no images are cached before deploy.
@@ -220,6 +226,13 @@ jobs:
           done
           echo "ERROR: Mirror REST API did not become available after 5 minutes."
           exit 1
+
+      - name: Save Solo Bin Cache
+        if: ${{ matrix.install-mode == 'source' && github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-bin-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts') }}
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}

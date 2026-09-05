@@ -228,20 +228,28 @@ export class ChartManager {
     chartReleaseName: string,
     kubeContext?: string,
   ): Promise<boolean> {
+    return (await this.getInstalledRelease(namespaceName, chartReleaseName, kubeContext)) !== undefined;
+  }
+
+  /**
+   * Returns the installed Helm release matching the given release name, or undefined when it is not installed.
+   * Pass `undefined` for `namespaceName` to search across all namespaces.
+   */
+  public async getInstalledRelease(
+    namespaceName: NamespaceName | undefined,
+    chartReleaseName: string,
+    kubeContext?: string,
+  ): Promise<ReleaseItem | undefined> {
     this.logger.debug(
       `> checking if chart is installed [ chart: ${chartReleaseName}, namespace: ${namespaceName}, kubeContext: ${kubeContext} ]`,
     );
-    const charts: string[] = await this.getInstalledCharts(namespaceName, kubeContext);
-
-    let match: boolean = false;
-    for (const chart of charts) {
-      if (chart.split(' ', 1)[0] === chartReleaseName) {
-        match = true;
-        break;
-      }
+    try {
+      const releases: ReleaseItem[] = await this.helm.listReleases(!namespaceName, namespaceName?.name, kubeContext);
+      return releases.find((release: ReleaseItem): boolean => release.name === chartReleaseName);
+    } catch (error) {
+      this.logger.showUserError(error);
+      throw new SoloErrors.system.helmChartListFailed(error);
     }
-
-    return match;
   }
 
   public async uninstall(

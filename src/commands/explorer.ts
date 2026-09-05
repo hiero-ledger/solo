@@ -11,6 +11,8 @@ import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {showVersionBanner, sleep} from '../core/helpers.js';
+import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
+import {ClusterCrdProbe} from '../core/cluster-crd-probe.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {
   type ClusterReferenceName,
@@ -26,7 +28,7 @@ import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
-import {INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
+import {EXPLORER_VERSION, INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Lock} from '../core/lock/lock.js';
@@ -37,6 +39,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
+import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
@@ -283,12 +286,6 @@ export class ExplorerCommand extends BaseCommand {
 
     const chartValues: HelmChartValues = new HelmChartValues();
 
-    if (!['acme-staging', 'acme-prod', 'self-signed'].includes(tlsClusterIssuerType)) {
-      throw new Error(
-        `Invalid TLS cluster issuer type: ${tlsClusterIssuerType}, must be one of: "acme-staging", "acme-prod", or "self-signed"`,
-      );
-    }
-
     if (!(await this.clusterChecks.isCertManagerInstalled())) {
       chartValues.set('cert-manager.installCRDs', true);
     }
@@ -322,15 +319,27 @@ export class ExplorerCommand extends BaseCommand {
         const {soloChartVersion} = config;
 
         const soloCertManagerChartValues: HelmChartValues = await this.prepareCertManagerChartValues(config);
-        // check if CRDs of cert-manager are already installed
-        let needInstall: boolean = false;
-        for (const crd of constants.CERT_MANAGER_CRDS) {
-          const crdExists: boolean = await this.k8Factory.getK8(config.clusterContext).crds().ifExists(crd);
+        // check if CRDs of cert-manager are already installed — all of them, since a partial set means
+        // the chart still has work to do
+        const presentCrds: Map<string, Record<string, string>> = await ClusterCrdProbe.probe(
+          this.k8Factory,
+          config.clusterContext,
+          constants.CERT_MANAGER_CRDS,
+        );
+        const needInstall: boolean = presentCrds.size < constants.CERT_MANAGER_CRDS.length;
+        const foundCrdVersions: Set<string> = new Set<string>(
+          [...presentCrds.values()].map((crdLabels: Record<string, string>): string =>
+            SharedClusterResourceReport.versionFromLabels(crdLabels),
+          ),
+        );
 
-          if (!crdExists) {
-            needInstall = true;
-            break;
-          }
+        if (!needInstall) {
+          SharedClusterResourceReport.show(
+            this.logger,
+            'cert-manager CRDs',
+            config.clusterContext,
+            `all ${constants.CERT_MANAGER_CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
+          );
         }
 
         if (needInstall) {
@@ -415,8 +424,16 @@ export class ExplorerCommand extends BaseCommand {
               .set('image.tag', parsedReference.tag)
               .setLiteral('image.pullPolicy', 'Never');
           } else if (this.isLocalImageReference(config.componentImage)) {
-            // Local-looking ref but not in Docker — plain tag override, K8s will pull from registry.
-            explorerChartValues.set('image.tag', parsedReference.tag);
+            // Explicit local registry refs keep their registry/repository metadata even when Docker is missing.
+            if (this.isLocalRegistryImageReference(config.componentImage)) {
+              explorerChartValues
+                .setLiteral('image.registry', parsedReference.registry)
+                .setLiteral('image.repository', parsedReference.repository)
+                .set('image.tag', parsedReference.tag);
+            } else {
+              // Local-looking ref but not in Docker — plain tag override, K8s will pull from registry.
+              explorerChartValues.set('image.tag', parsedReference.tag);
+            }
           } else {
             // Explicit registry reference.
             explorerChartValues
@@ -424,6 +441,10 @@ export class ExplorerCommand extends BaseCommand {
               .setLiteral('image.repository', parsedReference.repository)
               .set('image.tag', parsedReference.tag);
           }
+        }
+
+        if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+          await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
         }
 
         await this.chartManager.upgrade(
@@ -855,10 +876,22 @@ export class ExplorerCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
+            const currentExplorerVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
+              ComponentTypes.Explorer,
+            );
+
+            config.explorerVersion = UpgradeVersionResolver.resolveFromFlags(
+              this.configManager,
+              [flags.explorerVersion],
+              config.explorerVersion,
+              currentExplorerVersion,
+              EXPLORER_VERSION,
+            );
+
             assertUpgradeVersionNotOlder(
               'Explorer',
               config.explorerVersion,
-              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
+              currentExplorerVersion,
               optionFromFlag(flags.explorerVersion),
             );
 

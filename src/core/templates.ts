@@ -26,7 +26,7 @@ export class Templates {
     return PodName.of(`network-${nodeAlias}-0`);
   }
 
-  private static renderNetworkSvcName(nodeAlias: NodeAlias): string {
+  public static renderNetworkSvcName(nodeAlias: NodeAlias): string {
     return `network-${nodeAlias}-svc`;
   }
 
@@ -201,6 +201,8 @@ export class Templates {
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
+      case constants.NETAVARK:
+      case constants.AARDVARK_DNS:
       case constants.CRANE:
       case constants.KUBECTL: {
         if (OperatingSystem.isWin32()) {

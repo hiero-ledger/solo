@@ -114,8 +114,22 @@ describe('Helpers', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
-    it('preserves BOTH during upgrades to 0.74+ when a block node is deployed', (): void => {
-      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0', true)).to.equal('BOTH');
+    it('defaults to RECORDS for 0.74+ consensus versions when TSS is disabled', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0', true, false, false)).to.equal(
+        'RECORDS',
+      );
+    });
+
+    it('preserves BOTH during pre-0.74 upgrades when a block node is deployed', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.73.0', true)).to.equal('BOTH');
+    });
+
+    it('switches BOTH to BLOCKS during 0.74+ upgrades when a block node is deployed', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0', true)).to.equal('BLOCKS');
+    });
+
+    it('preserves BOTH during 0.74+ WRB/RSA upgrades when a block node is deployed', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.75.0', true, true)).to.equal('BOTH');
     });
 
     it('preserves BOTH during upgrades to 0.74+ when no block node is deployed', (): void => {
@@ -130,8 +144,69 @@ describe('Helpers', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion('RECORDS', 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
+    it('does not preserve BLOCKS when TSS is disabled', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0', true, false, false)).to.equal(
+        'RECORDS',
+      );
+    });
+
     it('does not preserve BLOCKS when block node integration is inactive', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0')).to.equal('RECORDS');
+    });
+  });
+
+  describe('updateBlockStreamPropertiesForMode', (): void => {
+    it('sets wrappedRecordBlocks=false in BLOCKS mode when not explicitly enabled', (): void => {
+      const lines: string[] = [
+        'blockStream.streamMode=RECORDS',
+        'blockStream.writerMode=FILE',
+        'blockStream.streamMode=BOTH',
+      ];
+
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BLOCKS');
+
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BLOCKS',
+        'blockStream.writerMode=FILE_AND_GRPC',
+        'blockStream.streamWrappedRecordBlocks=false',
+      ]);
+    });
+
+    it('overrides wrappedRecordBlocks=true to false in BLOCKS mode', (): void => {
+      const lines: string[] = [
+        'blockStream.streamMode=RECORDS',
+        'blockStream.writerMode=FILE',
+        'blockStream.streamWrappedRecordBlocks=true',
+        'blockStream.streamMode=BOTH',
+      ];
+
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BLOCKS');
+
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BLOCKS',
+        'blockStream.writerMode=FILE_AND_GRPC',
+        'blockStream.streamWrappedRecordBlocks=false',
+      ]);
+    });
+
+    it('does not overwrite streamWrappedRecordBlocks in BOTH mode', (): void => {
+      const lines: string[] = ['blockStream.streamMode=BLOCKS', 'blockStream.streamWrappedRecordBlocks=false'];
+
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BOTH');
+
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BOTH',
+        'blockStream.streamWrappedRecordBlocks=false',
+        'blockStream.writerMode=FILE_AND_GRPC',
+      ]);
+    });
+
+    it('disables wrapped record block publishing for BOTH mode when requested', (): void => {
+      const lines: string[] = ['blockStream.streamMode=BOTH', 'blockStream.streamWrappedRecordBlocks=true'];
+
+      Helpers.ensureWrappedRecordBlocksDisabled(lines, 'BOTH');
+
+      expect(lines).to.deep.equal(['blockStream.streamMode=BOTH', 'blockStream.streamWrappedRecordBlocks=false']);
     });
   });
 
@@ -369,7 +444,7 @@ describe('Helpers', (): void => {
 
     it('should return empty record when hedera.nodes is absent from the file', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const valuesContent: string = 'hedera:\n  configMaps:\n    configTxt: "foo"\n';
+      const valuesContent: string = 'hedera:\n  configMaps:\n    settingsTxt: "foo"\n';
       const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-helpers-'));
       const temporaryFile: string = path.join(temporaryDirectory, 'values.yaml');
       fs.writeFileSync(temporaryFile, valuesContent, 'utf8');
@@ -420,6 +495,25 @@ describe('Helpers', (): void => {
       const rows: string[] = remoteConfigsToDeploymentsTable(remoteConfigs);
 
       expect(rows).to.deep.equal(['Namespace : deployment']);
+    });
+  });
+
+  describe('isKindContext', (): void => {
+    it('recognizes a context kind wrote for one of its clusters', (): void => {
+      expect(Helpers.isKindContext('kind-solo')).to.be.true;
+      expect(Helpers.isKindContext('kind-solo-cluster')).to.be.true;
+    });
+
+    it('rejects a context that does not belong to a kind cluster', (): void => {
+      expect(Helpers.isKindContext('gke_my-project_us-central1_my-cluster')).to.be.false;
+      expect(Helpers.isKindContext('minikube')).to.be.false;
+      expect(Helpers.isKindContext('a-kind-cluster')).to.be.false;
+    });
+
+    it('rejects a missing context', (): void => {
+      const unresolvedContext: string = undefined;
+      expect(Helpers.isKindContext(unresolvedContext)).to.be.false;
+      expect(Helpers.isKindContext('')).to.be.false;
     });
   });
 
@@ -812,6 +906,7 @@ describe('createAndCopyBlockNodeJsonFileForConsensusNode', (): void => {
 
   afterEach((): void => {
     sinon.restore();
+    resetTestContainer();
   });
 
   it('throws BlockNodesJsonEmptySoloError when blockNodeMap is empty and allowEmpty is false', async (): Promise<void> => {
