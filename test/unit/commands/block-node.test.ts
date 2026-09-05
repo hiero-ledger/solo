@@ -72,6 +72,7 @@ interface BlockNodeCommandInternal {
   prepareValuesArgForBlockNode: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
   getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string, componentImageArchive?: string) => number;
   isLocalImageAvailableInDocker: (componentImage: string) => boolean;
+  updateBlockNodeVersionInRemoteConfig: (config: Record<string, unknown>) => Promise<void>;
 }
 
 describe('BlockNodeCommand unit tests', (): void => {
@@ -169,6 +170,49 @@ describe('BlockNodeCommand unit tests', (): void => {
         '/tmp/block-node-server.tar',
       ),
     ).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
+  });
+
+  it('should record an archive-sourced remote-registry componentImage version in remote config', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    const updateComponentVersionStub: sinon.SinonStub = sinon.stub();
+    blockNodeCommandInternal.remoteConfig = {
+      updateComponentVersion: updateComponentVersionStub,
+      persist: sinon.stub().resolves(),
+    } as unknown as BlockNodeCommandInternal['remoteConfig'];
+
+    await blockNodeCommandInternal.updateBlockNodeVersionInRemoteConfig({
+      chartVersion: '0.38.0',
+      componentImage: 'ghcr.io/hiero-ledger/block-node-server:0.40.0',
+      componentImageArchive: '/tmp/block-node-server.tar',
+    });
+
+    expect(updateComponentVersionStub).to.have.been.calledOnce;
+    const [, version]: [unknown, SemanticVersion<string>] = updateComponentVersionStub.firstCall.args as [
+      unknown,
+      SemanticVersion<string>,
+    ];
+    expect(version.toString()).to.equal('0.40.0');
+  });
+
+  it('should ignore a plain remote-registry componentImage without an archive when recording the remote config version', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    const updateComponentVersionStub: sinon.SinonStub = sinon.stub();
+    blockNodeCommandInternal.remoteConfig = {
+      updateComponentVersion: updateComponentVersionStub,
+      persist: sinon.stub().resolves(),
+    } as unknown as BlockNodeCommandInternal['remoteConfig'];
+
+    await blockNodeCommandInternal.updateBlockNodeVersionInRemoteConfig({
+      chartVersion: '0.38.0',
+      componentImage: 'ghcr.io/hiero-ledger/block-node-server:0.40.0',
+    });
+
+    expect(updateComponentVersionStub).to.have.been.calledOnce;
+    const [, version]: [unknown, SemanticVersion<string>] = updateComponentVersionStub.firstCall.args as [
+      unknown,
+      SemanticVersion<string>,
+    ];
+    expect(version.toString()).to.equal('0.38.0');
   });
 
   it('should configure the RSA mirror bootstrap source for block-stream consensus versions', async (): Promise<void> => {

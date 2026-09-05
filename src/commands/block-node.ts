@@ -1782,7 +1782,8 @@ export class BlockNodeCommand extends BaseCommand {
     const deployConfig: BlockNodeDeployConfigClass = config as BlockNodeDeployConfigClass;
     if (
       deployConfig.componentImage &&
-      this.isComponentImageAvailableForKind(deployConfig.componentImage, deployConfig.componentImageArchive)
+      (this.isLocalImageReference(deployConfig.componentImage) ||
+        this.hasComponentImageArchiveValue(deployConfig.componentImageArchive))
     ) {
       const tag: string = this.splitImageNameTag(deployConfig.componentImage).tag;
       try {
