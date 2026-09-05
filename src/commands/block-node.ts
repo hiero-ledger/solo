@@ -983,7 +983,7 @@ export class BlockNodeCommand extends BaseCommand {
             if (componentImage && this.isComponentImageAvailableForKind(componentImage, config.componentImageArchive)) {
               // update config map with new VERSION info since
               // it will be used as a critical environment variable by block node
-              const componentImageTag: string = this.splitImageNameTag(componentImage).tag;
+              const componentImageTag: string = ImageReference.parseImageReference(componentImage).tag;
               const blockNodeId: ComponentId = newBlockNodeComponent.metadata.id;
 
               const name: string = `block-node-${blockNodeId}-config`;
@@ -1744,14 +1744,14 @@ export class BlockNodeCommand extends BaseCommand {
       componentImage &&
       (this.isLocalImageReference(componentImage) || this.hasComponentImageArchiveValue(componentImageArchive))
     ) {
-      const tag: string = this.splitImageNameTag(componentImage).tag;
+      const tag: string = ImageReference.parseImageReference(componentImage).tag;
       try {
         const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
         if (blockNodeVersion.lessThan(imageVersion)) {
           blockNodeVersion = imageVersion;
         }
       } catch {
-        // non-semver tags (e.g. implicit latest on tagless local registry refs) cannot drive the port choice
+        // non-semver tags (e.g. implicit latest on tagless registry refs) cannot drive the port choice
       }
     }
 
@@ -1785,7 +1785,7 @@ export class BlockNodeCommand extends BaseCommand {
       (this.isLocalImageReference(deployConfig.componentImage) ||
         this.hasComponentImageArchiveValue(deployConfig.componentImageArchive))
     ) {
-      const tag: string = this.splitImageNameTag(deployConfig.componentImage).tag;
+      const tag: string = ImageReference.parseImageReference(deployConfig.componentImage).tag;
       try {
         componentImageVersion = new SemanticVersion<string>(tag);
       } catch {

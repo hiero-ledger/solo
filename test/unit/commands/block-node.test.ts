@@ -172,6 +172,18 @@ describe('BlockNodeCommand unit tests', (): void => {
     ).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
   });
 
+  it('should not throw for a tagless archive-sourced remote-registry componentImage when picking the readiness port', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(
+      blockNodeCommandInternal.getLivenessCheckPortNumber(
+        '0.38.0',
+        'ghcr.io/hiero-ledger/block-node-server',
+        '/tmp/block-node-server.tar',
+      ),
+    ).to.equal(constants.BLOCK_NODE_PORT);
+  });
+
   it('should record an archive-sourced remote-registry componentImage version in remote config', async (): Promise<void> => {
     const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
     const updateComponentVersionStub: sinon.SinonStub = sinon.stub();
@@ -192,6 +204,28 @@ describe('BlockNodeCommand unit tests', (): void => {
       SemanticVersion<string>,
     ];
     expect(version.toString()).to.equal('0.40.0');
+  });
+
+  it('should not throw for a tagless archive-sourced remote-registry componentImage when recording the remote config version', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    const updateComponentVersionStub: sinon.SinonStub = sinon.stub();
+    blockNodeCommandInternal.remoteConfig = {
+      updateComponentVersion: updateComponentVersionStub,
+      persist: sinon.stub().resolves(),
+    } as unknown as BlockNodeCommandInternal['remoteConfig'];
+
+    await blockNodeCommandInternal.updateBlockNodeVersionInRemoteConfig({
+      chartVersion: '0.38.0',
+      componentImage: 'ghcr.io/hiero-ledger/block-node-server',
+      componentImageArchive: '/tmp/block-node-server.tar',
+    });
+
+    expect(updateComponentVersionStub).to.have.been.calledOnce;
+    const [, version]: [unknown, SemanticVersion<string>] = updateComponentVersionStub.firstCall.args as [
+      unknown,
+      SemanticVersion<string>,
+    ];
+    expect(version.toString()).to.equal('0.38.0');
   });
 
   it('should ignore a plain remote-registry componentImage without an archive when recording the remote config version', async (): Promise<void> => {
