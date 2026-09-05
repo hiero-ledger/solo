@@ -292,15 +292,50 @@ export abstract class BaseCommand extends ShellRunner {
     return checkDockerImageExists(name, tag);
   }
 
-  protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
-    const kindClusterName: string = this.kindClusterNameFromContext(clusterContext);
-    this.logger.debug(`Loading '${componentImage}' into Kind cluster '${kindClusterName}'`);
+  protected async kindLoadComponentImage(
+    componentImage: string,
+    clusterContext: string,
+    additionalTargetContexts: Context[] = [],
+  ): Promise<void> {
     const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
     const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+
+    // The primary context is required for deployment; failure propagates to the caller.
+    const primaryKindClusterName: string = this.kindClusterNameFromContext(clusterContext);
+    this.logger.debug(`Loading '${componentImage}' into Kind cluster '${primaryKindClusterName}'`);
     await kindClient.loadDockerImage(
       componentImage,
-      LoadDockerImageOptionsBuilder.builder().name(kindClusterName).build(),
+      LoadDockerImageOptionsBuilder.builder().name(primaryKindClusterName).build(),
     );
+
+    // Additional target contexts are best-effort because they are not the caller's
+    // primary deployment target. A stale or unreachable extra context must not fail
+    // the entire component deployment.
+    for (const extraContext of additionalTargetContexts) {
+      if (extraContext === clusterContext) {
+        continue;
+      }
+
+      if (!extraContext.startsWith('kind-')) {
+        this.logger.debug(`Skipping non-Kind additional context '${extraContext}' for image '${componentImage}'`);
+        continue;
+      }
+
+      try {
+        const extraClusterName: string = this.kindClusterNameFromContext(extraContext);
+        this.logger.debug(`Loading '${componentImage}' into additional Kind cluster '${extraClusterName}'`);
+        await kindClient.loadDockerImage(
+          componentImage,
+          LoadDockerImageOptionsBuilder.builder().name(extraClusterName).build(),
+        );
+      } catch (error: unknown) {
+        // best-effort: warn and continue so that remaining contexts are still attempted
+        const reason: string = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Failed to load '${componentImage}' into additional Kind context '${extraContext}': ${reason}`,
+        );
+      }
+    }
   }
 
   protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {

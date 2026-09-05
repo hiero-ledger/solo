@@ -297,6 +297,187 @@ describe('BaseCommand', (): void => {
     }
   });
 
+  describe('kindLoadComponentImage', (): void => {
+    let loadDockerImageStub: SinonStub;
+    let warnStub: SinonStub;
+    let debugStub: SinonStub;
+
+    interface BaseCommandInternal {
+      kindLoadComponentImage: (
+        componentImage: string,
+        clusterContext: string,
+        additionalTargetContexts?: Context[],
+      ) => Promise<void>;
+      depManager: {getExecutable: (dependency: string) => Promise<string>};
+      kindBuilder: {
+        executable: (executable: string) => {
+          build: () => Promise<{loadDockerImage: SinonStub}>;
+        };
+      };
+      logger: {warn: SinonStub; debug: SinonStub};
+    }
+
+    let commandInternal: BaseCommandInternal;
+
+    beforeEach((): void => {
+      resetForTest();
+      // @ts-expect-error - allow to create instance of abstract class
+      baseCmd = new BaseCommand();
+
+      loadDockerImageStub = sinon.stub().resolves();
+      warnStub = sinon.stub();
+      debugStub = sinon.stub();
+
+      commandInternal = baseCmd as unknown as BaseCommandInternal;
+      commandInternal.logger = {warn: warnStub, debug: debugStub};
+      commandInternal.depManager = {
+        getExecutable: async (dependency: string): Promise<string> => {
+          expect(dependency).to.equal('kind');
+          return 'kind';
+        },
+      };
+      commandInternal.kindBuilder = {
+        executable: (executable: string): {build: () => Promise<{loadDockerImage: SinonStub}>} => {
+          expect(executable).to.equal('kind');
+          return {
+            build: async (): Promise<{loadDockerImage: SinonStub}> => ({loadDockerImage: loadDockerImageStub}),
+          };
+        },
+      };
+    });
+
+    it('should load into only the primary context when no additional contexts are given', async (): Promise<void> => {
+      await commandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-primary');
+
+      expect(loadDockerImageStub).to.have.been.calledOnce;
+      expect(loadDockerImageStub).to.have.been.calledWith(
+        'block-node-server:0.38.0',
+        sinon.match.has('name', 'primary'),
+      );
+    });
+
+    it('should load into primary and all additional Kind target contexts', async (): Promise<void> => {
+      await commandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-primary', [
+        'kind-mirror',
+        'kind-relay',
+      ]);
+
+      expect(loadDockerImageStub).to.have.been.calledThrice;
+      expect(loadDockerImageStub).to.have.been.calledWith(
+        'block-node-server:0.38.0',
+        sinon.match.has('name', 'primary'),
+      );
+      expect(loadDockerImageStub).to.have.been.calledWith(
+        'block-node-server:0.38.0',
+        sinon.match.has('name', 'mirror'),
+      );
+      expect(loadDockerImageStub).to.have.been.calledWith('block-node-server:0.38.0', sinon.match.has('name', 'relay'));
+    });
+
+    it('should not load into contexts that are not explicitly provided', async (): Promise<void> => {
+      await commandInternal.kindLoadComponentImage('mirror-node:0.1.0', 'kind-mirror', ['kind-relay']);
+
+      expect(loadDockerImageStub).to.have.been.calledTwice;
+      const calledClusterNames: string[] = loadDockerImageStub.args.map(
+        (arguments_: unknown[]): string => (arguments_[1] as {name: string}).name,
+      );
+      expect(calledClusterNames).to.deep.equal(['mirror', 'relay']);
+      expect(calledClusterNames).to.not.include('consensus');
+      expect(calledClusterNames).to.not.include('explorer');
+    });
+
+    it('should propagate errors when the primary context fails', async (): Promise<void> => {
+      loadDockerImageStub.rejects(new Error('primary cluster unreachable'));
+
+      await expect(
+        commandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-primary'),
+      ).to.be.rejectedWith('primary cluster unreachable');
+
+      expect(warnStub).to.not.have.been.called;
+    });
+
+    it('should warn and continue when an additional target context fails', async (): Promise<void> => {
+      loadDockerImageStub
+        .onFirstCall()
+        .resolves() // primary succeeds
+        .onSecondCall()
+        .rejects(new Error('extra cluster down')); // additional fails
+
+      await commandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-primary', ['kind-extra']);
+
+      expect(loadDockerImageStub).to.have.been.calledTwice;
+      expect(warnStub).to.have.been.calledOnce;
+      expect(warnStub.firstCall.args[0]).to.include('kind-extra');
+      expect(warnStub.firstCall.args[0]).to.include('block-node-server:0.38.0');
+      expect(warnStub.firstCall.args[0]).to.include('extra cluster down');
+    });
+
+    it('should continue processing remaining contexts after an extra context failure', async (): Promise<void> => {
+      loadDockerImageStub
+        .onFirstCall()
+        .resolves() // primary succeeds
+        .onSecondCall()
+        .rejects(new Error('extra-1 down')) // first additional fails
+        .onThirdCall()
+        .resolves(); // second additional succeeds
+
+      await commandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-primary', [
+        'kind-extra-1',
+        'kind-extra-2',
+      ]);
+
+      expect(loadDockerImageStub).to.have.been.calledThrice;
+      expect(warnStub).to.have.been.calledOnce;
+      expect(warnStub.firstCall.args[0]).to.include('kind-extra-1');
+      // Verify extra-2 was still attempted and succeeded
+      expect(loadDockerImageStub.thirdCall).to.have.been.calledWith(
+        'block-node-server:0.38.0',
+        sinon.match.has('name', 'extra-2'),
+      );
+    });
+
+    it('should succeed when a stale extra Kind context is unreachable but the primary is healthy', async (): Promise<void> => {
+      loadDockerImageStub
+        .onFirstCall()
+        .resolves() // primary succeeds
+        .onSecondCall()
+        .rejects(new Error('connection refused')); // stale context
+
+      await commandInternal.kindLoadComponentImage('relay:1.0.0', 'kind-primary', ['kind-stale-cluster']);
+
+      expect(loadDockerImageStub).to.have.been.calledTwice;
+      expect(warnStub).to.have.been.calledOnce;
+      expect(warnStub.firstCall.args[0]).to.include('kind-stale-cluster');
+      expect(warnStub.firstCall.args[0]).to.include('connection refused');
+    });
+
+    it('should skip duplicate additional contexts that match the primary', async (): Promise<void> => {
+      await commandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-primary', [
+        'kind-primary',
+        'kind-other',
+      ]);
+
+      expect(loadDockerImageStub).to.have.been.calledTwice;
+      const calledClusterNames: string[] = loadDockerImageStub.args.map(
+        (arguments_: unknown[]): string => (arguments_[1] as {name: string}).name,
+      );
+      expect(calledClusterNames).to.deep.equal(['primary', 'other']);
+    });
+
+    it('should skip non-Kind additional contexts', async (): Promise<void> => {
+      await commandInternal.kindLoadComponentImage('block-node-server:0.38.0', 'kind-primary', [
+        'remote-cluster',
+        'kind-extra',
+      ]);
+
+      expect(loadDockerImageStub).to.have.been.calledTwice;
+      const calledClusterNames: string[] = loadDockerImageStub.args.map(
+        (arguments_: unknown[]): string => (arguments_[1] as {name: string}).name,
+      );
+      expect(calledClusterNames).to.deep.equal(['primary', 'extra']);
+    });
+  });
+
   describe('kindClusterNameFromContext', (): void => {
     before((): void => {
       resetForTest();
