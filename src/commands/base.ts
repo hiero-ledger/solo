@@ -45,6 +45,7 @@ import {type ConfigProvider} from '../data/configuration/api/config-provider.js'
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {type KindClient} from '../integration/kind/kind-client.js';
 import {LoadDockerImageOptionsBuilder} from '../integration/kind/model/load-docker-image/load-docker-image-options-builder.js';
+import {LoadImageArchiveOptionsBuilder} from '../integration/kind/model/load-image-archive/load-image-archive-options-builder.js';
 import {checkDockerImageExists, Helpers} from '../core/helpers.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
@@ -319,6 +320,58 @@ export abstract class BaseCommand extends ShellRunner {
     return checkDockerImageExists(name, tag);
   }
 
+  protected hasComponentImageArchiveValue(componentImageArchive: Optional<string>): boolean {
+    return Boolean(componentImageArchive?.trim());
+  }
+
+  protected validateComponentImageArchive(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+  ): void {
+    if (!this.hasComponentImageArchiveValue(componentImageArchive)) {
+      return;
+    }
+
+    if (!componentImage?.trim()) {
+      throw new SoloErrors.validation.illegalArgument(
+        `--${flags.componentImageArchive.name} requires --${flags.componentImage.name} to identify the image in the archive.`,
+        componentImageArchive,
+      );
+    }
+
+    if (!fs.existsSync(componentImageArchive)) {
+      throw new SoloErrors.system.fileNotFound(componentImageArchive);
+    }
+  }
+
+  protected async loadComponentImage(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+    clusterContext: Context,
+  ): Promise<void> {
+    if (this.hasComponentImageArchiveValue(componentImageArchive)) {
+      this.validateComponentImageArchive(componentImage, componentImageArchive);
+      await this.kindLoadComponentImageArchive(componentImageArchive, clusterContext);
+      return;
+    }
+
+    if (componentImage && this.isLocalImageAvailableInDocker(componentImage)) {
+      await this.kindLoadComponentImage(componentImage, clusterContext);
+    }
+  }
+
+  protected isComponentImageAvailableForKind(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+  ): boolean {
+    if (this.hasComponentImageArchiveValue(componentImageArchive)) {
+      this.validateComponentImageArchive(componentImage, componentImageArchive);
+      return true;
+    }
+
+    return Boolean(componentImage && this.isLocalImageAvailableInDocker(componentImage));
+  }
+
   /** Loads a local component image into the required cluster context's Kind cluster, then best-effort into any additional Kind contexts. */
   protected async kindLoadComponentImage(
     componentImage: string,
@@ -327,12 +380,7 @@ export abstract class BaseCommand extends ShellRunner {
   ): Promise<void> {
     const primaryKindCluster: string | undefined = this.kindClusterNameFromContext(clusterContext);
     if (primaryKindCluster === undefined) {
-      throw new SoloErrors.validation.illegalArgument(
-        `Component image '${componentImage}' requires Kind image loading, but target cluster context ` +
-          `'${clusterContext}' is not a Kind cluster. Push the image to a registry reachable ` +
-          'from the target cluster and pass that registry image reference to --component-image.',
-        componentImage,
-      );
+      throw this.nonKindTargetContextsError(componentImage, flags.componentImage.name, [clusterContext]);
     }
 
     const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
@@ -367,6 +415,63 @@ export abstract class BaseCommand extends ShellRunner {
         );
       }
     }
+  }
+
+  protected async kindLoadComponentImageArchive(componentImageArchive: string, clusterContext: Context): Promise<void> {
+    const kindClusterNames: string[] = this.getKindClusterNames(
+      componentImageArchive,
+      flags.componentImageArchive.name,
+      clusterContext,
+    );
+    const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
+    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+
+    for (const kindClusterName of kindClusterNames) {
+      this.logger.debug(`Loading image archive '${componentImageArchive}' into Kind cluster '${kindClusterName}'`);
+      await kindClient.loadImageArchive(
+        componentImageArchive,
+        LoadImageArchiveOptionsBuilder.builder().name(kindClusterName).build(),
+      );
+    }
+  }
+
+  /**
+   * Resolves every target context (the required cluster plus any additional contexts from the
+   * remote config) to its Kind cluster name, deduplicated. Throws if any target context is not a
+   * Kind cluster, since an archive can only be loaded into Kind and has no registry fallback.
+   */
+  private getKindClusterNames(componentImageSource: string, sourceFlagName: string, clusterContext: Context): string[] {
+    const targetContexts: Context[] = [...new Set<Context>([clusterContext, ...this.remoteConfig.getContexts()])];
+
+    const nonKindContexts: Context[] = [];
+    const kindClusterNames: Set<string> = new Set<string>();
+    for (const context of targetContexts) {
+      const kindClusterName: string | undefined = this.kindClusterNameFromContext(context);
+      if (kindClusterName === undefined) {
+        nonKindContexts.push(context);
+        continue;
+      }
+      kindClusterNames.add(kindClusterName);
+    }
+
+    if (nonKindContexts.length > 0) {
+      throw this.nonKindTargetContextsError(componentImageSource, sourceFlagName, nonKindContexts);
+    }
+
+    return [...kindClusterNames];
+  }
+
+  private nonKindTargetContextsError(
+    componentImageSource: string,
+    sourceFlagName: string,
+    nonKindContexts: Context[],
+  ): InstanceType<typeof SoloErrors.validation.illegalArgument> {
+    return new SoloErrors.validation.illegalArgument(
+      `Component image source '${componentImageSource}' from --${sourceFlagName} requires Kind image loading, but target ` +
+        `cluster context(s) '${nonKindContexts.join("', '")}' are not Kind clusters. Push the image to a registry ` +
+        'reachable from every target cluster and pass that registry image reference to --component-image.',
+      componentImageSource,
+    );
   }
 
   private async loadImageIntoKindCluster(
