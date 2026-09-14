@@ -97,8 +97,13 @@ tasks:
       - cmd: kubectl config use-context {{ .CONTEXT }}
 
   init-solo:
-    desc: Connect cluster reference and configure deployment
+    desc: Set up the cluster, connect its reference, and configure the deployment
     cmds:
+      # Cluster setup installs the MinIO operator and its CRDs. The restored network does not
+      # need them because its block node supplies stream storage, but the transplant target has
+      # no block node, so solo enables MinIO for it and the chart renders a minio.min.io Tenant
+      # that cannot be created without these CRDs.
+      - cmd: $SOLO_COMMAND cluster-ref config setup --cluster-ref {{ .CLUSTER_REF }} --quiet-mode
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }} --quiet-mode
       - cmd: $SOLO_COMMAND deployment config create --namespace {{ .NAMESPACE }} --deployment {{ .DEPLOYMENT }} --realm 0 --shard 0
       - cmd: $SOLO_COMMAND deployment cluster attach --cluster-ref {{ .CLUSTER_REF }} --deployment {{ .DEPLOYMENT }} --num-consensus-nodes {{ .NETWORK_SIZE }}
