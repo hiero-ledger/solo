@@ -24,6 +24,7 @@ import {ClusterConnectionFailedError} from './classes/system/cluster-connection-
 import {ClusterUnreachableError} from './classes/system/cluster-unreachable-error.js';
 import {KindClusterStoppedError} from './classes/system/kind-cluster-stopped-error.js';
 import {ContainerEngineNotRunningError} from './classes/system/container-engine-not-running-error.js';
+import {SoloLogsDirectoryNotWritableSoloError} from './classes/system/solo-logs-directory-not-writable-solo-error.js';
 import {GitHubApiHttpResponseError} from './classes/system/github-api-http-response-error.js';
 import {GitHubApiRequestFailedError} from './classes/system/github-api-request-failed-error.js';
 import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
@@ -253,6 +254,7 @@ import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-r
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
+import {TransplantRequiresStateFileSoloError} from './classes/validation/transplant-requires-state-file-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -304,6 +306,7 @@ import {RemoteConfigContextUnavailableError} from './classes/internal/remote-con
 import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-template-undeclared-error.js';
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
 import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
+import {UncaughtFatalErrorSoloError} from './classes/internal/uncaught-fatal-error-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -673,6 +676,7 @@ export class SoloErrors {
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
+    readonly transplantRequiresStateFile: typeof TransplantRequiresStateFileSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -751,6 +755,7 @@ export class SoloErrors {
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
     invalidFlagValue: InvalidFlagValueSoloError,
+    transplantRequiresStateFile: TransplantRequiresStateFileSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -764,6 +769,7 @@ export class SoloErrors {
     readonly clusterUnreachable: typeof ClusterUnreachableError;
     readonly kindClusterStopped: typeof KindClusterStoppedError;
     readonly containerEngineNotRunning: typeof ContainerEngineNotRunningError;
+    readonly soloLogsDirectoryNotWritable: typeof SoloLogsDirectoryNotWritableSoloError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
     readonly githubApiRequestFailed: typeof GitHubApiRequestFailedError;
     readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
@@ -850,6 +856,7 @@ export class SoloErrors {
     clusterUnreachable: ClusterUnreachableError,
     kindClusterStopped: KindClusterStoppedError,
     containerEngineNotRunning: ContainerEngineNotRunningError,
+    soloLogsDirectoryNotWritable: SoloLogsDirectoryNotWritableSoloError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
     githubApiRequestFailed: GitHubApiRequestFailedError,
     githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
@@ -939,6 +946,7 @@ export class SoloErrors {
     readonly cacheImageTemplateUndeclared: typeof CacheImageTemplateUndeclaredError;
     readonly injectedFailure: typeof InjectedFailureSoloError;
     readonly pipelineCancelled: typeof PipelineCancelledSoloError;
+    readonly uncaughtFatalError: typeof UncaughtFatalErrorSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -951,5 +959,6 @@ export class SoloErrors {
     cacheImageTemplateUndeclared: CacheImageTemplateUndeclaredError,
     injectedFailure: InjectedFailureSoloError,
     pipelineCancelled: PipelineCancelledSoloError,
+    uncaughtFatalError: UncaughtFatalErrorSoloError,
   });
 }
