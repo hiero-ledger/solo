@@ -400,16 +400,17 @@ export class RelayCommand extends BaseCommand {
     const {operatorId, operatorKey}: RelayOperatorCredentials = await this.resolveOperatorCredentials(config);
 
     const operatorSecretName: string = this.renderOperatorSecretName(config.releaseName);
-    const isOperatorSecretCreated: boolean = await this.k8Factory
-      .getK8(config.context)
-      .secrets()
-      .createOrReplace(config.namespace, operatorSecretName, SecretType.OPAQUE, {
-        OPERATOR_ID_MAIN: Base64.encode(operatorId),
-        OPERATOR_KEY_MAIN: Base64.encode(operatorKey),
-      });
 
-    if (!isOperatorSecretCreated) {
-      throw new SoloErrors.component.relayOperatorSecretCreationFailed(operatorSecretName);
+    try {
+      await this.k8Factory
+        .getK8(config.context)
+        .secrets()
+        .createOrReplace(config.namespace, operatorSecretName, SecretType.OPAQUE, {
+          OPERATOR_ID_MAIN: Base64.encode(operatorId),
+          OPERATOR_KEY_MAIN: Base64.encode(operatorKey),
+        });
+    } catch (error) {
+      throw new SoloErrors.component.relayOperatorSecretCreationFailed(operatorSecretName, error);
     }
 
     return operatorSecretName;

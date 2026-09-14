@@ -11,6 +11,7 @@ import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
 import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
+import {type SoloError} from '../../../src/core/errors/solo-error.js';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {SecretType} from '../../../src/integration/kube/resources/secret/secret-type.js';
 import {type Secret} from '../../../src/integration/kube/resources/secret/secret.js';
@@ -307,13 +308,14 @@ describe('RelayCommand unit tests', (): void => {
     });
 
     it('throws RelayOperatorSecretCreationFailedSoloError when the secret cannot be created', async (): Promise<void> => {
-      secretsCreateOrReplaceStub.resolves(false);
+      secretsCreateOrReplaceStub.rejects(new Error('namespace not found'));
 
       try {
         await relayCommandInternal.createOperatorSecret(createRelayConfig());
         expect.fail('Expected createOperatorSecret to throw');
       } catch (error) {
         expect(error).to.be.instanceOf(SoloErrors.component.relayOperatorSecretCreationFailed);
+        expect((error as SoloError).cause).to.be.instanceOf(Error);
       }
     });
 
