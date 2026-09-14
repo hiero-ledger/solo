@@ -559,6 +559,12 @@ export class ClusterCommandTasks {
         );
 
         if (!release) {
+          // No release anywhere owns these CRDs, so this is precisely the orphaned state
+          // installMinioOperatorChart rejects as SOLO-3035: a prior install that never completed (or an
+          // earlier reset that ran before this cleanup existed) can leave them behind with no release left
+          // to trigger their removal. Clean them up here too, not only after uninstalling a found release,
+          // or they linger forever and every future setup keeps failing.
+          await this.deleteMinioOperatorCrds(context);
           this.logger.showUserUnlessOneShot('⏭️  MinIO Operator chart not installed, skipping');
           return;
         }
