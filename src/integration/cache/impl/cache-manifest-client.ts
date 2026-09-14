@@ -32,11 +32,13 @@ interface RawCacheManifest {
  *
  * The CDN is flat: `<base>/<tarFile>` and `<base>/<hashFile>`. The base defaults to
  * `https://cdn.solo.hashgraph.io` and can be overridden with the `SOLO_CACHE_CDN_BASE_URL` environment
- * variable for staging and testing.
+ * variable for staging and testing. The manifest URL can likewise be replaced wholesale with the
+ * `SOLO_CACHE_MANIFEST_URL` environment variable, for a manifest that is not published as a release asset.
  */
 export class CacheManifestClient {
   public static readonly DEFAULT_CDN_BASE_URL: string = 'https://cdn.solo.hashgraph.io';
   public static readonly CDN_BASE_URL_ENVIRONMENT_VARIABLE: string = 'SOLO_CACHE_CDN_BASE_URL';
+  public static readonly MANIFEST_URL_ENVIRONMENT_VARIABLE: string = 'SOLO_CACHE_MANIFEST_URL';
   public static readonly SCHEMA_VERSION: number = 1;
 
   private static readonly MANIFEST_FILE_NAME: string = 'cache-manifest.json';
@@ -57,8 +59,19 @@ export class CacheManifestClient {
     return baseUrl.replace(/\/+$/, '');
   }
 
-  /** Resolves the release asset URL of the manifest for the given Solo version. */
+  /**
+   * Resolves the manifest URL: the `SOLO_CACHE_MANIFEST_URL` environment variable when set, otherwise the
+   * release asset URL of the manifest for the given Solo version.
+   */
   public static getManifestUrl(soloVersion: string = getSoloVersion()): string {
+    const configured: string | undefined = constants.getEnvironmentVariable(
+      CacheManifestClient.MANIFEST_URL_ENVIRONMENT_VARIABLE,
+    );
+
+    if (configured && configured.trim().length > 0) {
+      return configured.trim();
+    }
+
     const tag: string = soloVersion.startsWith('v') ? soloVersion : `v${soloVersion}`;
 
     return `${CacheManifestClient.RELEASE_DOWNLOAD_BASE_URL}/${tag}/${CacheManifestClient.MANIFEST_FILE_NAME}`;
