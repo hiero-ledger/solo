@@ -356,7 +356,7 @@ tasks:
   # ==================== Cleanup Tasks ====================
 
   stop-network:
-    desc: Stop consensus network
+    desc: Freeze the consensus network so the saved state is fully signed
     cmds:
       # freeze network before download otherwise may get error "file changed as we read it"
       - cmd: echo "Freezing network..."
@@ -410,8 +410,8 @@ tasks:
       - cmd: $SOLO_COMMAND deployment config delete --deployment {{ .TRANSPLANT_DEPLOYMENT }} -q || true
       - cmd: echo "✅ Transplant target destroyed"
 
-  destroy-database:
-    desc: Destroy external database
+  destroy-network:
+    desc: Destroy block node and consensus network while keeping cluster configuration
     cmds:
       - cmd: echo "Destroying block node and consensus network..."
       - cmd: $SOLO_COMMAND block node destroy --deployment {{ .DEPLOYMENT }} --force || true

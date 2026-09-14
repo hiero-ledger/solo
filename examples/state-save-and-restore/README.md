@@ -1,15 +1,15 @@
 # State Save and Restore Example
 
-This example demonstrates how to save network state from a running Solo network, recreate a new network, and load the saved state with a mirror node using an external PostgreSQL database. It then reuses that same saved state to demonstrate a **network transplant** — starting a *different*, separately keyed network from it.
+This example demonstrates how to save signed consensus-node state from a running Solo network, recreate the cluster from scratch, and start the nodes again from that saved state. It then reuses that same saved state to demonstrate a **network transplant** — starting a *different*, separately keyed network from it.
 
 ## What it does
 
 * Creates an initial Solo network with consensus nodes and a block node
 * Runs transactions to generate state
-* Downloads and saves the network state and database dump
-* Destroys the initial network
-* Creates a new network with the same configuration
-* Restores the saved state and database to the new network
+* Freezes the network and downloads the signed state, roster, and key material
+* Destroys the initial network and the Kind cluster
+* Recreates the cluster and a fresh network with the same deployment metadata and keys
+* Restores the saved state into the new network and verifies it came back up
 * Transplants the same state into a second network whose keys were generated independently, and verifies
   that the consensus node adopted the roster Solo generated for it
 
@@ -47,12 +47,17 @@ task destroy       # Cleanup when done
 ### Step-by-Step Workflow
 
 ```bash
-task setup          # 1. Deploy network with external database (5-10 min)
-task save-state     # 2. Save state and database (2-5 min)
-task restore        # 3. Recreate and restore (3-5 min)
-task transplant     # 4. Transplant the state into a separately keyed network (10-15 min)
-task destroy        # 5. Cleanup
+task setup          # 1. Deploy consensus network and block node (5-10 min)
+task stop-network   # 2. Freeze the network so the saved state is fully signed
+task save-state     # 3. Save state, roster, and key material (2-5 min)
+task restore        # 4. Recreate the cluster and restore (3-5 min)
+task transplant     # 5. Transplant the state into a separately keyed network (10-15 min)
+task destroy        # 6. Cleanup
 ```
+
+> `task stop-network` is required before `task save-state`: `solo consensus state download` only accepts
+> nodes that are frozen or stopped, so skipping it fails rather than capturing a half-written state. The
+> one-command `task` workflow freezes for you.
 
 ## Usage
 
@@ -112,11 +117,12 @@ This will destroy the network resources, delete the Kind cluster, and clean up s
 
 ## Available Tasks
 
-* `default` (or just `task`) - Run complete workflow: setup → save-state → restore → transplant
-* `setup` - Deploy initial network with external PostgreSQL database
-* `save-state` - Download consensus node state and export database
-* `restore` - Recreate network and restore state with database
-* `verify-state` - Verify restored state matches original
+* `default` (or just `task`) - Run complete workflow: setup → stop-network → save-state → restore → transplant
+* `setup` - Deploy initial consensus network
+* `stop-network` - Freeze the consensus network so the saved state is fully signed
+* `save-state` - Download consensus node state and save restore metadata (roster + keys)
+* `restore` - Recreate a fresh cluster, restore state, and verify the saved network can boot again
+* `verify-state` - Verify restored state without submitting transactions to a frozen network
 * `transplant` - Start a separately keyed network from the saved state and verify the generated roster
 * `deploy-transplant-target` - Deploy the transplant target network, stopping before start
 * `start-transplant` - Start the target network with `--transplant`
