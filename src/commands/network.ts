@@ -48,6 +48,7 @@ import {
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Base64} from 'js-base64';
+import {parse as parseYaml} from 'yaml';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
@@ -1273,6 +1274,57 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
+   * Rejects any response that is not the pinned Grafana Alloy PodLogs CRD, so untrusted network content is
+   * validated before it is cached and applied. A 200 that carries an error page, a redirect target, or an
+   * upstream file move is caught here rather than deferred to `kubectl apply`.
+   *
+   * @throws PodLogsCrdInvalidSoloError when the YAML does not describe `podlogs.monitoring.grafana.com`
+   */
+  private static validatePodLogsCrdYaml(sourceUrl: string, crdYaml: string): void {
+    const EXPECTED_API_VERSION: string = 'apiextensions.k8s.io/v1';
+    const EXPECTED_KIND: string = 'CustomResourceDefinition';
+    const EXPECTED_NAME: string = 'podlogs.monitoring.grafana.com';
+
+    let parsed: unknown;
+    try {
+      parsed = parseYaml(crdYaml);
+    } catch (error) {
+      throw new SoloErrors.validation.podLogsCrdInvalid(sourceUrl, 'not valid YAML', error as Error);
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new SoloErrors.validation.podLogsCrdInvalid(sourceUrl, 'expected a YAML object at the top level');
+    }
+
+    const document: {apiVersion?: unknown; kind?: unknown; metadata?: {name?: unknown}} = parsed as {
+      apiVersion?: unknown;
+      kind?: unknown;
+      metadata?: {name?: unknown};
+    };
+
+    if (document.apiVersion !== EXPECTED_API_VERSION) {
+      throw new SoloErrors.validation.podLogsCrdInvalid(
+        sourceUrl,
+        `expected apiVersion '${EXPECTED_API_VERSION}', got ${JSON.stringify(document.apiVersion)}`,
+      );
+    }
+
+    if (document.kind !== EXPECTED_KIND) {
+      throw new SoloErrors.validation.podLogsCrdInvalid(
+        sourceUrl,
+        `expected kind '${EXPECTED_KIND}', got ${JSON.stringify(document.kind)}`,
+      );
+    }
+
+    if (document.metadata?.name !== EXPECTED_NAME) {
+      throw new SoloErrors.validation.podLogsCrdInvalid(
+        sourceUrl,
+        `expected metadata.name '${EXPECTED_NAME}', got ${JSON.stringify(document.metadata?.name)}`,
+      );
+    }
+  }
+
+  /**
    * Write a file into the solo cache in one step.
    *
    * The content lands in a uniquely named staging file, is restricted to the owner there, and is then
@@ -1367,12 +1419,14 @@ export class NetworkCommand extends BaseCommand {
         }
 
         let crdYaml: string | undefined;
+        let crdSource: string | undefined;
 
         // Prefer a vendored CRD file to avoid external network/rate-limit failures in CI. Read it
         // directly rather than testing for it first, so a file that disappears in between surfaces as a
         // download fallback instead of a crash.
         try {
           crdYaml = fs.readFileSync(LOCAL_CRD_FILE, 'utf8');
+          crdSource = LOCAL_CRD_FILE;
           this.logger.debug(`Using local PodLogs CRD file: ${LOCAL_CRD_FILE}`);
         } catch {
           crdYaml = undefined;
@@ -1392,6 +1446,7 @@ export class NetworkCommand extends BaseCommand {
           if (apiResponse.ok) {
             const json: {content: string} = (await apiResponse.json()) as {content: string};
             crdYaml = Buffer.from(json.content.replaceAll(/\s/g, ''), 'base64').toString('utf8');
+            crdSource = CRD_URL;
           } else {
             const apiError: string = `${apiResponse.status} ${apiResponse.statusText}`.trim();
             downloadErrors.push(`GitHub API: ${apiError}`);
@@ -1409,8 +1464,14 @@ export class NetworkCommand extends BaseCommand {
               throw new Error(`Failed to download CRD YAML (${downloadErrors.join('; ')})`);
             }
             crdYaml = await rawResponse.text();
+            crdSource = CRD_RAW_URL;
           }
         }
+
+        // Validate the CRD's shape before it touches the cache directory, so untrusted content is
+        // rejected here rather than at `applyManifest` — and so writing to disk is preceded by a
+        // check on the network input.
+        NetworkCommand.validatePodLogsCrdYaml(crdSource, crdYaml);
 
         NetworkCommand.writeCacheFile(temporaryFile, crdYaml);
       }

@@ -20,6 +20,7 @@ import {MissingArgumentError} from './classes/validation/missing-argument-error.
 import {ConsensusNodeCountRequiredError} from './classes/validation/consensus-node-count-required-error.js';
 import {InvalidOutputFormatError} from './classes/validation/invalid-output-format-error.js';
 import {InvalidPortNumberError} from './classes/validation/invalid-port-number-error.js';
+import {PodLogsCrdInvalidSoloError} from './classes/validation/pod-logs-crd-invalid-solo-error.js';
 import {ClusterConnectionFailedError} from './classes/system/cluster-connection-failed-error.js';
 import {ClusterUnreachableError} from './classes/system/cluster-unreachable-error.js';
 import {KindClusterStoppedError} from './classes/system/kind-cluster-stopped-error.js';
@@ -670,6 +671,7 @@ export class SoloErrors {
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
+    readonly podLogsCrdInvalid: typeof PodLogsCrdInvalidSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -748,6 +750,7 @@ export class SoloErrors {
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
     invalidFlagValue: InvalidFlagValueSoloError,
+    podLogsCrdInvalid: PodLogsCrdInvalidSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts

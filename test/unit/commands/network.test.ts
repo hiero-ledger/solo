@@ -70,6 +70,11 @@ const writeCacheFile: (destinationPath: string, content: string) => void = (
   NetworkCommand as unknown as {writeCacheFile: (destinationPath: string, content: string) => void}
 ).writeCacheFile;
 
+// Typed view over the private CRD validator, exercised directly so nothing has to hit the network.
+const validatePodLogsCrdYaml: (sourceUrl: string, crdYaml: string) => void = (
+  NetworkCommand as unknown as {validatePodLogsCrdYaml: (sourceUrl: string, crdYaml: string) => void}
+).validatePodLogsCrdYaml;
+
 describe('NetworkCommand unit tests', (): void => {
   before(async (): Promise<void> => {
     const sourceDirectory: string = PathEx.joinWithRealPath('test', 'data');
@@ -741,6 +746,50 @@ describe('NetworkCommand unit tests', (): void => {
 
       expect(FilePermissions.isReadable(cachedFile)).to.be.true;
       expect(fs.readFileSync(cachedFile, 'utf8')).to.equal('kind: CustomResourceDefinition\n');
+    });
+  });
+
+  // #5302 follow-up: the response fed to writeCacheFile comes from a network fetch, so a proxy error
+  // page or an upstream file move must not be cached and applied. Shape check the payload first.
+  describe('validatePodLogsCrdYaml', (): void => {
+    const sourceUrl: string = 'https://example.invalid/podlogs.yaml';
+
+    const validCrd: string = [
+      'apiVersion: apiextensions.k8s.io/v1',
+      'kind: CustomResourceDefinition',
+      'metadata:',
+      '  name: podlogs.monitoring.grafana.com',
+      'spec: {}',
+      '',
+    ].join('\n');
+
+    it('accepts the pinned PodLogs CRD', (): void => {
+      expect((): void => validatePodLogsCrdYaml(sourceUrl, validCrd)).to.not.throw();
+    });
+
+    it('rejects a wrong kind', (): void => {
+      const wrongKind: string = validCrd.replace('CustomResourceDefinition', 'ConfigMap');
+
+      expect((): void => validatePodLogsCrdYaml(sourceUrl, wrongKind))
+        .to.throw()
+        .with.property('code', 'SOLO-5085');
+    });
+
+    it('rejects a wrong metadata.name', (): void => {
+      const wrongName: string = validCrd.replace(
+        'podlogs.monitoring.grafana.com',
+        'something-else.monitoring.grafana.com',
+      );
+
+      expect((): void => validatePodLogsCrdYaml(sourceUrl, wrongName))
+        .to.throw()
+        .with.property('code', 'SOLO-5085');
+    });
+
+    it('rejects malformed YAML', (): void => {
+      expect((): void => validatePodLogsCrdYaml(sourceUrl, ':::not-yaml:::\n  - [unterminated'))
+        .to.throw()
+        .with.property('code', 'SOLO-5085');
     });
   });
 });

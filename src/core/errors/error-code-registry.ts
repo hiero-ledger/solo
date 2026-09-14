@@ -308,6 +308,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   PORT_FORWARD_STOP_FAILED: 'SOLO-5082',
   SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5083',
   CACHED_FILE_INACCESSIBLE: 'SOLO-5084',
+  POD_LOGS_CRD_INVALID: 'SOLO-5085',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
