@@ -415,7 +415,18 @@ describe('ClusterCommand unit tests', (): void => {
       await runUninstall();
 
       expect(chartManager.uninstall.notCalled).to.be.true;
-      expect(crdsStub.delete.notCalled).to.be.true;
+    });
+
+    // No release anywhere owns these CRDs, so this is the orphaned state itself (SOLO-3035): without
+    // cleaning them up here too, they outlive every future reset since none will ever find a release to
+    // uninstall first.
+    it('deletes orphaned CRDs even when no release exists to uninstall', async (): Promise<void> => {
+      await runUninstall();
+
+      expect(crdsStub.delete.callCount).to.equal(constants.MINIO_OPERATOR_CRDS.length);
+      for (const crdName of constants.MINIO_OPERATOR_CRDS) {
+        expect(crdsStub.delete.calledWith(crdName)).to.be.true;
+      }
     });
   });
 });
