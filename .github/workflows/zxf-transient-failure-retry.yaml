@@ -93,6 +93,27 @@ jobs:
             // ref, a compile error - from being retried, which only burns runners and hides the bug.
             const rules = [
               {
+                // A release download answering 5xx or 429 stops a setup step that is only fetching
+                // a tool or a chart. `@actions/tool-cache` reports it as "Unexpected HTTP response"
+                // and helm as "failed to fetch ...: 504 Gateway Timeout"; `step-security/retry` has
+                // usually already burned its own attempts by then. Gated to steps that install or
+                // configure, so a product step that happens to mention a 5xx is left alone.
+                description: 'release download returned a server error',
+                stepPrefixes: ['install', 'setup', 'set up', 'configure', 'bootstrap', 'retry'],
+                required: /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) /,
+                forbidden: /error TS\d{4}/,
+              },
+              {
+                // A download cut short arrives complete enough to write but fails its checksum, so
+                // the tool is never installed and the step's own cleanup then reports the binary as
+                // missing. Distinct from a Go module mismatch, which is an integrity claim about a
+                // published module and stays excluded above.
+                description: 'downloaded tool failed its checksum',
+                stepPrefixes: ['install', 'setup', 'set up', 'configure', 'bootstrap', 'retry'],
+                required: /sha256sum: WARNING: \d+ computed checksums? did NOT match/,
+                forbidden: /SECURITY ERROR/,
+              },
+              {
                 // Uploading logs and coverage goes through GitHub's artifact service, so a name
                 // that will not resolve fails the step after the toolkit's own five attempts.
                 description: 'artifact service could not be reached',
