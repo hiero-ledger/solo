@@ -500,6 +500,31 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
 
+    it('rejects --verify-pvc-mounts when PVCs are disabled', async (): Promise<void> => {
+      const originalPersistentVolumeClaims: boolean = argv.getArg<boolean>(flags.persistentVolumeClaims);
+      const originalVerifyPersistentVolumeClaimMounts: boolean = argv.getArg<boolean>(
+        flags.verifyPersistentVolumeClaimMounts,
+      );
+
+      try {
+        argv.setArg(flags.persistentVolumeClaims, false);
+        argv.setArg(flags.verifyPersistentVolumeClaimMounts, true);
+
+        const task: SinonStub = sinon.stub();
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        networkCommand.configManager.update(argv.build());
+
+        await expect(
+          // @ts-expect-error - to access private method
+          networkCommand.prepareConfig(task, argv.build()),
+        ).to.be.rejectedWith("Invalid value 'true' for flag --verify-pvc-mounts: requires --pvcs");
+      } finally {
+        argv.setArg(flags.persistentVolumeClaims, originalPersistentVolumeClaims);
+        argv.setArg(flags.verifyPersistentVolumeClaimMounts, originalVerifyPersistentVolumeClaimMounts);
+        sinon.restore();
+      }
+    });
+
     it('sets static IP chart values for haproxy, envoy, and network node services', async (): Promise<void> => {
       const originalHaproxyIps: string = argv.getArg<string>(flags.haproxyIps);
       const originalEnvoyIps: string = argv.getArg<string>(flags.envoyIps);
@@ -772,7 +797,7 @@ describe('NetworkCommand unit tests', (): void => {
 
       expect((): void => validatePodLogsCrdYaml(sourceUrl, wrongKind))
         .to.throw()
-        .with.property('code', 'SOLO-5085');
+        .with.property('code', 'SOLO-5086');
     });
 
     it('rejects a wrong metadata.name', (): void => {
@@ -783,13 +808,13 @@ describe('NetworkCommand unit tests', (): void => {
 
       expect((): void => validatePodLogsCrdYaml(sourceUrl, wrongName))
         .to.throw()
-        .with.property('code', 'SOLO-5085');
+        .with.property('code', 'SOLO-5086');
     });
 
     it('rejects malformed YAML', (): void => {
       expect((): void => validatePodLogsCrdYaml(sourceUrl, ':::not-yaml:::\n  - [unterminated'))
         .to.throw()
-        .with.property('code', 'SOLO-5085');
+        .with.property('code', 'SOLO-5086');
     });
   });
 });
