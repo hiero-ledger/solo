@@ -381,16 +381,14 @@ export abstract class BaseCommand extends ShellRunner {
     componentImageArchive: Optional<string>,
     clusterContext: Context,
   ): Promise<void> {
-    const additionalContexts: Context[] = this.remoteConfig.getContexts();
-
     if (this.hasComponentImageArchiveValue(componentImageArchive)) {
       this.validateComponentImageArchive(componentImage, componentImageArchive);
-      await this.kindLoadComponentImageArchive(componentImageArchive, clusterContext, additionalContexts);
+      await this.kindLoadComponentImageArchive(componentImageArchive, clusterContext, this.remoteConfig.getContexts());
       return;
     }
 
     if (componentImage && this.isLocalImageAvailableInDocker(componentImage)) {
-      await this.kindLoadComponentImage(componentImage, clusterContext, additionalContexts);
+      await this.kindLoadComponentImage(componentImage, clusterContext, this.remoteConfig.getContexts());
     }
   }
 
