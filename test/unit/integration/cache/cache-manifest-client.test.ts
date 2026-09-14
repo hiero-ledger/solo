@@ -60,6 +60,7 @@ describe('CacheManifestClient', (): void => {
   afterEach((): void => {
     sinon.restore();
     delete process.env[CacheManifestClient.CDN_BASE_URL_ENVIRONMENT_VARIABLE];
+    delete process.env[CacheManifestClient.MANIFEST_URL_ENVIRONMENT_VARIABLE];
   });
 
   describe('getManifestUrl', (): void => {
@@ -73,6 +74,13 @@ describe('CacheManifestClient', (): void => {
       expect(CacheManifestClient.getManifestUrl('v0.86.0')).to.equal(
         'https://github.com/hiero-ledger/solo/releases/download/v0.86.0/cache-manifest.json',
       );
+    });
+
+    it('honours the override environment variable regardless of version', (): void => {
+      process.env[CacheManifestClient.MANIFEST_URL_ENVIRONMENT_VARIABLE] =
+        ' https://staging.example.com/manifest.json ';
+
+      expect(CacheManifestClient.getManifestUrl(SOLO_VERSION)).to.equal('https://staging.example.com/manifest.json');
     });
   });
 
