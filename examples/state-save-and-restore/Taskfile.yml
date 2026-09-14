@@ -398,9 +398,16 @@ tasks:
     cmds:
       # --transplant is what asks solo to install this network's roster as override-network.json. Without it
       # the state's own roster is left in place, which is correct only when restoring a network's own state.
+      #
+      # --skip-grpc-web-endpoint suppresses the NodeUpdateTransaction that would otherwise set the gRPC web
+      # proxy endpoint. The node records in a transplanted state belong to the source network, so this
+      # deployment holds no admin key that can authorise updating them and the transaction fails with
+      # INVALID_ADMIN_KEY. override-network.json is what describes the endpoints for a transplant, which is
+      # why the update is redundant here. examples/multicluster-backup-restore passes the same flag for the
+      # equivalent reason on its restore.
       - cmd: |
           $SOLO_COMMAND consensus node start --deployment {{ .TRANSPLANT_DEPLOYMENT }} \
-            --node-aliases {{ .NODE_ALIASES }} --transplant \
+            --node-aliases {{ .NODE_ALIASES }} --transplant --skip-grpc-web-endpoint \
             --state-file "{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/network-node1-0-state.zip"
 
   verify-transplant:
