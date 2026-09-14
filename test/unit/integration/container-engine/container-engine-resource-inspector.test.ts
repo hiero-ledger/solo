@@ -26,9 +26,9 @@ describe('ContainerEngineResourceInspector', (): void => {
         .withArgs('docker', ['info', '--format', '{{json .}}'], sinon.match.object)
         .resolves([JSON.stringify({Architecture: 'x86_64', MemTotal: 8_000_000_000, NCPU: 4})]);
 
-      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector(
-        {debug: (): void => undefined} as never,
-      );
+      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector({
+        debug: (): void => undefined,
+      } as never);
       const platform: string = await inspector.getEngineLinuxPlatform();
 
       expect(platform).to.equal(Architecture.LINUX_AMD64);
@@ -39,9 +39,9 @@ describe('ContainerEngineResourceInspector', (): void => {
         .withArgs('docker', ['info', '--format', '{{json .}}'], sinon.match.object)
         .resolves([JSON.stringify({Architecture: 'aarch64', MemTotal: 8_000_000_000, NCPU: 4})]);
 
-      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector(
-        {debug: (): void => undefined} as never,
-      );
+      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector({
+        debug: (): void => undefined,
+      } as never);
       const platform: string = await inspector.getEngineLinuxPlatform();
 
       expect(platform).to.equal(Architecture.LINUX_ARM64);
@@ -55,9 +55,9 @@ describe('ContainerEngineResourceInspector', (): void => {
         .withArgs('podman', ['info', '--format', 'json'], sinon.match.object)
         .resolves([JSON.stringify({host: {arch: 'arm64', memTotal: 8_000_000_000, cpus: 4}})]);
 
-      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector(
-        {debug: (): void => undefined} as never,
-      );
+      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector({
+        debug: (): void => undefined,
+      } as never);
       const platform: string = await inspector.getEngineLinuxPlatform();
 
       expect(platform).to.equal(Architecture.LINUX_ARM64);
@@ -71,9 +71,9 @@ describe('ContainerEngineResourceInspector', (): void => {
         .withArgs('podman', ['info', '--format', 'json'], sinon.match.object)
         .rejects(new Error('podman is not installed'));
 
-      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector(
-        {debug: (): void => undefined} as never,
-      );
+      const inspector: ContainerEngineResourceInspector = new ContainerEngineResourceInspector({
+        debug: (): void => undefined,
+      } as never);
       const platform: string = await inspector.getEngineLinuxPlatform();
 
       // Falls back to Architecture.getLinuxPlatform() which uses process.arch
