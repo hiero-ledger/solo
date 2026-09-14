@@ -118,6 +118,7 @@ import {RelayDestroyFailedSoloError} from './classes/component/relay-destroy-fai
 import {RelayNotRunningSoloError} from './classes/component/relay-not-running-solo-error.js';
 import {RelayNotReadySoloError} from './classes/component/relay-not-ready-solo-error.js';
 import {RelayOperatorKeyRetrievalFailedSoloError} from './classes/component/relay-operator-key-retrieval-failed-solo-error.js';
+import {RelayOperatorSecretCreationFailedSoloError} from './classes/component/relay-operator-secret-creation-failed-solo-error.js';
 import {MirrorNodeDeployFailedSoloError} from './classes/component/mirror-node-deploy-failed-solo-error.js';
 import {MirrorNodeUpgradeFailedSoloError} from './classes/component/mirror-node-upgrade-failed-solo-error.js';
 import {MirrorNodeDestroyFailedSoloError} from './classes/component/mirror-node-destroy-failed-solo-error.js';
@@ -254,6 +255,7 @@ import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-r
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
+import {TransplantRequiresStateFileSoloError} from './classes/validation/transplant-requires-state-file-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -282,6 +284,7 @@ import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupporte
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {PodmanRuntimeConfigurationFailedSoloError} from './classes/system/podman-runtime-configuration-failed-solo-error.js';
 import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js';
+import {PvcMountVerificationFailedSoloError} from './classes/system/pvc-mount-verification-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
@@ -444,6 +447,7 @@ export class SoloErrors {
     readonly relayNotRunning: typeof RelayNotRunningSoloError;
     readonly relayNotReady: typeof RelayNotReadySoloError;
     readonly relayOperatorKeyRetrievalFailed: typeof RelayOperatorKeyRetrievalFailedSoloError;
+    readonly relayOperatorSecretCreationFailed: typeof RelayOperatorSecretCreationFailedSoloError;
     readonly mirrorNodeDeployFailed: typeof MirrorNodeDeployFailedSoloError;
     readonly mirrorNodeUpgradeFailed: typeof MirrorNodeUpgradeFailedSoloError;
     readonly mirrorNodeDestroyFailed: typeof MirrorNodeDestroyFailedSoloError;
@@ -538,6 +542,7 @@ export class SoloErrors {
     relayNotRunning: RelayNotRunningSoloError,
     relayNotReady: RelayNotReadySoloError,
     relayOperatorKeyRetrievalFailed: RelayOperatorKeyRetrievalFailedSoloError,
+    relayOperatorSecretCreationFailed: RelayOperatorSecretCreationFailedSoloError,
     mirrorNodeDeployFailed: MirrorNodeDeployFailedSoloError,
     mirrorNodeUpgradeFailed: MirrorNodeUpgradeFailedSoloError,
     mirrorNodeDestroyFailed: MirrorNodeDestroyFailedSoloError,
@@ -673,6 +678,7 @@ export class SoloErrors {
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
+    readonly transplantRequiresStateFile: typeof TransplantRequiresStateFileSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -751,6 +757,7 @@ export class SoloErrors {
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
     invalidFlagValue: InvalidFlagValueSoloError,
+    transplantRequiresStateFile: TransplantRequiresStateFileSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -826,6 +833,7 @@ export class SoloErrors {
     readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
+    readonly pvcMountVerificationFailed: typeof PvcMountVerificationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
     readonly ingressClassListFailed: typeof IngressClassListFailedSoloError;
     readonly multipleItemsFound: typeof MultipleItemsFoundSoloError;
@@ -914,6 +922,7 @@ export class SoloErrors {
     podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
+    pvcMountVerificationFailed: PvcMountVerificationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
     ingressClassListFailed: IngressClassListFailedSoloError,
     multipleItemsFound: MultipleItemsFoundSoloError,
