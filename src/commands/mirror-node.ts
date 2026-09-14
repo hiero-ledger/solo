@@ -2178,17 +2178,8 @@ export class MirrorNodeCommand extends BaseCommand {
         this.disableSharedResourceComponents(),
         {
           title: 'Uninstall mirror ingress controller',
-          // No skip guard: chartManager.uninstall() no-ops when the release is absent, and the
-          // namespace-scoped ConfigMap / TLS secret deletions below tolerate missing resources, so
-          // they must run even when the ingress controller's Helm release name cannot be re-detected
-          // (otherwise the chart and TLS secret leak after destroy). The cluster-scoped IngressClass
-          // is the exception — see the ingressControllerInstalled gate below.
           task: async (context_): Promise<void> => {
-            // Whether THIS deployment installed an ingress controller. Checked before the uninstall
-            // below (which would make it false afterwards). The IngressClass is cluster-scoped and
-            // shares a fixed name across mirror-node deployments, so it is only deleted when this
-            // deployment actually used ingress — a no-ingress destroy must not remove an IngressClass
-            // still in use by another deployment in the same cluster.
+            // Checked before the uninstall below; gates the cluster-scoped IngressClass deletion so a no-ingress destroy does not remove an IngressClass used by another deployment
             const ingressControllerInstalled: boolean = await this.chartManager.isChartInstalled(
               context_.config.namespace,
               context_.config.ingressReleaseName,
@@ -2229,8 +2220,7 @@ export class MirrorNodeCommand extends BaseCommand {
               }
             }
 
-            // Delete the namespace-scoped TLS secret created for the ingress on deploy.
-            // secrets().delete() returns true for NotFound, so no try/catch needed.
+            // Delete the namespace-scoped TLS secret created for the ingress on deploy; delete() tolerates NotFound
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .secrets()

@@ -1011,8 +1011,7 @@ export class ExplorerCommand extends BaseCommand {
               }
             }
 
-            // Delete the namespace-scoped TLS secret created for the ingress on deploy.
-            // secrets().delete() returns true for NotFound, so no try/catch needed.
+            // Delete the namespace-scoped TLS secret created for the ingress on deploy; delete() tolerates NotFound
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .secrets()
