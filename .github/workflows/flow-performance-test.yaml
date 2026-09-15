@@ -14,33 +14,42 @@
 # limitations under the License.
 ##
 
-name: "Performance Test Solo Deployment"
+name: 'Performance Test Solo Deployment'
 
 on:
   workflow_dispatch:
     inputs:
       cn-edge-version:
-        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
+        description: 'Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)'
         type: string
         required: false
-        default: ""
+        default: ''
       use-edge:
-        description: "Enable --edge flag for the one-shot deploy"
+        description: 'Enable --edge flag for the one-shot deploy'
         type: boolean
         required: false
         default: false
   workflow_call:
     inputs:
       cn-edge-version:
-        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
+        description: 'Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)'
         type: string
         required: false
-        default: ""
+        default: ''
       use-edge:
-        description: "Enable --edge flag for the one-shot deploy"
+        description: 'Enable --edge flag for the one-shot deploy'
         type: boolean
         required: false
         default: false
+      report-to-slack:
+        description: 'Post the summarized memory report to the nightly Slack channel'
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      SLACK_TEST_WEBHOOK:
+        description: 'Webhook used by the Send Slack Notification step to post the memory summary'
+        required: false
   pull_request:
     types:
       - opened
@@ -391,8 +400,8 @@ jobs:
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
-          LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
-          JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
+          LOG_FILE: '${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md'
+          JSON_INPUT: '${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}'
         run: |
           echo "## Log Metrics - Performance Test" >> $LOG_FILE
           echo "" >> $LOG_FILE
@@ -442,6 +451,52 @@ jobs:
               echo "EOF_CATEGORIES"
             } >> $GITHUB_OUTPUT
           fi
+
+      - name: Format Slack Memory Summary
+        id: slack-summary
+        if: ${{ !cancelled() && github.event_name == 'workflow_call' && inputs.report-to-slack &&
+          secrets.SLACK_TEST_WEBHOOK != '' && steps.log-metrics.outputs.json_log != '{}' &&
+          steps.pod-categories.outputs.content != '' }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          MEMORY_USED_MB="$(jq -r '.memoryInMebibytes // empty' <<< '${{ steps.log-metrics.outputs.json_log }}')"
+          if [[ ! "${MEMORY_USED_MB}" =~ ^[0-9]+$ ]]; then
+            echo "Unable to extract total memory usage from the performance summary JSON"
+            exit 1
+          fi
+
+          TABLE='```'
+          TABLE="${TABLE}"$'\n'"${{ steps.pod-categories.outputs.content }}"
+          TABLE="${TABLE}"$'\n''```'
+
+          {
+            echo "table<<EOF_TABLE"
+            echo "$TABLE"
+            echo "EOF_TABLE"
+          } >> "$GITHUB_OUTPUT"
+
+          if (( MEMORY_USED_MB > 2500 )); then
+            echo "color=warning" >> "$GITHUB_OUTPUT"
+          else
+            echo "color=good" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send Slack Notification
+        if: ${{ !cancelled() && steps.slack-summary.conclusion == 'success' }}
+        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
+          SLACK_COLOR: ${{ steps.slack-summary.outputs.color }}
+          SLACK_TITLE: Performance Test Memory Results
+          SLACK_MESSAGE: |
+            ${{ steps.slack-summary.outputs.table }}
+
+            *Branch:* `${{ github.ref_name }}`
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Move JVM Memory Usage Data to Metrics Directory
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
