@@ -559,6 +559,12 @@ export class ClusterCommandTasks {
         );
 
         if (!release) {
+          // No release anywhere owns these CRDs, so this is precisely the orphaned state
+          // installMinioOperatorChart rejects as SOLO-3035: a prior install that never completed (or an
+          // earlier reset that ran before this cleanup existed) can leave them behind with no release left
+          // to trigger their removal. Clean them up here too, not only after uninstalling a found release,
+          // or they linger forever and every future setup keeps failing.
+          await this.deleteMinioOperatorCrds(context);
           this.logger.showUserUnlessOneShot('⏭️  MinIO Operator chart not installed, skipping');
           return;
         }
@@ -576,9 +582,31 @@ export class ClusterCommandTasks {
 
         await this.chartManager.uninstall(NamespaceName.of(release.namespace), release.name, context);
 
+        // Helm never deletes CRDs on uninstall, however solo installed them itself: getInstalledRelease
+        // and isSoloInstalledMinioOperator above already confirmed this exact release owned them. Without
+        // this, the next cluster-ref config setup finds them orphaned and refuses to proceed (SOLO-3035).
+        await this.deleteMinioOperatorCrds(context);
+
         this.logger.showUserUnlessOneShot('✅ MinIO Operator chart uninstalled successfully');
       },
     };
+  }
+
+  /**
+   * Deletes the MinIO Operator's cluster-scoped CRDs. Best-effort: a CRD is cluster-wide, so a failure to
+   * remove one must not fail the whole reset — it is reported as SOLO-3035 the next time setup runs, with
+   * the manual remediation, rather than blocking cleanup that otherwise succeeded.
+   */
+  private async deleteMinioOperatorCrds(context: Context): Promise<void> {
+    for (const crdName of constants.MINIO_OPERATOR_CRDS) {
+      try {
+        await this.k8Factory.getK8(context).crds().delete(crdName);
+      } catch (error) {
+        this.logger.showUserUnlessOneShot(
+          `⚠️  Failed to delete leftover MinIO Operator CRD '${crdName}': ${(error as Error).message}`,
+        );
+      }
+    }
   }
 
   public uninstallPrometheusStack(): SoloListrTask<ClusterReferenceResetContext> {
