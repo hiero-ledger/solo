@@ -76,6 +76,12 @@ The `--values-file` flag is optional. When it is omitted, `solo one-shot falcon 
 solo one-shot falcon deploy
 ```
 
+From this directory, the same deployment is available as a task:
+
+```sh
+task deploy-defaults
+```
+
 Command-line flags still apply, so the defaults can be adjusted without a values file:
 
 ```sh
