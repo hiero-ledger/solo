@@ -14,10 +14,10 @@ import {DependencyManager} from '../../core/dependency-managers/index.js';
 import * as constants from '../../core/constants.js';
 import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/load-image-archive-options-builder.js';
 import {type LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
-import {Architecture} from '../../business/utils/architecture.js';
 import {type ContainerEngineCommand} from './container-engine-command.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {PodmanClient} from './podman-client.js';
+import {KindProviderResolver} from './kind-provider-resolver.js';
 import {ContainerEngineResourceInspector} from './container-engine-resource-inspector.js';
 import {ClusterNodeResumeOutcome} from './cluster-node-resume-outcome.js';
 import {type ContainerEngineResources} from './container-engine-resources.js';
@@ -54,7 +54,7 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async pullImage(image: string): Promise<void> {
-    const platform: string = Architecture.getLinuxPlatform();
+    const platform: string = await this.resourceInspector.getEngineLinuxPlatform();
 
     await this.shellRunner.run('docker', ['pull', '--platform', platform, image], {
       verbose: true,
@@ -79,7 +79,7 @@ export class DockerClient implements ContainerEngineClient {
     await fs.mkdir(PathEx.dirname(archivePath), {recursive: true});
 
     return {
-      platform: Architecture.getLinuxPlatform(),
+      platform: await this.resourceInspector.getEngineLinuxPlatform(),
       craneExecutable: await this.dependencyManager.getExecutable(constants.CRANE),
     };
   }
@@ -184,7 +184,7 @@ export class DockerClient implements ContainerEngineClient {
       return cachedCommand;
     }
 
-    if (constants.getEnvironmentVariable('KIND_EXPERIMENTAL_PROVIDER') !== constants.PODMAN) {
+    if (KindProviderResolver.current() !== constants.PODMAN) {
       const dockerCommand: ContainerEngineCommand = DockerClient.dockerCommand();
       if (await this.containerExists(dockerCommand, nodeName)) {
         this.kindContainerCommands.set(nodeName, dockerCommand);
