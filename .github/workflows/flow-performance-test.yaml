@@ -466,14 +466,20 @@ jobs:
             exit 1
           fi
 
+          SAFE_CATEGORIES="$(printf '%s' '${{ steps.pod-categories.outputs.content }}' | tr -d '\140')"
           TABLE='```'
-          TABLE="${TABLE}"$'\n'"${{ steps.pod-categories.outputs.content }}"
+          TABLE="${TABLE}"$'\n'"${SAFE_CATEGORIES}"
           TABLE="${TABLE}"$'\n''```'
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MESSAGE="${TABLE}"$'\n\n'":link: <${RUN_URL}|View Job Logs>"
 
           {
             echo "table<<EOF_TABLE"
             echo "$TABLE"
             echo "EOF_TABLE"
+            echo "message<<EOF_MESSAGE"
+            echo "$MESSAGE"
+            echo "EOF_MESSAGE"
           } >> "$GITHUB_OUTPUT"
 
           if (( MEMORY_USED_MB > 2500 )); then
@@ -491,10 +497,7 @@ jobs:
           SLACK_MSG_AUTHOR: Release Engineering
           SLACK_COLOR: ${{ steps.slack-summary.outputs.color }}
           SLACK_TITLE: Performance Test Memory Results
-          SLACK_MESSAGE: |
-            ${{ steps.slack-summary.outputs.table }}
-
-            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_MESSAGE: ${{ steps.slack-summary.outputs.message }}
           SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Move JVM Memory Usage Data to Metrics Directory
