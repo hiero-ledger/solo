@@ -466,7 +466,7 @@ jobs:
             exit 1
           fi
 
-          SAFE_CATEGORIES="$(printf '%s' '${{ steps.pod-categories.outputs.content }}' | tr -d '\140')"
+          SAFE_CATEGORIES="$(printf '%s' '${{ steps.pod-categories.outputs.content }}' | sed 's/```//g' | tr -d '\140')"
           TABLE='```'
           TABLE="${TABLE}"$'\n'"${SAFE_CATEGORIES}"
           TABLE="${TABLE}"$'\n''```'
@@ -497,7 +497,7 @@ jobs:
           SLACK_MSG_AUTHOR: Release Engineering
           SLACK_COLOR: ${{ steps.slack-summary.outputs.color }}
           SLACK_TITLE: Performance Test Memory Results
-          SLACK_MESSAGE: ${{ steps.slack-summary.outputs.message }}
+          SLACK_MESSAGE: '${{ steps.slack-summary.outputs.message }}'
           SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Move JVM Memory Usage Data to Metrics Directory
