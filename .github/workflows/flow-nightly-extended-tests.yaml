@@ -17,7 +17,7 @@
 # Night test checks some non critical functions or features not captured by PR tests
 # or Example tests, such as JVM Debugger
 
-name: 'Nightly Extended Tests'
+name: "Nightly Extended Tests"
 
 on:
   schedule:
@@ -26,10 +26,10 @@ on:
   workflow_dispatch:
     inputs:
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '24'
+        default: "24"
 
 defaults:
   run:
@@ -161,7 +161,7 @@ jobs:
         uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: 'v1.31.4'
+          version: "v1.31.4"
 
       - name: Setup Kind
         uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0

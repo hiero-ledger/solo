@@ -14,41 +14,41 @@
 # limitations under the License.
 ##
 
-name: 'Performance Test Solo Deployment'
+name: "Performance Test Solo Deployment"
 
 on:
   workflow_dispatch:
     inputs:
       cn-edge-version:
-        description: 'Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)'
+        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
         type: string
         required: false
-        default: ''
+        default: ""
       use-edge:
-        description: 'Enable --edge flag for the one-shot deploy'
+        description: "Enable --edge flag for the one-shot deploy"
         type: boolean
         required: false
         default: false
   workflow_call:
     inputs:
       cn-edge-version:
-        description: 'Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)'
+        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
         type: string
         required: false
-        default: ''
+        default: ""
       use-edge:
-        description: 'Enable --edge flag for the one-shot deploy'
+        description: "Enable --edge flag for the one-shot deploy"
         type: boolean
         required: false
         default: false
       report-to-slack:
-        description: 'Post the summarized memory report to the nightly Slack channel'
+        description: "Post the summarized memory report to the nightly Slack channel"
         type: boolean
         required: false
         default: false
     secrets:
       SLACK_TEST_WEBHOOK:
-        description: 'Webhook used by the Send Slack Notification step to post the memory summary'
+        description: "Webhook used by the Send Slack Notification step to post the memory summary"
         required: false
   pull_request:
     types:
@@ -400,8 +400,8 @@ jobs:
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
-          LOG_FILE: '${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md'
-          JSON_INPUT: '${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}'
+          LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
+          JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
           echo "## Log Metrics - Performance Test" >> $LOG_FILE
           echo "" >> $LOG_FILE
@@ -458,7 +458,7 @@ jobs:
           steps.log-metrics.outputs.json_log != '{}' && steps.pod-categories.outputs.content != '' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
-          JSON_LOG: '${{ steps.log-metrics.outputs.json_log }}'
+          JSON_LOG: "${{ steps.log-metrics.outputs.json_log }}"
           POD_CATEGORIES_CONTENT: |-
             ${{ steps.pod-categories.outputs.content }}
         run: |
