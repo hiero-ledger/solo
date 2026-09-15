@@ -277,7 +277,11 @@ jobs:
     needs:
       - generate_matrix
     # No `secrets:` block: this workflow only uses secrets.GITHUB_TOKEN, which GitHub provides to
-    # called workflows automatically and which cannot be passed explicitly.
+    # called workflows automatically and which cannot be passed explicitly, except for the nightly
+    # Slack webhook used by the summarized performance-memory notification.
     uses: $/.github/workflows/flow-performance-test.yaml
     with:
       cn-edge-version: v0.75.1
+      report-to-slack: true
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
