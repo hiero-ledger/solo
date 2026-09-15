@@ -454,8 +454,8 @@ jobs:
 
       - name: Format Slack Memory Summary
         id: slack-summary
-        if: ${{ !cancelled() && github.event_name == 'workflow_call' && inputs.report-to-slack &&
-          steps.log-metrics.outputs.json_log != '{}' && steps.pod-categories.outputs.content != '' }}
+        if: ${{ !cancelled() && inputs.report-to-slack && steps.log-metrics.outputs.json_log != '{}' &&
+          steps.pod-categories.outputs.content != '' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           JSON_LOG: "${{ steps.log-metrics.outputs.json_log }}"
