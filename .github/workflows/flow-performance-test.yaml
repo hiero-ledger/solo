@@ -458,8 +458,10 @@ jobs:
           secrets.SLACK_TEST_WEBHOOK != '' && steps.log-metrics.outputs.json_log != '{}' &&
           steps.pod-categories.outputs.content != '' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          JSON_LOG: '${{ steps.log-metrics.outputs.json_log }}'
         run: |
-          MEMORY_USED_MB="$(jq -r '.memoryInMebibytes // empty' <<< '${{ steps.log-metrics.outputs.json_log }}')"
+          MEMORY_USED_MB="$(jq -r '.memoryInMebibytes // empty' <<< "$JSON_LOG")"
           if [[ ! "${MEMORY_USED_MB}" =~ ^[0-9]+$ ]]; then
             echo "Unable to extract total memory usage from the performance summary JSON"
             exit 1
@@ -492,8 +494,6 @@ jobs:
           SLACK_TITLE: Performance Test Memory Results
           SLACK_MESSAGE: |
             ${{ steps.slack-summary.outputs.table }}
-
-            *Branch:* `${{ github.ref_name }}`
 
             :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
           SLACK_FOOTER: ${{ github.workflow }}
