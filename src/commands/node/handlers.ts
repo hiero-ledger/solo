@@ -517,7 +517,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.skipTaskWhenNodeStartSkipped(this.tasks.startNodes('allNodeAliases')),
       this.skipTaskWhenNodeStartSkipped(this.tasks.enablePortForwarding()),
       this.skipTaskWhenNodeStartSkipped(this.tasks.checkAllNodesAreActive('allNodeAliases')),
-      this.skipTaskWhenNodeStartSkipped(this.tasks.checkAllNodeProxiesAreActive()),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.checkAllNodeProxiesAreActive() as SoloListrTask<NodeUpgradeContext>),
       this.skipTaskWhenNodeStartSkipped(this.tasks.finalize()),
     ];
   }
