@@ -182,7 +182,6 @@ interface MirrorNodeDestroyConfigClass {
   releaseName: string;
   ingressReleaseName: string;
   isLegacyChartInstalled: boolean;
-  isIngressControllerChartInstalled: boolean;
 }
 
 interface MirrorNodeDestroyContext {
@@ -2137,11 +2136,6 @@ export class MirrorNodeCommand extends BaseCommand {
               releaseName,
               ingressReleaseName,
               isLegacyChartInstalled,
-              isIngressControllerChartInstalled: await this.chartManager.isChartInstalled(
-                namespace,
-                ingressReleaseName,
-                clusterContext,
-              ),
             };
 
             if (!this.oneShotState.isActive()) {
@@ -2204,12 +2198,13 @@ export class MirrorNodeCommand extends BaseCommand {
         this.disableSharedResourceComponents(),
         {
           title: 'Uninstall mirror ingress controller',
-          skip: (context_): boolean => !context_.config.isIngressControllerChartInstalled,
           task: async (context_): Promise<void> => {
-            await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .ingressClasses()
-              .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+            // Checked before the uninstall below; gates the cluster-scoped IngressClass deletion so a no-ingress destroy does not remove an IngressClass used by another deployment
+            const ingressControllerInstalled: boolean = await this.chartManager.isChartInstalled(
+              context_.config.namespace,
+              context_.config.ingressReleaseName,
+              context_.config.clusterContext,
+            );
 
             if (
               await this.k8Factory
@@ -2228,19 +2223,28 @@ export class MirrorNodeCommand extends BaseCommand {
               context_.config.ingressReleaseName,
               context_.config.clusterContext,
             );
-            // delete ingress class if found one
-            const existingIngressClasses: IngressClass[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .ingressClasses()
-              .list();
-            for (const ingressClass of existingIngressClasses) {
-              if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
-                await this.k8Factory
-                  .getK8(context_.config.clusterContext)
-                  .ingressClasses()
-                  .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+
+            // delete ingress class if found one — only when this deployment used ingress
+            if (ingressControllerInstalled) {
+              const existingIngressClasses: IngressClass[] = await this.k8Factory
+                .getK8(context_.config.clusterContext)
+                .ingressClasses()
+                .list();
+              for (const ingressClass of existingIngressClasses) {
+                if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
+                  await this.k8Factory
+                    .getK8(context_.config.clusterContext)
+                    .ingressClasses()
+                    .delete(constants.MIRROR_INGRESS_CLASS_NAME);
+                }
               }
             }
+
+            // Delete the namespace-scoped TLS secret created for the ingress on deploy; delete() tolerates NotFound
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .secrets()
+              .delete(context_.config.namespace, constants.MIRROR_INGRESS_TLS_SECRET_NAME);
           },
         },
         this.disableMirrorNodeComponents(),
