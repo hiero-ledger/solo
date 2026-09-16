@@ -12,6 +12,7 @@ import {type DependencyManager} from '../../../../src/core/dependency-managers/i
 import {type KindClient} from '../../../../src/integration/kind/kind-client.js';
 import {PodmanDependencyManager} from '../../../../src/core/dependency-managers/podman-dependency-manager.js';
 import {ClusterNodeResumeOutcome} from '../../../../src/integration/container-engine/cluster-node-resume-outcome.js';
+import {Architecture} from '../../../../src/business/utils/architecture.js';
 
 describe('DockerClient', (): void => {
   let previousKindProvider: string | undefined;
@@ -41,7 +42,7 @@ describe('DockerClient', (): void => {
     shellRunnerRunStub
       .withArgs(
         'docker',
-        DockerClientTestBuilder.containerExistsArguments('solo-cluster-control-plane'),
+        DockerClientTestBuilder.containerInspectArguments('solo-cluster-control-plane'),
         sinon.match.object,
       )
       .resolves([]);
@@ -65,7 +66,7 @@ describe('DockerClient', (): void => {
     delete process.env.KIND_EXPERIMENTAL_PROVIDER;
     const nodeName: string = 'solo-cluster-control-plane';
     shellRunnerRunStub
-      .withArgs('docker', DockerClientTestBuilder.containerExistsArguments(nodeName), sinon.match.object)
+      .withArgs('docker', DockerClientTestBuilder.containerInspectArguments(nodeName), sinon.match.object)
       .resolves([]);
     shellRunnerRunStub
       .withArgs('docker', DockerClientTestBuilder.listImagesArguments(nodeName))
@@ -75,7 +76,7 @@ describe('DockerClient', (): void => {
     await client.listLoadedImagesInCluster('solo-cluster');
     await client.listLoadedImagesInCluster('solo-cluster');
 
-    expect(shellRunnerRunStub.withArgs('docker', DockerClientTestBuilder.containerExistsArguments(nodeName))).to.have
+    expect(shellRunnerRunStub.withArgs('docker', DockerClientTestBuilder.containerInspectArguments(nodeName))).to.have
       .been.calledOnce;
     expect(shellRunnerRunStub).to.not.have.been.calledWith('podman', sinon.match.any, sinon.match.any);
   });
@@ -89,7 +90,7 @@ describe('DockerClient', (): void => {
       loadImageArchive: kindLoadImageArchiveStub,
     } as unknown as KindClient);
     shellRunnerRunStub
-      .withArgs('docker', DockerClientTestBuilder.containerExistsArguments('kind-control-plane'), sinon.match.object)
+      .withArgs('docker', DockerClientTestBuilder.containerInspectArguments('kind-control-plane'), sinon.match.object)
       .resolves([]);
 
     const client: DockerClient = DockerClientTestBuilder.build(dependencyManager, kindBuilder);
@@ -162,6 +163,57 @@ describe('DockerClient', (): void => {
 
     expect(outcome).to.equal(ClusterNodeResumeOutcome.ENGINE_UNAVAILABLE);
   });
+
+  it('pulls an image using the platform reported by the container engine, not process.arch', async (): Promise<void> => {
+    // Simulate a docker daemon on an arm64 host regardless of which architecture the Solo process runs on.
+    shellRunnerRunStub
+      .withArgs('docker', ['info', '--format', '{{json .}}'], sinon.match.object)
+      .resolves([JSON.stringify({Architecture: 'aarch64', MemTotal: 8_000_000_000, NCPU: 4})]);
+    shellRunnerRunStub
+      .withArgs(
+        'docker',
+        sinon.match((arguments_: string[]): boolean => arguments_[0] === 'pull'),
+        sinon.match.object,
+      )
+      .resolves([]);
+
+    const client: DockerClient = DockerClientTestBuilder.build();
+    await client.pullImage('ghcr.io/example/image:latest');
+
+    expect(shellRunnerRunStub).to.have.been.calledWithMatch('docker', [
+      'pull',
+      '--platform',
+      Architecture.LINUX_ARM64,
+      'ghcr.io/example/image:latest',
+    ]);
+  });
+
+  it('saves an image archive using the platform reported by the container engine', async (): Promise<void> => {
+    // Simulate a docker daemon on an amd64 host.
+    shellRunnerRunStub
+      .withArgs('docker', ['info', '--format', '{{json .}}'], sinon.match.object)
+      .resolves([JSON.stringify({Architecture: 'x86_64', MemTotal: 8_000_000_000, NCPU: 4})]);
+    const craneExecutable: string = '/home/runner/.solo/bin/crane';
+    const dependencyManager: DependencyManager = DockerClientTestBuilder.buildDependencyManager(craneExecutable);
+    shellRunnerRunStub
+      .withArgs(
+        craneExecutable,
+        sinon.match((arguments_: string[]): boolean => arguments_[0] === 'pull'),
+        sinon.match.object,
+      )
+      .resolves([]);
+
+    const client: DockerClient = DockerClientTestBuilder.build(dependencyManager);
+    await client.saveImage('ghcr.io/example/image:latest', '/tmp/test-image.tar');
+
+    expect(shellRunnerRunStub).to.have.been.calledWithMatch(craneExecutable, [
+      'pull',
+      '--platform',
+      Architecture.LINUX_AMD64,
+      'ghcr.io/example/image:latest',
+      '/tmp/test-image.tar',
+    ]);
+  });
 });
 
 class DockerClientTestBuilder {
@@ -221,6 +273,11 @@ class DockerClientTestBuilder {
 
   public static containerExistsArguments(nodeName: string, prefix: readonly string[] = []): string[] {
     return [...prefix, 'container', 'exists', nodeName];
+  }
+
+  /** Docker has no `container exists`; the portable probe is `container inspect`. */
+  public static containerInspectArguments(nodeName: string, prefix: readonly string[] = []): string[] {
+    return [...prefix, 'container', 'inspect', '--format', '{{.Id}}', nodeName];
   }
 
   public static listImagesArguments(nodeName: string, prefix: readonly string[] = []): string[] {

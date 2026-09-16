@@ -24,6 +24,7 @@ import {ClusterConnectionFailedError} from './classes/system/cluster-connection-
 import {ClusterUnreachableError} from './classes/system/cluster-unreachable-error.js';
 import {KindClusterStoppedError} from './classes/system/kind-cluster-stopped-error.js';
 import {ContainerEngineNotRunningError} from './classes/system/container-engine-not-running-error.js';
+import {SoloLogsDirectoryNotWritableSoloError} from './classes/system/solo-logs-directory-not-writable-solo-error.js';
 import {GitHubApiHttpResponseError} from './classes/system/github-api-http-response-error.js';
 import {GitHubApiRequestFailedError} from './classes/system/github-api-request-failed-error.js';
 import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
@@ -115,9 +116,11 @@ import {RelayDestroyFailedSoloError} from './classes/component/relay-destroy-fai
 import {RelayNotRunningSoloError} from './classes/component/relay-not-running-solo-error.js';
 import {RelayNotReadySoloError} from './classes/component/relay-not-ready-solo-error.js';
 import {RelayOperatorKeyRetrievalFailedSoloError} from './classes/component/relay-operator-key-retrieval-failed-solo-error.js';
+import {RelayOperatorSecretCreationFailedSoloError} from './classes/component/relay-operator-secret-creation-failed-solo-error.js';
 import {MirrorNodeDeployFailedSoloError} from './classes/component/mirror-node-deploy-failed-solo-error.js';
 import {MirrorNodeUpgradeFailedSoloError} from './classes/component/mirror-node-upgrade-failed-solo-error.js';
 import {MirrorNodeDestroyFailedSoloError} from './classes/component/mirror-node-destroy-failed-solo-error.js';
+import {MirrorNodeJfrCollectionFailedSoloError} from './classes/component/mirror-node-jfr-collection-failed-solo-error.js';
 import {MirrorNodeOperatorKeyRetrievalFailedSoloError} from './classes/component/mirror-node-operator-key-retrieval-failed-solo-error.js';
 import {OneShotDeployFailedSoloError} from './classes/component/one-shot-deploy-failed-solo-error.js';
 import {OneShotDestroyFailedSoloError} from './classes/component/one-shot-destroy-failed-solo-error.js';
@@ -144,6 +147,7 @@ import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
+import {MinioOperatorCrdsOrphanedSoloError} from './classes/system/minio-operator-crds-orphaned-solo-error.js';
 import {PrometheusInstallFailedSoloError} from './classes/deployment/prometheus-install-failed-solo-error.js';
 import {MetricsServerInstallFailedSoloError} from './classes/deployment/metrics-server-install-failed-solo-error.js';
 import {ClusterRoleInstallFailedSoloError} from './classes/deployment/cluster-role-install-failed-solo-error.js';
@@ -153,7 +157,6 @@ import {BackupExportFailedSoloError} from './classes/deployment/backup-export-fa
 import {BackupImportFailedSoloError} from './classes/deployment/backup-import-failed-solo-error.js';
 import {BackupRestoreClustersFailedSoloError} from './classes/deployment/backup-restore-clusters-failed-solo-error.js';
 import {DeployNetworkFailedSoloError} from './classes/deployment/deploy-network-failed-solo-error.js';
-import {InitFailedSoloError} from './classes/deployment/init-failed-solo-error.js';
 import {BlockNodeClusterContextNotFoundSoloError} from './classes/deployment/block-node-cluster-context-not-found-solo-error.js';
 import {MirrorNodeClusterContextNotFoundSoloError} from './classes/deployment/mirror-node-cluster-context-not-found-solo-error.js';
 import {AccountCreationFailedSoloError} from './classes/component/account-creation-failed-solo-error.js';
@@ -201,6 +204,7 @@ import {HederaFileAppendFailedSoloError} from './classes/component/hedera-file-a
 import {NodeStatusEmptyResponseSoloError} from './classes/component/node-status-empty-response-solo-error.js';
 import {NodeStatusMissingLineSoloError} from './classes/component/node-status-missing-line-solo-error.js';
 import {PredefinedAccountsCreationFailedSoloError} from './classes/component/predefined-accounts-creation-failed-solo-error.js';
+import {NodeContainerCrashedSoloError} from './classes/component/node-container-crashed-solo-error.js';
 import {InvalidHbarAmountSoloError} from './classes/validation/invalid-hbar-amount-solo-error.js';
 import {InvalidFileIdFormatSoloError} from './classes/validation/invalid-file-id-format-solo-error.js';
 import {InvalidEndpointFormatSoloError} from './classes/validation/invalid-endpoint-format-solo-error.js';
@@ -250,6 +254,7 @@ import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-r
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
+import {TransplantRequiresStateFileSoloError} from './classes/validation/transplant-requires-state-file-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -278,6 +283,7 @@ import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupporte
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {PodmanRuntimeConfigurationFailedSoloError} from './classes/system/podman-runtime-configuration-failed-solo-error.js';
 import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js';
+import {PvcMountVerificationFailedSoloError} from './classes/system/pvc-mount-verification-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
@@ -301,6 +307,7 @@ import {RemoteConfigContextUnavailableError} from './classes/internal/remote-con
 import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-template-undeclared-error.js';
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
 import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
+import {UncaughtFatalErrorSoloError} from './classes/internal/uncaught-fatal-error-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -363,7 +370,6 @@ export class SoloErrors {
     readonly backupImportFailed: typeof BackupImportFailedSoloError;
     readonly backupRestoreClustersFailed: typeof BackupRestoreClustersFailedSoloError;
     readonly deployNetworkFailed: typeof DeployNetworkFailedSoloError;
-    readonly initFailed: typeof InitFailedSoloError;
     readonly blockNodeClusterContextNotFound: typeof BlockNodeClusterContextNotFoundSoloError;
     readonly mirrorNodeClusterContextNotFound: typeof MirrorNodeClusterContextNotFoundSoloError;
   } = Object.freeze({
@@ -395,7 +401,6 @@ export class SoloErrors {
     backupImportFailed: BackupImportFailedSoloError,
     backupRestoreClustersFailed: BackupRestoreClustersFailedSoloError,
     deployNetworkFailed: DeployNetworkFailedSoloError,
-    initFailed: InitFailedSoloError,
     blockNodeClusterContextNotFound: BlockNodeClusterContextNotFoundSoloError,
     mirrorNodeClusterContextNotFound: MirrorNodeClusterContextNotFoundSoloError,
   });
@@ -440,9 +445,11 @@ export class SoloErrors {
     readonly relayNotRunning: typeof RelayNotRunningSoloError;
     readonly relayNotReady: typeof RelayNotReadySoloError;
     readonly relayOperatorKeyRetrievalFailed: typeof RelayOperatorKeyRetrievalFailedSoloError;
+    readonly relayOperatorSecretCreationFailed: typeof RelayOperatorSecretCreationFailedSoloError;
     readonly mirrorNodeDeployFailed: typeof MirrorNodeDeployFailedSoloError;
     readonly mirrorNodeUpgradeFailed: typeof MirrorNodeUpgradeFailedSoloError;
     readonly mirrorNodeDestroyFailed: typeof MirrorNodeDestroyFailedSoloError;
+    readonly mirrorNodeJfrCollectionFailed: typeof MirrorNodeJfrCollectionFailedSoloError;
     readonly mirrorNodeOperatorKeyRetrievalFailed: typeof MirrorNodeOperatorKeyRetrievalFailedSoloError;
     readonly oneShotDeployFailed: typeof OneShotDeployFailedSoloError;
     readonly oneShotDestroyFailed: typeof OneShotDestroyFailedSoloError;
@@ -493,6 +500,7 @@ export class SoloErrors {
     readonly nodeStatusEmptyResponse: typeof NodeStatusEmptyResponseSoloError;
     readonly nodeStatusMissingLine: typeof NodeStatusMissingLineSoloError;
     readonly predefinedAccountsCreationFailed: typeof PredefinedAccountsCreationFailedSoloError;
+    readonly nodeContainerCrashed: typeof NodeContainerCrashedSoloError;
   } = Object.freeze({
     nodeTransactionFailed: NodeTransactionFailedSoloError,
     nodeBuildUploadFailed: NodeBuildUploadFailedSoloError,
@@ -532,9 +540,11 @@ export class SoloErrors {
     relayNotRunning: RelayNotRunningSoloError,
     relayNotReady: RelayNotReadySoloError,
     relayOperatorKeyRetrievalFailed: RelayOperatorKeyRetrievalFailedSoloError,
+    relayOperatorSecretCreationFailed: RelayOperatorSecretCreationFailedSoloError,
     mirrorNodeDeployFailed: MirrorNodeDeployFailedSoloError,
     mirrorNodeUpgradeFailed: MirrorNodeUpgradeFailedSoloError,
     mirrorNodeDestroyFailed: MirrorNodeDestroyFailedSoloError,
+    mirrorNodeJfrCollectionFailed: MirrorNodeJfrCollectionFailedSoloError,
     mirrorNodeOperatorKeyRetrievalFailed: MirrorNodeOperatorKeyRetrievalFailedSoloError,
     oneShotDeployFailed: OneShotDeployFailedSoloError,
     oneShotDestroyFailed: OneShotDestroyFailedSoloError,
@@ -585,6 +595,7 @@ export class SoloErrors {
     nodeStatusEmptyResponse: NodeStatusEmptyResponseSoloError,
     nodeStatusMissingLine: NodeStatusMissingLineSoloError,
     predefinedAccountsCreationFailed: PredefinedAccountsCreationFailedSoloError,
+    nodeContainerCrashed: NodeContainerCrashedSoloError,
   });
 
   // 4xxx — Validation: User input, flags, IDs, formatting
@@ -666,6 +677,7 @@ export class SoloErrors {
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
+    readonly transplantRequiresStateFile: typeof TransplantRequiresStateFileSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -744,6 +756,7 @@ export class SoloErrors {
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
     invalidFlagValue: InvalidFlagValueSoloError,
+    transplantRequiresStateFile: TransplantRequiresStateFileSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -757,6 +770,7 @@ export class SoloErrors {
     readonly clusterUnreachable: typeof ClusterUnreachableError;
     readonly kindClusterStopped: typeof KindClusterStoppedError;
     readonly containerEngineNotRunning: typeof ContainerEngineNotRunningError;
+    readonly soloLogsDirectoryNotWritable: typeof SoloLogsDirectoryNotWritableSoloError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
     readonly githubApiRequestFailed: typeof GitHubApiRequestFailedError;
     readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
@@ -817,6 +831,7 @@ export class SoloErrors {
     readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
+    readonly pvcMountVerificationFailed: typeof PvcMountVerificationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
     readonly ingressClassListFailed: typeof IngressClassListFailedSoloError;
     readonly multipleItemsFound: typeof MultipleItemsFoundSoloError;
@@ -831,7 +846,9 @@ export class SoloErrors {
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
     readonly timeout: typeof TimeoutSoloError;
     readonly clusterRoleCheckFailed: typeof ClusterRoleCheckFailedSoloError;
+    readonly minioOperatorCrdsOrphaned: typeof MinioOperatorCrdsOrphanedSoloError;
   } = Object.freeze({
+    minioOperatorCrdsOrphaned: MinioOperatorCrdsOrphanedSoloError,
     blockNodePodNotFound: BlockNodePodNotFoundSoloError,
     blockNodeNotReady: BlockNodeNotReadySoloError,
     blockNodeNotInRemoteConfig: BlockNodeNotInRemoteConfigSoloError,
@@ -841,6 +858,7 @@ export class SoloErrors {
     clusterUnreachable: ClusterUnreachableError,
     kindClusterStopped: KindClusterStoppedError,
     containerEngineNotRunning: ContainerEngineNotRunningError,
+    soloLogsDirectoryNotWritable: SoloLogsDirectoryNotWritableSoloError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
     githubApiRequestFailed: GitHubApiRequestFailedError,
     githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
@@ -901,6 +919,7 @@ export class SoloErrors {
     podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
+    pvcMountVerificationFailed: PvcMountVerificationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
     ingressClassListFailed: IngressClassListFailedSoloError,
     multipleItemsFound: MultipleItemsFoundSoloError,
@@ -930,6 +949,7 @@ export class SoloErrors {
     readonly cacheImageTemplateUndeclared: typeof CacheImageTemplateUndeclaredError;
     readonly injectedFailure: typeof InjectedFailureSoloError;
     readonly pipelineCancelled: typeof PipelineCancelledSoloError;
+    readonly uncaughtFatalError: typeof UncaughtFatalErrorSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -942,5 +962,6 @@ export class SoloErrors {
     cacheImageTemplateUndeclared: CacheImageTemplateUndeclaredError,
     injectedFailure: InjectedFailureSoloError,
     pipelineCancelled: PipelineCancelledSoloError,
+    uncaughtFatalError: UncaughtFatalErrorSoloError,
   });
 }
