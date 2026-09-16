@@ -74,6 +74,7 @@ permissions:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  SLACK_MEMORY_WARNING_MB: '2500'
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
 
 jobs:
@@ -454,17 +455,16 @@ jobs:
 
       - name: Format Slack Memory Summary
         id: slack-summary
-        if: ${{ !cancelled() && inputs.report-to-slack && steps.log-metrics.outputs.json_log != '{}' &&
-          steps.pod-categories.outputs.content != '' }}
+        if: ${{ !cancelled() && inputs.report-to-slack && steps.pod-categories.outputs.content != '' }}
+        continue-on-error: true
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
-          JSON_LOG: "${{ steps.log-metrics.outputs.json_log }}"
           POD_CATEGORIES_CONTENT: |-
             ${{ steps.pod-categories.outputs.content }}
         run: |
-          MEMORY_USED_MB="$(jq -r '.memoryInMebibytes // empty' <<< "$JSON_LOG")"
+          MEMORY_USED_MB="$(awk '/^Total \(excl\./ {print $(NF-1)}' <<< "$POD_CATEGORIES_CONTENT")"
           if [[ ! "${MEMORY_USED_MB}" =~ ^[0-9]+$ ]]; then
-            echo "Unable to extract total memory usage from the performance summary JSON"
+            echo "Unable to extract the Total row from the pod memory category table"
             exit 1
           fi
 
@@ -476,22 +476,19 @@ jobs:
           MESSAGE="${TABLE}"$'\n\n'":link: <${RUN_URL}|View Job Logs>"
 
           {
-            echo "table<<EOF_TABLE"
-            echo "$TABLE"
-            echo "EOF_TABLE"
             echo "message<<EOF_MESSAGE"
             echo "$MESSAGE"
             echo "EOF_MESSAGE"
           } >> "$GITHUB_OUTPUT"
 
-          if (( MEMORY_USED_MB > 2500 )); then
+          if (( MEMORY_USED_MB > SLACK_MEMORY_WARNING_MB )); then
             echo "color=warning" >> "$GITHUB_OUTPUT"
           else
             echo "color=good" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Send Slack Notification
-        if: ${{ !cancelled() && steps.slack-summary.conclusion == 'success' }}
+        if: ${{ !cancelled() && steps.slack-summary.outcome == 'success' }}
         uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
