@@ -139,7 +139,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   SDK_CLIENT_NO_HEALTHY_NODES: 'SOLO-3092',
   NODE_KEY_LOAD_FAILED: 'SOLO-3093',
   NODE_CONTAINER_CRASHED: 'SOLO-3094',
-  MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3095',
+  RELAY_OPERATOR_SECRET_CREATION_FAILED: 'SOLO-3095',
+  MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3096',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -223,6 +224,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   VALUES_FILE_PARSE_FAILED: 'SOLO-4079',
   BACKUP_DATABASE_DUMP_NOT_FOUND: 'SOLO-4080',
   INVALID_FLAG_VALUE: 'SOLO-4081',
+  TRANSPLANT_REQUIRES_STATE_FILE: 'SOLO-4082',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -308,6 +310,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   POD_NOT_READY: 'SOLO-5081',
   PORT_FORWARD_STOP_FAILED: 'SOLO-5082',
   SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5083',
+  PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5084',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
