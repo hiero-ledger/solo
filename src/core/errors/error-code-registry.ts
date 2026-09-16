@@ -140,6 +140,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   NODE_KEY_LOAD_FAILED: 'SOLO-3093',
   NODE_CONTAINER_CRASHED: 'SOLO-3094',
   RELAY_OPERATOR_SECRET_CREATION_FAILED: 'SOLO-3095',
+  MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3096',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
