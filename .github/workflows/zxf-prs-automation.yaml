@@ -1,7 +1,7 @@
 name: "ZXF: PR Automation"
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - reopened
@@ -37,7 +37,7 @@ defaults:
 jobs:
   auto-assign-merge-queue:
     name: "Auto-Assign Merge Queue PRs"
-    if: github.event_name == 'pull_request' && startsWith(github.base_ref, 'trunk-merge/')
+    if: github.event_name == 'pull_request_target' && startsWith(github.base_ref, 'trunk-merge/')
     runs-on: hiero-solo-linux-medium
     permissions:
       contents: read
@@ -258,7 +258,7 @@ jobs:
               }
             }
 
-            const prEventNames = ['pull_request', 'pull_request_review', 'pull_request_review_comment'];
+            const prEventNames = ['pull_request_target', 'pull_request_review', 'pull_request_review_comment'];
             if (prEventNames.includes(context.eventName)) {
               const prNumber = context.payload.pull_request?.number;
               if (prNumber) {
