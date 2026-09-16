@@ -17,7 +17,7 @@ export class MirrorNodeJfrCollectionFailedSoloError extends SoloError {
         troubleshootingSteps:
           'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
           'Inspect mirror node importer pods: kubectl get pods -A -l app.kubernetes.io/component=importer\n' +
-          'Verify the mirror node importer was deployed with Java Flight Recorder enabled\n' +
+          'Verify the mirror node was deployed or upgraded with the Java Flight Recorder values overlay, which runs the importer on the JVM image\n' +
           'Verify the cluster is reachable: kubectl cluster-info --context <context>',
       },
       cause,

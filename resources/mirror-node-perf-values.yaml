@@ -1,5 +1,11 @@
-# JFR overlay for the mirror node importer (perf tests); records to a dedicated disk volume, repository path enforced by mirror-node-values.test.ts.
+# JFR overlay for the mirror node importer (perf tests); the image swap and repository path are enforced by mirror-node-values.test.ts.
 importer:
+  # Solo's default importer is a GraalVM native image: it has no Java Flight Recorder and ignores JAVA_TOOL_OPTIONS.
+  # Run the mirror node team's production JVM (Temurin JRE) image instead; Solo pins the tag from the mirror node version.
+  image:
+    registry: gcr.io
+    repository: mirrornode/hedera-mirror-importer
+  # The JVM importer needs more memory than the native binary Solo runs by default.
   resources:
     requests:
       cpu: "1"

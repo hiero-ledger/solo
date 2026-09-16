@@ -9,6 +9,11 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 interface MirrorNodePerformanceValuesConfig {
   importer?: {
+    image?: {
+      registry?: string;
+      repository?: string;
+      tag?: string;
+    };
     env?: {
       JAVA_TOOL_OPTIONS?: string;
     };
@@ -26,12 +31,22 @@ describe('Mirror node performance (JFR) values', (): void => {
     'mirror-node-perf-values.yaml',
   );
 
-  it('should enable a continuous on-disk Java Flight Recording on the importer', (): void => {
+  const readPerformanceValues: () => MirrorNodePerformanceValuesConfig = (): MirrorNodePerformanceValuesConfig => {
     const valuesContent: string = fs.readFileSync(performanceValuesFile, 'utf8');
-    const parsedValues: MirrorNodePerformanceValuesConfig = yaml.parse(
-      valuesContent,
-    ) as MirrorNodePerformanceValuesConfig;
-    const javaToolOptions: string | undefined = parsedValues.importer?.env?.JAVA_TOOL_OPTIONS;
+    return yaml.parse(valuesContent) as MirrorNodePerformanceValuesConfig;
+  };
+
+  it('should run the importer on the JVM image so the flight recorder flags take effect', (): void => {
+    const image: MirrorNodePerformanceValuesConfig['importer']['image'] = readPerformanceValues().importer?.image;
+
+    // Solo's default importer is a GraalVM native image, which has no JFR and ignores JAVA_TOOL_OPTIONS.
+    expect(image?.registry, 'importer image registry').to.equal('gcr.io');
+    expect(image?.repository, 'importer image repository').to.equal('mirrornode/hedera-mirror-importer');
+    expect(image?.tag, 'tag must stay unset so Solo pins it from the mirror node version').to.be.undefined;
+  });
+
+  it('should enable a continuous on-disk Java Flight Recording on the importer', (): void => {
+    const javaToolOptions: string | undefined = readPerformanceValues().importer?.env?.JAVA_TOOL_OPTIONS;
 
     expect(javaToolOptions, 'importer.env.JAVA_TOOL_OPTIONS should be defined').to.be.a('string');
     expect(javaToolOptions, 'JAVA_TOOL_OPTIONS should start a flight recording').to.include(
@@ -44,11 +59,7 @@ describe('Mirror node performance (JFR) values', (): void => {
   });
 
   it('should point the JFR repository at constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY', (): void => {
-    const valuesContent: string = fs.readFileSync(performanceValuesFile, 'utf8');
-    const parsedValues: MirrorNodePerformanceValuesConfig = yaml.parse(
-      valuesContent,
-    ) as MirrorNodePerformanceValuesConfig;
-    const javaToolOptions: string | undefined = parsedValues.importer?.env?.JAVA_TOOL_OPTIONS;
+    const javaToolOptions: string | undefined = readPerformanceValues().importer?.env?.JAVA_TOOL_OPTIONS;
 
     // The overlay's repository must match the path `mirror node collect-jfr` reads from.
     expect(
@@ -58,11 +69,7 @@ describe('Mirror node performance (JFR) values', (): void => {
   });
 
   it('should mount a dedicated writable volume at the JFR repository path', (): void => {
-    const valuesContent: string = fs.readFileSync(performanceValuesFile, 'utf8');
-    const parsedValues: MirrorNodePerformanceValuesConfig = yaml.parse(
-      valuesContent,
-    ) as MirrorNodePerformanceValuesConfig;
-    const jfrMountPath: string | undefined = parsedValues.importer?.volumeMounts?.jfr?.mountPath;
+    const jfrMountPath: string | undefined = readPerformanceValues().importer?.volumeMounts?.jfr?.mountPath;
 
     // The importer's root filesystem is read-only, so JFR must write into a mounted volume at the repository path.
     expect(jfrMountPath, 'JFR volume must be mounted at the repository collect-jfr reads from').to.equal(
