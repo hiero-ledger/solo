@@ -89,7 +89,7 @@ describe('K8ClientContainer execContainer', (): void => {
       expect(result).to.be.true;
       expect(execKubectlCpStub).to.have.been.calledOnce;
       expect(hasDirectoryStub).to.have.been.calledOnceWith(destinationDirectory);
-      expect(hasFileStub).to.have.been.calledOnceWith(PathEx.join(destinationDirectory, 'gnark.jar'), {
+      expect(hasFileStub).to.have.been.calledOnceWith(`${destinationDirectory}/gnark.jar`, {
         size: fileContent.length.toString(),
       });
     });

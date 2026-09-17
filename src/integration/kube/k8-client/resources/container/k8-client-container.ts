@@ -194,7 +194,7 @@ export class K8ClientContainer implements Container {
     sourceFileName: string,
   ): Promise<void> {
     const sourcePathStat: fs.Stats = fs.statSync(localPathToCopy);
-    const destinationPath: string = PathEx.join(destinationDirectory, sourceFileName);
+    const destinationPath: string = path.posix.join(destinationDirectory, sourceFileName);
 
     if (sourcePathStat.isFile()) {
       const fileFound: boolean = await this.hasFile(destinationPath, {size: sourcePathStat.size.toString()});
