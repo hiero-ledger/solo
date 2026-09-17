@@ -362,20 +362,6 @@ export class DeploymentCommand extends BaseCommand {
                 this.localConfig.configuration.deployments.remove(actualDeployment);
               }
 
-              // Prune cluster-refs that are no longer referenced by any remaining deployment, so destroy
-              // converges to a clean local config. Idempotent: deleting an absent cluster-ref is a no-op.
-              const referencedClusterReferences: Set<string> = new Set<string>();
-              for (const remainingDeployment of this.localConfig.configuration.deployments) {
-                for (const cluster of remainingDeployment.clusters) {
-                  referencedClusterReferences.add(cluster.toString());
-                }
-              }
-              for (const clusterReference of this.localConfig.configuration.clusterRefs.keys()) {
-                if (!referencedClusterReferences.has(clusterReference)) {
-                  this.localConfig.configuration.clusterRefs.delete(clusterReference);
-                }
-              }
-
               await this.localConfig.persist();
             } catch {
               // Deployment might not exist in local config, ignore error and continue with cleanup of other deployments if needed

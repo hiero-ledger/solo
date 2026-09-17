@@ -145,6 +145,12 @@ export const MIRROR_NODE_CHART_URL: string =
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
+
+// Container name of the importer inside the mirror node importer pod (the hedera-mirror umbrella chart's subchart alias).
+export const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('importer');
+
+// In-pod JFR repository path `mirror node collect-jfr` reads from (a dedicated volume, mirrors the block node output dir); enforced by mirror-node-values.test.ts.
+export const MIRROR_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/mirror-node/output/jfr';
 export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
