@@ -281,3 +281,11 @@ jobs:
     uses: $/.github/workflows/flow-performance-test.yaml
     with:
       cn-edge-version: v0.75.1
+
+  windows-one-shot-redeployment:
+    name: Extended Test (windows-one-shot-redeployment)
+    needs:
+      - generate_matrix
+    uses: $/.github/workflows/flow-standard-runner-one-shot-windows.yaml
+    with:
+      run-twice: true
