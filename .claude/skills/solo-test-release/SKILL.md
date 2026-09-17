@@ -1,10 +1,10 @@
 ---
 name: solo-test-release
-description: Smoke-test a Solo release candidate before dispatching the release workflow — pack the npm tarball with the exact release packaging code, install it globally in isolation, verify the version, then run a full one-shot network deploy/verify/destroy cycle against the packed CLI in a fully isolated Solo home and Kind cluster. Use when the user asks to "test the release", "smoke test before releasing", "verify the release candidate", or "sanity check before running the release workflow".
+description: Smoke-test a Solo release candidate before dispatching the release workflow — pack the npm tarball with the exact release packaging code, install it globally in isolation, verify the version, then run a full one-shot network deploy/verify/destroy cycle against the packed CLI in a fully isolated Solo home and Kind cluster, including functional checks that submit a real transaction and confirm it through consensus, mirror node ingestion, and the JSON-RPC relay. Use when the user asks to "test the release", "smoke test before releasing", "verify the release candidate", or "sanity check before running the release workflow".
 license: Apache-2.0
 allowed-tools: Bash, Read
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   domain: release-management
   scope: hiero-ledger/solo
   triggers: test the release, smoke test release, verify release candidate, test before release workflow, pre-release check
@@ -104,6 +104,27 @@ Taskfile step could break:
 task -t scripts/Taskfile.release.yml dual-publish:pack OUTPUT_DIR=output/release-smoke-test
 ```
 
+**Verify `dist/` is actually real before trusting the tarball.** `Taskfile.yml`'s `build`/`build:compile`
+tasks declare `sources: [src/**/*.ts, ...]` but no `generates:`, so Task's checksum cache can report
+`Task "build" is up to date` and skip compiling entirely — even if `dist/` was deleted out-of-band
+(e.g. by an earlier cleanup) without `src/` changing. This silently produces a tarball with **zero**
+files under `dist/`: no `bin`/`main` entry points at all, a completely non-functional package. This is
+not hypothetical — it happened while validating this skill. Confirm before proceeding:
+
+```bash
+TARBALL="$(ls output/release-smoke-test/*.tgz | head -n 1)"
+tar -tzf "${TARBALL}" | grep -qE '^package/dist/solo\.js$' && tar -tzf "${TARBALL}" | grep -qE '^package/dist/src/index\.js$' \
+  && echo "dist/ entry points present" \
+  || { echo "BROKEN PACK: dist/ entry points missing — forcing a real rebuild and repacking"; \
+       rm -rf dist output/release-smoke-test; \
+       task build --force; \
+       task -t scripts/Taskfile.release.yml dual-publish:pack OUTPUT_DIR=output/release-smoke-test; }
+```
+
+If this triggers, also tell the user afterward — a task caching bug that can silently ship a broken
+package is worth fixing in `Taskfile.yml` itself (e.g. adding `generates:` so Task verifies output
+existence, not just source checksums), independent of whatever release candidate is being tested.
+
 ## Step 2 — Verify version consistency
 
 ```bash
@@ -196,7 +217,94 @@ done
 
 Optionally also check `solo one-shot show accounts` to confirm predefined accounts were created.
 
-## Step 6 — On failure, collect diagnostics before tearing down
+## Step 6 — Functional smoke tests: submit real transactions and queries
+
+The checks above only prove the services are reachable — they don't prove a transaction actually
+flows through consensus → mirror → relay. This step submits a real transaction and confirms it is
+independently observable through every component, using known ports/values from Steps 4-5. All
+commands below are exact and validated (run live against a real deployment while writing this step) —
+adjust only if a future Solo version changes the CLI output shape.
+
+**Consensus — submit a real transaction:**
+
+```bash
+source /tmp/solo-release-smoke-test-env.sh
+export PATH="${SCRATCH_PREFIX}/bin:${PATH}"
+solo ledger account create --hbar-amount 50 --deployment one-shot
+```
+
+Output includes a JSON block — capture the new account id:
+
+```json
+{
+  "accountId": "0.0.1012",
+  "publicKey": "302a300506032b6570...",
+  "balance": 50
+}
+```
+
+```bash
+NEW_ACCOUNT_ID="$(solo ledger account create --hbar-amount 50 --deployment one-shot 2>&1 | grep -o '"accountId": "[^"]*"' | head -1 | cut -d'"' -f4)"
+echo "Created: ${NEW_ACCOUNT_ID}"
+```
+
+**Consensus — query it back:**
+
+```bash
+solo ledger account info --account-id "${NEW_ACCOUNT_ID}" --deployment one-shot
+```
+
+Confirm the returned `"balance"` is `50` — this proves the consensus node itself accepted and
+persisted the transaction (independent of the mirror node).
+
+**Mirror node — confirm ingestion, not just liveness:**
+
+```bash
+curl -sf "http://localhost:38081/api/v1/accounts/${NEW_ACCOUNT_ID}" \
+  | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('balance (tinybar):',j.balance.balance);})"
+# expect 5000000000 (50 HBAR * 1e8 tinybar/HBAR)
+
+curl -sf "http://localhost:38081/api/v1/transactions?account.id=${NEW_ACCOUNT_ID}" \
+  | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('types:',j.transactions.map(t=>t.name));})"
+# expect [ 'CRYPTOCREATEACCOUNT' ]
+```
+
+Polling on `/api/v1/accounts` (Step 5) only proves genesis accounts are visible — it does not prove
+new transactions actually propagate through the ingestion pipeline. This does.
+
+**JSON-RPC relay — confirm it serves live chain state, not just that the port answers:**
+
+```bash
+curl -s -X POST http://localhost:37546 -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}'
+# expect {"result":"0x12a", ...} — Solo's local network chain id
+
+curl -s -X POST http://localhost:37546 -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+# expect a non-error hex result, e.g. {"result":"0x5", ...}
+
+# Balance check against a known predefined ECDSA alias account (from the deploy's "ECDSA Alias
+# Accounts" output, e.g. 0.0.1002 -> 0x67d8d32e9bf1a9968a5ff53b87d777aa8ebbee69, funded with
+# 1,000,000 HBAR at genesis) — cross-checks the relay's Ethereum-style balance against the
+# Hedera-side funding amount, proving relay -> mirror node integration end to end.
+curl -s -X POST http://localhost:37546 -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x67d8d32e9bf1a9968a5ff53b87d777aa8ebbee69","latest"],"id":1}'
+node -e "console.log(BigInt('<paste the 0x... result here>') / (10n**18n), 'HBAR-equivalent')"
+# expect 1000000n HBAR-equivalent
+```
+
+**Explorer — basic reachability (not a deep check, just confirms the UI serves):**
+
+```bash
+curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:38080/
+# expect HTTP 200
+```
+
+If any of these fail, treat it the same as a deploy failure — proceed to Step 7 (diagnostics) before
+tearing down, and report which specific check failed (consensus write, consensus read, mirror
+ingestion, relay chain-state, or explorer reachability) rather than a generic "verification failed".
+
+## Step 7 — On failure, collect diagnostics before tearing down
 
 ```bash
 source /tmp/solo-release-smoke-test-env.sh
@@ -207,7 +315,7 @@ solo deployment diagnostics logs -q --dev || true
 Report the failure to the user with this output rather than just "it failed" — this is the same
 diagnostic the release CI captures on failure.
 
-## Step 7 — Always tear down (success or failure)
+## Step 8 — Always tear down (success or failure)
 
 ```bash
 source /tmp/solo-release-smoke-test-env.sh
@@ -218,16 +326,19 @@ rm -rf output/release-smoke-test "${SCRATCH_PREFIX}" "${SOLO_HOME}" "$(dirname "
 rm -f /tmp/solo-release-smoke-test-env.sh
 ```
 
-Do this even when Step 4 or 5 failed — leaving a half-deployed cluster behind is worse than a failed
+Do this even when Step 4, 5, or 6 failed — leaving a half-deployed cluster behind is worse than a failed
 smoke test. `kind delete cluster --name solo-cluster` is required even after a successful
 `one-shot single destroy` — that command never removes the underlying Kind cluster itself. If any
 teardown command fails, tell the user directly (don't silently swallow it) so they can run
 `kind delete cluster --name solo-cluster` manually — since everything here lived in scratch
 `SOLO_HOME`/`KUBECONFIG`, this never risks the developer's real Solo state or real clusters.
 
-## Step 8 — Report the result
+## Step 9 — Report the result
 
-State clearly: pass/fail, the version tested, and — if it passed — that this only proves the packed
-CLI deploys correctly, not that `flow-deploy-release-artifact.yaml` itself will succeed (that
-workflow's own `dry-run-enabled` input, npm/JFrog publish steps, and docs build are still untested by
-this skill). The user still triggers that workflow manually.
+State clearly: pass/fail per check (reachability in Step 5, and each functional check in Step 6 —
+consensus write, consensus read, mirror ingestion, relay chain-state, explorer reachability), the
+version tested, and the new account id created during Step 6. If it passed, note that this only
+proves the packed CLI deploys a *functionally working* network, not that
+`flow-deploy-release-artifact.yaml` itself will succeed (that workflow's own `dry-run-enabled` input,
+npm/JFrog publish steps, and docs build are still untested by this skill). The user still triggers
+that workflow manually.
