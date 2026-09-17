@@ -5,7 +5,6 @@ import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
 import {K8ClientContainer} from '../../../../src/integration/kube/k8-client/resources/container/k8-client-container.js';
 import {KubeContainerInvalidPathError} from '../../../../src/integration/kube/errors/kube-container-invalid-path-error.js';
 import {KubeContainerOperationFailedError} from '../../../../src/integration/kube/errors/kube-container-operation-failed-error.js';
@@ -90,7 +89,7 @@ describe('K8ClientContainer execContainer', (): void => {
       expect(result).to.be.true;
       expect(execKubectlCpStub).to.have.been.calledOnce;
       expect(hasDirectoryStub).to.have.been.calledOnceWith(destinationDirectory);
-      expect(hasFileStub).to.have.been.calledOnceWith(path.posix.join(destinationDirectory, 'gnark.jar'), {
+      expect(hasFileStub).to.have.been.calledOnceWith(PathEx.posixJoin(destinationDirectory, 'gnark.jar'), {
         size: fileContent.length.toString(),
       });
     });
