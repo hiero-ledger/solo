@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as constants from '../../../src/core/constants.js';
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
+import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
@@ -92,7 +93,7 @@ describe('PackageInstaller', (): void => {
 
     it('should fail for missing pod name', async (): Promise<void> => {
       await expect(
-        installer.fetchPlatform(null as PodReference, packageVersion, zipPath, checksumPath),
+        installer.fetchPlatform(undefined as PodReference, packageVersion, zipPath, checksumPath),
       ).to.be.rejectedWith(MissingArgumentError);
     });
     it('should fail for missing tag', async (): Promise<void> => {
@@ -114,8 +115,9 @@ describe('PackageInstaller', (): void => {
       const readByReferenceStub: SinonStub = sinon.stub().returns({execContainer: execContainerStub});
       const containersStub: SinonStub = sinon.stub().returns({readByRef: readByReferenceStub});
       const getK8Stub: SinonStub = sinon.stub().returns({containers: containersStub});
-      const originalK8Factory: unknown = (installer as any).k8Factory;
-      (installer as any).k8Factory = {getK8: getK8Stub};
+      const installerWithK8Factory: {k8Factory: K8Factory} = installer as unknown as {k8Factory: K8Factory};
+      const originalK8Factory: K8Factory = installerWithK8Factory.k8Factory;
+      installerWithK8Factory.k8Factory = {getK8: getK8Stub} as unknown as K8Factory;
 
       try {
         await installer.fetchPlatform(
@@ -125,7 +127,7 @@ describe('PackageInstaller', (): void => {
           '/tmp/build-v0.42.5.sha384',
         );
       } finally {
-        (installer as any).k8Factory = originalK8Factory;
+        installerWithK8Factory.k8Factory = originalK8Factory;
       }
 
       expect(copyFilesStub).to.have.been.calledTwice;
