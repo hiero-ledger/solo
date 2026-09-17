@@ -188,6 +188,30 @@ export class K8ClientContainer implements Container {
     return path;
   }
 
+  private async verifyCopyToResult(
+    localPathToCopy: string,
+    destinationDirectory: string,
+    sourceFileName: string,
+  ): Promise<void> {
+    const sourcePathStat: fs.Stats = fs.statSync(localPathToCopy);
+    const destinationPath: string = PathEx.join(destinationDirectory, sourceFileName);
+
+    if (sourcePathStat.isFile()) {
+      const fileFound: boolean = await this.hasFile(destinationPath, {size: sourcePathStat.size.toString()});
+      if (!fileFound) {
+        throw new KubeContainerInvalidPathError('copy size verification', destinationPath);
+      }
+      return;
+    }
+
+    if (sourcePathStat.isDirectory()) {
+      const directoryFound: boolean = await this.hasDir(destinationPath);
+      if (!directoryFound) {
+        throw new KubeContainerInvalidPathError('copy verification', destinationPath);
+      }
+    }
+  }
+
   public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<boolean> {
     const namespace: NamespaceName = this.containerReference.parentReference.namespace;
     const podName: string = this.containerReference.parentReference.name.toString();
@@ -264,7 +288,7 @@ export class K8ClientContainer implements Container {
     let temporaryTar: string | undefined;
 
     try {
-      const sourceFileName: string = path.basename(sourcePath);
+      let sourceFileName: string = path.basename(sourcePath);
       if (sourceFileName.endsWith('.sh') && os.platform() === 'win32') {
         // For text files on Windows, convert line endings to LF to avoid issues in Linux containers.
         temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
@@ -277,6 +301,7 @@ export class K8ClientContainer implements Container {
         // Write back
         fs.writeFileSync(temporarySourcePath, content);
         localPathToCopy = temporarySourcePath;
+        sourceFileName = path.basename(localPathToCopy);
       }
       if (filter) {
         const sourceDirectory: string = path.dirname(sourcePath);
@@ -294,11 +319,14 @@ export class K8ClientContainer implements Container {
         if (!fs.existsSync(localPathToCopy)) {
           throw new KubeContainerInvalidPathError('filtered source', localPathToCopy);
         }
+
+        sourceFileName = path.basename(localPathToCopy);
       }
 
       this.logger.info(`copyTo: beginning copy [container: ${containerName} ${localPathToCopy} ${remoteDestination}]`);
 
       await this.execKubectlCp(localPathToCopy, remoteDestination, containerName, localPathToCopy);
+      await this.verifyCopyToResult(localPathToCopy, destinationDirectory, sourceFileName);
 
       return true;
     } finally {
