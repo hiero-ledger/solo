@@ -108,7 +108,8 @@ describe('PackageInstaller', (): void => {
   });
   describe('fetchPlatform verification', (): void => {
     it('should verify extracted jar integrity after extraction', async (): Promise<void> => {
-      const copyFilesStub: SinonStub = sinon.stub(installer as never, 'copyFiles').resolves([]);
+      const copyFilesStub: SinonStub = sinon.stub(installer, 'copyFiles' as never) as SinonStub;
+      copyFilesStub.resolves([]);
       const execContainerStub: SinonStub = sinon.stub().resolves('');
       const readByReferenceStub: SinonStub = sinon.stub().returns({execContainer: execContainerStub});
       const containersStub: SinonStub = sinon.stub().returns({readByRef: readByReferenceStub});

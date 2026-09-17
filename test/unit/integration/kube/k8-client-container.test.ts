@@ -81,7 +81,8 @@ describe('K8ClientContainer execContainer', (): void => {
       const destinationDirectory: string = '/opt/hgcapp/services-hedera/HapiApp2.0/data/lib';
       const hasDirectoryStub: SinonStub = sinon.stub(containerClient, 'hasDir').resolves(true);
       const hasFileStub: SinonStub = sinon.stub(containerClient, 'hasFile').resolves(true);
-      const execKubectlCpStub: SinonStub = sinon.stub(containerClient, 'execKubectlCp' as never).resolves();
+      const execKubectlCpStub: SinonStub = sinon.stub(containerClient, 'execKubectlCp' as never) as SinonStub;
+      execKubectlCpStub.resolves();
 
       const result: boolean = await containerClient.copyTo(localFilePath, destinationDirectory);
 
@@ -99,7 +100,8 @@ describe('K8ClientContainer execContainer', (): void => {
 
       sinon.stub(containerClient, 'hasDir').resolves(true);
       sinon.stub(containerClient, 'hasFile').resolves(false);
-      sinon.stub(containerClient, 'execKubectlCp' as never).resolves();
+      const execKubectlCpStub: SinonStub = sinon.stub(containerClient, 'execKubectlCp' as never) as SinonStub;
+      execKubectlCpStub.resolves();
 
       try {
         await containerClient.copyTo(localFilePath, '/opt/hgcapp/services-hedera/HapiApp2.0/data/lib');
