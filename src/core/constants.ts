@@ -84,6 +84,8 @@ export const SOLO_CLUSTER_ROLE_LABELS: Record<string, string> = {'solo.hedera.co
 export const SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY: number = 50;
 export const SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR: string = 'solo.hedera.com/type=remote-config';
 export const NODE_COPY_CONCURRENT: number = Number(getEnvironmentVariable('NODE_COPY_CONCURRENT')) || 4;
+export const EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL: boolean =
+  getEnvironmentVariable('EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL') === 'true' || false;
 export const SKIP_NODE_PING: boolean = Boolean(getEnvironmentVariable('SKIP_NODE_PING')) || false;
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS: number = +getEnvironmentVariable('SOLO_LEASE_ACQUIRE_ATTEMPTS') || 10;
 export const DEFAULT_LEASE_DURATION: number = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
@@ -143,6 +145,12 @@ export const MIRROR_NODE_CHART_URL: string =
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
+
+// Container name of the importer inside the mirror node importer pod (the hedera-mirror umbrella chart's subchart alias).
+export const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('importer');
+
+// In-pod JFR repository path `mirror node collect-jfr` reads from (a dedicated volume, mirrors the block node output dir); enforced by mirror-node-values.test.ts.
+export const MIRROR_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/mirror-node/output/jfr';
 export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
@@ -604,6 +612,9 @@ export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NET
 
 export const DEFAULT_LOCAL_CONFIG_FILE: string = 'local-config.yaml';
 export const NODE_OVERRIDE_FILE: string = 'node-overrides.yaml';
+export const GENESIS_NETWORK_FILE: string = 'genesis-network.json';
+/** Same contents as {@link GENESIS_NETWORK_FILE}; replaces the roster carried by a restored state. */
+export const OVERRIDE_NETWORK_FILE: string = 'override-network.json';
 
 export const NODES_STARTED_EVENT_TIMEOUT_MINUTES: number =
   +getEnvironmentVariable('NODES_STARTED_EVENT_TIMEOUT_MINUTES') || 30;

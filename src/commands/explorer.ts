@@ -1021,6 +1021,12 @@ export class ExplorerCommand extends BaseCommand {
                   .delete(context_.config.ingressReleaseName);
               }
             }
+
+            // Delete the namespace-scoped TLS secret created for the ingress on deploy; delete() tolerates NotFound
+            await this.k8Factory
+              .getK8(context_.config.clusterContext)
+              .secrets()
+              .delete(context_.config.namespace, constants.EXPLORER_INGRESS_TLS_SECRET_NAME);
           },
         },
         this.disableMirrorNodeExplorerComponents(),
