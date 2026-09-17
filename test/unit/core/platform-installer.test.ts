@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {before, describe, it} from 'mocha';
+import {afterEach, before, describe, it} from 'mocha';
+import sinon, {type SinonStub} from 'sinon';
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -22,6 +23,10 @@ describe('PackageInstaller', (): void => {
 
   before((): void => {
     installer = container.resolve(InjectTokens.PlatformInstaller);
+  });
+
+  afterEach((): void => {
+    sinon.restore();
   });
 
   describe('validatePlatformReleaseDir', (): void => {
@@ -99,6 +104,39 @@ describe('PackageInstaller', (): void => {
           checksumPath,
         ),
       ).to.be.rejectedWith(MissingArgumentError);
+    });
+  });
+  describe('fetchPlatform verification', (): void => {
+    it('should verify extracted jar integrity after extraction', async (): Promise<void> => {
+      const copyFilesStub: SinonStub = sinon.stub(installer as never, 'copyFiles').resolves([]);
+      const execContainerStub: SinonStub = sinon.stub().resolves('');
+      const readByReferenceStub: SinonStub = sinon.stub().returns({execContainer: execContainerStub});
+      const containersStub: SinonStub = sinon.stub().returns({readByRef: readByReferenceStub});
+      const getK8Stub: SinonStub = sinon.stub().returns({containers: containersStub});
+      const originalK8Factory: unknown = (installer as any).k8Factory;
+      (installer as any).k8Factory = {getK8: getK8Stub};
+
+      try {
+        await installer.fetchPlatform(
+          PodReference.of(NamespaceName.of('platform-installer-test'), PodName.of('network-node1-0')),
+          'v0.42.5',
+          '/tmp/build-v0.42.5.zip',
+          '/tmp/build-v0.42.5.sha384',
+        );
+      } finally {
+        (installer as any).k8Factory = originalK8Factory;
+      }
+
+      expect(copyFilesStub).to.have.been.calledTwice;
+      expect(execContainerStub.callCount).to.equal(5);
+      const verificationCallArguments: string[] = execContainerStub.getCall(4).args[0];
+      expect(verificationCallArguments[0]).to.equal('bash');
+      expect(verificationCallArguments[1]).to.equal('-c');
+      expect(verificationCallArguments[2]).to.include('unzip -t');
+      expect(verificationCallArguments[2]).to.include(
+        `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}`,
+      );
+      expect(verificationCallArguments[2]).to.include(`${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}`);
     });
   });
 
