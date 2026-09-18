@@ -65,12 +65,7 @@ Browse the source code and configuration files for this example in the [GitHub r
 
 ## Deploying Without a Values File
 
-The `--values-file` flag is optional. When it is omitted, `solo one-shot falcon deploy` behaves exactly like `solo one-shot single deploy` and uses its defaults:
-
-* Deployment, namespace, and cluster reference named `one-shot`
-* One consensus node, tuned with the small-memory profile
-* Mirror node, explorer, and relay deployed; block node only when `ONE_SHOT_WITH_BLOCK_NODE=true`
-* Component versions from the Solo release, unless overridden with flags such as `--consensus-node-version`
+The `--values-file` flag is optional. When it is omitted, `solo one-shot falcon deploy` behaves exactly like `solo one-shot single deploy`:
 
 ```sh
 solo one-shot falcon deploy
