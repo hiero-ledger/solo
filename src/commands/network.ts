@@ -59,6 +59,7 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
+import {ResourceNotFoundError} from '../integration/kube/errors/resource-operation-errors.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -1568,6 +1569,66 @@ export class NetworkCommand extends BaseCommand {
     );
   }
 
+  /**
+   * Loads and validates the remote config for `network deploy`. Unlike other consumers of
+   * `remoteConfig.loadAndValidate`, a missing remote config here does not necessarily mean the deployment is
+   * gone — `network destroy` (by design) leaves the namespace and the recorded deployment in place unless it
+   * is asked to remove PVCs and secrets too, so the fix is to recreate the ConfigMap, not to report a
+   * misleading chart-install failure. This reports that distinctly so the user knows how to recover instead
+   * of chasing an unrelated Helm error.
+   */
+  private async loadAndValidateRemoteConfigForDeploy(argv: ArgvStruct): Promise<void> {
+    try {
+      await this.remoteConfig.loadAndValidate(argv, true, true);
+    } catch (error) {
+      const isMissingRemoteConfig: boolean =
+        error instanceof ResourceNotFoundError ||
+        error instanceof SoloErrors.system.resourceNotFound ||
+        error instanceof SoloErrors.config.remoteConfigMissingOnKindCluster;
+
+      if (!isMissingRemoteConfig) {
+        throw error;
+      }
+
+      const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+      const namespace: NamespaceName = this.configManager.getFlag(flags.namespace);
+      const context: Context = this.configManager.getFlag(flags.context);
+      const clusterReferences: string[] = this.localConfig.configuration
+        .deploymentByName(deploymentName)
+        .clusters.map((clusterReference): string => clusterReference.toString());
+
+      throw new SoloErrors.config.remoteConfigMissingForDeploy(
+        deploymentName,
+        namespace?.name,
+        context,
+        clusterReferences,
+        NetworkCommand.resolveRemoteConfigMissingCause(error),
+      );
+    }
+  }
+
+  /**
+   * Resolves a non-conflicting cause for a missing-remote-config error thrown by `remoteConfig.loadAndValidate`.
+   *
+   * `RemoteConfigMissingOnKindClusterError` and the generic resource-not-found `SoloError` both carry their own
+   * troubleshooting steps; the CLI's error renderer shows the deepest cause-chain entry that has steps, so
+   * chaining either of those directly would bury the more specific guidance built in
+   * `loadAndValidateRemoteConfigForDeploy` under theirs. Unwrapping to the raw (non-`SoloError`) cause, or
+   * dropping it entirely, keeps ours as the one shown.
+   */
+  private static resolveRemoteConfigMissingCause(error: unknown): Error | undefined {
+    if (error instanceof SoloErrors.config.remoteConfigMissingOnKindCluster) {
+      return error.cause instanceof Error ? error.cause : undefined;
+    }
+    if (error instanceof SoloErrors.system.resourceNotFound) {
+      return undefined;
+    }
+    if (error instanceof ResourceNotFoundError) {
+      return error;
+    }
+    return undefined;
+  }
+
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
@@ -1579,7 +1640,7 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             this.configManager.update(argv);
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv, true, true);
+            await this.loadAndValidateRemoteConfigForDeploy(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -2172,77 +2233,41 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Destroy network resources',
-          task: (_, parentTask): SoloListr<NetworkDestroyContext> =>
-            parentTask.newListr(
-              [
-                {
-                  title: 'Running sub-tasks to destroy network',
-                  task: async (
-                    {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
-                    task,
-                  ): Promise<void> => {
-                    if (!enableTimeout) {
-                      await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
-                      return;
-                    }
+          task: async (
+            {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
+            task,
+          ): Promise<void> => {
+            if (!enableTimeout) {
+              await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+              return;
+            }
 
-                    const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
-                      const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
-                      this.logger.error(message);
-                      this.logger.showUser(chalk.red(message));
-                      networkDestroySuccess = false;
+            const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
+              const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+              this.logger.error(message);
+              this.logger.showUser(chalk.red(message));
+              networkDestroySuccess = false;
 
-                      if (!deleteSecrets || !deletePvcs) {
-                        await this.remoteConfig.deleteComponents();
-                        return;
-                      }
+              if (!deleteSecrets || !deletePvcs) {
+                await this.remoteConfig.deleteComponents();
+                return;
+              }
 
-                      for (const context of contexts) {
-                        const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(
-                          namespace,
-                        );
+              for (const context of contexts) {
+                const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
 
-                        if (shouldDeleteNamespace) {
-                          await this.k8Factory
-                            .getK8(context)
-                            .namespaces()
-                            .delete(namespace, this.destroyGracePeriodSeconds());
-                        } else {
-                          this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
-                        }
-                      }
-                    }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
+                if (shouldDeleteNamespace) {
+                  await this.k8Factory.getK8(context).namespaces().delete(namespace, this.destroyGracePeriodSeconds());
+                } else {
+                  this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
+                }
+              }
+            }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
-                    await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+            await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
 
-                    clearTimeout(onTimeoutCallback);
-                  },
-                },
-                {
-                  title: `Remove ${constants.SOLO_SETUP_NAMESPACE.name}`,
-                  task: async ({config: {contexts}}): Promise<void> => {
-                    const namespace: NamespaceName = constants.SOLO_SETUP_NAMESPACE;
-
-                    if (this.oneShotState.isActive()) {
-                      await this.forceTerminatePods(namespace, contexts);
-                    }
-
-                    for (const context of contexts) {
-                      if (await this.k8Factory.getK8(context).namespaces().has(namespace)) {
-                        await this.k8Factory
-                          .getK8(context)
-                          .namespaces()
-                          .delete(namespace, this.destroyGracePeriodSeconds());
-                      }
-                    }
-                  },
-                },
-              ],
-              {
-                concurrent: this.oneShotState.isActive(),
-                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-              },
-            ),
+            clearTimeout(onTimeoutCallback);
+          },
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

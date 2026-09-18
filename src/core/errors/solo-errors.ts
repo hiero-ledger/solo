@@ -41,6 +41,7 @@ import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-d
 import {MigrateLegacyLocalConfigError} from './classes/config/migrate-legacy-local-config-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {RemoteConfigMissingOnKindClusterError} from './classes/config/remote-config-missing-on-kind-cluster-error.js';
+import {RemoteConfigMissingForDeployError} from './classes/config/remote-config-missing-for-deploy-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
 import {BlockNodeAddExternalFailedSoloError} from './classes/component/block-node-add-external-failed-solo-error.js';
@@ -325,6 +326,7 @@ export class SoloErrors {
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
     readonly remoteConfigMissingOnKindCluster: typeof RemoteConfigMissingOnKindClusterError;
+    readonly remoteConfigMissingForDeploy: typeof RemoteConfigMissingForDeployError;
     readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
@@ -335,6 +337,7 @@ export class SoloErrors {
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
     remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteConfigMissingOnKindCluster: RemoteConfigMissingOnKindClusterError,
+    remoteConfigMissingForDeploy: RemoteConfigMissingForDeployError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
     migrateLegacyLocalConfig: MigrateLegacyLocalConfigError,
