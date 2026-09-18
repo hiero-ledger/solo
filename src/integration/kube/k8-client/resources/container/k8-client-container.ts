@@ -130,11 +130,15 @@ export class K8ClientContainer implements Container {
   /**
    * Execute `kubectl cp` with retries and optional verification.
    *
+   * The verifications run inside the retry loop, so an incomplete copy (which is intermittent) is retried
+   * rather than failing on the first attempt.
+   *
    * @param source - kubectl cp source, e.g. `<ns>/<pod>:/path` or `/local/path`
    * @param destination - kubectl cp destination, e.g. `/local/path` or `<ns>/<pod>:/path`
    * @param containerName - name of the container for -c flag
    * @param verifyPath - local filesystem path to verify after copy (usually the destination for copyFrom)
    * @param expectedSize - optional expected file size for strict verification
+   * @param remoteVerify - optional callback that verifies the remote side of the copy, retried on failure
    */
   private async execKubectlCp(
     source: string,
@@ -142,6 +146,7 @@ export class K8ClientContainer implements Container {
     containerName: string,
     verifyPath: string,
     expectedSize?: number,
+    remoteVerify?: () => Promise<void>,
   ): Promise<void> {
     const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
     source = this.toKubectlSafePath(source);
@@ -161,6 +166,10 @@ export class K8ClientContainer implements Container {
 
         if (expectedSize !== undefined && stat.size !== expectedSize) {
           throw new KubeContainerInvalidPathError('copy size verification', verifyPath);
+        }
+
+        if (remoteVerify) {
+          await remoteVerify();
         }
 
         return;
@@ -186,6 +195,30 @@ export class K8ClientContainer implements Container {
       }
     }
     return path;
+  }
+
+  private async verifyCopyToResult(
+    localPathToCopy: string,
+    destinationDirectory: string,
+    sourceFileName: string,
+  ): Promise<void> {
+    const sourcePathStat: fs.Stats = fs.statSync(localPathToCopy);
+    const destinationPath: string = PathEx.posixJoin(destinationDirectory, sourceFileName);
+
+    if (sourcePathStat.isFile()) {
+      const fileFound: boolean = await this.hasFile(destinationPath, {size: sourcePathStat.size.toString()});
+      if (!fileFound) {
+        throw new KubeContainerInvalidPathError('copy size verification', destinationPath);
+      }
+      return;
+    }
+
+    if (sourcePathStat.isDirectory()) {
+      const directoryFound: boolean = await this.hasDir(destinationPath);
+      if (!directoryFound) {
+        throw new KubeContainerInvalidPathError('copy verification', destinationPath);
+      }
+    }
   }
 
   public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<boolean> {
@@ -264,7 +297,7 @@ export class K8ClientContainer implements Container {
     let temporaryTar: string | undefined;
 
     try {
-      const sourceFileName: string = path.basename(sourcePath);
+      let sourceFileName: string = path.basename(sourcePath);
       if (sourceFileName.endsWith('.sh') && os.platform() === 'win32') {
         // For text files on Windows, convert line endings to LF to avoid issues in Linux containers.
         temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
@@ -277,6 +310,7 @@ export class K8ClientContainer implements Container {
         // Write back
         fs.writeFileSync(temporarySourcePath, content);
         localPathToCopy = temporarySourcePath;
+        sourceFileName = path.basename(localPathToCopy);
       }
       if (filter) {
         const sourceDirectory: string = path.dirname(sourcePath);
@@ -294,11 +328,20 @@ export class K8ClientContainer implements Container {
         if (!fs.existsSync(localPathToCopy)) {
           throw new KubeContainerInvalidPathError('filtered source', localPathToCopy);
         }
+
+        sourceFileName = path.basename(localPathToCopy);
       }
 
       this.logger.info(`copyTo: beginning copy [container: ${containerName} ${localPathToCopy} ${remoteDestination}]`);
 
-      await this.execKubectlCp(localPathToCopy, remoteDestination, containerName, localPathToCopy);
+      await this.execKubectlCp(
+        localPathToCopy,
+        remoteDestination,
+        containerName,
+        localPathToCopy,
+        undefined,
+        (): Promise<void> => this.verifyCopyToResult(localPathToCopy, destinationDirectory, sourceFileName),
+      );
 
       return true;
     } finally {

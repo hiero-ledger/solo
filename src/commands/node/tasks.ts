@@ -484,6 +484,9 @@ export class NodeCommandTasks {
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
     await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand()]);
+    // The copy above only verifies that the destination directory exists, which is true even for the stock
+    // image, so a truncated jar would slip through - validate the copied jars themselves (issue #6010)
+    await this.platformInstaller.verifyJarIntegrity(container);
 
     const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
     if (await container.hasDir(upgradeDirectory)) {
@@ -494,6 +497,7 @@ export class NodeCommandTasks {
       ]);
       await container.copyTo(localDataLibraryBuildPath, upgradeDirectory, localBuildPathFilter);
       await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand(upgradeDirectory)]);
+      await this.platformInstaller.verifyJarIntegrity(container, upgradeDirectory);
     }
 
     await container.execContainer(['sync', constants.HEDERA_HAPI_PATH]);
