@@ -1,7 +1,7 @@
 name: "ZXF: PR Automation"
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - reopened
@@ -37,7 +37,7 @@ defaults:
 jobs:
   auto-assign-merge-queue:
     name: "Auto-Assign Merge Queue PRs"
-    if: github.event_name == 'pull_request' && startsWith(github.base_ref, 'trunk-merge/')
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && startsWith(github.base_ref, 'trunk-merge/')
     runs-on: hiero-solo-linux-medium
     permissions:
       contents: read
@@ -70,7 +70,7 @@ jobs:
       - name: Automate PR Labels and Status
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
 
@@ -258,11 +258,17 @@ jobs:
               }
             }
 
-            const prEventNames = ['pull_request', 'pull_request_review', 'pull_request_review_comment'];
+            const prEventNames = ['pull_request', 'pull_request_target', 'pull_request_review', 'pull_request_review_comment'];
             if (prEventNames.includes(context.eventName)) {
-              const prNumber = context.payload.pull_request?.number;
-              if (prNumber) {
-                await processPR(prNumber);
+              const pr = context.payload.pull_request;
+              if (pr?.number) {
+                const isReviewEvent = context.eventName === 'pull_request_review' || context.eventName === 'pull_request_review_comment';
+                const isFork = pr.head?.repo?.full_name !== context.payload.repository?.full_name;
+                if (isReviewEvent && isFork) {
+                  core.info(`Skipping real-time review automation for fork PR #${pr.number}; status will reconcile on next PR synchronize or scheduled run.`);
+                  return;
+                }
+                await processPR(pr.number);
               } else {
                 core.warning('Could not determine PR number from event payload');
               }
