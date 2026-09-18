@@ -81,27 +81,30 @@ describe('K8ClientContainer execContainer', (): void => {
       const destinationDirectory: string = '/opt/hgcapp/services-hedera/HapiApp2.0/data/lib';
       const hasDirectoryStub: SinonStub = sinon.stub(containerClient, 'hasDir').resolves(true);
       const hasFileStub: SinonStub = sinon.stub(containerClient, 'hasFile').resolves(true);
-      const execKubectlCpStub: SinonStub = sinon.stub(containerClient, 'execKubectlCp' as never) as SinonStub;
-      execKubectlCpStub.resolves();
+      const execKubectlStub: SinonStub = sinon.stub(containerClient, 'execKubectl' as never) as SinonStub;
+      execKubectlStub.resolves('ok');
+      const execKubectlCpSpy: SinonStub = sinon.spy(containerClient, 'execKubectlCp' as never) as SinonStub;
 
       const result: boolean = await containerClient.copyTo(localFilePath, destinationDirectory);
 
       expect(result).to.be.true;
-      expect(execKubectlCpStub).to.have.been.calledOnce;
+      expect(execKubectlCpSpy).to.have.been.calledOnce;
+      expect(execKubectlStub).to.have.been.calledOnce;
       expect(hasDirectoryStub).to.have.been.calledOnceWith(destinationDirectory);
       expect(hasFileStub).to.have.been.calledOnceWith(PathEx.posixJoin(destinationDirectory, 'gnark.jar'), {
         size: fileContent.length.toString(),
       });
     });
 
-    it('throws when remote copied file size verification fails', async (): Promise<void> => {
+    it('retries the copy and throws when remote copied file size verification fails', async (): Promise<void> => {
       const localFilePath: string = PathEx.join(temporaryDirectory, 'gnark.jar');
       fs.writeFileSync(localFilePath, '0123456789');
 
       sinon.stub(containerClient, 'hasDir').resolves(true);
       sinon.stub(containerClient, 'hasFile').resolves(false);
-      const execKubectlCpStub: SinonStub = sinon.stub(containerClient, 'execKubectlCp' as never) as SinonStub;
-      execKubectlCpStub.resolves();
+      const execKubectlStub: SinonStub = sinon.stub(containerClient, 'execKubectl' as never) as SinonStub;
+      execKubectlStub.resolves('ok');
+      const execKubectlCpSpy: SinonStub = sinon.spy(containerClient, 'execKubectlCp' as never) as SinonStub;
 
       try {
         await containerClient.copyTo(localFilePath, '/opt/hgcapp/services-hedera/HapiApp2.0/data/lib');
@@ -110,6 +113,11 @@ describe('K8ClientContainer execContainer', (): void => {
         expect(error).to.be.instanceOf(KubeContainerInvalidPathError);
         expect((error as KubeContainerInvalidPathError).message).to.include('copy size verification');
       }
+
+      // a failed remote verification must be retried, not throw on the first attempt: one logical
+      // copyTo, three kubectl cp attempts
+      expect(execKubectlCpSpy).to.have.been.calledOnce;
+      expect(execKubectlStub).to.have.been.calledThrice;
     });
   });
 

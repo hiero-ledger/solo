@@ -166,7 +166,7 @@ export class PlatformInstaller {
       await container.execContainer(`chmod +x ${extractScript}`);
       await container.execContainer(`chown root:root ${extractScript}`);
       await container.execContainer([extractScript, tag]);
-      await this.verifyExtractedJarIntegrity(container);
+      await this.verifyJarIntegrity(container);
 
       return true;
     } catch (error) {
@@ -183,9 +183,18 @@ export class PlatformInstaller {
     }
   }
 
-  private async verifyExtractedJarIntegrity(container: Container): Promise<void> {
-    const applicationsJarGlob: string = `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`;
-    const librariesJarGlob: string = `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar`;
+  /**
+   * Verify that every JAR file under the `data/apps` and `data/lib` directories of the given HAPI
+   * directory is a valid ZIP archive, by running `unzip -t` against each of them. A truncated or
+   * otherwise corrupted JAR (for example from an interrupted copy) fails here instead of surfacing
+   * later as a `NoClassDefFoundError` and a `CATASTROPHIC_FAILURE` at node startup.
+   *
+   * @param container - the container to run the verification in
+   * @param hapiPath - the base directory holding the `data/apps` and `data/lib` JAR directories
+   */
+  public async verifyJarIntegrity(container: Container, hapiPath: string = constants.HEDERA_HAPI_PATH): Promise<void> {
+    const applicationsJarGlob: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`;
+    const librariesJarGlob: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}/*.jar`;
     const verifyScriptLines: string[] = [
       'set -euo pipefail',
       "foundJarFile='false'",

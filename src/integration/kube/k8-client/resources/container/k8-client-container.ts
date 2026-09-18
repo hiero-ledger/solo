@@ -130,11 +130,15 @@ export class K8ClientContainer implements Container {
   /**
    * Execute `kubectl cp` with retries and optional verification.
    *
+   * The verifications run inside the retry loop, so an incomplete copy (which is intermittent) is retried
+   * rather than failing on the first attempt.
+   *
    * @param source - kubectl cp source, e.g. `<ns>/<pod>:/path` or `/local/path`
    * @param destination - kubectl cp destination, e.g. `/local/path` or `<ns>/<pod>:/path`
    * @param containerName - name of the container for -c flag
    * @param verifyPath - local filesystem path to verify after copy (usually the destination for copyFrom)
    * @param expectedSize - optional expected file size for strict verification
+   * @param remoteVerify - optional callback that verifies the remote side of the copy, retried on failure
    */
   private async execKubectlCp(
     source: string,
@@ -142,6 +146,7 @@ export class K8ClientContainer implements Container {
     containerName: string,
     verifyPath: string,
     expectedSize?: number,
+    remoteVerify?: () => Promise<void>,
   ): Promise<void> {
     const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
     source = this.toKubectlSafePath(source);
@@ -161,6 +166,10 @@ export class K8ClientContainer implements Container {
 
         if (expectedSize !== undefined && stat.size !== expectedSize) {
           throw new KubeContainerInvalidPathError('copy size verification', verifyPath);
+        }
+
+        if (remoteVerify) {
+          await remoteVerify();
         }
 
         return;
@@ -325,8 +334,14 @@ export class K8ClientContainer implements Container {
 
       this.logger.info(`copyTo: beginning copy [container: ${containerName} ${localPathToCopy} ${remoteDestination}]`);
 
-      await this.execKubectlCp(localPathToCopy, remoteDestination, containerName, localPathToCopy);
-      await this.verifyCopyToResult(localPathToCopy, destinationDirectory, sourceFileName);
+      await this.execKubectlCp(
+        localPathToCopy,
+        remoteDestination,
+        containerName,
+        localPathToCopy,
+        undefined,
+        (): Promise<void> => this.verifyCopyToResult(localPathToCopy, destinationDirectory, sourceFileName),
+      );
 
       return true;
     } finally {
