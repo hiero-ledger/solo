@@ -254,6 +254,7 @@ import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-r
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
+import {ComponentImageArchiveTagMismatchSoloError} from './classes/validation/component-image-archive-tag-mismatch-solo-error.js';
 import {TransplantRequiresStateFileSoloError} from './classes/validation/transplant-requires-state-file-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
@@ -677,6 +678,7 @@ export class SoloErrors {
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
+    readonly componentImageArchiveTagMismatch: typeof ComponentImageArchiveTagMismatchSoloError;
     readonly transplantRequiresStateFile: typeof TransplantRequiresStateFileSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
@@ -756,6 +758,7 @@ export class SoloErrors {
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
     invalidFlagValue: InvalidFlagValueSoloError,
+    componentImageArchiveTagMismatch: ComponentImageArchiveTagMismatchSoloError,
     transplantRequiresStateFile: TransplantRequiresStateFileSoloError,
   });
 
