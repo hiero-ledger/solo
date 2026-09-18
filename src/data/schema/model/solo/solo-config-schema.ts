@@ -2,6 +2,7 @@
 
 import {HelmChartSchema} from '../common/helm-chart-schema.js';
 import {TssSchema} from './tss-schema.js';
+import {FeatureFlagsSchema} from './feature-flags-schema.js';
 import {Exclude, Expose, Type} from 'class-transformer';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
@@ -33,6 +34,10 @@ export class SoloConfigSchema {
   @Type((): typeof TssSchema => TssSchema)
   public tss: TssSchema;
 
+  @Expose()
+  @Type((): typeof FeatureFlagsSchema => FeatureFlagsSchema)
+  public featureFlags: FeatureFlagsSchema;
+
   public constructor(
     schemaVersion?: number,
     helmChart?: HelmChartSchema,
@@ -40,6 +45,7 @@ export class SoloConfigSchema {
     clusterSetupHelmChart?: HelmChartSchema,
     certManagerHelmChart?: HelmChartSchema,
     tss?: TssSchema,
+    featureFlags?: FeatureFlagsSchema,
   ) {
     this.schemaVersion = schemaVersion ?? 1;
     this.helmChart = helmChart || new HelmChartSchema();
@@ -47,5 +53,6 @@ export class SoloConfigSchema {
     this.clusterSetupHelmChart = clusterSetupHelmChart || new HelmChartSchema();
     this.certManagerHelmChart = certManagerHelmChart || new HelmChartSchema();
     this.tss = tss || new TssSchema();
+    this.featureFlags = featureFlags || new FeatureFlagsSchema();
   }
 }

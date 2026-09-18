@@ -18,16 +18,28 @@ import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as constants from '../../core/constants.js';
 import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from '../one-shot/one-shot-command-paths.js';
 import {Flags as flags} from '../flags.js';
+import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
+import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
 
 @injectable()
 export class OneShotCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.OneShotCommand) public readonly oneShotCommand?: DefaultOneShotCommand,
+    @inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider,
   ) {
     super();
     this.oneShotCommand = patchInject(oneShotCommand, InjectTokens.OneShotCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+  }
+
+  /** Crane is only needed when the image cache is on, so the dependency list follows the flag. */
+  private oneShotDependencies(): string[] {
+    return [
+      ...constants.BASE_DEPENDENCIES,
+      ...(SoloConfig.featureFlags(this.configProvider).enableImageCache ? [constants.CRANE] : []),
+    ];
   }
 
   public static override readonly COMMAND_NAME: string = ONE_SHOT_COMMAND;
@@ -74,7 +86,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES, ...(constants.CONFIG.ENABLE_IMAGE_CACHE ? [constants.CRANE] : [])],
+              this.oneShotDependencies(),
               true,
             ),
           )
@@ -101,7 +113,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.MULTI_DEPLOY_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES, ...(constants.CONFIG.ENABLE_IMAGE_CACHE ? [constants.CRANE] : [])],
+              this.oneShotDependencies(),
               true,
             ),
           )
@@ -128,7 +140,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES, ...(constants.CONFIG.ENABLE_IMAGE_CACHE ? [constants.CRANE] : [])],
+              this.oneShotDependencies(),
               true,
             ),
           )
