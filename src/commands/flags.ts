@@ -378,7 +378,7 @@ export class Flags {
     constName: 'deployGrafanaAlloy',
     name: 'grafana-alloy',
     definition: {
-      describe: 'Deploy Grafana Alloy and Loki to collect and store pod logs',
+      describe: `Deploy Grafana Alloy and Loki to collect and store pod logs, pair with '--${Flags.deployPrometheusStack.name}' to query them in Grafana`,
       defaultValue: false,
       type: 'boolean',
       promptText: 'Would you like to deploy Grafana Alloy? ',

@@ -18,6 +18,14 @@ loki:
         index:
           prefix: loki_index_
           period: 24h
+  # Bound the log volume on the single 10Gi data volume: the embedded compactor deletes chunks
+  # older than the retention period instead of letting consensus node logs fill the disk.
+  compactor:
+    working_directory: /var/loki/compactor
+    retention_enabled: true
+    delete_request_store: filesystem
+  limits_config:
+    retention_period: 168h
 
 singleBinary:
   replicas: 1

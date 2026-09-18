@@ -162,8 +162,9 @@ describe('ClusterCommand unit tests', (): void => {
       argv.setArg(flags.deployPrometheusStack, false);
     });
 
-    it('Installs Loki, Grafana Alloy, and the Grafana datasource when --grafana-alloy is set', async (): Promise<void> => {
+    it('Installs Loki, Grafana Alloy, and the Grafana datasource when --grafana-alloy and --prometheus-stack are set', async (): Promise<void> => {
       argv.setArg(flags.deployGrafanaAlloy, true);
+      argv.setArg(flags.deployPrometheusStack, true);
       const configMapsStub: {createOrReplace: sinon.SinonStub} = {createOrReplace: sandbox.stub().resolves(true)};
       sandbox.stub(K8Client.prototype, 'configMaps').returns(configMapsStub as unknown as ConfigMaps);
 
@@ -187,6 +188,39 @@ describe('ClusterCommand unit tests', (): void => {
       expect(configMapsStub.createOrReplace.calledOnce).to.equal(true);
       expect(configMapsStub.createOrReplace.args[0][1]).to.equal(constants.LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME);
       expect(configMapsStub.createOrReplace.args[0][2]).to.deep.equal({grafana_datasource: '1'});
+
+      argv.setArg(flags.deployGrafanaAlloy, false);
+      argv.setArg(flags.deployPrometheusStack, false);
+    });
+
+    it('Creates the Grafana datasource when --grafana-alloy is set and the Prometheus stack is already installed', async (): Promise<void> => {
+      argv.setArg(flags.deployGrafanaAlloy, true);
+      options.chartManager.isChartInstalled.withArgs(sinon.match.any, constants.PROMETHEUS_RELEASE_NAME).resolves(true);
+      const configMapsStub: {createOrReplace: sinon.SinonStub} = {createOrReplace: sandbox.stub().resolves(true)};
+      sandbox.stub(K8Client.prototype, 'configMaps').returns(configMapsStub as unknown as ConfigMaps);
+
+      const clusterCommandHandlers: ClusterCommandHandlers = container.resolve(ClusterCommandHandlers);
+      await clusterCommandHandlers.setup(argv.build());
+
+      expect(configMapsStub.createOrReplace.calledOnce).to.equal(true);
+      expect(configMapsStub.createOrReplace.args[0][1]).to.equal(constants.LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME);
+
+      argv.setArg(flags.deployGrafanaAlloy, false);
+    });
+
+    it('Skips the Grafana datasource when --grafana-alloy is set without the Prometheus stack', async (): Promise<void> => {
+      argv.setArg(flags.deployGrafanaAlloy, true);
+      const configMapsStub: {createOrReplace: sinon.SinonStub} = {createOrReplace: sandbox.stub().resolves(true)};
+      sandbox.stub(K8Client.prototype, 'configMaps').returns(configMapsStub as unknown as ConfigMaps);
+
+      const clusterCommandHandlers: ClusterCommandHandlers = container.resolve(ClusterCommandHandlers);
+      await clusterCommandHandlers.setup(argv.build());
+
+      const isLokiInstalled: boolean = options.chartManager.install.args.some(
+        (installArguments: unknown[]): boolean => installArguments[1] === constants.LOKI_RELEASE_NAME,
+      );
+      expect(isLokiInstalled, 'expected Loki to install without the Prometheus stack').to.equal(true);
+      expect(configMapsStub.createOrReplace.called).to.equal(false);
 
       argv.setArg(flags.deployGrafanaAlloy, false);
     });

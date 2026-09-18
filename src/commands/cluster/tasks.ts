@@ -391,7 +391,23 @@ export class ClusterCommandTasks {
           }
         }
 
-        // The label makes the Grafana sidecar from kube-prometheus-stack load Loki as a datasource.
+        // The label makes the Grafana sidecar from kube-prometheus-stack load Loki as a datasource,
+        // so the ConfigMap is only created when that stack is requested now or already installed.
+        const isPrometheusStackAvailable: boolean =
+          context_.config.deployPrometheusStack ||
+          (await this.chartManager.isChartInstalled(
+            clusterSetupNamespace,
+            constants.PROMETHEUS_RELEASE_NAME,
+            context_.config.context,
+          ));
+
+        if (!isPrometheusStackAvailable) {
+          this.logger.showUserUnlessOneShot(
+            '⏭️  Prometheus Stack not installed, skipping Loki Grafana datasource; add --prometheus-stack to query logs in Grafana',
+          );
+          return;
+        }
+
         await this.k8Factory
           .getK8(context_.config.context)
           .configMaps()
