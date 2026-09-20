@@ -34,8 +34,7 @@ import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.j
 import {KindNodeImageTargetProvider} from '../integration/cache/target-providers/kind-image-target-provider.js';
 import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
 import {type ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
-import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
-import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {type FeatureFlags} from '../business/runtime-state/config/solo/feature-flags.js';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
@@ -64,11 +63,11 @@ export class ClusterTaskManager extends ShellRunner {
     @inject(InjectTokens.KindInstallationDirectory) protected readonly kindInstallationDirectory: string,
     @inject(InjectTokens.GitClient) protected readonly gitClient: GitClient,
     @inject(InjectTokens.ContainerEngineClient) protected readonly containerEngineClient: ContainerEngineClient,
-    @inject(InjectTokens.ConfigProvider) protected readonly configProvider?: ConfigProvider,
+    @inject(InjectTokens.FeatureFlags) protected readonly featureFlags?: FeatureFlags,
   ) {
     super();
 
-    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, ClusterTaskManager.name);
+    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, ClusterTaskManager.name);
     this.osPackageManager = patchInject(osPackageManager, InjectTokens.OsPackageManager, ClusterTaskManager.name);
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, ClusterTaskManager.name);
     this.podmanDependencyManager = patchInject(
@@ -488,7 +487,7 @@ export class ClusterTaskManager extends ShellRunner {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
 
-        if (SoloConfig.featureFlags(this.configProvider).enableImageCache) {
+        if (this.featureFlags.enableImageCache) {
           const kindImageCacheHandler: ImageCacheHandler = new ImageCacheHandlerBuilder()
             .provider(new KindNodeImageTargetProvider())
             .engine(this.containerEngineClient)

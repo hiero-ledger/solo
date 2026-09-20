@@ -4,38 +4,12 @@ import {Exclude, Expose} from 'class-transformer';
 import {EnvironmentAliasRegistry} from '../../decorators/environment-alias-registry.js';
 
 /**
- * Boolean feature flags for Solo.
+ * Boolean feature flags, settable from the environment as {@code SOLO_FEATURE-FLAGS_<FLAG-NAME>} (generated,
+ * highest precedence), {@code SOLO_FF_<FLAG_NAME>}, or {@code EXPERIMENTAL_<FLAG_NAME>} while experimental.
+ * See {@code docs/site/content/en/docs/env.md}.
  *
- * <p>Flags are read through the layered configuration system, so each one is settable from the
- * environment with no extra plumbing. Three spellings resolve to the same flag, in descending
- * precedence:
- *
- * <ol>
- *   <li>{@code SOLO_FEATURE-FLAGS_<FLAG-NAME>} — generated from the property name by
- *       {@code EnvironmentKeyFormatter}; always available, always wins.</li>
- *   <li>{@code SOLO_FF_<FLAG_NAME>} — the readable alias for a standard flag.</li>
- *   <li>{@code EXPERIMENTAL_<FLAG_NAME>} — the alias for a flag that is still experimental.</li>
- * </ol>
- *
- * <p>A flag being promoted from experimental to standard keeps its {@code EXPERIMENTAL_*} alias and
- * gains a {@code SOLO_FF_*} one, so nobody's existing scripts break.
- *
- * <p>To add a flag:
- *
- * <ol>
- *   <li>Declare a boolean field here, defaulting to {@code false} in the constructor.</li>
- *   <li>Give it an alias: {@code SOLO_FF_<FLAG_NAME>}, or {@code EXPERIMENTAL_<FLAG_NAME>} while experimental.</li>
- *   <li>Expose a getter on {@link FeatureFlags} ({@code src/business/runtime-state/config/solo/feature-flags.ts}).</li>
- *   <li>Document it in {@code docs/site/content/en/docs/env.md}.</li>
- * </ol>
- *
- * <p>Defaults live here and only here. There is deliberately no {@code resources/config} defaults file for
- * feature flags: a second copy of every default is a second thing to keep in step, which is exactly how
- * {@code tss-config.yaml} came to pin a WRAPS version the schema had long since moved past.
- *
- * <p>Prefer {@code false} as the default: a flag that must be switched on to change behaviour is one
- * that can be removed without a release note once it ships. {@link enableImageCache} is the exception —
- * it was an opt-out switch before it was a flag.
+ * <p>To add a flag: declare it here defaulting to {@code false}, alias it, add a getter to {@link FeatureFlags},
+ * and document it. Defaults live here only — no {@code resources/config} file, so there is nothing to drift.
  */
 @Exclude()
 export class FeatureFlagsSchema {
@@ -69,5 +43,19 @@ export class FeatureFlagsSchema {
     this.skipNodePing = skipNodePing ?? false;
     this.disableImporterSpringProfiles = disableImporterSpringProfiles ?? false;
     this.enableImageCache = enableImageCache ?? true;
+  }
+
+  /**
+   * Fills every flag the config system left unset with its default.
+   *
+   * <p>A config source only carries the flags actually set, and class-transformer blanks the rest to
+   * {@code undefined} instead of keeping the constructor's value. Without this, setting any one flag would
+   * read every other flag as falsy — so {@code SKIP_NODE_PING=true} would also switch the image cache off.
+   */
+  public static withDefaults(configured?: Partial<FeatureFlagsSchema>): FeatureFlagsSchema {
+    const set: Partial<FeatureFlagsSchema> = Object.fromEntries(
+      Object.entries(configured ?? {}).filter(([, value]: [string, unknown]): boolean => value !== undefined),
+    );
+    return Object.assign(new FeatureFlagsSchema(), set);
   }
 }

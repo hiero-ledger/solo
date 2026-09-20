@@ -101,8 +101,7 @@ import {MessageLevel} from '../../../../core/logging/message-level.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 import {SpinnerListrOptions} from '../../../../core/spinner-listr-options.js';
 import {ClusterTaskManager} from '../../../../core/cluster-task-manager.js';
-import {SoloConfig} from '../../../../business/runtime-state/config/solo/solo-config.js';
-import {type ConfigProvider} from '../../../../data/configuration/api/config-provider.js';
+import {type FeatureFlags} from '../../../../business/runtime-state/config/solo/feature-flags.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -126,9 +125,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.ContainerEngineResourceInspector)
     private readonly containerEngineResourceInspector: ContainerEngineResourceInspector,
     @inject(InjectTokens.ClusterTaskManager) private readonly clusterTaskManager: ClusterTaskManager,
-    @inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider,
+    @inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
   ) {
-    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -473,7 +472,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         true,
         undefined,
         // Skip the whole group when the image cache is disabled.
-        (): boolean => !SoloConfig.featureFlags(this.configProvider).enableImageCache,
+        (): boolean => !this.featureFlags.enableImageCache,
         (getConfig: () => OneShotSingleDeployConfigClass): boolean => getConfig()?.parallelDeploy === true,
       ),
       OrchestratorPipelinePhase.composite(

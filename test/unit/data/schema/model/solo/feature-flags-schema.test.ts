@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Covers the feature-flag plumbing on SoloConfigSchema / SoloConfig, and the bootstrap invariant the
- * flags depend on: config sources must be loaded before a flag can ever read anything but its default.
+ * Covers the feature-flag defaults, the FeatureFlags service, and the bootstrap invariant they depend on:
+ * config sources must be loaded before a flag can read anything but its default.
  */
 
 import {expect} from 'chai';
 import {beforeEach, describe, it} from 'mocha';
 import {container} from 'tsyringe-neo';
-import {instanceToPlain, plainToInstance} from 'class-transformer';
 import {SoloConfigSchema} from '../../../../../../src/data/schema/model/solo/solo-config-schema.js';
 import {FeatureFlagsSchema} from '../../../../../../src/data/schema/model/solo/feature-flags-schema.js';
-import {SoloConfig} from '../../../../../../src/business/runtime-state/config/solo/solo-config.js';
 import {FeatureFlags} from '../../../../../../src/business/runtime-state/config/solo/feature-flags.js';
+import {SoloConfig} from '../../../../../../src/business/runtime-state/config/solo/solo-config.js';
 import {WrapsSchema} from '../../../../../../src/data/schema/model/solo/wraps-schema.js';
 import {type ConfigProvider} from '../../../../../../src/data/configuration/api/config-provider.js';
 import {InjectTokens} from '../../../../../../src/core/dependency-injection/inject-tokens.js';
@@ -49,26 +48,51 @@ describe('FeatureFlagsSchema', (): void => {
     expect(aliases.get('SOLO_FF_ENABLE_IMAGE_CACHE')).to.equal('featureFlags.enableImageCache');
   });
 
-  it('is always materialised on a default SoloConfigSchema', (): void => {
-    const schema: SoloConfigSchema = new SoloConfigSchema();
-    expect(schema.featureFlags).to.be.instanceOf(FeatureFlagsSchema);
+  describe('withDefaults', (): void => {
+    it('fills in flags the config system left unset', (): void => {
+      // A config source only carries the flags actually set; the rest arrive undefined.
+      const flags: FeatureFlagsSchema = FeatureFlagsSchema.withDefaults({skipNodePing: true});
+
+      expect(flags.skipNodePing).to.be.true;
+      expect(flags.enableImageCache).to.be.true;
+      expect(flags.copyWrapsLibraryInParallel).to.be.false;
+      expect(flags.disableImporterSpringProfiles).to.be.false;
+    });
+
+    it('keeps an explicit false rather than treating it as unset', (): void => {
+      expect(FeatureFlagsSchema.withDefaults({enableImageCache: false}).enableImageCache).to.be.false;
+    });
+
+    it('returns all defaults when nothing is configured', (): void => {
+      expect(FeatureFlagsSchema.withDefaults()).to.deep.equal(new FeatureFlagsSchema());
+    });
+  });
+});
+
+describe('FeatureFlags', (): void => {
+  let featureFlags: FeatureFlags;
+  let configProvider: ConfigProvider;
+
+  beforeEach((): void => {
+    resetForTest();
+    featureFlags = container.resolve<FeatureFlags>(InjectTokens.FeatureFlags);
+    configProvider = container.resolve<ConfigProvider>(InjectTokens.ConfigProvider);
   });
 
-  it('survives a plain-object round trip', (): void => {
-    const roundTripped: SoloConfigSchema = plainToInstance(SoloConfigSchema, instanceToPlain(new SoloConfigSchema()));
-    expect(roundTripped.featureFlags).to.be.instanceOf(FeatureFlagsSchema);
+  it('is resolvable from the container', (): void => {
+    expect(featureFlags).to.be.instanceOf(FeatureFlags);
   });
 
-  it('is reachable through the SoloConfig facade', (): void => {
-    const config: SoloConfig = new SoloConfig(new SoloConfigSchema());
-    expect(config.featureFlags).to.be.instanceOf(FeatureFlags);
-    expect(config.featureFlags.encapsulatedObject).to.be.instanceOf(FeatureFlagsSchema);
+  it('reads defaults before the config sources are loaded', (): void => {
+    expect(featureFlags.enableImageCache).to.be.true;
+    expect(featureFlags.skipNodePing).to.be.false;
   });
 
-  it('is materialised even when the config source answers null', (): void => {
-    // SoloConfig.getConfig passes through whatever asObject returns; an unloaded source returns null.
-    const config: SoloConfig = new SoloConfig(undefined);
-    expect(config.featureFlags.encapsulatedObject).to.be.instanceOf(FeatureFlagsSchema);
+  it('reads through to the config provider rather than a constructor snapshot', async (): Promise<void> => {
+    // The singleton is built during container init, before main() loads the sources. A snapshot taken in
+    // the constructor would be stuck at the defaults forever.
+    await configProvider.config().refresh();
+    expect(featureFlags.enableImageCache).to.be.true;
   });
 });
 
@@ -81,19 +105,16 @@ describe('config source loading (feature flags depend on it)', (): void => {
   });
 
   it('yields nothing at all while the sources are unloaded', (): void => {
-    // Documents the trap: without a refresh, resources/config/*.yaml and every SOLO_* override are inert,
-    // and SoloConfig silently degrades whatever comes back here into the schema constructor defaults.
+    // Documents the trap: without a refresh, resources/config/*.yaml and every SOLO_* override are inert.
     expect(configProvider.config().asObject(SoloConfigSchema)).to.not.exist;
   });
 
   it('resolves YAML-backed values once the sources are loaded', async (): Promise<void> => {
     await configProvider.config().refresh();
 
-    const config: SoloConfig = SoloConfig.getConfig(configProvider);
-    expect(config.featureFlags.encapsulatedObject).to.be.instanceOf(FeatureFlagsSchema);
     // helmChart.name only ever has this value if helm-chart-config.yaml was actually read —
     // the schema constructor defaults it to the empty string.
-    expect(config.helmChart.name).to.equal('solo-deployment');
+    expect(SoloConfig.getConfig(configProvider).helmChart.name).to.equal('solo-deployment');
   });
 
   it('keeps resources/config/tss-config.yaml in step with the WRAPS schema defaults', async (): Promise<void> => {

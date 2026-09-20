@@ -23,7 +23,7 @@
  */
 
 import {expect} from 'chai';
-import {before} from 'mocha';
+import {beforeEach} from 'mocha';
 import {EnvironmentStorageBackend} from '../../../../../src/data/backend/impl/environment-storage-backend.js';
 import {EnvironmentConfigSource} from '../../../../../src/data/configuration/impl/environment-config-source.js';
 import {ClassToObjectMapper} from '../../../../../src/data/mapper/impl/class-to-object-mapper.js';
@@ -37,7 +37,11 @@ const mapper: ClassToObjectMapper = new ClassToObjectMapper(ConfigKeyFormatter.i
 
 // These tests verify the naming CONVENTION (env var -> config key) with environment aliases disabled,
 // so an all-underscore alias registered elsewhere cannot influence the pure-convention assertions.
-before((): void => {
+//
+// This has to run before each test, not once for the file: resolving a ConfigProvider registers
+// SoloConfigSchema as an alias root (see the factory in container-init.ts), so any other test calling
+// resetForTest() after a one-shot `before` would switch the aliases back on underneath these assertions.
+beforeEach((): void => {
   EnvironmentAliasRegistry.resetRootSchemas();
 });
 

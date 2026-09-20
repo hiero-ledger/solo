@@ -399,7 +399,7 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
     }
 
-    const disableImporterSpringProfiles: boolean = this.soloConfig.featureFlags.disableImporterSpringProfiles;
+    const disableImporterSpringProfiles: boolean = this.featureFlags.disableImporterSpringProfiles;
 
     if (!config.forceBlockNodeIntegration && disableImporterSpringProfiles) {
       this.logger.info(

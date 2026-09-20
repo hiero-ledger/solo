@@ -2028,7 +2028,7 @@ export class NetworkCommand extends BaseCommand {
             );
 
             return task.newListr(subTasks, {
-              concurrent: this.soloConfig.featureFlags.copyWrapsLibraryInParallel,
+              concurrent: this.featureFlags.copyWrapsLibraryInParallel,
               rendererOptions: {
                 collapseSubtasks: false,
               },
