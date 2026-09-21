@@ -91,7 +91,46 @@ jobs:
             // in the job log, and the `forbidden` signature absent. Matching on the log as well as the step name keeps a
             // deterministic failure in an infrastructure step - a moved dependency version, a bad
             // ref, a compile error - from being retried, which only burns runners and hides the bug.
+            // Shared by every rule below that only applies to a step preparing the environment,
+            // so the download and checksum rules cannot drift apart by editing one and not the
+            // other.
+            const setupStepPrefixes = ['install', 'setup', 'set up', 'configure', 'bootstrap', 'retry'];
+
             const rules = [
+              {
+                // A setup step that is only fetching a tool or a chart fails when the download is
+                // refused or the host cannot be reached at all. `@actions/tool-cache` reports the
+                // first as "Unexpected HTTP response" and helm as "failed to fetch ...: 504 Gateway
+                // Timeout"; the second surfaces as a resolver or socket error, as in `getaddrinfo
+                // EAI_AGAIN get.helm.sh`. `step-security/retry` and the setup actions have usually
+                // already spent their own attempts by then. A 404 is deliberately not matched,
+                // since a version that does not exist is a settled failure. Gated to steps that
+                // install or configure, so a product step that merely mentions one of these in its
+                // own output is left alone.
+                //
+                // ECONNRESET, ETIMEDOUT and "socket hang up" are generic enough that a long running
+                // step - `Setup E2E Tests` runs a ten minute script - could print one from an
+                // unrelated cause buried in its own output. None of 61 audited logs did, but the
+                // three are still anchored to the same line as a fetch/download/install/request
+                // word, the way npm and http-client wrappers report a failed transfer (for example
+                // `npm ERR! network request to ... failed, reason: read ECONNRESET`), rather than
+                // trusted anywhere in the log.
+                description: 'tool download could not reach its host',
+                stepPrefixes: setupStepPrefixes,
+                required:
+                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up)|(?:ECONNRESET|ETIMEDOUT|socket hang up)[^\n]*(?:fetch|download|install|request)/i,
+                forbidden: /error TS\d{4}/,
+              },
+              {
+                // A download cut short arrives complete enough to write but fails its checksum, so
+                // the tool is never installed and the step's own cleanup then reports the binary as
+                // missing. Distinct from a Go module mismatch, which is an integrity claim about a
+                // published module and stays excluded above.
+                description: 'downloaded tool failed its checksum',
+                stepPrefixes: setupStepPrefixes,
+                required: /sha256sum: WARNING: \d+ computed checksums? did NOT match/,
+                forbidden: /SECURITY ERROR/,
+              },
               {
                 // Uploading logs and coverage goes through GitHub's artifact service, so a name
                 // that will not resolve fails the step after the toolkit's own five attempts.
