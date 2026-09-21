@@ -6,15 +6,13 @@ import sinon from 'sinon';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {container as diContainer} from 'tsyringe-neo';
 import {type ServiceEndpoint} from '@hiero-ledger/sdk';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
 import {Helpers} from '../../../../src/core/helpers.js';
 import {ConsensusNode} from '../../../../src/core/model/consensus-node.js';
-import {type PlatformInstaller} from '../../../../src/core/platform-installer.js';
-import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
+import {PlatformInstaller} from '../../../../src/core/platform-installer.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 
@@ -133,8 +131,9 @@ function invokeBuildRefreshLiveLocalBuildJarsCommand(nodeCommandTasks: NodeComma
 
 function createNodeCommandTasksWithPlatformInstaller(): NodeCommandTasks {
   const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
-  (nodeCommandTasks as unknown as {platformInstaller: PlatformInstaller}).platformInstaller =
-    diContainer.resolve<PlatformInstaller>(InjectTokens.PlatformInstaller);
+  (nodeCommandTasks as unknown as {platformInstaller: PlatformInstaller}).platformInstaller = Object.create(
+    PlatformInstaller.prototype,
+  ) as PlatformInstaller;
 
   return nodeCommandTasks;
 }
