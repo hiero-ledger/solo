@@ -41,6 +41,15 @@ on:
         type: boolean
         required: false
         default: false
+      report-to-slack:
+        description: "Post the summarized memory report to the nightly Slack channel"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      SLACK_TEST_WEBHOOK:
+        description: "Webhook used by the Send Slack Notification step to post the memory summary"
+        required: false
   pull_request:
     types:
       - opened
@@ -65,6 +74,7 @@ permissions:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  SLACK_MEMORY_WARNING_MB: '2500'
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
 
 jobs:
@@ -452,6 +462,53 @@ jobs:
               echo "EOF_CATEGORIES"
             } >> $GITHUB_OUTPUT
           fi
+
+      - name: Format Slack Memory Summary
+        id: slack-summary
+        if: ${{ !cancelled() && inputs.report-to-slack && steps.pod-categories.outputs.content != '' }}
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          POD_CATEGORIES_CONTENT: |-
+            ${{ steps.pod-categories.outputs.content }}
+        run: |
+          MEMORY_USED_MB="$(awk '/^Total \(excl\./ {print $(NF-1)}' <<< "$POD_CATEGORIES_CONTENT")"
+          if [[ ! "${MEMORY_USED_MB}" =~ ^[0-9]+$ ]]; then
+            echo "Unable to extract the Total row from the pod memory category table"
+            exit 1
+          fi
+
+          SAFE_CATEGORIES="$(printf '%s' "$POD_CATEGORIES_CONTENT" | perl -0pe 's/`{3,}/``/g')"
+          TABLE='```'
+          TABLE="${TABLE}"$'\n'"${SAFE_CATEGORIES}"
+          TABLE="${TABLE}"$'\n''```'
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MESSAGE="${TABLE}"$'\n\n'":link: <${RUN_URL}|View Job Logs>"
+
+          {
+            echo "message<<EOF_MESSAGE"
+            echo "$MESSAGE"
+            echo "EOF_MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
+          if (( MEMORY_USED_MB > SLACK_MEMORY_WARNING_MB )); then
+            echo "color=warning" >> "$GITHUB_OUTPUT"
+          else
+            echo "color=good" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send Slack Notification
+        if: ${{ !cancelled() && steps.slack-summary.outcome == 'success' }}
+        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
+          SLACK_COLOR: ${{ steps.slack-summary.outputs.color }}
+          SLACK_TITLE: Performance Test Memory Results
+          SLACK_MESSAGE: >-
+            ${{ steps.slack-summary.outputs.message }}
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Move JVM Memory Usage Data to Metrics Directory
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
