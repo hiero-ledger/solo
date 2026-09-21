@@ -126,7 +126,7 @@ jobs:
           ls -lahR e2e_test_report || true
 
       - name: Publish To Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4 # v7.1.0
         if: ${{ inputs.enable-codecov-analysis && !cancelled() && !failure() }}
         env:
           CODECOV_TOKEN: ${{ secrets.codecov-token }}
@@ -148,14 +148,16 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.snyk-token }}
         if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        run: npm install -g snyk snyk-to-html @wcj/html-to-markdown-cli
+        run: |
+          npm ci --prefix .github/workflows/support/snyk-tools
+          echo "${GITHUB_WORKSPACE}/.github/workflows/support/snyk-tools/node_modules/.bin" >> "${GITHUB_PATH}"
 
       - name: Snyk Scan
         id: snyk
         env:
           SNYK_TOKEN: ${{ secrets.snyk-token }}
         if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        run: snyk test --org=release-engineering-N6EoZVZn3jw4qNuVkiG5Qs --all-projects --severity-threshold=high --json-file-output=snyk-test.json
+        run: snyk test --org=release-engineering-N6EoZVZn3jw4qNuVkiG5Qs --all-projects --exclude=snyk-tools --severity-threshold=high --json-file-output=snyk-test.json
 
       - name: Snyk Code
         id: snyk-code
