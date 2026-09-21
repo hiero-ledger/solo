@@ -64,4 +64,14 @@ describe('GitHubReleaseDependencyManager', (): void => {
       version: version.VFKIT_VERSION.replace(/^v/, ''),
     });
   });
+
+  it('should treat an empty digest like a missing one', async (): Promise<void> => {
+    stubReleases(version.VFKIT_VERSION, [
+      {name: 'vfkit', browser_download_url: `${DOWNLOAD_BASE_URL}/vfkit`, digest: ''},
+    ]);
+
+    const releaseInfo: ReleaseInfo = await vfkit['fetchReleaseInfo'](version.VFKIT_VERSION);
+
+    expect(releaseInfo.checksum).to.equal('0'.repeat(64));
+  });
 });

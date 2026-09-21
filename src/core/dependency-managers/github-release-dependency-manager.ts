@@ -17,7 +17,7 @@ import {OperatingSystem} from '../../business/utils/operating-system.js';
  */
 export abstract class GitHubReleaseDependencyManager extends BaseDependencyManager {
   /** Populated by {@link preInstall}; undefined until the release has been discovered. */
-  protected releaseInfo: ReleaseInfo;
+  protected releaseInfo: ReleaseInfo | undefined;
 
   /** The GitHub API URL listing the upstream project's releases. */
   protected abstract readonly releasesListUrl: string;
@@ -108,7 +108,7 @@ export abstract class GitHubReleaseDependencyManager extends BaseDependencyManag
         ),
         assetName: matchingAsset.name,
         // the placeholder keeps the checksum non-empty for managers that skip verification
-        checksum: matchingAsset.digest?.replace('sha256:', '') ?? '0'.repeat(64),
+        checksum: matchingAsset.digest ? matchingAsset.digest.replace('sha256:', '') : '0'.repeat(64),
         version: release.tag_name.replace(/^v/, ''),
       };
     } catch (error) {
