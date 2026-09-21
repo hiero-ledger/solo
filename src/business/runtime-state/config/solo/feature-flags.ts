@@ -7,21 +7,7 @@ import {type ConfigProvider} from '../../../../data/configuration/api/config-pro
 import {FeatureFlagsSchema} from '../../../../data/schema/model/solo/feature-flags-schema.js';
 import {SoloConfigSchema} from '../../../../data/schema/model/solo/solo-config-schema.js';
 
-/**
- * Reads Solo's boolean feature flags. Inject it and read a flag off it:
- *
- * <pre>
- *   &#64;inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
- *   ...
- *   if (this.featureFlags.skipNodePing) { ... }
- * </pre>
- *
- * <p>Every read goes to the config provider rather than to a value captured in the constructor. This class
- * is a singleton, so it is built during container initialisation — before {@code main()} loads the config
- * sources. A captured value would be the schema default forever, whatever the environment said.
- *
- * <p>See {@link FeatureFlagsSchema} for the flags themselves.
- */
+/** See {@code docs/contributing/feature-flags.md}. */
 @injectable()
 export class FeatureFlags {
   public constructor(@inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider) {
@@ -29,23 +15,32 @@ export class FeatureFlags {
   }
 
   public get copyWrapsLibraryInParallel(): boolean {
-    return this.current.copyWrapsLibraryInParallel;
+    return this.currentFlags.copyWrapsLibraryInParallel;
   }
 
   public get skipNodePing(): boolean {
-    return this.current.skipNodePing;
+    return this.currentFlags.skipNodePing;
   }
 
-  public get disableImporterSpringProfiles(): boolean {
-    return this.current.disableImporterSpringProfiles;
+  public get disableBlockNodeIntegration(): boolean {
+    return this.currentFlags.disableBlockNodeIntegration;
   }
 
   public get enableImageCache(): boolean {
-    return this.current.enableImageCache;
+    return this.currentFlags.enableImageCache;
   }
 
-  /** The flags as currently configured, with anything unset filled in from the schema defaults. */
-  private get current(): FeatureFlagsSchema {
+  /**
+   * Re-read on every access, never captured. This is a DI singleton, so it is constructed during container
+   * initialisation — before {@code main()} loads the config sources. A value captured in the constructor
+   * would be the schema default forever, whatever the environment said.
+   *
+   * <p>Memoizing was considered and rejected: {@link ConfigProvider} hands back the same {@code Config}
+   * object across {@code refresh()} with no invalidation event, so a cache populated before the first
+   * refresh would pin every flag to its default — reintroducing the bug this design avoids. Each read is a
+   * walk of the {@code SOLO_*} keys only, and the hottest caller runs tens of times per invocation.
+   */
+  private get currentFlags(): FeatureFlagsSchema {
     return FeatureFlagsSchema.withDefaults(this.configProvider.config().asObject(SoloConfigSchema)?.featureFlags);
   }
 }

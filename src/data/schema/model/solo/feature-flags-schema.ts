@@ -1,34 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Exclude, Expose} from 'class-transformer';
+import {Exclude, Expose, plainToInstance} from 'class-transformer';
 import {EnvironmentAliasRegistry} from '../../decorators/environment-alias-registry.js';
 
 /**
- * Boolean feature flags, settable from the environment as {@code SOLO_FEATURE-FLAGS_<FLAG-NAME>} (generated,
- * highest precedence), {@code SOLO_FF_<FLAG_NAME>}, or {@code EXPERIMENTAL_<FLAG_NAME>} while experimental.
- * See {@code docs/site/content/en/docs/env.md}.
+ * Boolean feature flags. See {@code docs/contributing/feature-flags.md}.
  *
- * <p>To add a flag: declare it here defaulting to {@code false}, alias it, add a getter to {@link FeatureFlags},
- * and document it. Defaults live here only — no {@code resources/config} file, so there is nothing to drift.
+ * <p>Defaults live here only — there is deliberately no {@code resources/config} file for feature flags,
+ * so there is no second copy to drift out of step.
  */
 @Exclude()
 export class FeatureFlagsSchema {
-  /** Copy the WRAPS library into consensus nodes concurrently rather than one node at a time. */
   @Expose()
   @EnvironmentAliasRegistry.alias('EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL')
   public copyWrapsLibraryInParallel: boolean;
 
-  /** Skip the consensus node ping that guards node client reuse. */
   @Expose()
   @EnvironmentAliasRegistry.alias('SOLO_FF_SKIP_NODE_PING', 'SKIP_NODE_PING')
   public skipNodePing: boolean;
 
-  /** Leave the mirror node importer pulling from the consensus node instead of injecting a block node profile. */
   @Expose()
-  @EnvironmentAliasRegistry.alias('SOLO_FF_DISABLE_IMPORTER_SPRING_PROFILES', 'DISABLE_IMPORTER_SPRING_PROFILES')
-  public disableImporterSpringProfiles: boolean;
+  @EnvironmentAliasRegistry.alias('SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION', 'DISABLE_IMPORTER_SPRING_PROFILES')
+  public disableBlockNodeIntegration: boolean;
 
-  /** Cache container images locally. Defaults on — this one is an opt-out. */
   @Expose()
   @EnvironmentAliasRegistry.alias('SOLO_FF_ENABLE_IMAGE_CACHE', 'ENABLE_IMAGE_CACHE')
   public enableImageCache: boolean;
@@ -36,26 +30,27 @@ export class FeatureFlagsSchema {
   public constructor(
     copyWrapsLibraryInParallel?: boolean,
     skipNodePing?: boolean,
-    disableImporterSpringProfiles?: boolean,
+    disableBlockNodeIntegration?: boolean,
     enableImageCache?: boolean,
   ) {
     this.copyWrapsLibraryInParallel = copyWrapsLibraryInParallel ?? false;
     this.skipNodePing = skipNodePing ?? false;
-    this.disableImporterSpringProfiles = disableImporterSpringProfiles ?? false;
+    this.disableBlockNodeIntegration = disableBlockNodeIntegration ?? false;
     this.enableImageCache = enableImageCache ?? true;
   }
 
   /**
-   * Fills every flag the config system left unset with its default.
+   * A config source carries only the flags actually set, and class-transformer blanks every other exposed
+   * property to {@code undefined} rather than keeping the constructor's value. Without this, setting any one
+   * flag would read every other flag as falsy — {@code SKIP_NODE_PING=true} would also switch the image
+   * cache off.
    *
-   * <p>A config source only carries the flags actually set, and class-transformer blanks the rest to
-   * {@code undefined} instead of keeping the constructor's value. Without this, setting any one flag would
-   * read every other flag as falsy — so {@code SKIP_NODE_PING=true} would also switch the image cache off.
+   * <p>Apply this at the merged top level only. Pushing {@code exposeDefaultValues} down into
+   * {@link ClassToObjectMapper} would make each source return defaults instead of {@code undefined}, and
+   * {@code ReflectAssist.merge} skips only {@code undefined}/{@code null} — so the highest-ordinal source
+   * would clobber every value set in {@code helm-chart-config.yaml} and {@code tss-config.yaml}.
    */
   public static withDefaults(configured?: Partial<FeatureFlagsSchema>): FeatureFlagsSchema {
-    const set: Partial<FeatureFlagsSchema> = Object.fromEntries(
-      Object.entries(configured ?? {}).filter(([, value]: [string, unknown]): boolean => value !== undefined),
-    );
-    return Object.assign(new FeatureFlagsSchema(), set);
+    return plainToInstance(FeatureFlagsSchema, configured ?? {}, {exposeDefaultValues: true});
   }
 }

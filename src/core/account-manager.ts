@@ -100,11 +100,11 @@ export class AccountManager {
     @inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.networkNodes = patchInject(networkNodes, InjectTokens.NetworkNodes, this.constructor.name);
+    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
 
     this._portForwards = [];
     this._nodeClient = undefined;

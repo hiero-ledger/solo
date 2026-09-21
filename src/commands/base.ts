@@ -77,7 +77,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.NodeCommandTasks) protected readonly nodeCommandTasks?: NodeCommandTasks,
     @inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider,
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder?: DefaultKindClientBuilder,
-    @inject(InjectTokens.FeatureFlags) public readonly featureFlags?: FeatureFlags,
+    @inject(InjectTokens.FeatureFlags) protected readonly featureFlags?: FeatureFlags,
   ) {
     super();
 

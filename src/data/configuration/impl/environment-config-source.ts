@@ -73,21 +73,26 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
    */
   private applyAliases(): void {
     for (const [legacyName, canonicalKey] of EnvironmentAliasRegistry.aliasMap()) {
-      if (this.data.has(canonicalKey)) {
-        continue;
-      }
+      const generatedNameWon: boolean = this.data.has(canonicalKey);
 
       const value: string | undefined = this.environmentBackend.readRawValue(legacyName);
       if (value === undefined) {
         continue;
       }
 
-      this.data.set(canonicalKey, value);
+      // Aliases are a supported, documented spelling — routine use is not worth a warning. Only the
+      // ambiguous case earns one: both spellings set, and the generated name silently taking precedence.
+      // Warning unconditionally would put a console.warn (which bypasses SoloLogger and SOLO_SILENT_MODE)
+      // into every CI run, since CI sets ENABLE_IMAGE_CACHE and DISABLE_IMPORTER_SPRING_PROFILES.
+      if (generatedNameWon) {
+        console.warn(
+          `Environment variable '${legacyName}' is ignored because the generated name for config key ` +
+            `'${canonicalKey}' is also set and takes precedence.`,
+        );
+        continue;
+      }
 
-      console.warn(
-        `Using environment variable alias '${legacyName}' for config key '${canonicalKey}'; ` +
-          'the generated SOLO_* name takes precedence when both are set.',
-      );
+      this.data.set(canonicalKey, value);
     }
   }
 }

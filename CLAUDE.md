@@ -77,15 +77,15 @@ The codebase follows a layered, command-driven architecture with dependency inje
 
 ## Environment Variable Documentation
 
-There are two categories of environment variables to keep in sync with `docs/site/content/en/docs/env.md`. This requirement does NOT apply to variables used only in the `test/` directory.
+The user-facing environment variable reference lives in the [solo-docs](https://github.com/hiero-ledger/solo-docs) repository (`content/en/docs/advanced-solo-setup/using-environment-variables.md`) — **not** in this repo. `docs/site/` is an archived Hugo site and is no longer hand-authored. When a change below is user-facing, open a companion solo-docs PR. This requirement does NOT apply to variables used only in the `test/` directory.
 
 ### 1. Direct env vars
 
-When adding, removing, or modifying environment variables consumed via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, update `env.md`. Each entry must include the variable name, a short description, accepted/default values, and where it is used.
+When adding, removing, or modifying environment variables consumed via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, update the solo-docs reference. Each entry must include the variable name, a short description, accepted/default values, and where it is used.
 
 ### 2. Config-system env vars
 
-The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows environment variables to override any `@Expose()`d field on `SoloConfigSchema` and its nested schemas (`HelmChartSchema`, etc.). Keep `env.md` updated for any user-facing config fields that can be overridden this way.
+The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows environment variables to override any `@Expose()`d field on `SoloConfigSchema` and its nested schemas (`HelmChartSchema`, etc.). Keep the solo-docs reference updated for any user-facing config fields that can be overridden this way.
 
 **Naming convention:** Each camelCase property name segment is converted to `UPPER-KEBAB-CASE` (dashes separate words within a segment); schema object nesting levels are joined with `_`; the whole key is prefixed with `SOLO_`.
 
@@ -104,6 +104,12 @@ match legacy fixed names, a field may also declare one or more fixed alias env v
 precedence; the alias applies only when the generated name is absent, and using an alias logs a notice.
 Aliases may only be placed on a uniquely-typed schema field (a reused type such as `HelmChartSchema`
 fails fast). When adding/removing an alias, keep this section and any env var docs in sync.
+
+### 3. Feature flags
+
+Boolean toggles belong on `FeatureFlagsSchema`, not on an ad-hoc `getEnvironmentVariable()` read. See
+[`docs/contributing/feature-flags.md`](docs/contributing/feature-flags.md) for how to add, read, alias, and
+promote a flag, and keep its flag table in sync in the same commit.
 
 ## Architecture and Design
 

@@ -6,9 +6,8 @@ import {Flags} from '../../../src/commands/flags.js';
 import {NetworkCommand} from '../../../src/commands/network.js';
 import {resetForTest} from '../../test-container.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
-import {FeatureFlagsSchema} from '../../../src/data/schema/model/solo/feature-flags-schema.js';
 
-describe('wraps copy parallel env toggle', (): void => {
+describe('network WRAPS copy concurrency', (): void => {
   beforeEach((): void => {
     resetForTest();
   });
@@ -21,9 +20,5 @@ describe('wraps copy parallel env toggle', (): void => {
 
     expect(Flags.allFlags.some((flag): boolean => flag.name === 'wraps-copy-parallel')).to.be.false;
     expect(deployFlags.some((flag): boolean => flag.name === 'wraps-copy-parallel')).to.be.false;
-  });
-
-  it('defaults to the sequential copy unless explicitly enabled via env var', (): void => {
-    expect(new FeatureFlagsSchema().copyWrapsLibraryInParallel).to.be.false;
   });
 });

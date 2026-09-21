@@ -32,6 +32,7 @@ import {SoloConfigSchema} from '../../../../../src/data/schema/model/solo/solo-c
 import {Prefix} from '../../../../../src/data/key/prefix.js';
 import {EnvironmentKeyFormatter} from '../../../../../src/data/key/environment-key-formatter.js';
 import {EnvironmentAliasRegistry} from '../../../../../src/data/schema/decorators/environment-alias-registry.js';
+import {EnvironmentScope} from '../../../../../test/helpers/environment-scope.js';
 
 const mapper: ClassToObjectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
 
@@ -44,29 +45,6 @@ const mapper: ClassToObjectMapper = new ClassToObjectMapper(ConfigKeyFormatter.i
 beforeEach((): void => {
   EnvironmentAliasRegistry.resetRootSchemas();
 });
-
-// ---------------------------------------------------------------------------
-// Helper: save / restore process.env around each test
-// ---------------------------------------------------------------------------
-function withEnvironment(variables: Record<string, string>, function_: () => Promise<void>): () => Promise<void> {
-  return async (): Promise<void> => {
-    const saved: NodeJS.ProcessEnv = {...process.env};
-    try {
-      for (const [k, v] of Object.entries(variables)) {
-        process.env[k] = v;
-      }
-      await function_();
-    } finally {
-      for (const k of Object.keys(variables)) {
-        if (k in saved) {
-          process.env[k] = saved[k];
-        } else {
-          delete process.env[k];
-        }
-      }
-    }
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Section 1 – Key-strip direction: env var name → stripped config key
@@ -154,7 +132,7 @@ describe('EnvironmentStorageBackend – readBytes lookup (config key → env var
 
   it(
     'roundtrip: SOLO_HELM-CHART_DIRECTORY appears as helmChart.directory in list() and is readable',
-    withEnvironment({'SOLO_HELM-CHART_DIRECTORY': '/tmp/charts'}, async (): Promise<void> => {
+    EnvironmentScope.with({'SOLO_HELM-CHART_DIRECTORY': '/tmp/charts'}, async (): Promise<void> => {
       const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend('SOLO');
       const keys: string[] = await backend.list();
       expect(keys.includes('helmChart.directory'), 'should appear as helmChart.directory').to.be.true;
@@ -165,7 +143,7 @@ describe('EnvironmentStorageBackend – readBytes lookup (config key → env var
 
   it(
     'roundtrip: SOLO_HELM_CHART_DIRECTORY appears as helm.chart.directory, not helmChart.directory',
-    withEnvironment({SOLO_HELM_CHART_DIRECTORY: '/tmp/charts'}, async (): Promise<void> => {
+    EnvironmentScope.with({SOLO_HELM_CHART_DIRECTORY: '/tmp/charts'}, async (): Promise<void> => {
       const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend('SOLO');
       const keys: string[] = await backend.list();
       expect(keys.includes('helmChart.directory'), 'should NOT appear as helmChart.directory').to.be.false;
@@ -180,7 +158,7 @@ describe('EnvironmentStorageBackend – readBytes lookup (config key → env var
 describe('EnvironmentConfigSource + SoloConfigSchema – end-to-end override', (): void => {
   it(
     'SOLO_HELM-CHART_DIRECTORY (hyphenated) overrides helmChart.directory',
-    withEnvironment({'SOLO_HELM-CHART_DIRECTORY': '/tmp/solo-charts'}, async (): Promise<void> => {
+    EnvironmentScope.with({'SOLO_HELM-CHART_DIRECTORY': '/tmp/solo-charts'}, async (): Promise<void> => {
       const source: EnvironmentConfigSource = new EnvironmentConfigSource(mapper, 'SOLO');
       await source.load();
       const schema: SoloConfigSchema = source.asObject(SoloConfigSchema);
@@ -190,7 +168,7 @@ describe('EnvironmentConfigSource + SoloConfigSchema – end-to-end override', (
 
   it(
     'SOLO_HELM_CHART_DIRECTORY (all-underscore) does NOT override helmChart.directory',
-    withEnvironment({SOLO_HELM_CHART_DIRECTORY: '/tmp/solo-charts'}, async (): Promise<void> => {
+    EnvironmentScope.with({SOLO_HELM_CHART_DIRECTORY: '/tmp/solo-charts'}, async (): Promise<void> => {
       const source: EnvironmentConfigSource = new EnvironmentConfigSource(mapper, 'SOLO');
       await source.load();
       const schema: SoloConfigSchema = source.asObject(SoloConfigSchema);
@@ -200,7 +178,7 @@ describe('EnvironmentConfigSource + SoloConfigSchema – end-to-end override', (
 
   it(
     'SOLO_TSS_READY-MAX-ATTEMPTS (hyphenated) overrides tss.readyMaxAttempts',
-    withEnvironment({'SOLO_TSS_READY-MAX-ATTEMPTS': '99'}, async (): Promise<void> => {
+    EnvironmentScope.with({'SOLO_TSS_READY-MAX-ATTEMPTS': '99'}, async (): Promise<void> => {
       const source: EnvironmentConfigSource = new EnvironmentConfigSource(mapper, 'SOLO');
       await source.load();
       const schema: SoloConfigSchema = source.asObject(SoloConfigSchema);
@@ -210,7 +188,7 @@ describe('EnvironmentConfigSource + SoloConfigSchema – end-to-end override', (
 
   it(
     'SOLO_TSS_READY_MAX_ATTEMPTS (all-underscore) does NOT override tss.readyMaxAttempts',
-    withEnvironment({SOLO_TSS_READY_MAX_ATTEMPTS: '99'}, async (): Promise<void> => {
+    EnvironmentScope.with({SOLO_TSS_READY_MAX_ATTEMPTS: '99'}, async (): Promise<void> => {
       const source: EnvironmentConfigSource = new EnvironmentConfigSource(mapper, 'SOLO');
       await source.load();
       const schema: SoloConfigSchema = source.asObject(SoloConfigSchema);
@@ -220,7 +198,7 @@ describe('EnvironmentConfigSource + SoloConfigSchema – end-to-end override', (
 
   it(
     'SOLO_TSS_WRAPS_LIBRARY-DOWNLOAD-URL (hyphenated) overrides tss.wraps.libraryDownloadUrl',
-    withEnvironment(
+    EnvironmentScope.with(
       {'SOLO_TSS_WRAPS_LIBRARY-DOWNLOAD-URL': 'https://example.com/wraps.tar.gz'},
       async (): Promise<void> => {
         const source: EnvironmentConfigSource = new EnvironmentConfigSource(mapper, 'SOLO');

@@ -33,11 +33,6 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
     this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
   }
 
-  /** Crane is only needed when the image cache is on, so the dependency list follows the flag. */
-  private oneShotDependencies(): string[] {
-    return [...constants.BASE_DEPENDENCIES, ...(this.featureFlags.enableImageCache ? [constants.CRANE] : [])];
-  }
-
   public static override readonly COMMAND_NAME: string = ONE_SHOT_COMMAND;
   protected static override readonly DESCRIPTION: string =
     'One Shot commands for new and returning users who need a preset environment type. ' +
@@ -69,6 +64,11 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   public static readonly FALCON_DEPLOY_COMMAND: string = FALCON_DEPLOY_COMMAND;
 
   public getCommandDefinition(): CommandDefinition {
+    const deployDependencies: string[] = [
+      ...constants.BASE_DEPENDENCIES,
+      ...(this.featureFlags.enableImageCache ? [constants.CRANE] : []),
+    ];
+
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
@@ -82,7 +82,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              this.oneShotDependencies(),
+              deployDependencies,
               true,
             ),
           )
@@ -109,7 +109,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.MULTI_DEPLOY_FLAGS_LIST,
-              this.oneShotDependencies(),
+              deployDependencies,
               true,
             ),
           )
@@ -136,7 +136,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST,
-              this.oneShotDependencies(),
+              deployDependencies,
               true,
             ),
           )

@@ -127,7 +127,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.ClusterTaskManager) private readonly clusterTaskManager: ClusterTaskManager,
     @inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
   ) {
-    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -147,6 +146,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       this.constructor.name,
     );
     this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, this.constructor.name);
+    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
   }
 
   public buildDeployPipeline(
