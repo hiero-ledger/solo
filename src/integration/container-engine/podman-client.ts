@@ -10,11 +10,14 @@ import * as constants from '../../core/constants.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {PodmanDependencyManager} from '../../core/dependency-managers/podman-dependency-manager.js';
 import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
+import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
+import {KindProviderResolver} from './kind-provider-resolver.js';
 
 @injectable()
 export class PodmanClient {
   private static readonly CONTAINER_ENGINE_PROBE_TIMEOUT_MS: number = 5 * 1000;
   private readonly shellRunner: ShellRunner;
+  private podmanUnavailable: boolean = false;
 
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -33,13 +36,15 @@ export class PodmanClient {
   }
 
   public async getKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
-    const detectedCommand: ContainerEngineCommand | undefined = await this.detectKindContainerCommand(nodeName);
+    const detectedCommand: ContainerEngineCommand | undefined = this.podmanUnavailable
+      ? undefined
+      : await this.detectKindContainerCommand(nodeName);
 
     if (detectedCommand) {
       return detectedCommand;
     }
 
-    if (constants.getEnvironmentVariable('KIND_EXPERIMENTAL_PROVIDER') === constants.PODMAN) {
+    if (KindProviderResolver.current() === constants.PODMAN) {
       return PodmanClient.podmanCommand();
     }
 
@@ -53,7 +58,7 @@ export class PodmanClient {
     engineCommand: ContainerEngineCommand,
   ): Promise<void> {
     const kindArguments: string[] = ['load', 'image-archive', archivePath, '--name', clusterName];
-    const pathEnvironment: string = `${PathEx.dirname(kindExecutable)}${PathEx.delimiter}${process.env.PATH || ''}`;
+    const pathEnvironment: string = `${PathEx.dirname(kindExecutable)}${PathEx.delimiter}${SubprocessEnvironment.currentPath()}`;
     const configEnvironment: Record<string, string> = this.containerConfigEnvironment();
 
     if (PodmanClient.isSudoPodmanCommand(engineCommand)) {
@@ -94,7 +99,7 @@ export class PodmanClient {
       argumentsPrefix: [
         '-n',
         'env',
-        `PATH=${process.env.PATH || ''}`,
+        `PATH=${SubprocessEnvironment.currentPath()}`,
         ...PodmanDependencyManager.toEnvironmentArguments(this.containerConfigEnvironment()),
         constants.PODMAN,
       ],
@@ -112,6 +117,10 @@ export class PodmanClient {
       return podmanCommand;
     }
 
+    if (this.podmanUnavailable) {
+      return undefined;
+    }
+
     const sudoPodmanCommand: ContainerEngineCommand = this.sudoPodmanCommand();
 
     if (await this.containerExists(sudoPodmanCommand, nodeName)) {
@@ -127,11 +136,20 @@ export class PodmanClient {
         commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
         environmentVariablesToAppend: this.containerConfigEnvironment(),
         timeoutMs: PodmanClient.CONTAINER_ENGINE_PROBE_TIMEOUT_MS,
+        bestEffort: true,
       });
       return true;
-    } catch {
+    } catch (error) {
+      if (PodmanClient.isPodmanUnavailable(error)) {
+        this.podmanUnavailable = true;
+      }
       // best-effort probe: fall back to the next supported container engine when this one cannot see the kind node
       return false;
     }
+  }
+
+  private static isPodmanUnavailable(error: unknown): boolean {
+    const message: string = error instanceof Error ? error.message : String(error);
+    return /Cannot connect to Podman|unable to connect to Podman socket|spawn podman ENOENT/i.test(message);
   }
 }

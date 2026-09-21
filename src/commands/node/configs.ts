@@ -576,6 +576,7 @@ export class NodeCommandConfigs {
       deployment: this.configManager.getFlag(flags.deployment),
       consensusNodes: this.remoteConfig.getConsensusNodes(),
       contexts: this.remoteConfig.getContexts(),
+      freezeBlockDrainSeconds: this.configManager.getFlag<number>(flags.freezeBlockDrainSeconds),
     } as NodeFreezeConfigClass;
 
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
@@ -601,6 +602,13 @@ export class NodeCommandConfigs {
       'consensusNodes',
       'contexts',
     ]) as NodeStartConfigClass;
+
+    // A transplant replaces the roster carried by a state captured elsewhere; with no state file there is
+    // nothing to transplant, and the flag would otherwise be dropped without the start ever reporting it.
+    if (context_.config.transplant && context_.config.stateFile.length === 0) {
+      throw new SoloErrors.validation.transplantRequiresStateFile();
+    }
+
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
@@ -615,6 +623,18 @@ export class NodeCommandConfigs {
       context_.config.nodeAliasesUnparsed,
       context_.config.consensusNodes,
       this.configManager,
+    );
+
+    // Parsed the same way setupConfigBuilder does, so the roster a transplant writes describes the same
+    // endpoints setup gave the network rather than falling back to the defaults.
+    if (context_.config.domainNames) {
+      context_.config.domainNamesMapping = Templates.parseNodeAliasToDomainNameMapping(context_.config.domainNames);
+    }
+    context_.config.gossipEndpointPortMapping = Templates.parseNodeAliasToPortMapping(
+      context_.config.gossipEndpointPort,
+    );
+    context_.config.serviceEndpointPortMapping = Templates.parseNodeAliasToPortMapping(
+      context_.config.serviceEndpointPort,
     );
 
     return context_.config;

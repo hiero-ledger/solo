@@ -41,6 +41,15 @@ on:
         type: boolean
         required: false
         default: false
+      report-to-slack:
+        description: "Post the summarized memory report to the nightly Slack channel"
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      SLACK_TEST_WEBHOOK:
+        description: "Webhook used by the Send Slack Notification step to post the memory summary"
+        required: false
   pull_request:
     types:
       - opened
@@ -61,30 +70,32 @@ defaults:
 
 permissions:
   contents: read
-  pull-requests: write
-  actions: write
+  actions: read # the cancellation poller reads the current workflow run
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  SLACK_MEMORY_WARNING_MB: '2500'
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
 
 jobs:
   performance-test:
     name: Performance Test
-    if: >
+    if: >-
       ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
       startsWith(github.event.pull_request.title, 'trunk-merge') && !cancelled() && !failure() }}
     timeout-minutes: 90
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Posix Dependencies
@@ -96,8 +107,12 @@ jobs:
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
 
+      # setup-node caches npm downloads, and this workflow runs on both pull_request and push to
+      # main, so a pull request run can populate a cache that a later trusted run restores. Accepted
+      # (issue #5957): no release artifact is produced here, so the impact is a corrupted
+      # performance run rather than anything shipped.
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 24
@@ -134,10 +149,18 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      - name: Restore Solo Bin Cache
+        id: solo-bin-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-bin-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts') }}
+
       - name: Restore Solo Image Cache
         id: solo-image-cache
         if: ${{ !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
@@ -146,12 +169,15 @@ jobs:
         id: run-e2e-tests
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # github.event_name is read through the GITHUB_EVENT_NAME variable the runner provides.
+          CN_EDGE_VERSION_INPUT: ${{ inputs.cn-edge-version || '' }}
+          USE_EDGE_INPUT: ${{ inputs.use-edge }}
         run: |
           set -euo pipefail
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
-          CN_EDGE_VERSION="${{ inputs.cn-edge-version || '' }}"
+          CN_EDGE_VERSION="${CN_EDGE_VERSION_INPUT}"
           if [[ -n "${CN_EDGE_VERSION}" ]]; then
             echo "Using consensus node edge version: ${CN_EDGE_VERSION}"
             echo CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}" >> .env
@@ -160,7 +186,7 @@ jobs:
             echo "No consensus node edge version specified, using default from version.ts"
           fi
           USE_EDGE="false"
-          if [[ "${{ github.event_name }}" != "pull_request" && "${{ inputs.use-edge }}" == "true" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" && "${USE_EDGE_INPUT}" == "true" ]]; then
             USE_EDGE="true"
           fi
           if [[ "${USE_EDGE}" == "true" ]]; then
@@ -170,7 +196,6 @@ jobs:
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
-          echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
           echo ONE_SHOT_BLOCK_NODE_PERF=false >> .env
           cat .env
 
@@ -202,30 +227,33 @@ jobs:
           }
           trap cleanup SIGTERM SIGINT
 
-          # API poller: polls this job's own status every 30 s and sends SIGTERM
-          # to the main shell when GitHub no longer reports it in_progress.
-          # Self-hosted runners do not deliver SIGTERM to step scripts directly,
-          # so this is the only reliable way to detect workflow cancellation.
-          # The run-level updated_at field is NOT a cancellation signal: any
-          # sibling job transition in a multi-job run (e.g. the nightly extended
-          # tests) bumps it, which made this job SIGTERM its own healthy task
-          # (see hiero-ledger/solo#5432). The job is identified by RUNNER_NAME,
-          # which is unique per ephemeral ARC runner pod.
+          # API poller: polls this workflow RUN's status every 30 s and sends
+          # SIGTERM to the main shell when GitHub reports the run cancelled or
+          # completed. Self-hosted (ARC) runners do not terminate the running
+          # step on cancellation — the job otherwise runs every step to full
+          # completion even after the run is cancelled (hiero-ledger/solo#5813) —
+          # so this API poll is the only reliable way to react to cancellation.
+          #
+          # The signal is the RUN's status/conclusion, NOT the job's own
+          # in_progress count: the job hosting this poller is itself always
+          # in_progress while the step runs, so counting in_progress jobs could
+          # never reach 0 and the poller never fired (#5813). The run's
+          # status/conclusion, by contrast, flip to completed/cancelled as soon
+          # as a cancel is requested, and — unlike the run-level updated_at
+          # timestamp — do not change when a sibling job transitions in a
+          # multi-job run such as the nightly extended tests (#5432).
           # GITHUB_TOKEN is passed explicitly via step env (self-hosted runners
           # do not auto-expose it as a shell variable).
-          _own_job_in_progress_count() {
+          _run_cancelled_or_completed() {
             local _api="${GITHUB_API_URL:-https://api.github.com}"
-            # Without a runner identity the job cannot be found; report unknown, never 0.
-            [[ -z "${RUNNER_NAME}" ]] && { echo ""; return; }
             curl -sf \
               -H "Authorization: token ${GITHUB_TOKEN}" \
               -H "Accept: application/vnd.github.v3+json" \
-              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" \
-              | jq -r --arg runner "${RUNNER_NAME}" \
-                  '[.jobs[] | select(.runner_name == $runner and .status == "in_progress")] | length' 2>/dev/null \
+              "${_api}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              | jq -r 'if (.status == "completed" or .conclusion == "cancelled") then "stop" else "run" end' 2>/dev/null \
               || echo ""
           }
-          echo "Cancellation poller watching job status for runner: ${RUNNER_NAME}"
+          echo "Cancellation poller watching run status for run: ${GITHUB_RUN_ID}"
 
           if command -v setsid >/dev/null 2>&1; then
             setsid task test-e2e-performance &
@@ -237,19 +265,19 @@ jobs:
 
           # Start poller AFTER TASK_PID is set.
           api_cancel_poller() {
-            local zero_readings=0
+            local stop_readings=0
             while true; do
               sleep 30
-              current="$(_own_job_in_progress_count)"
+              current="$(_run_cancelled_or_completed)"
               # An empty reading is an API failure, which is not evidence of cancellation.
-              if [[ "${current}" == "0" ]]; then
-                zero_readings=$((zero_readings + 1))
+              if [[ "${current}" == "stop" ]]; then
+                stop_readings=$((stop_readings + 1))
               else
-                zero_readings=0
+                stop_readings=0
               fi
               # Require two consecutive confirmations to guard against a stale API read.
-              if (( zero_readings >= 2 )); then
-                echo "=== API poller: job no longer in_progress, signalling main shell ==="
+              if (( stop_readings >= 2 )); then
+                echo "=== API poller: run cancelled or completed, signalling main shell ==="
                 kill -TERM $$ 2>/dev/null || true
                 return
               fi
@@ -279,9 +307,16 @@ jobs:
             exit "${TASK_RC}"
           fi
 
+      - name: Save Solo Bin Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: $/.github/actions/solo-bin-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts') }}
+
       - name: Save Solo Image Cache
         if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
+        uses: $/.github/actions/solo-image-cache
         with:
           operation: save
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
@@ -417,6 +452,53 @@ jobs:
               echo "EOF_CATEGORIES"
             } >> $GITHUB_OUTPUT
           fi
+
+      - name: Format Slack Memory Summary
+        id: slack-summary
+        if: ${{ !cancelled() && inputs.report-to-slack && steps.pod-categories.outputs.content != '' }}
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          POD_CATEGORIES_CONTENT: |-
+            ${{ steps.pod-categories.outputs.content }}
+        run: |
+          MEMORY_USED_MB="$(awk '/^Total \(excl\./ {print $(NF-1)}' <<< "$POD_CATEGORIES_CONTENT")"
+          if [[ ! "${MEMORY_USED_MB}" =~ ^[0-9]+$ ]]; then
+            echo "Unable to extract the Total row from the pod memory category table"
+            exit 1
+          fi
+
+          SAFE_CATEGORIES="$(printf '%s' "$POD_CATEGORIES_CONTENT" | perl -0pe 's/`{3,}/``/g')"
+          TABLE='```'
+          TABLE="${TABLE}"$'\n'"${SAFE_CATEGORIES}"
+          TABLE="${TABLE}"$'\n''```'
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MESSAGE="${TABLE}"$'\n\n'":link: <${RUN_URL}|View Job Logs>"
+
+          {
+            echo "message<<EOF_MESSAGE"
+            echo "$MESSAGE"
+            echo "EOF_MESSAGE"
+          } >> "$GITHUB_OUTPUT"
+
+          if (( MEMORY_USED_MB > SLACK_MEMORY_WARNING_MB )); then
+            echo "color=warning" >> "$GITHUB_OUTPUT"
+          else
+            echo "color=good" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send Slack Notification
+        if: ${{ !cancelled() && steps.slack-summary.outcome == 'success' }}
+        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_MSG_AUTHOR: Release Engineering
+          SLACK_COLOR: ${{ steps.slack-summary.outputs.color }}
+          SLACK_TITLE: Performance Test Memory Results
+          SLACK_MESSAGE: >-
+            ${{ steps.slack-summary.outputs.message }}
+          SLACK_FOOTER: ${{ github.workflow }}
 
       - name: Move JVM Memory Usage Data to Metrics Directory
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}

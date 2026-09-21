@@ -8,6 +8,7 @@ import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {Templates} from './templates.js';
+import {ConsensusNodePathTemplates} from './consensus-node-path-templates.js';
 import {Flags as flags} from '../commands/flags.js';
 import * as Base64 from 'js-base64';
 import chalk from 'chalk';
@@ -119,13 +120,8 @@ export class PlatformInstaller {
     }
     const zipPath: string = await this.packageDownloader.fetchPlatform(tag, buildDirectory);
 
-    // Ensure the checksum file is also present (fetchPlatform returns early on cache hit without re-downloading it)
+    // fetchPlatform ensures the checksum file is present, downloading it only when it is missing or unusable
     const checksumPath: string = PathEx.join(buildDirectory, `build-${tag}.sha384`);
-    if (!fs.existsSync(checksumPath)) {
-      const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
-      const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
-      await this.packageDownloader.fetchFile(checksumURL, checksumPath);
-    }
 
     return [zipPath, checksumPath];
   }
@@ -442,7 +438,7 @@ export class PlatformInstaller {
     context?: string,
   ): Promise<void> {
     if (isGenesis) {
-      const genesisNetworkJson: string[] = [PathEx.joinWithRealPath(stagingDirectory, 'genesis-network.json')];
+      const genesisNetworkJson: string[] = [PathEx.joinWithRealPath(stagingDirectory, constants.GENESIS_NETWORK_FILE)];
       await this.copyFiles(
         podReference,
         genesisNetworkJson,
@@ -451,9 +447,8 @@ export class PlatformInstaller {
         context,
       );
 
-      // Create a persistent archive copy used by `ledger system reset` to restore
-      // genesis-network.json without needing to re-run `consensus node setup`.
-      const archiveDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config/.archive`;
+      // Archived so `ledger system reset` and a state transplant can restore the address book without
+      // re-running `consensus node setup`.
       await this.k8Factory
         .getK8(context)
         .containers()
@@ -461,8 +456,8 @@ export class PlatformInstaller {
         .execContainer([
           'bash',
           '-c',
-          `mkdir -p ${archiveDirectory} && ` +
-            `cp ${constants.HEDERA_HAPI_PATH}/data/config/genesis-network.json ${archiveDirectory}/genesis-network.json`,
+          `mkdir -p ${ConsensusNodePathTemplates.CONFIG_ARCHIVE} && ` +
+            `cp ${ConsensusNodePathTemplates.GENESIS_NETWORK_JSON} ${ConsensusNodePathTemplates.ARCHIVE_GENESIS_NETWORK_JSON}`,
         ]);
     }
 

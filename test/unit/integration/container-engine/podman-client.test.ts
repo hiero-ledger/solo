@@ -119,6 +119,19 @@ describe('PodmanClient', (): void => {
     expect(command).to.equal(undefined);
   });
 
+  it('does not retry podman detection after podman is unavailable', async (): Promise<void> => {
+    delete process.env.KIND_EXPERIMENTAL_PROVIDER;
+    shellRunnerRunStub
+      .withArgs('podman', PodmanClientTestBuilder.containerExistsArguments('kind-control-plane'), sinon.match.object)
+      .rejects(new Error('Cannot connect to Podman: socket unavailable'));
+
+    const client: PodmanClient = PodmanClientTestBuilder.build();
+
+    expect(await client.getKindContainerCommand('kind-control-plane')).to.equal(undefined);
+    expect(await client.getKindContainerCommand('kind-control-plane')).to.equal(undefined);
+    expect(shellRunnerRunStub).to.have.been.calledOnce;
+  });
+
   it('loads image archives into a podman-backed kind cluster with the podman kind provider', async (): Promise<void> => {
     const kindExecutable: string = '/home/runner/.solo/bin/kind';
     const engineCommand: ContainerEngineCommand = {

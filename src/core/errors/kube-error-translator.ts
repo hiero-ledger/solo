@@ -7,6 +7,8 @@ import {KubeIllegalArgumentError} from '../../integration/kube/errors/kube-illeg
 import {KubeMultipleItemsFoundError} from '../../integration/kube/errors/kube-multiple-items-found-error.js';
 import {KubeContainerOperationFailedError} from '../../integration/kube/errors/kube-container-operation-failed-error.js';
 import {KubePodNotFoundError} from '../../integration/kube/errors/kube-pod-not-found-error.js';
+import {KubePodNotReadyError} from '../../integration/kube/errors/kube-pod-not-ready-error.js';
+import {KubePodReadinessFailedError} from '../../integration/kube/errors/kube-pod-readiness-failed-error.js';
 import {KubePodCreationFailedError} from '../../integration/kube/errors/kube-pod-creation-failed-error.js';
 import {KubePodTerminationTimeoutError} from '../../integration/kube/errors/kube-pod-termination-timeout-error.js';
 import {KubeApiInvalidResponseError} from '../../integration/kube/errors/kube-api-invalid-response-error.js';
@@ -21,7 +23,33 @@ export class KubeErrorTranslator {
    */
   public static tryTranslate(error: unknown): SoloError | undefined {
     if (error instanceof KubePodNotFoundError) {
-      return new SoloErrors.system.podNotFound(error.resource, error);
+      return new SoloErrors.system.podNotFound(error.resource, error, error.volumeMountDiagnostic);
+    }
+    // Every waitForReadyStatus caller sees this wrapper rather than the underlying cause, so it
+    // needs its own branch: without one the readiness path returned undefined here and the pod
+    // diagnostics (including the volume mount diagnostic) never reached the user.
+    if (error instanceof KubePodReadinessFailedError) {
+      if (error.podName) {
+        return new SoloErrors.system.podNotReady(
+          error.podName,
+          `labels:${error.labels.join(',')}`,
+          error.phase,
+          error.containerSummary,
+          error,
+          error.volumeMountDiagnostic,
+        );
+      }
+      return new SoloErrors.system.podNotFound(`labels:${error.labels.join(',')}`, error, error.volumeMountDiagnostic);
+    }
+    if (error instanceof KubePodNotReadyError) {
+      return new SoloErrors.system.podNotReady(
+        error.podName,
+        error.resource,
+        error.phase,
+        error.containerSummary,
+        error,
+        error.volumeMountDiagnostic,
+      );
     }
     if (error instanceof KubeContainerOperationFailedError) {
       return new SoloErrors.system.containerOperationFailed(error.operation, error);
@@ -39,7 +67,7 @@ export class KubeErrorTranslator {
       return new SoloErrors.system.multipleItemsFound(error.filters);
     }
     if (error instanceof KubeApiInvalidResponseError) {
-      return new SoloErrors.system.kubernetesApiInvalidResponse();
+      return new SoloErrors.system.kubernetesApiInvalidResponse(error);
     }
     if (error instanceof KubePvcCreationFailedError) {
       return new SoloErrors.system.pvcCreationFailed();

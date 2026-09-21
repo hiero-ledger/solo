@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {beforeEach, describe, it} from 'mocha';
+import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon from 'sinon';
 import {container} from 'tsyringe-neo';
 import {BlockNodeCommand} from '../../../src/commands/block-node.js';
 import * as constants from '../../../src/core/constants.js';
-import {Templates} from '../../../src/core/templates.js';
+import {type SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {ClusterSchema} from '../../../src/data/schema/model/common/cluster-schema.js';
 import {DeploymentPhase} from '../../../src/data/schema/model/remote/deployment-phase.js';
 import {BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../../src/data/schema/model/remote/state/component-state-metadata-schema.js';
 import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {Templates} from '../../../src/core/templates.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 interface BlockNodeK8Stub {
   services: () => BlockNodeServicesStub;
@@ -37,14 +41,23 @@ interface BlockNodeCommandInternal {
   };
   remoteConfig: {
     getClusterRefs?: () => Record<string, string>;
+    getConsensusNodes?: () => Array<{name: string}>;
     configuration: {
       clusters: ClusterSchema[];
+      versions?: {
+        consensusNode: SemanticVersion<string> | string;
+      };
       state: {
         tssEnabled: boolean;
         blockNodes: {
           metadata: {
             id: number;
             cluster: string;
+          };
+        }[];
+        mirrorNodes?: {
+          metadata: {
+            id: number;
           };
         }[];
       };
@@ -57,21 +70,35 @@ interface BlockNodeCommandInternal {
     context: string,
   ) => Promise<{id: number; releaseName: string; isChartInstalled: boolean; isLegacyChartInstalled: boolean}>;
   prepareValuesArgForBlockNode: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
+  getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string) => number;
+  isLocalImageAvailableInDocker: (componentImage: string) => boolean;
 }
 
 describe('BlockNodeCommand unit tests', (): void => {
   let blockNodeCommand: BlockNodeCommand;
+  let testCacheDirectory: string | undefined;
 
   beforeEach((): void => {
     resetForTest();
     blockNodeCommand = container.resolve(BlockNodeCommand);
   });
 
+  afterEach((): void => {
+    if (testCacheDirectory) {
+      fs.rmSync(testCacheDirectory, {recursive: true, force: true});
+      testCacheDirectory = undefined;
+    }
+  });
+
   it('should configure peer block node sources under the chart backfill values path', async (): Promise<void> => {
     const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
     blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
       configuration: {
         clusters: [new ClusterSchema('cluster-a', 'solo-ns', 'deployment', 'cluster.local')],
+        versions: {
+          consensusNode: '0.75.1',
+        },
         state: {
           tssEnabled: false,
           blockNodes: [
@@ -99,6 +126,214 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(valueArguments).to.include(`blockNode.backfill.sources[0].port=${constants.BLOCK_NODE_PORT}`);
     expect(valueArguments).to.include('blockNode.backfill.sources[0].priority=1');
     expect(valueArguments).to.not.include('blockNode.sources[0].address=block-node-1.solo-ns.svc.cluster.local');
+  });
+
+  it('should use the compatible readiness port for block node chart versions', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0')).to.equal(constants.BLOCK_NODE_PORT);
+    expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.39.0')).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
+  });
+
+  it('should use a semver tag on a Kind-attached local registry image to pick the readiness port', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(
+      blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0', 'localhost:5001/block-node-server:0.40.0'),
+    ).to.equal(constants.BLOCK_NODE_HEALTH_PORT);
+  });
+
+  it('should ignore a tagless local registry ref (implicit latest) when picking the readiness port', (): void => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+
+    expect(blockNodeCommandInternal.getLivenessCheckPortNumber('0.38.0', 'localhost:5001/block-node-server')).to.equal(
+      constants.BLOCK_NODE_PORT,
+    );
+  });
+
+  it('should configure the RSA mirror bootstrap source for block-stream consensus versions', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        versions: {
+          consensusNode: '0.75.1',
+        },
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+          mirrorNodes: [
+            {
+              metadata: {
+                id: 2,
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: true,
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+
+    expect(valueArguments).to.include('--set-literal');
+    expect(valueArguments).to.include(
+      'blockNode.config.ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL=http://mirror-2-restjava:80',
+    );
+  });
+
+  it('should inject the RSA bootstrap file when cache keys are available', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    testCacheDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-block-node-test-'));
+    const keysDirectory: string = PathEx.join(testCacheDirectory, 'keys');
+    fs.mkdirSync(keysDirectory, {recursive: true});
+    fs.copyFileSync(
+      PathEx.joinWithRealPath('test', 'data', 'pem', 'keys', 's-public-node1.pem'),
+      PathEx.join(keysDirectory, 's-public-node1.pem'),
+    );
+
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [
+        {
+          name: 'node1',
+        },
+      ],
+      configuration: {
+        clusters: [],
+        versions: {
+          consensusNode: '0.75.1',
+        },
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+        },
+      },
+    };
+
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: true,
+      cacheDir: testCacheDirectory,
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+    const valuesFile: string | undefined = valueArguments.find((argument: string): boolean =>
+      argument.endsWith('block-node-1-rsa-bootstrap-values.yaml'),
+    );
+
+    expect(valuesFile).to.not.equal(undefined);
+    if (!valuesFile) {
+      throw new Error('RSA bootstrap values file was not generated');
+    }
+    const rsaBootstrapValues: string = fs.readFileSync(valuesFile, 'utf8');
+    expect(rsaBootstrapValues).to.contain('rsa-bootstrap-roster.json');
+    expect(rsaBootstrapValues).to.contain('[ ! -s /application-state-pvc/rsa-bootstrap-roster.json ]');
+    expect(rsaBootstrapValues).to.contain('RSAPubKey');
+    expect(rsaBootstrapValues).to.contain('application-state-storage');
+  });
+
+  it('should not configure the RSA mirror bootstrap source before TSS-era consensus versions', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        versions: {
+          consensusNode: '0.73.0',
+        },
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+          mirrorNodes: [
+            {
+              metadata: {
+                id: 2,
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: true,
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+
+    expect(valueArguments).to.not.include(
+      'blockNode.config.ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL=http://mirror-2-restjava:80',
+    );
+  });
+
+  it('should configure a Kind-attached local registry image with a Never pull policy', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+        },
+      },
+    };
+    sinon.stub(blockNodeCommandInternal, 'isLocalImageAvailableInDocker').returns(true);
+
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: false,
+      componentImage: 'localhost:5001/block-node-server:0.38.0',
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+    expect(valueArguments).to.include('image.registry=localhost:5001');
+    expect(valueArguments).to.include('image.repository=block-node-server');
+    expect(valueArguments).to.include('image.tag=0.38.0');
+    expect(valueArguments).to.include('image.pullPolicy=Never');
+  });
+
+  it('should preserve tagless local registry refs with implicit latest tags', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    blockNodeCommandInternal.remoteConfig = {
+      getConsensusNodes: (): Array<{name: string}> => [],
+      configuration: {
+        clusters: [],
+        state: {
+          tssEnabled: false,
+          blockNodes: [],
+        },
+      },
+    };
+    sinon.stub(blockNodeCommandInternal, 'isLocalImageAvailableInDocker').returns(true);
+
+    const chartValues: HelmChartValues = await blockNodeCommandInternal.prepareValuesArgForBlockNode({
+      blockNodeTssOverlay: false,
+      componentImage: 'localhost:5001/block-node-server',
+      valuesFile: undefined,
+      releaseName: 'block-node-1',
+      namespace: NamespaceName.of('solo-ns'),
+    });
+
+    const valueArguments: string[] = chartValues.toArguments();
+    expect(valueArguments).to.include('image.registry=localhost:5001');
+    expect(valueArguments).to.include('image.repository=block-node-server');
+    expect(valueArguments).to.include('image.tag=latest');
+    expect(valueArguments).to.include('image.pullPolicy=Never');
   });
 
   it('should use the block node release name as the Helm instance label selector', (): void => {

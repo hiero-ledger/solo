@@ -80,9 +80,12 @@ export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
 export const SOLO_REMOTE_CONFIGMAP_LABELS: Record<string, string> = {'solo.hedera.com/type': 'remote-config'};
+export const SOLO_CLUSTER_ROLE_LABELS: Record<string, string> = {'solo.hedera.com/type': 'cluster-role'};
 export const SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY: number = 50;
 export const SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR: string = 'solo.hedera.com/type=remote-config';
 export const NODE_COPY_CONCURRENT: number = Number(getEnvironmentVariable('NODE_COPY_CONCURRENT')) || 4;
+export const EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL: boolean =
+  getEnvironmentVariable('EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL') === 'true' || false;
 export const SKIP_NODE_PING: boolean = Boolean(getEnvironmentVariable('SKIP_NODE_PING')) || false;
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS: number = +getEnvironmentVariable('SOLO_LEASE_ACQUIRE_ATTEMPTS') || 10;
 export const DEFAULT_LEASE_DURATION: number = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
@@ -142,6 +145,12 @@ export const MIRROR_NODE_CHART_URL: string =
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
+
+// Container name of the importer inside the mirror node importer pod (the hedera-mirror umbrella chart's subchart alias).
+export const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('importer');
+
+// In-pod JFR repository path `mirror node collect-jfr` reads from (a dedicated volume, mirrors the block node output dir); enforced by mirror-node-values.test.ts.
+export const MIRROR_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/mirror-node/output/jfr';
 export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
@@ -154,6 +163,20 @@ export const MINIO_OPERATOR_CHART_URL: string =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
 export const MINIO_OPERATOR_CHART: string = 'operator';
 export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
+/**
+ * The MinIO Operator's CRDs, which are cluster-scoped and so outlive the namespace the operator was
+ * installed into.
+ *
+ * This list tracks {@link MINIO_OPERATOR_VERSION} and must be revisited when that moves —
+ * `policybindings.sts.min.io` only exists from operator v5 onward.
+ *
+ * Read as "any one present means something owned these", deliberately unlike `CERT_MANAGER_CRDS` (all
+ * must be present) and the prometheus list (counted N of N). Those two decide whether to install a
+ * chart, so a partial install should not count; this one decides whether cluster-scoped leftovers are in
+ * the way, and a single leftover is enough to break the install. An older operator that predates
+ * `policybindings` is therefore still detected by its `tenants` CRD.
+ */
+export const MINIO_OPERATOR_CRDS: string[] = ['tenants.minio.min.io', 'policybindings.sts.min.io'];
 
 export const METRICS_SERVER_CHART_URL: string =
   getEnvironmentVariable('METRICS_SERVER_CHART_URL') ?? 'https://kubernetes-sigs.github.io/metrics-server/';
@@ -225,7 +248,7 @@ export const SOLO_MIRROR_WEB3_NAME_LABEL: string = 'app.kubernetes.io/name=web3'
 export const SOLO_MIRROR_POSTGRES_NAME_LABEL: string = 'app.kubernetes.io/name=postgres';
 export const SOLO_MIRROR_REDIS_NAME_LABEL: string = 'app.kubernetes.io/name=redis';
 export const SOLO_MIRROR_RESTJAVA_NAME_LABEL: string = 'app.kubernetes.io/name=restjava';
-export const SOLO_BLOCK_NODE_NAME_LABEL: string = 'app.kubernetes.io/name=block-node-1';
+export const SOLO_BLOCK_NODE_NAME_LABEL: string = 'block-node.hiero.com/type=block-node';
 export const SOLO_INGRESS_CONTROLLER_NAME_LABEL: string = 'app.kubernetes.io/name=haproxy-ingress';
 
 export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
@@ -277,7 +300,6 @@ export const POD_CONDITION_READY: string = 'Ready';
 export const POD_CONDITION_POD_SCHEDULED: string = 'PodScheduled';
 export const POD_CONDITION_STATUS_TRUE: string = 'True';
 
-export const BLOCK_NODE_SOLO_DEV_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-solo-dev.yaml');
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
@@ -339,6 +361,7 @@ export const ONE_SHOT_RELAY_HOST_PORT: number = 37_546;
 export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
 export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const BLOCK_NODE_SOLO_DEV_FILE: string = BLOCK_NODE_VALUES_FILE;
 export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'block-node-messaging-workaround.yaml',
@@ -350,7 +373,6 @@ export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath
 export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
-export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
@@ -486,11 +508,23 @@ export const JVM_DEBUG_PORT: number = 5005;
 export const PODS_RUNNING_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_RUNNING_MAX_ATTEMPTS') || 60 * 15;
 export const PODS_RUNNING_DELAY: number = +getEnvironmentVariable('PODS_RUNNING_DELAY') || 1000;
 
+// Used during `node upgrade` to detect whether a helm upgrade actually triggered a node pod
+// rollout before waiting on its readiness, so an upgrade that never changes the pod template
+// doesn't block waiting for a restart that will never happen.
+export const NODE_POD_ROLLOUT_DETECTION_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NODE_POD_ROLLOUT_DETECTION_MAX_ATTEMPTS') || 20;
+export const NODE_POD_ROLLOUT_DETECTION_DELAY: number =
+  +getEnvironmentVariable('NODE_POD_ROLLOUT_DETECTION_DELAY') || 1500;
+
 // Node Checks
 export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
+
+// Number of consecutive fatal container states (e.g. CrashLoopBackOff, OOMKilled) detected while
+// polling node activeness before failing fast instead of waiting out the full attempt budget.
+export const NETWORK_NODE_ACTIVE_FATAL_ERROR_THRESHOLD: number = 3;
 
 // GRPC Healtcheck Checks
 export const NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS: number =
@@ -569,10 +603,18 @@ export const NETWORK_CHART_INSTALL_MAX_ATTEMPTS: number =
 export const NETWORK_CHART_INSTALL_RETRY_DELAY_SECS: number =
   +getEnvironmentVariable('NETWORK_CHART_INSTALL_RETRY_DELAY_SECS') || 15;
 
+export const MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_CHART_UPGRADE_MAX_ATTEMPTS') || 3;
+export const MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS: number =
+  +getEnvironmentVariable('MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS') || 15;
+
 export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NETWORK_DESTROY_WAIT_TIMEOUT') || 120;
 
 export const DEFAULT_LOCAL_CONFIG_FILE: string = 'local-config.yaml';
 export const NODE_OVERRIDE_FILE: string = 'node-overrides.yaml';
+export const GENESIS_NETWORK_FILE: string = 'genesis-network.json';
+/** Same contents as {@link GENESIS_NETWORK_FILE}; replaces the roster carried by a restored state. */
+export const OVERRIDE_NETWORK_FILE: string = 'override-network.json';
 
 export const NODES_STARTED_EVENT_TIMEOUT_MINUTES: number =
   +getEnvironmentVariable('NODES_STARTED_EVENT_TIMEOUT_MINUTES') || 30;

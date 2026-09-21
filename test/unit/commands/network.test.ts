@@ -488,6 +488,31 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
 
+    it('rejects --verify-pvc-mounts when PVCs are disabled', async (): Promise<void> => {
+      const originalPersistentVolumeClaims: boolean = argv.getArg<boolean>(flags.persistentVolumeClaims);
+      const originalVerifyPersistentVolumeClaimMounts: boolean = argv.getArg<boolean>(
+        flags.verifyPersistentVolumeClaimMounts,
+      );
+
+      try {
+        argv.setArg(flags.persistentVolumeClaims, false);
+        argv.setArg(flags.verifyPersistentVolumeClaimMounts, true);
+
+        const task: SinonStub = sinon.stub();
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        networkCommand.configManager.update(argv.build());
+
+        await expect(
+          // @ts-expect-error - to access private method
+          networkCommand.prepareConfig(task, argv.build()),
+        ).to.be.rejectedWith("Invalid value 'true' for flag --verify-pvc-mounts: requires --pvcs");
+      } finally {
+        argv.setArg(flags.persistentVolumeClaims, originalPersistentVolumeClaims);
+        argv.setArg(flags.verifyPersistentVolumeClaimMounts, originalVerifyPersistentVolumeClaimMounts);
+        sinon.restore();
+      }
+    });
+
     it('sets static IP chart values for haproxy, envoy, and network node services', async (): Promise<void> => {
       const originalHaproxyIps: string = argv.getArg<string>(flags.haproxyIps);
       const originalEnvoyIps: string = argv.getArg<string>(flags.envoyIps);
@@ -605,6 +630,86 @@ describe('NetworkCommand unit tests', (): void => {
         expect(chartValueArguments).to.include('defaults.sidecars.blockstreamUploader.enabled=false');
       } finally {
         argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
+        sinon.restore();
+      }
+    });
+
+    it('keeps MinIO enabled for CN 0.74+ with block nodes when TSS is disabled', async (): Promise<void> => {
+      const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
+      const originalTssEnabled: boolean = argv.getArg<boolean>(flags.tssEnabled);
+
+      try {
+        argv.setArg(flags.consensusNodeVersion, 'v0.74.0');
+        argv.setArg(flags.tssEnabled, false);
+
+        const task: SinonStub = sinon.stub();
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(new Map<string, string>([['cluster', 'context1']]));
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([{}]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+        const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
+
+        expect(config.minioEnabled).to.equal(true);
+        expect(chartValueArguments).to.not.include('cloud.minio.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.recordStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.eventStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.blockstreamUploader.enabled=false');
+      } finally {
+        argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
+        argv.setArg(flags.tssEnabled, originalTssEnabled);
+        sinon.restore();
+      }
+    });
+
+    it('keeps MinIO enabled for CN 0.74+ with block nodes when block stream mode is BOTH', async (): Promise<void> => {
+      const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
+      const originalBlockStreamMode: string | undefined = process.env.BLOCK_STREAM_STREAM_MODE;
+
+      try {
+        argv.setArg(flags.consensusNodeVersion, 'v0.74.0');
+        process.env.BLOCK_STREAM_STREAM_MODE = 'BOTH';
+
+        const task: SinonStub = sinon.stub();
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(new Map<string, string>([['cluster', 'context1']]));
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([{}]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+        const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
+
+        expect(config.minioEnabled).to.equal(true);
+        expect(chartValueArguments).to.not.include('cloud.minio.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.recordStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.eventStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.blockstreamUploader.enabled=false');
+      } finally {
+        argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
+        if (originalBlockStreamMode === undefined) {
+          delete process.env.BLOCK_STREAM_STREAM_MODE;
+        } else {
+          process.env.BLOCK_STREAM_STREAM_MODE = originalBlockStreamMode;
+        }
         sinon.restore();
       }
     });

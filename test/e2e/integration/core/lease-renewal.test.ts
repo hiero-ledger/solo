@@ -75,7 +75,8 @@ describe('LeaseRenewalService', async (): Promise<void> => {
     const acquireTime: number = new Date(remoteObject?.acquireTime).valueOf();
     expect(acquireTime).to.be.greaterThan(0);
 
-    await sleep(Duration.ofSeconds(lease.durationSeconds));
+    const cancellationObservationDelay: Duration = Duration.ofSeconds(lease.durationSeconds - 1);
+    await sleep(cancellationObservationDelay);
     // @ts-expect-error - accessing private method for testing
     remoteObject = await lease.retrieveLease();
     expect(remoteObject).to.not.be.null;

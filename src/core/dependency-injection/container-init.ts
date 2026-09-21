@@ -27,6 +27,7 @@ import {mkdirSync} from 'node:fs';
 import os from 'node:os';
 import * as version from '../../../version.js';
 import {NetworkNodes} from '../network-nodes.js';
+import {PvcMountVerifier} from '../pvc-mount-verifier.js';
 import {ClusterChecks} from '../cluster-checks.js';
 import {InjectTokens} from './inject-tokens.js';
 import {K8ClientFactory} from '../../integration/kube/k8-client/k8-client-factory.js';
@@ -47,7 +48,6 @@ import {AccountCommand} from '../../commands/account.js';
 import {FileCommand} from '../../commands/file.js';
 import {DeploymentCommand} from '../../commands/deployment.js';
 import {ExplorerCommand} from '../../commands/explorer.js';
-import {InitCommand} from '../../commands/init/init.js';
 import {MirrorNodeCommand} from '../../commands/mirror-node.js';
 import {RelayCommand} from '../../commands/relay.js';
 import {NetworkCommand} from '../../commands/network.js';
@@ -57,6 +57,7 @@ import {Middlewares} from '../middlewares.js';
 import {NpmClient} from '../../integration/npm/npm-client.js';
 import {SoloPinoLogger} from '../logging/solo-pino-logger.js';
 import {DefaultSoloEventBus} from '../events/default-solo-event-bus.js';
+import {DeprecationRegistry} from '../deprecation-registry.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
@@ -103,6 +104,7 @@ import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
 import {ROOT_DIR} from '../constants.js';
 import {CacheCommandDefinition} from '../../commands/command-definitions/cache-command-definition.js';
+import {InitCommandDefinition} from '../../commands/init/init-command-definition.js';
 import {CacheCommand} from '../../commands/cache.js';
 import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
 import {DockerClient} from '../../integration/container-engine/docker-client.js';
@@ -137,6 +139,7 @@ export class Container {
   private static singletonContainers(): SingletonContainer[] {
     return [
       new SingletonContainer(InjectTokens.SoloEventBus, DefaultSoloEventBus),
+      new SingletonContainer(InjectTokens.DeprecationRegistry, DeprecationRegistry),
       new SingletonContainer(InjectTokens.SoloLogger, SoloPinoLogger),
       new SingletonContainer(InjectTokens.LockRenewalService, IntervalLockRenewalService),
       new SingletonContainer(InjectTokens.LockManager, LockManager),
@@ -169,6 +172,7 @@ export class Container {
       new SingletonContainer(InjectTokens.RemoteConfigRuntimeState, RemoteConfigRuntimeState),
       new SingletonContainer(InjectTokens.ClusterChecks, ClusterChecks),
       new SingletonContainer(InjectTokens.NetworkNodes, NetworkNodes),
+      new SingletonContainer(InjectTokens.PvcMountVerifier, PvcMountVerifier),
       new SingletonContainer(InjectTokens.NpmClient, NpmClient),
       new SingletonContainer(InjectTokens.Middlewares, Middlewares),
       new SingletonContainer(InjectTokens.HelpRenderer, HelpRenderer),
@@ -179,7 +183,6 @@ export class Container {
       new SingletonContainer(InjectTokens.NodeCommand, NodeCommand),
       new SingletonContainer(InjectTokens.DeploymentCommand, DeploymentCommand),
       new SingletonContainer(InjectTokens.ExplorerCommand, ExplorerCommand),
-      new SingletonContainer(InjectTokens.InitCommand, InitCommand),
       new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
@@ -219,6 +222,7 @@ export class Container {
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),
+      new SingletonContainer(InjectTokens.InitCommandDefinition, InitCommandDefinition),
       new SingletonContainer(InjectTokens.BlockCommandDefinition, BlockCommandDefinition),
       new SingletonContainer(InjectTokens.ClusterReferenceCommandDefinition, ClusterReferenceCommandDefinition),
       new SingletonContainer(InjectTokens.ConsensusCommandDefinition, ConsensusCommandDefinition),
