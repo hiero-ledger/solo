@@ -140,6 +140,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   NODE_KEY_LOAD_FAILED: 'SOLO-3093',
   NODE_CONTAINER_CRASHED: 'SOLO-3094',
   RELAY_OPERATOR_SECRET_CREATION_FAILED: 'SOLO-3095',
+  MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3096',
+  NODE_RESTORE_STATUS_MISMATCH: 'SOLO-3097',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -312,6 +314,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5084',
   CACHED_FILE_INACCESSIBLE: 'SOLO-5085',
   POD_LOGS_CRD_INVALID: 'SOLO-5086',
+  SAVED_STATE_HASH_TOOL_MISSING: 'SOLO-5087',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

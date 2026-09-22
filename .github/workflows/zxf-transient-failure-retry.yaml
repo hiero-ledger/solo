@@ -91,7 +91,68 @@ jobs:
             // in the job log, and the `forbidden` signature absent. Matching on the log as well as the step name keeps a
             // deterministic failure in an infrastructure step - a moved dependency version, a bad
             // ref, a compile error - from being retried, which only burns runners and hides the bug.
+            // Shared by every rule below that only applies to a step preparing the environment,
+            // so the download and checksum rules cannot drift apart by editing one and not the
+            // other.
+            const setupStepPrefixes = ['install', 'setup', 'set up', 'configure', 'bootstrap', 'retry'];
+
             const rules = [
+              {
+                // A setup step that is only fetching a tool or a chart fails when the download is
+                // refused or the host cannot be reached at all. `@actions/tool-cache` reports the
+                // first as "Unexpected HTTP response" and helm as "failed to fetch ...: 504 Gateway
+                // Timeout"; the second surfaces as a resolver or socket error, as in `getaddrinfo
+                // EAI_AGAIN get.helm.sh`. `step-security/retry` and the setup actions have usually
+                // already spent their own attempts by then. A 404 is deliberately not matched,
+                // since a version that does not exist is a settled failure. Gated to steps that
+                // install or configure, so a product step that merely mentions one of these in its
+                // own output is left alone.
+                //
+                // ECONNRESET, ETIMEDOUT and "socket hang up" are generic enough that a long running
+                // step - `Setup E2E Tests` runs a ten minute script - could print one from an
+                // unrelated cause buried in its own output. None of 61 audited logs did, but the
+                // three are still anchored to the same line as a fetch/download/install/request
+                // word, the way npm and http-client wrappers report a failed transfer (for example
+                // `npm ERR! network request to ... failed, reason: read ECONNRESET`), rather than
+                // trusted anywhere in the log.
+                description: 'tool download could not reach its host',
+                stepPrefixes: setupStepPrefixes,
+                required:
+                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up)|(?:ECONNRESET|ETIMEDOUT|socket hang up)[^\n]*(?:fetch|download|install|request)/i,
+                forbidden: /error TS\d{4}/,
+              },
+              {
+                // A download cut short arrives complete enough to write but fails its checksum, so
+                // the tool is never installed and the step's own cleanup then reports the binary as
+                // missing. Distinct from a Go module mismatch, which is an integrity claim about a
+                // published module and stays excluded above.
+                description: 'downloaded tool failed its checksum',
+                stepPrefixes: setupStepPrefixes,
+                required: /sha256sum: WARNING: \d+ computed checksums? did NOT match/,
+                forbidden: /SECURITY ERROR/,
+              },
+              {
+                // Uploading logs and coverage goes through GitHub's artifact service, so a name
+                // that will not resolve fails the step after the toolkit's own five attempts.
+                description: 'artifact service could not be reached',
+                stepPrefixes: [],
+                required:
+                  /Failed to (Create|Finalize|Delete)Artifact[^\n]*after \d+ attempts[^\n]*(EAI_AGAIN|ENOTFOUND|ECONNRESET|ETIMEDOUT|socket hang up|502|503|504)/,
+                forbidden: /error TS\d{4}/,
+              },
+              {
+                // `go install` verifies every module against the checksum database, so a failure
+                // from sum.golang.org or the module proxy stops the build even though nothing is
+                // wrong with the module itself. A genuine mismatch reports "SECURITY ERROR:
+                // checksum mismatch" and a toolchain skew reports "requires go >= ", both settled
+                // failures that must never be retried - the latter burned three attempts of run
+                // 33480747973 before the version was pinned.
+                description: 'Go module server could not be reached',
+                stepPrefixes: [],
+                required:
+                  /(sum|proxy)\.golang\.org[^\n]*(stream error|INTERNAL_ERROR|connection reset|unexpected EOF|i\/o timeout|502|503|504|Service Unavailable)/,
+                forbidden: /SECURITY ERROR|checksum mismatch|requires go >= /,
+              },
               {
                 // The runner downloads every referenced action before the first step runs, so a
                 // stall at codeload.github.com fails the implicit `Set up job` step. The runner
@@ -153,6 +214,18 @@ jobs:
             const stepRanOutOfTime = (stepName, log) =>
               new RegExp(`The action '${escapeForRegExp(stepName)}' has timed out after \\d+ minutes?`).test(log);
 
+            // A step wrapped in an action that spawns a child process - `step-security/retry`, for
+            // one - is killed without the message above when its budget expires, so the log alone
+            // cannot see it. What remains is the timing: the runner stops the step on the exact
+            // second its `timeout-minutes` budget ends, which is why a whole number of minutes is
+            // the signal. `Setup Posix Dependencies` failed this way three times in 48 hours, each
+            // at exactly 300 seconds, while no failure on a step outside this list landed on a
+            // minute boundary at all.
+            const stepHitAnExactBudget = (step) => {
+              const seconds = (Date.parse(step.completed_at) - Date.parse(step.started_at)) / 1000;
+              return Number.isInteger(seconds) && seconds >= 120 && seconds % 60 === 0;
+            };
+
             const readJobLog = async (jobId) => {
               try {
                 const response = await github.rest.actions.downloadJobLogsForWorkflowRun({
@@ -202,15 +275,15 @@ jobs:
             for (const job of failedJobs) {
               // Rule prefixes compare lower case, but the timeout error quotes the step name
               // exactly as written, so the original casing has to survive.
-              const failedSteps = (job.steps ?? []).filter(step => step.conclusion === 'failure').map(step => step.name);
-              const failedStepNames = failedSteps.map(name => name.toLowerCase());
+              const failedSteps = (job.steps ?? []).filter(step => step.conclusion === 'failure');
+              const failedStepNames = failedSteps.map(step => step.name.toLowerCase());
 
               const candidates = rules.filter(rule =>
                 rule.stepPrefixes.length === 0 ||
                 failedStepNames.some(name => rule.stepPrefixes.some(prefix => name.startsWith(prefix))));
 
               const retryableSteps = failedSteps.filter(
-                name => retryableStepPattern.test(name) && !longRunningStepPattern.test(name));
+                step => retryableStepPattern.test(step.name) && !longRunningStepPattern.test(step.name));
 
               if (candidates.length === 0 && retryableSteps.length === 0) {
                 continue;
@@ -227,9 +300,10 @@ jobs:
                 continue;
               }
 
-              const timedOutStep = retryableSteps.find(name => stepRanOutOfTime(name, log));
+              const timedOutStep = retryableSteps.find(
+                step => stepRanOutOfTime(step.name, log) || stepHitAnExactBudget(step));
               if (timedOutStep && !settledFailurePattern.test(log)) {
-                reasons.push(`${job.name}: '${timedOutStep}' exceeded its time budget`);
+                reasons.push(`${job.name}: '${timedOutStep.name}' exceeded its time budget`);
               }
             }
 
