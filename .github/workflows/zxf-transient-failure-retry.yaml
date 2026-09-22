@@ -338,7 +338,36 @@ jobs:
               return;
             }
 
-            await github.rest.actions.reRunWorkflowFailedJobs({ owner, repo, run_id: run.id });
+            // Multiple workflow_run events can be queued for the same source run while a rerun is
+            // starting. Refresh the run immediately before the POST so a stale event cannot try
+            // to rerun a run that is already in progress or has already succeeded.
+            const currentRun = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: run.id });
+            if (
+              currentRun.data.status !== 'completed' ||
+              currentRun.data.conclusion !== 'failure' ||
+              currentRun.data.run_attempt !== run.run_attempt
+            ) {
+              core.info(
+                `Run ${run.id} changed while it was being classified ` +
+                `(event attempt ${run.run_attempt}, current attempt ${currentRun.data.run_attempt}, ` +
+                `status '${currentRun.data.status}', conclusion '${currentRun.data.conclusion}'). ` +
+                'Another retry handler may already be processing it; leaving the run alone.'
+              );
+              return;
+            }
+
+            try {
+              await github.rest.actions.reRunWorkflowFailedJobs({ owner, repo, run_id: run.id });
+            } catch (error) {
+              if (error.status === 403 && /cannot be retried/i.test(error.message)) {
+                core.info(
+                  `Run ${run.id} was changed by another retry handler before it could be rerun. ` +
+                  'Leaving the run alone.'
+                );
+                return;
+              }
+              throw error;
+            }
             core.notice(
               `Transient failures found (${reasons.join('; ')}). Reran the failed jobs of run ` +
               `${run.id}, which was at attempt ${run.run_attempt} of ${maxRunAttempts}. ${run.html_url}`
