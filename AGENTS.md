@@ -19,3 +19,5 @@ conventions are defined once and referenced here — do not duplicate them:
   `npx dpdm --no-warning --no-tree --exit-code circular:1 ./solo.ts` after any such move.
 - `import {type X}` (inline), explicit type annotations everywhere, no banned abbreviations, SPDX
   header on every source file.
+- Always sign off commits with `git commit --signoff` before pushing them to a PR. Every commit
+  submitted to GitHub must include a valid `Signed-off-by: Name <email>` trailer to satisfy DCO checks.

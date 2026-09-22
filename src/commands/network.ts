@@ -2006,6 +2006,13 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
+            const downloadedWrapsArchive: string = PathEx.join(
+              constants.SOLO_CACHE_DIR,
+              `${wraps.directoryName}.tar.gz`,
+            );
+            const wrapsArchivePath: string | undefined =
+              wrapsTarball ?? (fs.existsSync(downloadedWrapsArchive) ? downloadedWrapsArchive : undefined);
+
             // The library is hundreds of megabytes per node, so on a large network the copies
             // dominate deploy time. Running them concurrently is much faster but puts every
             // transfer on the same link at once, which is the wrong trade on a constrained
@@ -2018,10 +2025,49 @@ export class NetworkCommand extends BaseCommand {
                     consensusNode.context,
                   ).getConsensusNodeRootContainer(config.namespace, consensusNode.name);
 
-                  await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  const targetKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+                  const targetWrapsPath: string = `${targetKeysDirectory}/${wraps.directoryName}`;
+                  const wrapsDirectoryExists: boolean = await rootContainer
+                    .execContainer(`test -d "${targetWrapsPath}"`)
+                    .then(
+                      (): boolean => true,
+                      (): boolean => false,
+                    );
 
-                  if (wrapsTarball) {
-                    await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  if (wrapsArchivePath) {
+                    const targetWrapsTarball: string = `${targetKeysDirectory}/wraps.tar.gz`;
+                    if (wrapsDirectoryExists) {
+                      const wrapsTarballExists: boolean = await rootContainer
+                        .execContainer(`test -f "${targetWrapsTarball}"`)
+                        .then(
+                          (): boolean => true,
+                          (): boolean => false,
+                        );
+
+                      if (!wrapsTarballExists) {
+                        await rootContainer.copyFileResumable(
+                          wrapsArchivePath,
+                          targetWrapsTarball,
+                          constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                        );
+                      }
+                    } else {
+                      await rootContainer.copyFileResumable(
+                        wrapsArchivePath,
+                        targetWrapsTarball,
+                        constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                      );
+                      await rootContainer.execContainer([
+                        'bash',
+                        '-c',
+                        `temporary_directory="${targetWrapsPath}.partial" && ` +
+                          'rm -rf "$temporary_directory" && mkdir -p "$temporary_directory" && ' +
+                          `tar -xzf "${targetWrapsTarball}" -C "$temporary_directory" && ` +
+                          `mv "$temporary_directory" "${targetWrapsPath}"`,
+                      ]);
+                    }
+                  } else if (!wrapsDirectoryExists) {
+                    await rootContainer.copyTo(extractedDirectory, targetKeysDirectory);
                   }
                 },
               }),

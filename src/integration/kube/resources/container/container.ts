@@ -26,6 +26,14 @@ export interface Container {
   copyTo(sourcePath: string, destinationDirectory: string, filter?: TarCreateFilter | undefined): Promise<boolean>;
 
   /**
+   * Copy a large file in independently verifiable chunks and resume from chunks already present remotely.
+   * @param sourcePath - the local source file
+   * @param destinationPath - the complete remote destination path
+   * @param chunkSizeBytes - the maximum size of each transfer chunk
+   */
+  copyFileResumable(sourcePath: string, destinationPath: string, chunkSizeBytes: number): Promise<boolean>;
+
+  /**
    * Invoke sh command within a container and return the console output as string
    * @param command - sh commands as an array to be run within the containerName (e.g 'ls -la /opt/hgcapp')
    * @param outputPassThroughStream
