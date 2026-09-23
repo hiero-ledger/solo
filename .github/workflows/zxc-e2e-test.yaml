@@ -491,6 +491,9 @@ jobs:
 
           if [[ "${CUSTOM_JOB_LABEL_INPUT}" == "One Shot Single" ]]; then
             echo "ENABLE_IMAGE_CACHE=true" >> .env
+            # Exercise the block-node one-shot path in the regular PR smoke test as well
+            # as in the longer performance workflow.
+            echo "ONE_SHOT_WITH_BLOCK_NODE=true" >> .env
           fi
 
           cat .env

@@ -107,6 +107,28 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
+      it('should complete the block-node one-shot deployment', async (): Promise<void> => {
+        if (process.env.ONE_SHOT_WITH_BLOCK_NODE?.toLowerCase() !== 'true') {
+          return;
+        }
+
+        const k8: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).default();
+        const blockNodePods: Pod[] = await k8
+          .pods()
+          .list(NamespaceName.of('one-shot'), [constants.SOLO_BLOCK_NODE_NAME_LABEL]);
+        expect(blockNodePods).to.have.length(1);
+        expect(blockNodePods[0].phase).to.equal('Running');
+
+        const accountsFilePath: string = PathEx.join(
+          constants.SOLO_HOME_DIR,
+          `one-shot-${deployment}`,
+          'accounts.json',
+        );
+        expect(fs.existsSync(accountsFilePath), `Expected ${accountsFilePath} to be created`).to.be.true;
+        const accounts: unknown = JSON.parse(fs.readFileSync(accountsFilePath, 'utf8'));
+        expect(accounts).to.be.an('array').that.is.not.empty;
+      }).timeout(Duration.ofMinutes(2).toMillis());
+
       it(`${testName}: show deployment`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: show deployment`);
         await main(soloOneShotShowDeployment(testName, deployment));
