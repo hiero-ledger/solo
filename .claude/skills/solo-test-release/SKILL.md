@@ -4,7 +4,7 @@ description: Smoke-test a Solo release candidate before dispatching the release 
 license: Apache-2.0
 allowed-tools: Bash, Read
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
   domain: release-management
   scope: hiero-ledger/solo
   triggers: test the release, smoke test release, verify release candidate, test before release workflow, pre-release check
@@ -169,15 +169,21 @@ EOF
 
 TARBALL="$(ls output/release-smoke-test/*.tgz | head -n 1)"
 npm install -g --prefix "${SCRATCH_PREFIX}" "${TARBALL}"
-export PATH="${SCRATCH_PREFIX}/bin:${PATH}"
+export PATH="${SCRATCH_PREFIX}/bin:${SCRATCH_PREFIX}:${PATH}"
 export SOLO_HOME="${SOLO_HOME_SCRATCH}"
 export KUBECONFIG="${KUBECONFIG_SCRATCH}"
 solo --version
 ```
 
+`npm install -g --prefix` puts the global bin shim in a `bin/` subdirectory of the prefix on
+macOS/Linux, but directly in the prefix root on Windows — there is no `bin/` subdirectory there at
+all. Confirmed by testing on Windows: `${SCRATCH_PREFIX}/bin` alone left `solo` unresolvable on PATH.
+Prepending both `${SCRATCH_PREFIX}/bin` and `${SCRATCH_PREFIX}` covers both layouts without needing to
+detect the OS — whichever one doesn't exist on a given platform is simply never matched.
+
 Confirm the printed version matches `package.json`'s version. From here on, every `solo`/`kind`/
 `kubectl` command in this skill must run with `PATH`, `SOLO_HOME`, and `KUBECONFIG` set from that env
-file (`source /tmp/solo-release-smoke-test-env.sh; export PATH="${SCRATCH_PREFIX}/bin:${PATH}"`).
+file (`source /tmp/solo-release-smoke-test-env.sh; export PATH="${SCRATCH_PREFIX}/bin:${SCRATCH_PREFIX}:${PATH}"`).
 Also run from a directory **outside** the repo checkout (e.g. `cd "$(mktemp -d)"`) — this mirrors the
 CI "global-package" matrix leg and catches any code that resolves bundled resources relative to the
 current working directory instead of the installed package.
@@ -186,7 +192,7 @@ current working directory instead of the installed package.
 
 ```bash
 source /tmp/solo-release-smoke-test-env.sh
-export PATH="${SCRATCH_PREFIX}/bin:${PATH}"
+export PATH="${SCRATCH_PREFIX}/bin:${SCRATCH_PREFIX}:${PATH}"
 solo one-shot single deploy --dev
 ```
 
@@ -200,7 +206,7 @@ output.
 
 ```bash
 source /tmp/solo-release-smoke-test-env.sh
-export PATH="${SCRATCH_PREFIX}/bin:${PATH}"
+export PATH="${SCRATCH_PREFIX}/bin:${SCRATCH_PREFIX}:${PATH}"
 solo deployment diagnostics connections -d one-shot --check
 ```
 
@@ -229,7 +235,7 @@ adjust only if a future Solo version changes the CLI output shape.
 
 ```bash
 source /tmp/solo-release-smoke-test-env.sh
-export PATH="${SCRATCH_PREFIX}/bin:${PATH}"
+export PATH="${SCRATCH_PREFIX}/bin:${SCRATCH_PREFIX}:${PATH}"
 solo ledger account create --hbar-amount 50 --deployment one-shot
 ```
 
@@ -308,7 +314,7 @@ ingestion, relay chain-state, or explorer reachability) rather than a generic "v
 
 ```bash
 source /tmp/solo-release-smoke-test-env.sh
-export PATH="${SCRATCH_PREFIX}/bin:${PATH}"
+export PATH="${SCRATCH_PREFIX}/bin:${SCRATCH_PREFIX}:${PATH}"
 solo deployment diagnostics logs -q --dev || true
 ```
 
@@ -319,7 +325,7 @@ diagnostic the release CI captures on failure.
 
 ```bash
 source /tmp/solo-release-smoke-test-env.sh
-export PATH="${SCRATCH_PREFIX}/bin:${PATH}"
+export PATH="${SCRATCH_PREFIX}/bin:${SCRATCH_PREFIX}:${PATH}"
 solo one-shot single destroy --quiet-mode --dev || true
 kind delete cluster --name solo-cluster || true
 rm -rf output/release-smoke-test "${SCRATCH_PREFIX}" "${SOLO_HOME}" "$(dirname "${KUBECONFIG}")"
