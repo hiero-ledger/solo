@@ -6,6 +6,7 @@ import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {SoloChartRepository} from '../core/solo-chart-repository.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
@@ -350,7 +351,7 @@ export class ExplorerCommand extends BaseCommand {
             NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
             constants.SOLO_CERT_MANAGER_CHART,
             constants.SOLO_CERT_MANAGER_CHART,
-            config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+            config.chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),
             soloChartVersion,
             new HelmChartValues().set('cert-manager.installCRDs', true),
             config.clusterContext,
@@ -381,7 +382,7 @@ export class ExplorerCommand extends BaseCommand {
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
           constants.SOLO_CERT_MANAGER_CHART,
           constants.SOLO_CERT_MANAGER_CHART,
-          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),
           soloChartVersion,
           soloCertManagerChartValues,
           config.clusterContext,

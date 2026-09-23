@@ -24,7 +24,7 @@ export const AARDVARK_DNS_VERSION: string = 'v2.0.0';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const CRANE_VERSION: string = 'v0.21.4';
 
-export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.66.1';
+export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.66.2';
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.75.1';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.161.0';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.2.0';
@@ -52,7 +52,7 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
 // Image versions embedded in the solo-deployment Helm chart (SOLO_CHART_VERSION).
 // These must stay in sync with charts/solo-deployment/values.yaml whenever SOLO_CHART_VERSION bumps.
 export const SOLO_CHEETAH_VERSION: string = constants.getEnvironmentVariable('SOLO_CHEETAH_VERSION') || '0.4.5';
-export const SOLO_CONTAINERS_VERSION: string = constants.getEnvironmentVariable('SOLO_CONTAINERS_VERSION') || '0.46.0';
+export const SOLO_CONTAINERS_VERSION: string = constants.getEnvironmentVariable('SOLO_CONTAINERS_VERSION') || '0.46.2';
 
 // -------------------------------------------------------------------- //
 // Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
