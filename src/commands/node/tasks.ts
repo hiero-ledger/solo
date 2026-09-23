@@ -4346,7 +4346,7 @@ export class NodeCommandTasks {
           let found: boolean = false;
           while (attempt < attempts) {
             try {
-              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+              if (await rootContainer.hasDir(targetWrapsPath)) {
                 found = true;
                 break;
               }
@@ -4363,7 +4363,17 @@ export class NodeCommandTasks {
             continue;
           }
 
-          await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+          await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
+          for (const file of wraps.allowedKeyFileSet) {
+            const sourcePath: string = PathEx.join(extractedDirectory, file);
+            if (fs.existsSync(sourcePath)) {
+              await rootContainer.copyFileResumable(
+                sourcePath,
+                `${targetWrapsPath}/${file}`,
+                constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+              );
+            }
+          }
         }
       },
     };

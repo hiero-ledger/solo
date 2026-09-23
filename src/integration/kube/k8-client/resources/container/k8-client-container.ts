@@ -442,9 +442,9 @@ export class K8ClientContainer implements Container {
         '-c',
         `test -f "${remotePath}" && ` +
           `test "$(stat -c %s "${remotePath}")" = "${expectedSize}" && ` +
-          `test "$(sha256sum "${remotePath}" | cut -d ' ' -f 1)" = "${expectedChecksum}"`,
+          `test "$(sha256sum "${remotePath}" | cut -d ' ' -f 1)" = "${expectedChecksum}" && echo -n valid`,
       ]);
-      return result.trim().length === 0;
+      return result.trim() === 'valid';
     } catch {
       // A missing, partial, or unreadable remote chunk is not reusable; the caller will upload it again.
       return false;

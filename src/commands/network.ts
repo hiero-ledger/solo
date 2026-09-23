@@ -1989,7 +1989,8 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
-            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz
+            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz.
+            // Keep the archive on the node because it is required during genesis.
             // (tss.wrapsProvingKeyPath) at genesis, not from the pre-extracted
             // TSS_LIB_WRAPS_ARTIFACTS_PATH directory. If the wraps-key-path directory carries the
             // tarball, stage it under that exact name so the library is ready for the genesis history
@@ -2011,7 +2012,8 @@ export class NetworkCommand extends BaseCommand {
               `${wraps.directoryName}.tar.gz`,
             );
             const wrapsArchivePath: string | undefined =
-              wrapsTarball ?? (fs.existsSync(downloadedWrapsArchive) ? downloadedWrapsArchive : undefined);
+              wrapsTarball ??
+              (!config.wrapsKeyPath && fs.existsSync(downloadedWrapsArchive) ? downloadedWrapsArchive : undefined);
 
             // The library is hundreds of megabytes per node, so on a large network the copies
             // dominate deploy time. Running them concurrently is much faster but puts every
@@ -2027,43 +2029,31 @@ export class NetworkCommand extends BaseCommand {
 
                   const targetKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
                   const targetWrapsPath: string = `${targetKeysDirectory}/${wraps.directoryName}`;
-                  const wrapsDirectoryExists: boolean = await rootContainer
-                    .execContainer(`test -d "${targetWrapsPath}"`)
-                    .then(
-                      (): boolean => true,
-                      (): boolean => false,
-                    );
+                  const wrapsDirectoryExists: boolean = await rootContainer.hasDir(targetWrapsPath);
 
                   if (wrapsArchivePath) {
                     const targetWrapsTarball: string = `${targetKeysDirectory}/wraps.tar.gz`;
-                    if (wrapsDirectoryExists) {
-                      const wrapsTarballExists: boolean = await rootContainer
-                        .execContainer(`test -f "${targetWrapsTarball}"`)
-                        .then(
-                          (): boolean => true,
-                          (): boolean => false,
-                        );
-
-                      if (!wrapsTarballExists) {
-                        await rootContainer.copyFileResumable(
-                          wrapsArchivePath,
-                          targetWrapsTarball,
-                          constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
-                        );
-                      }
-                    } else {
+                    const wrapsTarballExists: boolean = await rootContainer.hasFile(targetWrapsTarball);
+                    if (!wrapsTarballExists) {
                       await rootContainer.copyFileResumable(
                         wrapsArchivePath,
                         targetWrapsTarball,
                         constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
                       );
+                    }
+
+                    if (!wrapsDirectoryExists) {
+                      const allowedArchiveMembers: string[] = [...wraps.allowedKeyFileSet];
                       await rootContainer.execContainer([
                         'bash',
                         '-c',
                         `temporary_directory="${targetWrapsPath}.partial" && ` +
                           'rm -rf "$temporary_directory" && mkdir -p "$temporary_directory" && ' +
-                          `tar -xzf "${targetWrapsTarball}" -C "$temporary_directory" && ` +
+                          `tar -xzf "${targetWrapsTarball}" -C "$temporary_directory" -- "$@" && ` +
+                          `rm -rf "${targetWrapsPath}" && ` +
                           `mv "$temporary_directory" "${targetWrapsPath}"`,
+                        'wraps-archive-members',
+                        ...allowedArchiveMembers,
                       ]);
                     }
                   } else if (!wrapsDirectoryExists) {

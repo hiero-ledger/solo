@@ -3,6 +3,9 @@
 import {expect} from 'chai';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {K8ClientContainer} from '../../../../src/integration/kube/k8-client/resources/container/k8-client-container.js';
 import {KubeContainerOperationFailedError} from '../../../../src/integration/kube/errors/kube-container-operation-failed-error.js';
 import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';
@@ -128,5 +131,68 @@ describe('K8ClientContainer execContainer', (): void => {
       expect(await containerClient.hasDir('/tmp')).to.be.true;
       expect(execKubectlStub.secondCall.args[0]).to.include('/bin/sh');
     });
+  });
+});
+
+describe('K8ClientContainer copyFileResumable', (): void => {
+  const containerReference: ContainerReference = ContainerReference.of(
+    PodReference.of(NamespaceName.of('test-namespace'), PodName.of('test-pod')),
+    ContainerName.of('test-container'),
+  );
+
+  let containerClient: K8ClientContainer;
+  let temporaryDirectory: string;
+
+  beforeEach((): void => {
+    resetForTest();
+    const pods: Pods = {waitForPodByReference: sinon.stub().resolves({})} as unknown as Pods;
+    containerClient = new K8ClientContainer(
+      {getCurrentContext: (): string => 'test-context'} as never,
+      containerReference,
+      pods,
+      '',
+    );
+    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'resumable-copy-test-'));
+  });
+
+  afterEach((): void => {
+    sinon.restore();
+    fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+  });
+
+  it('skips valid chunks and re-uploads invalid chunks', async (): Promise<void> => {
+    const sourcePath: string = path.join(temporaryDirectory, 'source.bin');
+    fs.writeFileSync(sourcePath, 'abcdef');
+
+    const execContainerStub: SinonStub = sinon.stub(containerClient, 'execContainer');
+    execContainerStub.onCall(0).resolves(''); // create the remote transfer directory
+    execContainerStub.onCall(1).resolves(''); // first chunk is invalid
+    execContainerStub.onCall(2).resolves('valid'); // first chunk after upload
+    execContainerStub.onCall(3).resolves('valid'); // second chunk is reusable
+    execContainerStub.onCall(4).resolves(''); // final assembly
+    const copyToStub: SinonStub = sinon.stub(containerClient, 'copyTo').resolves(true);
+
+    await containerClient.copyFileResumable(sourcePath, '/data/target.bin', 3);
+
+    expect(copyToStub).to.have.been.calledOnce;
+    expect(execContainerStub).to.have.callCount(5);
+  });
+
+  it('throws when the assembled remote file has the wrong checksum', async (): Promise<void> => {
+    const sourcePath: string = path.join(temporaryDirectory, 'source.bin');
+    fs.writeFileSync(sourcePath, 'abc');
+
+    const failure: KubeContainerOperationFailedError = kubectlFailure('checksum mismatch');
+    const execContainerStub: SinonStub = sinon.stub(containerClient, 'execContainer');
+    execContainerStub.onCall(0).resolves('');
+    execContainerStub.onCall(1).resolves('valid');
+    execContainerStub.onCall(2).rejects(failure);
+
+    try {
+      await containerClient.copyFileResumable(sourcePath, '/data/target.bin', 3);
+      expect.fail('Expected copyFileResumable to reject');
+    } catch (error) {
+      expect(error).to.equal(failure);
+    }
   });
 });
