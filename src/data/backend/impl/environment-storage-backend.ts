@@ -61,14 +61,20 @@ export class EnvironmentStorageBackend implements StorageBackend {
    */
 
   public async list(): Promise<string[]> {
-    let environment: object = process.env;
+    let environment: NodeJS.ProcessEnv = process.env;
     if (!environment) {
       environment = {};
     }
 
     const keys: string[] = Object.keys(environment);
+    // A variable that is set but empty must not be listed: readBytes rejects a blank value, so listing it
+    // would hand the caller a key that cannot be read and abort config loading over a variable carrying
+    // no configuration at all.
     return keys
-      .filter((value): boolean => Prefix.matcher(value, this.prefix, EnvironmentKeyFormatter.instance()))
+      .filter(
+        (value): boolean =>
+          Prefix.matcher(value, this.prefix, EnvironmentKeyFormatter.instance()) && Boolean(environment[value]),
+      )
       .map((value): string => Prefix.strip(value, this.prefix));
   }
 

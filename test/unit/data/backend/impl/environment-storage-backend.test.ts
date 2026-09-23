@@ -26,6 +26,21 @@ describe('EnvironmentStorageBackend', (): void => {
     expect(keys.filter((key: string): boolean => key === expectedKey)).to.have.lengthOf(1);
   });
 
+  // Regression: an empty SOLO_HOME_DIR was listed as 'home.dir' but rejected by readBytes, aborting
+  // startup with "Failed to read environment variable: home.dir".
+  it('list ignores environment variables that are set but empty', async (): Promise<void> => {
+    const environmentVariableName: string = 'ENV_STORAGE_EMPTY';
+    process.env[environmentVariableName] = '';
+    try {
+      const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend();
+      const keys: string[] = await backend.list();
+      const emptyKey: string = environmentVariableName.toLowerCase().replaceAll('_', '.');
+      expect(keys).to.not.include(emptyKey);
+    } finally {
+      delete process.env[environmentVariableName];
+    }
+  });
+
   it('list with no process.env', async (): Promise<void> => {
     const environment: NodeJS.ProcessEnv = process.env;
     try {
