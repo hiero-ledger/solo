@@ -61,6 +61,7 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {ResumableCopySource} from '../integration/kube/resources/container/resumable-copy-source.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -1933,7 +1934,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
-          task: async ({config}, task): Promise<SoloListr<NetworkDeployContext>> => {
+          task: async ({config}, task): Promise<void> => {
             const wraps: Wraps = this.soloConfig.tss.wraps;
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
@@ -2014,6 +2015,9 @@ export class NetworkCommand extends BaseCommand {
             const wrapsArchivePath: string | undefined =
               wrapsTarball ??
               (!config.wrapsKeyPath && fs.existsSync(downloadedWrapsArchive) ? downloadedWrapsArchive : undefined);
+            const preparedWrapsSource: ResumableCopySource | undefined = wrapsArchivePath
+              ? ResumableCopySource.create(wrapsArchivePath, constants.CONTAINER_COPY_CHUNK_SIZE_BYTES)
+              : undefined;
 
             // The library is hundreds of megabytes per node, so on a large network the copies
             // dominate deploy time. Running them concurrently is much faster but puts every
@@ -2039,6 +2043,7 @@ export class NetworkCommand extends BaseCommand {
                         wrapsArchivePath,
                         targetWrapsTarball,
                         constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                        preparedWrapsSource,
                       );
                     }
 
@@ -2063,12 +2068,17 @@ export class NetworkCommand extends BaseCommand {
               }),
             );
 
-            return task.newListr(subTasks, {
+            const copyTasks: SoloListr<NetworkDeployContext> = task.newListr(subTasks, {
               concurrent: constants.EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL,
               rendererOptions: {
                 collapseSubtasks: false,
               },
             });
+            try {
+              await copyTasks.run();
+            } finally {
+              preparedWrapsSource?.dispose();
+            }
           },
         },
         {

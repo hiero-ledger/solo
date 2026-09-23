@@ -31,7 +31,7 @@ import type * as stream from 'node:stream';
 import {platform} from 'node:process';
 import {PathEx} from '../../../../../business/utils/path-ex.js';
 import eol from 'eol';
-import crypto from 'node:crypto';
+import {ResumableCopySource} from '../../../resources/container/resumable-copy-source.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -325,35 +325,22 @@ export class K8ClientContainer implements Container {
     sourcePath: string,
     destinationPath: string,
     chunkSizeBytes: number,
+    preparedSource?: ResumableCopySource,
   ): Promise<boolean> {
-    if (!fs.existsSync(sourcePath)) {
-      throw new KubeContainerInvalidPathError('source', sourcePath);
-    }
-    if (!Number.isSafeInteger(chunkSizeBytes) || chunkSizeBytes <= 0) {
-      throw new KubeIllegalArgumentError('chunk size must be a positive safe integer');
-    }
-
-    const sourceSize: number = fs.statSync(sourcePath).size;
-    const sourceChecksum: string = await this.calculateFileChecksum(sourcePath);
-    const transferDirectory: string = `${path.dirname(destinationPath)}/.solo-transfer-${sourceChecksum}`;
-    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-resumable-copy-'));
+    const resumableSource: ResumableCopySource =
+      preparedSource ?? ResumableCopySource.create(sourcePath, chunkSizeBytes);
+    const transferDirectory: string = `${path.dirname(destinationPath)}/.solo-transfer-${resumableSource.sourceChecksum}`;
 
     try {
       await this.execContainer(['bash', '-c', `mkdir -p "${transferDirectory}"`]);
 
-      const chunkCount: number = Math.ceil(sourceSize / chunkSizeBytes);
-      for (let chunkIndex: number = 0; chunkIndex < chunkCount; chunkIndex++) {
-        const chunkStart: number = chunkIndex * chunkSizeBytes;
-        const chunkLength: number = Math.min(chunkSizeBytes, sourceSize - chunkStart);
-        const chunkName: string = `chunk-${chunkIndex.toString().padStart(6, '0')}`;
-        const remoteChunkPath: string = `${transferDirectory}/${chunkName}`;
-        const localChunkPath: string = PathEx.join(temporaryDirectory, chunkName);
-        const chunkChecksum: string = await this.writeChunk(sourcePath, localChunkPath, chunkStart, chunkLength);
+      for (const chunk of resumableSource.chunks) {
+        const remoteChunkPath: string = `${transferDirectory}/${path.basename(chunk.path)}`;
 
-        const remoteChunkValid: boolean = await this.isRemoteFileValid(remoteChunkPath, chunkLength, chunkChecksum);
+        const remoteChunkValid: boolean = await this.isRemoteFileValid(remoteChunkPath, chunk.length, chunk.checksum);
         if (!remoteChunkValid) {
-          await this.copyTo(localChunkPath, transferDirectory);
-          const copiedChunkValid: boolean = await this.isRemoteFileValid(remoteChunkPath, chunkLength, chunkChecksum);
+          await this.copyTo(chunk.path, transferDirectory);
+          const copiedChunkValid: boolean = await this.isRemoteFileValid(remoteChunkPath, chunk.length, chunk.checksum);
           if (!copiedChunkValid) {
             throw new KubeContainerOperationFailedError(
               `resumable copy verification for ${remoteChunkPath}`,
@@ -361,8 +348,6 @@ export class K8ClientContainer implements Container {
             );
           }
         }
-
-        fs.rmSync(localChunkPath, {force: true});
       }
 
       const remoteTemporaryPath: string = `${destinationPath}.partial`;
@@ -371,64 +356,21 @@ export class K8ClientContainer implements Container {
         'bash',
         '-c',
         `cat ${chunkPattern} > "${remoteTemporaryPath}" && ` +
-          `test "$(stat -c %s "${remoteTemporaryPath}")" = "${sourceSize}" && ` +
-          `test "$(sha256sum "${remoteTemporaryPath}" | cut -d ' ' -f 1)" = "${sourceChecksum}" && ` +
+          `test "$(stat -c %s "${remoteTemporaryPath}")" = "${resumableSource.sourceSize}" && ` +
+          `test "$(sha256sum "${remoteTemporaryPath}" | cut -d ' ' -f 1)" = "${resumableSource.sourceChecksum}" && ` +
           `mv "${remoteTemporaryPath}" "${destinationPath}" && ` +
           `rm -rf "${transferDirectory}"`,
       ]);
 
       this.logger.info(
-        `copyFileResumable: completed ${sourcePath} -> ${destinationPath} (${sourceSize} bytes in ${chunkCount} chunks)`,
+        `copyFileResumable: completed ${sourcePath} -> ${destinationPath} (${resumableSource.sourceSize} bytes in ${resumableSource.chunks.length} chunks)`,
       );
       return true;
     } finally {
-      if (fs.existsSync(temporaryDirectory)) {
-        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+      if (!preparedSource) {
+        resumableSource.dispose();
       }
     }
-  }
-
-  private async calculateFileChecksum(filePath: string): Promise<string> {
-    return new Promise<string>((resolve, reject): void => {
-      const checksum: crypto.Hash = crypto.createHash('sha256');
-      const input: fs.ReadStream = fs.createReadStream(filePath);
-      input.on('data', (chunk: Buffer): void => {
-        checksum.update(chunk);
-      });
-      input.on('end', (): void => resolve(checksum.digest('hex')));
-      input.on('error', (error: Error): void => reject(error));
-    });
-  }
-
-  private async writeChunk(sourcePath: string, chunkPath: string, start: number, length: number): Promise<string> {
-    const sourceHandle: number = fs.openSync(sourcePath, 'r');
-    const chunkHandle: number = fs.openSync(chunkPath, 'w');
-    const checksum: crypto.Hash = crypto.createHash('sha256');
-    const buffer: Buffer = Buffer.allocUnsafe(Math.min(16 * 1024 * 1024, length));
-    let remaining: number = length;
-    let position: number = start;
-
-    try {
-      while (remaining > 0) {
-        const bytesToRead: number = Math.min(buffer.length, remaining);
-        const bytesRead: number = fs.readSync(sourceHandle, buffer, 0, bytesToRead, position);
-        if (bytesRead === 0) {
-          throw new KubeContainerOperationFailedError(
-            `reading resumable copy source ${sourcePath}`,
-            new Error('source file ended before the expected chunk length'),
-          );
-        }
-        fs.writeSync(chunkHandle, buffer, 0, bytesRead);
-        checksum.update(buffer.subarray(0, bytesRead));
-        position += bytesRead;
-        remaining -= bytesRead;
-      }
-    } finally {
-      fs.closeSync(chunkHandle);
-      fs.closeSync(sourceHandle);
-    }
-
-    return checksum.digest('hex');
   }
 
   private async isRemoteFileValid(

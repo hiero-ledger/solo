@@ -13,6 +13,7 @@ import {ContainerName} from '../../../../src/integration/kube/resources/containe
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {type Pods} from '../../../../src/integration/kube/resources/pod/pods.js';
+import {ResumableCopySource} from '../../../../src/integration/kube/resources/container/resumable-copy-source.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../../test-container.js';
 
@@ -171,8 +172,13 @@ describe('K8ClientContainer copyFileResumable', (): void => {
     execContainerStub.onCall(3).resolves('valid'); // second chunk is reusable
     execContainerStub.onCall(4).resolves(''); // final assembly
     const copyToStub: SinonStub = sinon.stub(containerClient, 'copyTo').resolves(true);
+    const preparedSource: ResumableCopySource = ResumableCopySource.create(sourcePath, 3);
 
-    await containerClient.copyFileResumable(sourcePath, '/data/target.bin', 3);
+    try {
+      await containerClient.copyFileResumable(sourcePath, '/data/target.bin', 3, preparedSource);
+    } finally {
+      preparedSource.dispose();
+    }
 
     expect(copyToStub).to.have.been.calledOnce;
     expect(execContainerStub).to.have.callCount(5);

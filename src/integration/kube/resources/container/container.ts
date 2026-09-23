@@ -2,6 +2,7 @@
 
 import {type TarCreateFilter} from '../../../../types/aliases.js';
 import {type TDirectoryData} from '../../t-directory-data.js';
+import {type ResumableCopySource} from './resumable-copy-source.js';
 import type stream from 'node:stream';
 
 export interface Container {
@@ -31,7 +32,12 @@ export interface Container {
    * @param destinationPath - the complete remote destination path
    * @param chunkSizeBytes - the maximum size of each transfer chunk
    */
-  copyFileResumable(sourcePath: string, destinationPath: string, chunkSizeBytes: number): Promise<boolean>;
+  copyFileResumable(
+    sourcePath: string,
+    destinationPath: string,
+    chunkSizeBytes: number,
+    preparedSource?: ResumableCopySource,
+  ): Promise<boolean>;
 
   /**
    * Invoke sh command within a container and return the console output as string
