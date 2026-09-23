@@ -141,6 +141,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   NODE_CONTAINER_CRASHED: 'SOLO-3094',
   RELAY_OPERATOR_SECRET_CREATION_FAILED: 'SOLO-3095',
   MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3096',
+  NODE_RESTORE_STATUS_MISMATCH: 'SOLO-3097',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -311,6 +312,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   PORT_FORWARD_STOP_FAILED: 'SOLO-5082',
   SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5083',
   PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5084',
+  SAVED_STATE_HASH_TOOL_MISSING: 'SOLO-5085',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
