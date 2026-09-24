@@ -649,6 +649,10 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
         chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
+        // quay.io/minio/minio stopped publishing new community images after 2025-10-23; use
+        // Chainguard's free replacement instead, pinned by digest (see version.ts).
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.repository', versions.MINIO_IMAGE_REPOSITORY);
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.digest', versions.MINIO_IMAGE_DIGEST);
       }
     } else if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
