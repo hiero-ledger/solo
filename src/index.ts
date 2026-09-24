@@ -22,6 +22,10 @@ import {HomebrewDeprecationNotifier} from './core/homebrew-deprecation-notifier.
 import {VersionBanner} from './core/version-banner.js';
 import {type ConfigProvider} from './data/configuration/api/config-provider.js';
 
+// Re-exported so the SEA bootstrap (sea/sea-main.template.cjs) can reach it from the bundled
+// entry point without a separate import path — it shares this same entrypoint tail with solo.ts.
+export {CliBootstrap} from './core/cli-bootstrap.js';
+
 if (!process.stdout.isTTY) {
   chalk.level = 0;
 }
