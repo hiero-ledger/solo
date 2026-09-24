@@ -738,7 +738,7 @@ describe('BlockNodeCommand unit tests', (): void => {
 
       expect((): void => compatibilityInternal.assertBlockProofCompatibility('0.40.0', '0.74.0', false)).to.not.throw();
       expect((): void =>
-        compatibilityInternal.assertBlockProofCompatibility('0.41.0', 'v0.77.0-rc.11', false),
+        compatibilityInternal.assertBlockProofCompatibility('0.41.0', 'v0.77.2', false),
       ).to.not.throw();
     });
 

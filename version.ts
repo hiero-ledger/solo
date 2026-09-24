@@ -94,7 +94,7 @@ export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT: string 
 // consensus node produces that shape from the v0.77 line and the block node verifies it from 0.41.0,
 // so a deployment must keep both on the same side of the boundary: a mismatch is rejected with
 // BAD_BLOCK_PROOF, which saturates the consensus node block buffer and stalls the network. The '-0'
-// suffix makes pre-releases (e.g. v0.77.0-rc.11) satisfy the check.
+// suffix makes pre-releases (e.g. v0.77.2) satisfy the check.
 export const MINIMUM_CN_VERSION_FOR_16_SLOT_BLOCK_PROOF: string = 'v0.77.0-0';
 export const MINIMUM_BLOCK_NODE_VERSION_FOR_16_SLOT_BLOCK_PROOF: string = 'v0.41.0-0';
 

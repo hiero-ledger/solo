@@ -291,6 +291,6 @@ jobs:
       - generate_matrix
     uses: $/.github/workflows/flow-standard-runner-one-shot-windows.yaml
     with:
-      cn-edge-version: v0.77.0-rc.11
+      cn-edge-version: v0.77.2
       run-twice: true
     secrets: inherit

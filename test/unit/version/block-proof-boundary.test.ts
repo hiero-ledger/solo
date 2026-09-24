@@ -27,7 +27,7 @@ const usesFixedSlotBlockProof: (blockNodeVersion: string, consensusNodeVersion: 
 describe('16-slot block proof boundary', (): void => {
   const cases: Array<[string, string, boolean]> = [
     // Matched pairs on either side of the boundary are allowed.
-    ['0.41.0', 'v0.77.0-rc.11', true],
+    ['0.41.0', 'v0.77.2', true],
     ['0.40.1', 'v0.75.1', true],
     ['0.42.0', 'v0.78.0', true],
     // New-format block node against an old-format consensus node.
@@ -35,7 +35,7 @@ describe('16-slot block proof boundary', (): void => {
     ['0.41.0', 'v0.75.1', false],
     ['0.41.0', 'v0.74.0', false],
     // Old-format block node against a new-format consensus node.
-    ['0.40.0', 'v0.77.0-rc.11', false],
+    ['0.40.0', 'v0.77.2', false],
   ];
 
   for (const [blockNodeVersion, consensusNodeVersion, compatible] of cases) {
