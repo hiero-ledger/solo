@@ -11,7 +11,11 @@ import * as constants from '../../../src/core/constants.js';
 import {ROOT_DIR} from '../../../src/core/constants.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
-import {NetworkCommand, type NetworkDeployConfigClass} from '../../../src/commands/network.js';
+import {
+  NetworkCommand,
+  type NetworkDeployConfigClass,
+  type NetworkDeployContext,
+} from '../../../src/commands/network.js';
 import {type LockManager} from '../../../src/core/lock/lock-manager.js';
 import {type ProfileManager} from '../../../src/core/profile-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
@@ -37,7 +41,12 @@ import fs from 'node:fs';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type ClusterReferences} from '../../../src/types/index.js';
+import {
+  type ClusterReferences,
+  type SoloListr,
+  type SoloListrTask,
+  type SoloListrTaskWrapper,
+} from '../../../src/types/index.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
@@ -283,6 +292,94 @@ describe('NetworkCommand unit tests', (): void => {
         expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.upgrade.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
+      } finally {
+        sinon.restore();
+      }
+    });
+
+    it('serializes monitoring CRD installation with concurrent: false to prevent races on Windows', async (): Promise<void> => {
+      try {
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'solo-e2e', 'context1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
+        const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.updateComponentVersion = sinon.stub();
+        options.remoteConfig.configuration.state = {};
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
+
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.componentFactory = {
+          createNewEnvoyProxyComponent: sinon.stub(),
+          createNewHaProxyComponent: sinon.stub(),
+        };
+
+        let monitoringCrdsOptions: {concurrent?: boolean} | undefined;
+        let monitoringCrdsSubtasks: SoloListrTask<NetworkDeployContext>[] | undefined;
+
+        // @ts-expect-error - TS2341: to inspect task list
+        const originalNewTaskList: (...arguments_: unknown[]) => SoloListr<NetworkDeployContext> =
+          // @ts-expect-error - TS2341: to inspect task list
+          networkCommand.taskList.newTaskList.bind(networkCommand.taskList);
+        // @ts-expect-error - TS2341: to inspect task list
+        sinon
+          .stub(networkCommand.taskList, 'newTaskList')
+          .callsFake(
+            (
+              tasks: SoloListrTask<NetworkDeployContext>[],
+              ...arguments_: unknown[]
+            ): SoloListr<NetworkDeployContext> => {
+              const monitoringTask: SoloListrTask<NetworkDeployContext> | undefined = tasks.find(
+                (taskItem: SoloListrTask<NetworkDeployContext>): boolean =>
+                  taskItem.title === 'Install monitoring CRDs',
+              );
+              if (monitoringTask && typeof monitoringTask.task === 'function') {
+                const originalTaskFunction: (
+                  context_: NetworkDeployContext,
+                  taskWrapper: SoloListrTaskWrapper<NetworkDeployContext>,
+                ) => unknown = monitoringTask.task as (
+                  context_: NetworkDeployContext,
+                  taskWrapper: SoloListrTaskWrapper<NetworkDeployContext>,
+                ) => unknown;
+                monitoringTask.task = (
+                  context_: NetworkDeployContext,
+                  taskWrapper: SoloListrTaskWrapper<NetworkDeployContext>,
+                ): unknown => {
+                  const originalNewListr: (
+                    subtasks: SoloListrTask<NetworkDeployContext>[],
+                    options_?: {concurrent?: boolean},
+                  ) => unknown = taskWrapper.newListr.bind(taskWrapper);
+                  taskWrapper.newListr = (
+                    subtasks: SoloListrTask<NetworkDeployContext>[],
+                    options_?: {concurrent?: boolean},
+                  ): unknown => {
+                    monitoringCrdsSubtasks = subtasks;
+                    monitoringCrdsOptions = options_;
+                    return originalNewListr(subtasks, options_);
+                  };
+                  return originalTaskFunction(context_, taskWrapper);
+                };
+              }
+              return originalNewTaskList(tasks, ...arguments_);
+            },
+          );
+
+        await networkCommand.deploy(argv.build());
+
+        expect(monitoringCrdsOptions).to.be.an('object');
+        expect(monitoringCrdsOptions?.concurrent).to.equal(false);
+        expect(monitoringCrdsSubtasks).to.have.lengthOf(2);
+        expect(monitoringCrdsSubtasks?.[0].title).to.equal('Pod Logs CRDs');
+        expect(monitoringCrdsSubtasks?.[1].title).to.equal('Prometheus Operator CRDs');
       } finally {
         sinon.restore();
       }

@@ -1707,7 +1707,7 @@ export class NetworkCommand extends BaseCommand {
               },
             ];
 
-            return task.newListr(tasks, {concurrent: true, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+            return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
           },
         },
         {
