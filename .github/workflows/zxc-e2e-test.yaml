@@ -325,6 +325,12 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          go-version: '1.22.3'
+
       - name: Install grpcurl
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
