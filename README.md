@@ -37,6 +37,7 @@ Odd-numbered Solo releases are supported for one month after their release date.
 
 | Solo Version | Node.js             | Consensus Node | Kubernetes | Docker Resources               | Release Date | End of Support |
 |--------------|---------------------|----------------|------------|--------------------------------|--------------|----------------|
+| 0.90.1       | >= 22.0.0 (lts/jod) | v0.76.4        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-09-24   | 2026-10-24     |
 | 0.90.0 (LTS) | >= 22.0.0 (lts/jod) | v0.76.4        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-09-22   | 2026-12-22     |
 | 0.89.0       | >= 22.0.0 (lts/jod) | v0.75.1        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-09-15   | 2026-10-15     |
 | 0.88.0       | >= 22.0.0 (lts/jod) | v0.75.1        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-08-25   | 2026-09-25     |
