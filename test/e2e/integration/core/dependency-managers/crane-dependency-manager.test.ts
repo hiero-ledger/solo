@@ -257,7 +257,7 @@ describe('CraneDependencyManager', (): void => {
         MOCK_RELEASE_TAG,
       );
 
-      // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+      // @ts-expect-error TS2445: Property fetchReleaseInfo is protected
       const releaseInfo: ReleaseInfo = await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
 
       expect(releaseInfo.downloadUrl).to.equal(MOCK_DOWNLOAD_URL_BASE);
@@ -278,7 +278,7 @@ describe('CraneDependencyManager', (): void => {
         MOCK_RELEASE_TAG,
       );
 
-      // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+      // @ts-expect-error TS2445: Property fetchReleaseInfo is protected
       const releaseInfo: ReleaseInfo = await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
 
       expect(releaseInfo.assetName).to.equal(MOCK_DARWIN_ARM64_ASSET_NAME);
@@ -289,7 +289,7 @@ describe('CraneDependencyManager', (): void => {
       fetchStub.resolves(MOCK_GITHUB_ERROR_RESPONSE);
 
       try {
-        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        // @ts-expect-error TS2445: Property fetchReleaseInfo is protected
         await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error) {
@@ -302,7 +302,7 @@ describe('CraneDependencyManager', (): void => {
       fetchStub.resolves(MOCK_GITHUB_EMPTY_RELEASES);
 
       try {
-        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        // @ts-expect-error TS2445: Property fetchReleaseInfo is protected
         await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error) {
@@ -315,7 +315,7 @@ describe('CraneDependencyManager', (): void => {
       container.register(InjectTokens.OsPlatform, {useValue: OperatingSystem.OS_LINUX});
 
       try {
-        // @ts-expect-error TS2341: Property fetchReleaseInfo is private
+        // @ts-expect-error TS2445: Property fetchReleaseInfo is protected
         await craneDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error) {
