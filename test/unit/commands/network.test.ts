@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon, {type SinonSpy, type SinonSpyCall, type SinonStub} from 'sinon';
+import sinon, {type SinonSpyCall, type SinonStub} from 'sinon';
 import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
@@ -215,10 +215,6 @@ describe('NetworkCommand unit tests', (): void => {
             return false;
           }
 
-          if (releaseName === constants.SOLO_DEPLOYMENT_CHART) {
-            return true;
-          }
-
           return false;
         });
       options.chartManager.upgrade = sinon.stub().returns(true);
@@ -251,7 +247,7 @@ describe('NetworkCommand unit tests', (): void => {
       sinon.restore();
     });
 
-    it('Install function is called with expected parameters', async (): Promise<void> => {
+    it('rejects deploy when the network deployment already exists', async (): Promise<void> => {
       try {
         const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
         options.remoteConfig.getConsensusNodes = sinon
@@ -271,7 +267,7 @@ describe('NetworkCommand unit tests', (): void => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
 
-        const warningSpy: SinonSpy = sinon.spy(options.logger, 'warn');
+        options.chartManager.isChartInstalled = sinon.stub().resolves(true);
 
         // @ts-expect-error - TS2341: to mock
         networkCommand.componentFactory = {
@@ -279,13 +275,11 @@ describe('NetworkCommand unit tests', (): void => {
           createNewHaProxyComponent: sinon.stub(),
         };
 
-        await networkCommand.deploy(argv.build());
-
-        expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
-        expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.upgrade.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
-        expect(warningSpy).calledWithMatch("'consensus network deploy' reapplies the chart");
+        await expect(networkCommand.deploy(argv.build())).to.be.rejectedWith(
+          /Network deployment 'deployment' already exists.*consensus network deploy.*first-time deployments/i,
+        );
+        expect(options.chartManager.uninstall).not.to.have.been.called;
+        expect(options.chartManager.upgrade).not.to.have.been.called;
       } finally {
         sinon.restore();
       }
@@ -339,8 +333,7 @@ describe('NetworkCommand unit tests', (): void => {
         const uninstallCalls: SinonSpyCall[] = options.chartManager.uninstall
           .getCalls()
           .filter((call: SinonSpyCall): boolean => call.args[1] === constants.SOLO_DEPLOYMENT_CHART);
-        // one uninstall for the pre-existing release plus one clean-up between the failed and retried attempts
-        expect(uninstallCalls).to.have.lengthOf(2);
+        expect(uninstallCalls).to.have.lengthOf(0);
       } finally {
         sinon.restore();
       }

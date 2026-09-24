@@ -1645,6 +1645,20 @@ export class NetworkCommand extends BaseCommand {
             await this.remoteConfig.persist();
 
             context_.config = await this.prepareConfig(task, argv);
+            for (const [clusterReference, context] of context_.config.clusterRefs) {
+              const isInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.SOLO_DEPLOYMENT_CHART,
+                context,
+              );
+              if (isInstalled) {
+                throw new SoloErrors.deployment.networkAlreadyDeployed(
+                  context_.config.deployment,
+                  context_.config.namespace.name,
+                  clusterReference,
+                );
+              }
+            }
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
@@ -1713,30 +1727,9 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs} = config;
+            const {clusterRefs} = config;
 
             for (const [clusterReference] of clusterRefs) {
-              const isInstalled: boolean = await this.chartManager.isChartInstalled(
-                namespace,
-                constants.SOLO_DEPLOYMENT_CHART,
-                clusterRefs.get(clusterReference),
-              );
-              if (isInstalled) {
-                this.logger.warn(
-                  `Existing '${constants.SOLO_DEPLOYMENT_CHART}' release detected in namespace '${namespace.name}' ` +
-                    `for cluster '${clusterReference}'. 'consensus network deploy' reapplies the chart and ` +
-                    'configuration but does not setup or start an existing consensus node. ' +
-                    "Use 'consensus network upgrade' for an existing network, or run 'consensus node setup' " +
-                    "followed by 'consensus node start' before submitting transactions.",
-                );
-                await this.chartManager.uninstall(
-                  namespace,
-                  constants.SOLO_DEPLOYMENT_CHART,
-                  clusterRefs.get(clusterReference),
-                );
-                config.isUpgrade = true;
-              }
-
               config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
                 config.soloChartVersion,
                 false,
@@ -2110,6 +2103,9 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        if (error instanceof SoloErrors.deployment.networkAlreadyDeployed) {
+          throw error;
+        }
         throw new SoloErrors.component.chartInstallFailed(constants.SOLO_DEPLOYMENT_CHART, error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
@@ -2284,27 +2280,22 @@ export class NetworkCommand extends BaseCommand {
     return {
       title: 'Add node and proxies to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async ({config: {consensusNodes, namespace, isUpgrade, releaseTag}}): Promise<void> => {
+      task: async ({config: {consensusNodes, namespace, releaseTag}}): Promise<void> => {
         for (const consensusNode of consensusNodes) {
           const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
           this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
-          if (isUpgrade) {
-            this.logger.info('Do not add envoy and haproxy components again during upgrade');
-          } else {
-            // do not add new envoy or haproxy components if they already exist
-            this.remoteConfig.configuration.components.addNewComponent(
-              this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
-              ComponentTypes.EnvoyProxy,
-            );
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+            ComponentTypes.EnvoyProxy,
+          );
 
-            this.remoteConfig.configuration.components.addNewComponent(
-              this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
-              ComponentTypes.HaProxy,
-            );
-          }
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+            ComponentTypes.HaProxy,
+          );
         }
         if (releaseTag) {
           // update the solo chart version to match the deployed version
