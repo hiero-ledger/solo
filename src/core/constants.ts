@@ -10,6 +10,7 @@ import {
 } from 'listr2';
 import path from 'node:path';
 import url from 'node:url';
+import {isSea} from 'node:sea';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {PathEx} from '../business/utils/path-ex.js';
@@ -36,7 +37,14 @@ export function getEnvironmentVariable(name: string): string | undefined {
   return undefined;
 }
 
-export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
+// In SEA mode the bootstrap (sea/sea-main.template.cjs) sets SOLO_SEA_ROOT_DIR to
+// ~/.solo/sea-resources/<version>/ before any module initializes, so all
+// RESOURCES_DIR-based paths continue to resolve without code changes at each read site. Gated on
+// isSea() so a plain `npm i -g @hiero-ledger/solo` install can't have this env var silently
+// redirect where solo reads its bundled resources, CRDs, and Helm values from.
+export const ROOT_DIR: string =
+  (isSea() && process.env['SOLO_SEA_ROOT_DIR']) ||
+  PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
 
 // -------------------- solo related constants ---------------------------------------------------------------------
 export const SOLO_HOME_DIR: string =
@@ -57,7 +65,6 @@ export const NETAVARK: string = 'netavark';
 export const AARDVARK_DNS: string = 'aardvark-dns';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
-export const CRANE: string = 'crane';
 export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
@@ -533,6 +540,13 @@ export const NETWORK_NODE_GRPC_READINESS_DELAY: number =
   +getEnvironmentVariable('NETWORK_NODE_GRPC_READINESS_DELAY') || 1000;
 export const NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES: number =
   +getEnvironmentVariable('NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES') || 3;
+
+// Saved State Stability Checks
+export const STATE_DOWNLOAD_STABLE_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('STATE_DOWNLOAD_STABLE_MAX_ATTEMPTS') || 180;
+export const STATE_DOWNLOAD_STABLE_DELAY: number = +getEnvironmentVariable('STATE_DOWNLOAD_STABLE_DELAY') || 2000;
+export const STATE_DOWNLOAD_STABLE_POLLS_REQUIRED: number =
+  +getEnvironmentVariable('STATE_DOWNLOAD_STABLE_POLLS_REQUIRED') || 3;
 
 export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWORK_PROXY_MAX_ATTEMPTS') || 300;
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
