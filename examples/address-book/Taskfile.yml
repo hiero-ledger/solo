@@ -1,6 +1,7 @@
 version: 3
 
 env:
+  ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
   SOLO_COMMAND:
     sh: |
       if [ "${USE_RELEASED_VERSION}" = "true" ]; then

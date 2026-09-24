@@ -716,13 +716,10 @@ explorerNode:
 EOF
 
 # TEMPORARY WORKAROUND:
-#   Do not let released Solo 0.83.0 deploy the source network in block-node one-shot mode.
-#   That released one-shot path forces MinIO and record uploaders off for CN >= v0.74.0, even
-#   when this migration explicitly runs the source CN in BOTH mode. If mirror is forced back to
-#   record import afterward, the importer has no MinIO/record source and relay never becomes ready.
-#   Deploy the source CN/mirror/relay with records first, then add the previous BN with current
-#   Solo below so the BN upgrade path is still covered while mirror smoke avoids BN #3150.
-export ONE_SHOT_WITH_BLOCK_NODE=false
+#   Use block-node one-shot mode for the source deployment so the migration follows the native
+#   block-node path and does not depend on MinIO. Keep BOTH mode temporarily while BN #3150 is
+#   open; this preserves compatibility with the migration smoke path until that issue is fixed.
+export ONE_SHOT_WITH_BLOCK_NODE=true
 export BLOCK_STREAM_STREAM_MODE="${MIGRATION_BLOCK_STREAM_MODE}"
 export BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
 export DISABLE_IMPORTER_SPRING_PROFILES="true"

@@ -66,6 +66,7 @@ concurrency:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  ONE_SHOT_WITH_BLOCK_NODE: 'true'
 
 jobs:
   standard-runner-one-shot:

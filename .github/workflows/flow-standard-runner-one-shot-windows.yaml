@@ -51,6 +51,7 @@ concurrency:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  ONE_SHOT_WITH_BLOCK_NODE: 'true'
   DOCKER_HOST: tcp://localhost:2375
   ACTIONS_STEP_DEBUG: 'true'
   ACTIONS_RUNNER_DEBUG: 'true'
