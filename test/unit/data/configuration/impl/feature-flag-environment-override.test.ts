@@ -16,7 +16,7 @@ import {ConfigKeyFormatter} from '../../../../../src/data/key/config-key-formatt
 import {EnvironmentAliasRegistry} from '../../../../../src/data/schema/decorators/environment-alias-registry.js';
 import {SoloConfigSchema} from '../../../../../src/data/schema/model/solo/solo-config-schema.js';
 import {type FeatureFlagsSchema} from '../../../../../src/data/schema/model/solo/feature-flags-schema.js';
-import {EnvironmentScope} from '../../../../../test/helpers/environment-scope.js';
+import {EnvironmentScope} from '../../../../helpers/environment-scope.js';
 
 const mapper: ClassToObjectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
 
