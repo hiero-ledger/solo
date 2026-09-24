@@ -18,19 +18,16 @@ import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as constants from '../../core/constants.js';
 import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from '../one-shot/one-shot-command-paths.js';
 import {Flags as flags} from '../flags.js';
-import {type FeatureFlags} from '../../business/runtime-state/config/solo/feature-flags.js';
 
 @injectable()
 export class OneShotCommandDefinition extends BaseCommandDefinition {
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.OneShotCommand) public readonly oneShotCommand?: DefaultOneShotCommand,
-    @inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
   ) {
     super();
     this.oneShotCommand = patchInject(oneShotCommand, InjectTokens.OneShotCommand, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
-    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
   }
 
   public static override readonly COMMAND_NAME: string = ONE_SHOT_COMMAND;
@@ -64,11 +61,6 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   public static readonly FALCON_DEPLOY_COMMAND: string = FALCON_DEPLOY_COMMAND;
 
   public getCommandDefinition(): CommandDefinition {
-    const deployDependencies: string[] = [
-      ...constants.BASE_DEPENDENCIES,
-      ...(this.featureFlags.enableImageCache ? [constants.CRANE] : []),
-    ];
-
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
         new CommandGroup(
@@ -82,7 +74,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.DEPLOY_FLAGS_LIST,
-              deployDependencies,
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -109,7 +101,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deploy,
               DefaultOneShotCommand.MULTI_DEPLOY_FLAGS_LIST,
-              deployDependencies,
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
@@ -136,7 +128,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand,
               this.oneShotCommand.deployFalcon,
               DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST,
-              deployDependencies,
+              [...constants.BASE_DEPENDENCIES],
               true,
             ),
           )
