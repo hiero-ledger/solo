@@ -280,7 +280,7 @@ jobs:
     # called workflows automatically and cannot be passed here.
     uses: $/.github/workflows/flow-performance-test.yaml
     with:
-      cn-edge-version: v0.75.1
+      cn-edge-version: v0.76.4
       report-to-slack: true
     secrets:
       SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
