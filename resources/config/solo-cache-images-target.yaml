@@ -67,10 +67,10 @@ images:
     source: quay.io
 
   # quay.io/minio/minio stopped publishing new community images after 2025-10-23; replaced with
-  # Chainguard's free image, pinned by digest (the free tier only publishes a rolling 'latest' tag).
-  - name: cgr.dev/chainguard/minio@sha256
+  # Silo (docker.io/pgsty/silo), a MinIO fork that keeps publishing dated releases, pinned by digest.
+  - name: docker.io/pgsty/silo@sha256
     version: MINIO_IMAGE_DIGEST
-    source: cgr.dev
+    source: docker.io
 
   - name: quay.io/minio/operator-sidecar
     version: v7.0.1
