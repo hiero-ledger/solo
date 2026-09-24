@@ -333,7 +333,8 @@ describe('NetworkCommand unit tests', (): void => {
         const uninstallCalls: SinonSpyCall[] = options.chartManager.uninstall
           .getCalls()
           .filter((call: SinonSpyCall): boolean => call.args[1] === constants.SOLO_DEPLOYMENT_CHART);
-        expect(uninstallCalls).to.have.lengthOf(0);
+        // The retry removes the release created by the failed first install attempt.
+        expect(uninstallCalls).to.have.lengthOf(1);
       } finally {
         sinon.restore();
       }
