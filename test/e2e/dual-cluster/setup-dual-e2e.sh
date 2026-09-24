@@ -162,7 +162,7 @@ SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c${i}"
   setup_args=(cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev)
-  if [[ "${SOLO_TEST_SETUP_MINIO:-1}" != "1" ]]; then
+  if [[ "${SOLO_TEST_SETUP_MINIO:-0}" != "1" ]]; then
     setup_args+=(--no-minio)
   fi
   npm run solo -- "${setup_args[@]}" || exit 1

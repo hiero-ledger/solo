@@ -11,6 +11,7 @@ import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
 import {DeploymentTest} from './tests/deployment-test.js';
 import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
+import {BlockNodeTest} from './tests/block-node-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 
@@ -77,6 +78,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
         ConsensusNodeTest.keys(options);
+
+        BlockNodeTest.add(options);
 
         NetworkTest.deploy(options, TEST_UPGRADE_FROM_VERSION);
 
