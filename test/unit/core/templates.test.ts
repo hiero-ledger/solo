@@ -110,9 +110,10 @@ describe('core/templates', (): void => {
       expect(Templates.renderOneShotOutputDirectory('my-deploy').endsWith('one-shot-my-deploy')).to.equal(true);
     });
 
-    it('neutralizes path separators in the deployment name so it stays a single component', (): void => {
+    it('strips traversal and neutralizes separators so the name stays a single component', (): void => {
       const directory: string = Templates.renderOneShotOutputDirectory('a/b/../c');
-      expect(directory.endsWith('one-shot-a_b_.._c')).to.equal(true);
+      // sanitize() removes the `../` traversal, then remaining separators become underscores.
+      expect(directory.endsWith('one-shot-a_b_c')).to.equal(true);
     });
   });
 });

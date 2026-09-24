@@ -28,6 +28,7 @@ import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
+import {UserInput} from '../core/user-input.js';
 import {EXPLORER_VERSION, INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -259,7 +260,9 @@ export class ExplorerCommand extends BaseCommand {
     );
 
     if (config.domainName) {
-      chartValues.set('ingress.enabled', true).setLiteral('ingress.hosts[0].host', config.domainName);
+      chartValues
+        .set('ingress.enabled', true)
+        .setLiteral('ingress.hosts[0].host', UserInput.escapeHelmTemplate(config.domainName));
 
       if (config.tlsClusterIssuerType === 'self-signed') {
         // Create TLS secret for Explorer
@@ -272,7 +275,7 @@ export class ExplorerCommand extends BaseCommand {
         );
 
         if (config.enableIngress) {
-          chartValues.setLiteral('ingress.tls[0].hosts[0]', config.domainName);
+          chartValues.setLiteral('ingress.tls[0].hosts[0]', UserInput.escapeHelmTemplate(config.domainName));
         }
       }
     }

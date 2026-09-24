@@ -43,6 +43,7 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
+import {UserInput} from '../core/user-input.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -657,7 +658,7 @@ export class MirrorNodeCommand extends BaseCommand {
       chartValues
         .set('ingress.enabled', true)
         .set('ingress.tls.enabled', false)
-        .setLiteral('ingress.hosts[0].host', config.domainName);
+        .setLiteral('ingress.hosts[0].host', UserInput.escapeHelmTemplate(config.domainName));
     }
 
     // if the useExternalDatabase populate all the required values before installing the chart
