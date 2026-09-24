@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
 TEMP_ONE_SHOT_VALUES_FILE=""
+TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_BN_UPGRADE_VALUES_FILE=""
@@ -37,6 +38,10 @@ on_exit() {
 
   if [[ -n "${TEMP_ONE_SHOT_VALUES_FILE:-}" && -f "${TEMP_ONE_SHOT_VALUES_FILE}" ]]; then
     rm -f "${TEMP_ONE_SHOT_VALUES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE:-}" && -f "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -659,6 +664,23 @@ echo "Mirror Node Version (previous): ${PREV_MIRROR_VERSION}"
 echo "Explorer Version (previous): ${PREV_EXPLORER_VERSION}"
 echo "Relay Version (previous): ${PREV_RELAY_VERSION}"
 
+# quay.io/minio/minio stopped publishing new community images after 2025-10-23 and now 401s on
+# every tag. The source launch below installs the prior *published* Solo release, whose bundled
+# chart defaults still point at that blocked image and has no knowledge of the Chainguard
+# replacement wired into this branch's version.ts. Inject it explicitly via --values-file so the
+# source deployment doesn't fail before the migration itself is even exercised.
+MINIO_IMAGE_REPOSITORY="$(extract_version MINIO_IMAGE_REPOSITORY version.ts)"
+MINIO_IMAGE_DIGEST="$(extract_version MINIO_IMAGE_DIGEST version.ts)"
+
+TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE="$(mktemp -t minio-image-override-migration-XXXX.yaml)"
+cat > "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE}" <<EOF
+minio-server:
+  tenant:
+    image:
+      repository: ${MINIO_IMAGE_REPOSITORY}
+      digest: ${MINIO_IMAGE_DIGEST}
+EOF
+
 TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properties-XXXX.properties)"
 
@@ -698,6 +720,7 @@ network:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
   --application-properties: "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
   --tss: true
+  --values-file: "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE}"
 
 setup:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
