@@ -669,13 +669,9 @@ CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
 
-# TEMPORARY WORKAROUND:
-#   Keep the migration source network in BOTH mode while hiero-block-node#3150 is open.
-#   Pure BLOCKS mode makes mirror importer depend entirely on BN live-subscriber streaming.
-#   That path can send batches starting with ROUND_HEADER, causing mirror to reconnect and
-#   contract-result ingestion to stall. BOTH keeps native block streaming enabled for BN while
-#   also preserving record streams/MinIO for mirror smoke coverage.
-MIGRATION_BLOCK_STREAM_MODE="BOTH"
+# Use native block streaming for the migration source network. Record streams require MinIO,
+# which is unavailable in the released Solo version used for the first migration deployment.
+MIGRATION_BLOCK_STREAM_MODE="BLOCKS"
 
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${MIGRATION_BLOCK_STREAM_MODE}"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
@@ -715,14 +711,13 @@ explorerNode:
   --explorer-version: "${PREV_EXPLORER_VERSION}"
 EOF
 
-# TEMPORARY WORKAROUND:
-#   Use block-node one-shot mode for the source deployment so the migration follows the native
-#   block-node path and does not depend on MinIO. Keep BOTH mode temporarily while BN #3150 is
-#   open; this preserves compatibility with the migration smoke path until that issue is fixed.
+# Use block-node one-shot mode for the source deployment and skip image caching. The released
+# Solo binary otherwise attempts to cache the retired quay.io MinIO image before deployment.
 export ONE_SHOT_WITH_BLOCK_NODE=true
 export BLOCK_STREAM_STREAM_MODE="${MIGRATION_BLOCK_STREAM_MODE}"
 export BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
 export DISABLE_IMPORTER_SPRING_PROFILES="true"
+export ENABLE_IMAGE_CACHE=false
 
 solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
@@ -737,7 +732,7 @@ wait_for_mirror_block_progress "source deployment after one-shot" -1 1 90 2 > /d
 source_block_after_one_shot="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before consensus upgrade: ${source_block_after_one_shot}"
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Deploying source block node ${PREV_BLOCK_VERSION_NO_V} after record-backed one-shot deploy"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Deploying source block node ${PREV_BLOCK_VERSION_NO_V} after block-node one-shot deploy"
 npm run solo -- block node add \
   --deployment "${SOLO_DEPLOYMENT}" \
   --block-node-version "${PREV_BLOCK_VERSION_NO_V}" \
@@ -766,20 +761,16 @@ echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 #   boundary block continuity or exposes a deterministic final-block-flushed signal for Solo.
 SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED=true
 
-# BN upgrade is enabled while smoke tests use record-stream import. BN #3150 still affects the
-# mirror BN live-subscriber path, so the migration smoke checks avoid that path by keeping mirror
-# on the record-stream profile. The previous BN is added after the prior one-shot deploy because
-# released Solo 0.83.0 disables MinIO/record uploaders when block-node one-shot mode is active for
-# CN >= v0.74.0.
+# BN upgrade is enabled while smoke tests use native block import. The previous BN is added after
+# the one-shot deployment so the source network is already initialized before block streaming is
+# enabled.
 SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED=false
 
 # Strategy while the bypass is active:
-#  1. Source deploy — deploy CN/mirror/relay with records/MinIO, smoke it, then add previous BN
+#  1. Source deploy — deploy CN/mirror/relay with native blocks, smoke it, then add previous BN
 #                     with current Solo for component upgrade coverage.
-#  2. BN upgrade — upgrade BN while CN source version keeps running; mirror smoke imports records
-#                  so BN #3150 does not block REST/contract-result ingestion.
-#  3. Source stream stabilise — poll until mirror advances 3+ blocks via record import, then
-#                              wait 120 s more. BN remains deployed but smoke does not depend on it.
+#  2. BN upgrade — upgrade BN while CN source version keeps running; mirror smoke imports blocks.
+#  3. Source stream stabilise — poll until mirror advances 3+ blocks, then wait 120 s more.
 #  4. Skip CN upgrade — leave consensus nodes on the source version and continue covering
 #                      Solo/component migration behavior until CN issue #26498 is fixed.
 
@@ -849,7 +840,7 @@ VALS
 fi
 
 # Step 2: Wait for source streaming to stabilise before the CN upgrade decision.
-#   Poll until mirror receives 3 new blocks via record import, then wait 120 s more. If the
+#   Poll until mirror receives 3 new blocks via native block import, then wait 120 s more. If the
 #   temporary bypasses are turned off later, this also gives BN a stable window before CN v0.75
 #   makes its first connection attempt.
 bn_stabilize_start_block="$(get_latest_mirror_block_number)"
@@ -878,7 +869,7 @@ else
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "true"
   # Also carry the block-stream and block-buffer settings into CN 0.75 so that it keeps
-  # native blocks for BN and record streams for mirror smoke coverage.
+  # native blocks for BN and mirror block import.
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${MIGRATION_BLOCK_STREAM_MODE}"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
