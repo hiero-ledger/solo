@@ -217,25 +217,6 @@ wait_for_mirror_block_count_progress() {
   wait_for_mirror_block_progress "${label}" "${minimum_previous_block}" "${max_attempts}" "${sleep_seconds}"
 }
 
-patch_minio_tenant_image() {
-  local namespace="${1}"
-  local image="docker.io/overtime0022/minio-local@sha256:c933bb53ac226d1f4bdfeac66a3854d02903771e91d7ee2cbc330841a1d77d7e"
-
-  if ! kubectl get crd tenants.minio.min.io >/dev/null 2>&1; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - MinIO Tenant CRD is not installed; skipping MinIO image override"
-    return 0
-  fi
-
-  if ! kubectl get tenant minio -n "${namespace}" >/dev/null 2>&1; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - MinIO tenant is not deployed; skipping MinIO image override"
-    return 0
-  fi
-
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Patching MinIO tenant image to ${image}"
-  kubectl patch tenant minio -n "${namespace}" --type merge \
-    -p "{\"spec\":{\"image\":\"${image}\"}}"
-}
-
 # Restart relay after upgrade and refresh port-forwards.
 refresh_relay_network_config() {
   local namespace="${1}"
@@ -741,9 +722,8 @@ solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
+  --no-minio \
   --no-parallel-deploy
-
-patch_minio_tenant_image "${SOLO_NAMESPACE}"
 
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
