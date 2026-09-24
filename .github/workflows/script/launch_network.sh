@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
 TEMP_ONE_SHOT_VALUES_FILE=""
+TEMP_MINIO_IMAGE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_BN_UPGRADE_VALUES_FILE=""
@@ -37,6 +38,10 @@ on_exit() {
 
   if [[ -n "${TEMP_ONE_SHOT_VALUES_FILE:-}" && -f "${TEMP_ONE_SHOT_VALUES_FILE}" ]]; then
     rm -f "${TEMP_ONE_SHOT_VALUES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_MINIO_IMAGE_VALUES_FILE:-}" && -f "${TEMP_MINIO_IMAGE_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_MINIO_IMAGE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -660,7 +665,16 @@ echo "Explorer Version (previous): ${PREV_EXPLORER_VERSION}"
 echo "Relay Version (previous): ${PREV_RELAY_VERSION}"
 
 TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
+TEMP_MINIO_IMAGE_VALUES_FILE="$(mktemp -t minio-image-override-XXXX.yaml)"
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properties-XXXX.properties)"
+
+cat > "${TEMP_MINIO_IMAGE_VALUES_FILE}" <<EOF
+minio-server:
+  tenant:
+    image:
+      repository: docker.io/overtime0022/minio-local@sha256
+      digest: c933bb53ac226d1f4bdfeac66a3854d02903771e91d7ee2cbc330841a1d77d7e
+EOF
 
 cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
@@ -693,6 +707,7 @@ network:
   --pvcs: true
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
   --application-properties: "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+  --values-file: "${TEMP_MINIO_IMAGE_VALUES_FILE}"
   --tss: true
 
 setup:
@@ -711,8 +726,9 @@ explorerNode:
   --explorer-version: "${PREV_EXPLORER_VERSION}"
 EOF
 
-# Use block-node one-shot mode for the source deployment and skip image caching. The released
-# Solo binary otherwise attempts to cache the retired quay.io MinIO image before deployment.
+# Use block-node one-shot mode for the source deployment and skip image caching. The MinIO values
+# override is passed into the network deploy so older released Solo versions use the replacement
+# image before creating the Tenant and checking pod readiness.
 export ONE_SHOT_WITH_BLOCK_NODE=true
 export BLOCK_STREAM_STREAM_MODE="${MIGRATION_BLOCK_STREAM_MODE}"
 export BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
@@ -722,7 +738,6 @@ solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
-  --no-minio \
   --no-parallel-deploy
 
 SKIP_IMPORTER_CHECK=true
