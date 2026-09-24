@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon, {type SinonSpyCall, type SinonStub} from 'sinon';
+import sinon, {type SinonSpy, type SinonSpyCall, type SinonStub} from 'sinon';
 import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
@@ -271,6 +271,8 @@ describe('NetworkCommand unit tests', (): void => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
 
+        const warningSpy: SinonSpy = sinon.spy(options.logger, 'warn');
+
         // @ts-expect-error - TS2341: to mock
         networkCommand.componentFactory = {
           createNewEnvoyProxyComponent: sinon.stub(),
@@ -283,6 +285,7 @@ describe('NetworkCommand unit tests', (): void => {
         expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.upgrade.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
+        expect(warningSpy).calledWithMatch("'consensus network deploy' reapplies the chart");
       } finally {
         sinon.restore();
       }

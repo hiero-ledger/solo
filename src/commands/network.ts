@@ -1722,6 +1722,13 @@ export class NetworkCommand extends BaseCommand {
                 clusterRefs.get(clusterReference),
               );
               if (isInstalled) {
+                this.logger.warn(
+                  `Existing '${constants.SOLO_DEPLOYMENT_CHART}' release detected in namespace '${namespace.name}' ` +
+                    `for cluster '${clusterReference}'. 'consensus network deploy' reapplies the chart and ` +
+                    'configuration but does not setup or start an existing consensus node. ' +
+                    "Use 'consensus network upgrade' for an existing network, or run 'consensus node setup' " +
+                    "followed by 'consensus node start' before submitting transactions.",
+                );
                 await this.chartManager.uninstall(
                   namespace,
                   constants.SOLO_DEPLOYMENT_CHART,
