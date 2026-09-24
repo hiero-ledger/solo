@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
+import {isSea} from 'node:sea';
 import * as constants from './src/core/constants.js';
 
 /**
@@ -22,7 +23,6 @@ export const GVPROXY_VERSION: string = 'v0.8.7';
 export const NETAVARK_VERSION: string = 'v2.0.0';
 export const AARDVARK_DNS_VERSION: string = 'v2.0.0';
 export const KUBECTL_VERSION: string = 'v1.32.2';
-export const CRANE_VERSION: string = 'v0.21.4';
 
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.66.1';
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.76.4';
@@ -90,6 +90,12 @@ export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';
 export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT: string = 'v0.39.0-0';
 
 export function getSoloVersion(): Version {
+  // In SEA mode the bootstrap (sea/sea-main.template.cjs) sets SOLO_SEA_VERSION before any
+  // module initializes, so we can return it without a filesystem read.
+  if (isSea() && process.env['SOLO_SEA_VERSION']) {
+    return process.env['SOLO_SEA_VERSION'] as Version;
+  }
+
   const __filename: string = fileURLToPath(import.meta.url);
   const __dirname: string = path.dirname(__filename);
 

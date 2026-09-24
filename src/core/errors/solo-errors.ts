@@ -226,7 +226,6 @@ import {ConfigFileInvalidSoloError} from './classes/validation/config-file-inval
 import {MultipleClustersFoundSoloError} from './classes/validation/multiple-clusters-found-solo-error.js';
 import {CacheNotMaterializedSoloError} from './classes/validation/cache-not-materialized-solo-error.js';
 import {CacheImageTemplateUnknownSoloError} from './classes/validation/cache-image-template-unknown-solo-error.js';
-import {InvalidKindNodeImageSoloError} from './classes/validation/invalid-kind-node-image-solo-error.js';
 import {PathTraversalDetectedSoloError} from './classes/validation/path-traversal-detected-solo-error.js';
 import {NodeAliasesMustBeArraySoloError} from './classes/validation/node-aliases-must-be-array-solo-error.js';
 import {UnknownNodeAliasSoloError} from './classes/validation/unknown-node-alias-solo-error.js';
@@ -257,6 +256,7 @@ import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-r
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
+import {ComponentImageArchiveTagMismatchSoloError} from './classes/validation/component-image-archive-tag-mismatch-solo-error.js';
 import {TransplantRequiresStateFileSoloError} from './classes/validation/transplant-requires-state-file-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
@@ -652,7 +652,6 @@ export class SoloErrors {
     readonly multipleClustersFound: typeof MultipleClustersFoundSoloError;
     readonly cacheNotMaterialized: typeof CacheNotMaterializedSoloError;
     readonly cacheImageTemplateUnknown: typeof CacheImageTemplateUnknownSoloError;
-    readonly invalidKindNodeImage: typeof InvalidKindNodeImageSoloError;
     readonly pathTraversalDetected: typeof PathTraversalDetectedSoloError;
     readonly nodeAliasesMustBeArray: typeof NodeAliasesMustBeArraySoloError;
     readonly unknownNodeAlias: typeof UnknownNodeAliasSoloError;
@@ -683,6 +682,7 @@ export class SoloErrors {
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
+    readonly componentImageArchiveTagMismatch: typeof ComponentImageArchiveTagMismatchSoloError;
     readonly podLogsCrdInvalid: typeof PodLogsCrdInvalidSoloError;
     readonly transplantRequiresStateFile: typeof TransplantRequiresStateFileSoloError;
   } = Object.freeze({
@@ -732,7 +732,6 @@ export class SoloErrors {
     multipleClustersFound: MultipleClustersFoundSoloError,
     cacheNotMaterialized: CacheNotMaterializedSoloError,
     cacheImageTemplateUnknown: CacheImageTemplateUnknownSoloError,
-    invalidKindNodeImage: InvalidKindNodeImageSoloError,
     pathTraversalDetected: PathTraversalDetectedSoloError,
     nodeAliasesMustBeArray: NodeAliasesMustBeArraySoloError,
     unknownNodeAlias: UnknownNodeAliasSoloError,
@@ -763,6 +762,7 @@ export class SoloErrors {
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
     invalidFlagValue: InvalidFlagValueSoloError,
+    componentImageArchiveTagMismatch: ComponentImageArchiveTagMismatchSoloError,
     podLogsCrdInvalid: PodLogsCrdInvalidSoloError,
     transplantRequiresStateFile: TransplantRequiresStateFileSoloError,
   });
