@@ -38,6 +38,20 @@ export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOC
 
 export const METALLB_CHART_VERSION: string = constants.getEnvironmentVariable('METALLB_CHART_VERSION') || '0.15.3';
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
+// MinIO stopped publishing new community images to quay.io/docker.io after 2025-10-23. The tenant
+// (server) image now comes from Silo (docker.io/pgsty/silo), a MinIO fork maintained by PGSTY
+// specifically to keep publishing S3-API-compatible images after upstream stopped. Its
+// docker-entrypoint.sh translates 'minio'/'server' argv into the 'silo' binary transparently, so
+// it's a drop-in replacement for the MinIO Operator's tenant container invocation — verified
+// against the exact args the operator passes (`server --certs-dir ... --console-address ...`).
+// Unlike Chainguard's free tier, Silo publishes real dated RELEASE tags, so this is pinned to a
+// specific release's digest rather than 'latest' — re-resolve with
+// `crane digest docker.io/pgsty/silo:<RELEASE.YYYY-MM-DDTHH-MM-SSZ>` to move this pin forward.
+export const MINIO_IMAGE_REPOSITORY: string =
+  constants.getEnvironmentVariable('MINIO_IMAGE_REPOSITORY') || 'docker.io/pgsty/silo@sha256';
+export const MINIO_IMAGE_DIGEST: string =
+  constants.getEnvironmentVariable('MINIO_IMAGE_DIGEST') ||
+  '635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46';
 export const METRICS_SERVER_VERSION: string = constants.getEnvironmentVariable('METRICS_SERVER_VERSION') || '';
 export const PROMETHEUS_STACK_VERSION: string =
   constants.getEnvironmentVariable('PROMETHEUS_STACK_VERSION') || '52.0.1';
