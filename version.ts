@@ -37,15 +37,19 @@ export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOC
 
 export const METALLB_CHART_VERSION: string = constants.getEnvironmentVariable('METALLB_CHART_VERSION') || '0.15.3';
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
-// MinIO stopped publishing new community images to quay.io/docker.io after 2025-10-23; the tenant
-// (server) image now comes from Chainguard's free image instead. Chainguard only publishes a
-// rolling 'latest' tag for the free tier, so it is pinned by digest rather than a version tag —
-// re-resolve with `crane digest cgr.dev/chainguard/minio:latest` to move this pin forward.
+// MinIO stopped publishing new community images to quay.io/docker.io after 2025-10-23, and both
+// registries now 401 on every tag including 'latest'. The tenant (server) image is pulled from a
+// third-party mirror of the exact last-known-good build instead — verified byte-for-byte identical
+// to the previously cached quay.io/minio/minio:RELEASE.2024-08-03T04-33-23Z artifact (same manifest
+// digest, same 'minio' binary sha256). Pinned by digest because this mirror is an unaccountable
+// personal registry namespace, not an official source — the tag itself could be replaced without
+// warning. TEMPORARY: re-evaluate before this ships to other teams; see MINIO_IMAGE_REPOSITORY on
+// the fix-minio-download branch for the maintained (Chainguard) alternative.
 export const MINIO_IMAGE_REPOSITORY: string =
-  constants.getEnvironmentVariable('MINIO_IMAGE_REPOSITORY') || 'cgr.dev/chainguard/minio@sha256';
+  constants.getEnvironmentVariable('MINIO_IMAGE_REPOSITORY') || 'docker.io/overtime0022/minio-local@sha256';
 export const MINIO_IMAGE_DIGEST: string =
   constants.getEnvironmentVariable('MINIO_IMAGE_DIGEST') ||
-  'bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1';
+  'c933bb53ac226d1f4bdfeac66a3854d02903771e91d7ee2cbc330841a1d77d7e';
 export const METRICS_SERVER_VERSION: string = constants.getEnvironmentVariable('METRICS_SERVER_VERSION') || '';
 export const PROMETHEUS_STACK_VERSION: string =
   constants.getEnvironmentVariable('PROMETHEUS_STACK_VERSION') || '52.0.1';
