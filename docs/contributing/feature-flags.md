@@ -19,7 +19,7 @@ setting — that is a CLI flag or a plain `SoloConfigSchema` field.
 | `disableBlockNodeIntegration` | `false` | `src/commands/mirror-node.ts`                                | `SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION`, `DISABLE_IMPORTER_SPRING_PROFILES` |
 | `enableImageCache`            | `true`  | `src/core/cluster-task-manager.ts`, `src/commands/one-shot/` | `SOLO_FF_ENABLE_IMAGE_CACHE`, `ENABLE_IMAGE_CACHE`                           |
 
-Every flag also answers to its generated `SOLO_FEATURE-FLAGS_*` name. `copyWrapsLibraryInParallel` is still
+Every flag also answers to its generated `SOLO_FEATURE_FLAGS_*` name. `copyWrapsLibraryInParallel` is still
 experimental, so it carries only an `EXPERIMENTAL_` alias. `enableImageCache` is the one opt-out flag — it
 defaults on; new flags default off.
 
@@ -96,18 +96,25 @@ A flag answers to several names. The first match in this order wins:
 
 | Form                               | When                                                                   | Example                                   |
 | ---------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
-| `SOLO_FEATURE-FLAGS_<UPPER-KEBAB>` | Generated from the property path; always available, highest precedence | `SOLO_FEATURE-FLAGS_SKIP-NODE-PING`       |
+| `SOLO_FEATURE_FLAGS_<UPPER_SNAKE>` | Generated from the property path; always available, highest precedence | `SOLO_FEATURE_FLAGS_SKIP_NODE_PING`       |
 | `SOLO_FF_<UPPER_SNAKE>`            | Readable alias for a standard flag                                     | `SOLO_FF_SKIP_NODE_PING`                  |
 | `EXPERIMENTAL_<UPPER_SNAKE>`       | Alias while the flag is experimental                                   | `EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL` |
-| legacy name                        | Alias preserved when a flag replaces an ad-hoc environment variable    | `SKIP_NODE_PING`                          |
+| legacy name                        | `legacyAlias` preserved when a flag replaces an ad-hoc environment variable | `SKIP_NODE_PING`                     |
 
-In the generated form, `-` marks a camelCase word boundary **inside** one property-name segment and `_`
-separates schema nesting levels. `SOLO_FEATURE_FLAGS_SKIP_NODE_PING` — all underscores — is a different key
-and is ignored. The aliases exist so nobody has to type the generated form.
+The generated form uses `_` for both camelCase word boundaries and schema nesting levels, so every name is a
+valid POSIX identifier and can be set with `export`. The reverse mapping is ambiguous from the name alone and
+is resolved against the schema by `EnvironmentKeyRegistry`, which fails fast if two config keys would generate
+the same name. The shorter `SOLO_FF_*` aliases remain for convenience.
 
-Aliases resolve in `EnvironmentConfigSource` from `EnvironmentAliasRegistry.aliasMap()`. An alias may only
-sit on a uniquely-typed schema field — a reused type such as `HelmChartSchema` fails fast at startup.
-Setting both an alias and the generated name logs a warning and the generated name wins.
+Never add an alias that merely repeats the generated name — `test/unit/data/key/environment-key-registry.test.ts`
+rejects it, along with any name containing a dash.
+
+Aliases resolve in `EnvironmentConfigSource` from `EnvironmentAliasRegistry.aliasMap()`. Declare a supported
+spelling with `@EnvironmentAliasRegistry.alias(...)` and a backwards-compatibility-only name with
+`@EnvironmentAliasRegistry.legacyAlias(...)`; the table above is ordered by precedence, and that order is
+applied explicitly rather than taken from decorator declaration order. An alias may only sit on a
+uniquely-typed schema field — a reused type such as `HelmChartSchema` fails fast at startup. Setting two
+spellings at once logs a warning naming the one that won.
 
 Values parse as booleans, so `SOLO_FF_SKIP_NODE_PING=false` genuinely means "off", unlike the
 `Boolean('false')` reads these flags replaced. An empty or whitespace-only value counts as unset and falls

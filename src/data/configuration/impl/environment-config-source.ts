@@ -66,27 +66,37 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
   }
 
   /**
-   * Applies fixed/legacy environment variable aliases.
-   * The generated `SOLO_*` name always wins,
-   * so an alias is only used when its canonical key
-   * was not already set from a generated name.
+   * Applies fixed environment variable aliases, in descending precedence: the generated `SOLO_*` name,
+   * then supported aliases, then legacy ones. An alias is used only when nothing higher has already set
+   * its canonical key.
    */
   private applyAliases(): void {
-    for (const [legacyName, canonicalKey] of EnvironmentAliasRegistry.aliasMap()) {
-      const generatedNameWon: boolean = this.data.has(canonicalKey);
+    const aliases: [string, string][] = [...EnvironmentAliasRegistry.aliasMap()];
 
-      const value: string | undefined = this.environmentBackend.readRawValue(legacyName);
+    // Ordered explicitly rather than relying on declaration order: property decorators evaluate bottom-up,
+    // so a field's legacy alias would otherwise be registered before the supported one above it and win.
+    const ordered: [string, string][] = [
+      ...aliases.filter(([name]: [string, string]): boolean => !EnvironmentAliasRegistry.isLegacy(name)),
+      ...aliases.filter(([name]: [string, string]): boolean => EnvironmentAliasRegistry.isLegacy(name)),
+    ];
+
+    const generatedKeys: Set<string> = new Set<string>(this.data.keys());
+
+    for (const [name, canonicalKey] of ordered) {
+      const value: string | undefined = this.environmentBackend.readRawValue(name);
       if (value === undefined) {
         continue;
       }
 
       // Aliases are a supported, documented spelling — routine use is not worth a warning. Only the
-      // ambiguous case earns one: both spellings set, and the generated name silently taking precedence.
-      // Warning unconditionally would put a console.warn (which bypasses SoloLogger and SOLO_SILENT_MODE)
-      // into every CI run, since CI sets ENABLE_IMAGE_CACHE and DISABLE_IMPORTER_SPRING_PROFILES.
-      if (generatedNameWon) {
+      // ambiguous case earns one: two spellings set at once, with the higher-precedence one silently
+      // winning. Warning unconditionally would put a console.warn (which bypasses SoloLogger and
+      // SOLO_SILENT_MODE) into every CI run, since CI sets ENABLE_IMAGE_CACHE and
+      // DISABLE_IMPORTER_SPRING_PROFILES.
+      if (this.data.has(canonicalKey)) {
+        const winner: string = generatedKeys.has(canonicalKey) ? 'the generated name' : 'a higher-precedence alias';
         console.warn(
-          `Environment variable '${legacyName}' is ignored because the generated name for config key ` +
+          `Environment variable '${name}' is ignored because ${winner} for config key ` +
             `'${canonicalKey}' is also set and takes precedence.`,
         );
         continue;

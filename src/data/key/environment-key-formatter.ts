@@ -4,6 +4,11 @@ import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type KeyFormatter} from './key-formatter.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 
+/**
+ * Formats config keys as environment variable names: `helmChart.directory` -> `HELM_CHART_DIRECTORY`. Both
+ * nesting levels and camelCase word boundaries render as `_`, keeping every name a POSIX identifier. The
+ * reverse direction is therefore ambiguous and is resolved against the schema by {@link EnvironmentKeyRegistry}.
+ */
 export class EnvironmentKeyFormatter implements KeyFormatter {
   private static _instance: EnvironmentKeyFormatter;
 
@@ -16,7 +21,7 @@ export class EnvironmentKeyFormatter implements KeyFormatter {
       return key;
     }
 
-    return StringEx.camelCaseToKebab(key).trim().toUpperCase().replaceAll(StringEx.PERIOD, this.separator);
+    return StringEx.camelCaseToSnake(key).trim().toUpperCase().replaceAll(StringEx.PERIOD, this.separator);
   }
 
   public split(key: string): string[] {

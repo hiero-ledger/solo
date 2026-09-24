@@ -80,8 +80,8 @@ describe('feature flags – environment variable overrides', (): void => {
   });
 
   it(
-    'the generated SOLO_FEATURE-FLAGS_* name sets a flag',
-    EnvironmentScope.with({'SOLO_FEATURE-FLAGS_STANDARD-FIXTURE-FLAG': 'true'}, async (): Promise<void> => {
+    'the generated SOLO_FEATURE_FLAGS_* name sets a flag',
+    EnvironmentScope.with({SOLO_FEATURE_FLAGS_STANDARD_FIXTURE_FLAG: 'true'}, async (): Promise<void> => {
       const flags: FeatureFlagsFixtureSchema = await readFixtureFlags();
       expect(flags?.standardFixtureFlag).to.be.true;
     }),
@@ -106,7 +106,7 @@ describe('feature flags – environment variable overrides', (): void => {
   it(
     'the generated name wins when it and the alias disagree',
     EnvironmentScope.with(
-      {'SOLO_FEATURE-FLAGS_STANDARD-FIXTURE-FLAG': 'false', SOLO_FF_STANDARD_FIXTURE_FLAG: 'true'},
+      {SOLO_FEATURE_FLAGS_STANDARD_FIXTURE_FLAG: 'false', SOLO_FF_STANDARD_FIXTURE_FLAG: 'true'},
       async (): Promise<void> => {
         const flags: FeatureFlagsFixtureSchema = await readFixtureFlags();
         expect(flags?.standardFixtureFlag).to.be.false;
@@ -116,7 +116,7 @@ describe('feature flags – environment variable overrides', (): void => {
 
   it(
     'an explicit false turns a default-on flag off',
-    EnvironmentScope.with({'SOLO_FEATURE-FLAGS_DEFAULT-ON-FIXTURE-FLAG': 'false'}, async (): Promise<void> => {
+    EnvironmentScope.with({SOLO_FEATURE_FLAGS_DEFAULT_ON_FIXTURE_FLAG: 'false'}, async (): Promise<void> => {
       const flags: FeatureFlagsFixtureSchema = await readFixtureFlags();
       expect(flags?.defaultOnFixtureFlag).to.be.false;
     }),

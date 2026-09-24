@@ -87,23 +87,43 @@ When adding, removing, or modifying environment variables consumed via `getEnvir
 
 The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows environment variables to override any `@Expose()`d field on `SoloConfigSchema` and its nested schemas (`HelmChartSchema`, etc.). Keep the solo-docs reference updated for any user-facing config fields that can be overridden this way.
 
-**Naming convention:** Each camelCase property name segment is converted to `UPPER-KEBAB-CASE` (dashes separate words within a segment); schema object nesting levels are joined with `_`; the whole key is prefixed with `SOLO_`.
+**Naming convention:** `UPPER_SNAKE_CASE` throughout, prefixed with `SOLO_`. Both camelCase word
+boundaries and schema nesting levels are rendered as `_`.
 
 | Config property path           | Env var                               |
 | ------------------------------ | ------------------------------------- |
-| `helmChart.directory`          | `SOLO_HELM-CHART_DIRECTORY`           |
-| `tss.readyMaxAttempts`         | `SOLO_TSS_READY-MAX-ATTEMPTS`         |
-| `tss.wraps.libraryDownloadUrl` | `SOLO_TSS_WRAPS_LIBRARY-DOWNLOAD-URL` |
+| `helmChart.directory`          | `SOLO_HELM_CHART_DIRECTORY`           |
+| `tss.readyMaxAttempts`         | `SOLO_TSS_READY_MAX_ATTEMPTS`         |
+| `tss.wraps.libraryDownloadUrl` | `SOLO_TSS_WRAPS_LIBRARY_DOWNLOAD_URL` |
 
-This is **not** the same as plain `UPPER_SNAKE_CASE` — dashes within a segment represent camelCase word boundaries, not underscores.
+Names **must** be valid POSIX identifiers (`[A-Za-z_][A-Za-z0-9_]*`). A dash is not — `export
+SOLO_HELM-CHART_DIRECTORY=x` is rejected by every POSIX shell — so no generated name or alias may
+contain one. This is enforced by `test/unit/data/key/environment-key-registry.test.ts`; run it after
+adding or renaming a schema field.
 
-**Environment variable aliases.** Because the generated names are awkward (embedded dashes) and cannot
-match legacy fixed names, a field may also declare one or more fixed alias env var names with the
-`@EnvironmentAliasRegistry.alias('SOLO_TSS_READY_MAX_ATTEMPTS')` property decorator (see
-`src/data/schema/decorators/environment-alias-registry.ts`). The generated `SOLO_*` name always takes
-precedence; the alias applies only when the generated name is absent, and using an alias logs a notice.
-Aliases may only be placed on a uniquely-typed schema field (a reused type such as `HelmChartSchema`
-fails fast). When adding/removing an alias, keep this section and any env var docs in sync.
+Because `_` is overloaded, an env var name is ambiguous on its own (`SOLO_HELM_CHART_DIRECTORY` could
+be `helmChart.directory` or `helm.chart.directory`). The reverse mapping is therefore resolved against
+the schema by `EnvironmentKeyRegistry` (`src/data/key/environment-key-registry.ts`), which walks every
+leaf path `SoloConfigSchema` declares and **fails fast if two paths generate the same name**. If you
+add a field that collides, rename it.
+
+**Environment variable aliases.** A field may declare fixed alias env var names the generated name
+cannot reproduce, via two property decorators in
+`src/data/schema/decorators/environment-alias-registry.ts`:
+
+- `@EnvironmentAliasRegistry.alias('SOLO_FF_SKIP_NODE_PING')` — a **supported** spelling, documented
+  alongside the generated name.
+- `@EnvironmentAliasRegistry.legacyAlias('SKIP_NODE_PING')` — kept **only for backwards compatibility**,
+  typically an ad-hoc env var that predates the config field. Never recommend one in docs.
+
+Precedence, highest first: generated `SOLO_*` name → supported alias → legacy alias. This order is
+applied explicitly in `EnvironmentConfigSource.applyAliases()`, **not** taken from declaration order —
+property decorators evaluate bottom-up, so a field's `legacyAlias` registers before the `alias` written
+above it. Setting two spellings at once logs a notice naming the one that won.
+
+Never add an alias that merely repeats the generated name (the guard test rejects it). Aliases may only
+be placed on a uniquely-typed schema field (a reused type such as `HelmChartSchema` fails fast). When
+adding/removing an alias, keep this section and any env var docs in sync.
 
 ### 3. Feature flags
 

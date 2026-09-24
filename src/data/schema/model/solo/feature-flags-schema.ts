@@ -16,15 +16,18 @@ export class FeatureFlagsSchema {
   public copyWrapsLibraryInParallel: boolean;
 
   @Expose()
-  @EnvironmentAliasRegistry.alias('SOLO_FF_SKIP_NODE_PING', 'SKIP_NODE_PING')
+  @EnvironmentAliasRegistry.alias('SOLO_FF_SKIP_NODE_PING')
+  @EnvironmentAliasRegistry.legacyAlias('SKIP_NODE_PING')
   public skipNodePing: boolean;
 
   @Expose()
-  @EnvironmentAliasRegistry.alias('SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION', 'DISABLE_IMPORTER_SPRING_PROFILES')
+  @EnvironmentAliasRegistry.alias('SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION')
+  @EnvironmentAliasRegistry.legacyAlias('DISABLE_IMPORTER_SPRING_PROFILES')
   public disableBlockNodeIntegration: boolean;
 
   @Expose()
-  @EnvironmentAliasRegistry.alias('SOLO_FF_ENABLE_IMAGE_CACHE', 'ENABLE_IMAGE_CACHE')
+  @EnvironmentAliasRegistry.alias('SOLO_FF_ENABLE_IMAGE_CACHE')
+  @EnvironmentAliasRegistry.legacyAlias('ENABLE_IMAGE_CACHE')
   public enableImageCache: boolean;
 
   public constructor(
