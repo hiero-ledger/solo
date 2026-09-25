@@ -332,6 +332,15 @@ export class K8ClientContainer implements Container {
     const transferDirectory: string = `${path.dirname(destinationPath)}/.solo-transfer-${resumableSource.sourceChecksum}`;
 
     try {
+      const destinationValid: boolean = await this.isRemoteFileValid(
+        destinationPath,
+        resumableSource.sourceSize,
+        resumableSource.sourceChecksum,
+      );
+      if (destinationValid) {
+        return true;
+      }
+
       await this.execContainer(['bash', '-c', `mkdir -p "${transferDirectory}"`]);
 
       for (const chunk of resumableSource.chunks) {

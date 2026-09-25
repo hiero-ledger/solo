@@ -166,11 +166,12 @@ describe('K8ClientContainer copyFileResumable', (): void => {
     fs.writeFileSync(sourcePath, 'abcdef');
 
     const execContainerStub: SinonStub = sinon.stub(containerClient, 'execContainer');
-    execContainerStub.onCall(0).resolves(''); // create the remote transfer directory
-    execContainerStub.onCall(1).resolves(''); // first chunk is invalid
-    execContainerStub.onCall(2).resolves('valid'); // first chunk after upload
-    execContainerStub.onCall(3).resolves('valid'); // second chunk is reusable
-    execContainerStub.onCall(4).resolves(''); // final assembly
+    execContainerStub.onCall(0).resolves(''); // destination is invalid
+    execContainerStub.onCall(1).resolves(''); // create the remote transfer directory
+    execContainerStub.onCall(2).resolves(''); // first chunk is invalid
+    execContainerStub.onCall(3).resolves('valid'); // first chunk after upload
+    execContainerStub.onCall(4).resolves('valid'); // second chunk is reusable
+    execContainerStub.onCall(5).resolves(''); // final assembly
     const copyToStub: SinonStub = sinon.stub(containerClient, 'copyTo').resolves(true);
     const preparedSource: ResumableCopySource = ResumableCopySource.create(sourcePath, 3);
 
@@ -181,7 +182,7 @@ describe('K8ClientContainer copyFileResumable', (): void => {
     }
 
     expect(copyToStub).to.have.been.calledOnce;
-    expect(execContainerStub).to.have.callCount(5);
+    expect(execContainerStub).to.have.callCount(6);
   });
 
   it('throws when the assembled remote file has the wrong checksum', async (): Promise<void> => {
@@ -190,9 +191,10 @@ describe('K8ClientContainer copyFileResumable', (): void => {
 
     const failure: KubeContainerOperationFailedError = kubectlFailure('checksum mismatch');
     const execContainerStub: SinonStub = sinon.stub(containerClient, 'execContainer');
-    execContainerStub.onCall(0).resolves('');
-    execContainerStub.onCall(1).resolves('valid');
-    execContainerStub.onCall(2).rejects(failure);
+    execContainerStub.onCall(0).resolves(''); // destination is invalid
+    execContainerStub.onCall(1).resolves(''); // create the remote transfer directory
+    execContainerStub.onCall(2).resolves('valid');
+    execContainerStub.onCall(3).rejects(failure);
 
     try {
       await containerClient.copyFileResumable(sourcePath, '/data/target.bin', 3);
@@ -200,5 +202,18 @@ describe('K8ClientContainer copyFileResumable', (): void => {
     } catch (error) {
       expect(error).to.equal(failure);
     }
+  });
+
+  it('skips transfer when the remote destination is already valid', async (): Promise<void> => {
+    const sourcePath: string = path.join(temporaryDirectory, 'source.bin');
+    fs.writeFileSync(sourcePath, 'abc');
+
+    const execContainerStub: SinonStub = sinon.stub(containerClient, 'execContainer').resolves('valid');
+    const copyToStub: SinonStub = sinon.stub(containerClient, 'copyTo').resolves(true);
+
+    await containerClient.copyFileResumable(sourcePath, '/data/target.bin', 3);
+
+    expect(execContainerStub).to.have.been.calledOnce;
+    expect(copyToStub).to.not.have.been.called;
   });
 });

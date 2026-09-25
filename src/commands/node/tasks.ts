@@ -4357,7 +4357,14 @@ export class NodeCommandTasks {
               );
               await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
               attempt++;
+              continue;
             }
+
+            this.logger.info(
+              `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+            );
+            await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
+            attempt++;
           }
 
           if (found) {

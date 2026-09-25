@@ -2038,35 +2038,29 @@ export class NetworkCommand extends BaseCommand {
 
                   const targetKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
                   const targetWrapsPath: string = `${targetKeysDirectory}/${wraps.directoryName}`;
-                  const wrapsDirectoryExists: boolean = await rootContainer.hasDir(targetWrapsPath);
 
                   if (wrapsArchivePath) {
                     const targetWrapsTarball: string = `${targetKeysDirectory}/wraps.tar.gz`;
-                    const wrapsTarballExists: boolean = await rootContainer.hasFile(targetWrapsTarball);
-                    if (!wrapsTarballExists) {
-                      await rootContainer.copyFileResumable(
-                        wrapsArchivePath,
-                        targetWrapsTarball,
-                        constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
-                        preparedWrapsSource,
-                      );
-                    }
+                    await rootContainer.copyFileResumable(
+                      wrapsArchivePath,
+                      targetWrapsTarball,
+                      constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                      preparedWrapsSource,
+                    );
 
-                    if (!wrapsDirectoryExists) {
-                      const allowedArchiveMembers: string[] = [...wraps.allowedKeyFileSet];
-                      await rootContainer.execContainer([
-                        'bash',
-                        '-c',
-                        `temporary_directory="${targetWrapsPath}.partial" && ` +
-                          'rm -rf "$temporary_directory" && mkdir -p "$temporary_directory" && ' +
-                          `tar -xzf "${targetWrapsTarball}" -C "$temporary_directory" -- "$@" && ` +
-                          `rm -rf "${targetWrapsPath}" && ` +
-                          `mv "$temporary_directory" "${targetWrapsPath}"`,
-                        'wraps-archive-members',
-                        ...allowedArchiveMembers,
-                      ]);
-                    }
-                  } else if (!wrapsDirectoryExists) {
+                    const allowedArchiveMembers: string[] = [...wraps.allowedKeyFileSet];
+                    await rootContainer.execContainer([
+                      'bash',
+                      '-c',
+                      `temporary_directory="${targetWrapsPath}.partial" && ` +
+                        'rm -rf "$temporary_directory" && mkdir -p "$temporary_directory" && ' +
+                        `tar -xzf "${targetWrapsTarball}" -C "$temporary_directory" -- "$@" && ` +
+                        `rm -rf "${targetWrapsPath}" && ` +
+                        `mv "$temporary_directory" "${targetWrapsPath}"`,
+                      'wraps-archive-members',
+                      ...allowedArchiveMembers,
+                    ]);
+                  } else {
                     await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
                     for (const file of wraps.allowedKeyFileSet) {
                       const sourcePath: string = PathEx.join(extractedDirectory, file);
