@@ -210,36 +210,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
             config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
-            if (config.valuesFile) {
-              if (!fs.existsSync(config.valuesFile)) {
-                throw new ValuesFileNotFoundSoloError(config.valuesFile);
-              }
-              const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
-              const profileItems: Record<string, object> =
-                (ValuesFileParser.parse(context_.config.valuesFile, valuesFileContent) as Record<string, object>) ?? {};
-
-              if (profileItems.network) {
-                config.networkConfiguration = profileItems.network as object;
-              }
-              if (profileItems.setup) {
-                config.setupConfiguration = profileItems.setup as object;
-              }
-              if (profileItems.consensusNode) {
-                config.consensusNodeConfiguration = profileItems.consensusNode as object;
-              }
-              if (profileItems.mirrorNode) {
-                config.mirrorNodeConfiguration = profileItems.mirrorNode as object;
-              }
-              if (profileItems.blockNode) {
-                config.blockNodeConfiguration = profileItems.blockNode as object;
-              }
-              if (profileItems.explorerNode) {
-                config.explorerNodeConfiguration = profileItems.explorerNode as object;
-              }
-              if (profileItems.relayNode) {
-                config.relayNodeConfiguration = profileItems.relayNode as object;
-              }
-            }
+            this.applyValuesFileOverrides(config);
             config.clusterRef ||= 'one-shot';
             config.context ||= this.k8Factory.default().contexts().readCurrent();
             config.deployment ||= constants.ONE_SHOT_DEPLOYMENT_NAME;
@@ -958,7 +929,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
    */
   private async isRemoteConfigOrphanedOnKindCluster(deployConfig: OneShotSingleDeployConfigClass): Promise<boolean> {
     try {
-      if (!Helpers.isKindContext(deployConfig.context)) {
+      if (!Helpers.isKindContext(deployConfig.context, this.k8Factory)) {
         return false;
       }
 
@@ -1311,6 +1282,41 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     }
   }
 
+  /** Loads the per-component sections from `--values-file`; without one, the one-shot single defaults stay in place. */
+  private applyValuesFileOverrides(config: OneShotSingleDeployConfigClass): void {
+    if (!config.valuesFile) {
+      return;
+    }
+    if (!fs.existsSync(config.valuesFile)) {
+      throw new ValuesFileNotFoundSoloError(config.valuesFile);
+    }
+    const valuesFileContent: string = fs.readFileSync(config.valuesFile, 'utf8');
+    const profileItems: Record<string, object> =
+      (ValuesFileParser.parse(config.valuesFile, valuesFileContent) as Record<string, object>) ?? {};
+
+    if (profileItems.network) {
+      config.networkConfiguration = profileItems.network as object;
+    }
+    if (profileItems.setup) {
+      config.setupConfiguration = profileItems.setup as object;
+    }
+    if (profileItems.consensusNode) {
+      config.consensusNodeConfiguration = profileItems.consensusNode as object;
+    }
+    if (profileItems.mirrorNode) {
+      config.mirrorNodeConfiguration = profileItems.mirrorNode as object;
+    }
+    if (profileItems.blockNode) {
+      config.blockNodeConfiguration = profileItems.blockNode as object;
+    }
+    if (profileItems.explorerNode) {
+      config.explorerNodeConfiguration = profileItems.explorerNode as object;
+    }
+    if (profileItems.relayNode) {
+      config.relayNodeConfiguration = profileItems.relayNode as object;
+    }
+  }
+
   /**
    * The per-component sections of a values file (network, blockNode, mirrorNode, explorerNode,
    * relayNode) can override a component's version independently of the `config.versions` resolved
@@ -1341,7 +1347,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     config: OneShotSingleDeployConfigClass,
     task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
   ): Promise<void> {
-    if (config.quiet === true || Helpers.isKindContext(config.context)) {
+    if (config.quiet === true || Helpers.isKindContext(config.context, this.k8Factory)) {
       return;
     }
 

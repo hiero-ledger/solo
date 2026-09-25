@@ -56,7 +56,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Release
-        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # 1.4.0
+        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # v1.4.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -70,8 +70,15 @@ jobs:
         with:
           version: 1.7
 
+      # semantic-release and every plugin/helper here are exact-pinned; only their
+      # transitive dependencies are unresolved by a lockfile, which is what zizmor's
+      # adhoc-packages audit flags regardless of top-level pinning. The correct fix is a
+      # manifest + `npm ci`, but this toolchain runs inside the release pipeline, directly
+      # ahead of the publish steps that use its output (git tag, GitHub release, npm
+      # publish) — a lockfile migration here can only be verified against a real release
+      # run, not a dry run. Deferred rather than risked; revisit if this toolchain changes.
       - name: Install Semantic Release
-        run: |
+        run: | # zizmor: ignore[adhoc-packages]
           npm install -g semantic-release@25.0.2 @semantic-release/git@10.0.1 @semantic-release/github@12.0.2 @semantic-release/exec@7.1.0 gradle-semantic-release-plugin@1.7.6
           npm install -g conventional-changelog-conventionalcommits@9.1.0 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
           npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
@@ -122,16 +129,19 @@ jobs:
       - name: Extract Version
         id: set-outputs
         if: ${{ !cancelled() && always() }}
+        env:
+          NEED_RELEASE: ${{ steps.calculate-version.outputs.need-release }}
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
         run: |
           PROCEED="true"
           OUTVER=""
 
-          if [[ "${{ steps.calculate-version.outputs.need-release }}" == "true" ]] && [[ -f VERSION ]]; then
+          if [[ "${NEED_RELEASE}" == "true" ]] && [[ -f VERSION ]]; then
             cat VERSION
             TRIMMED_VERSION=$(cat VERSION | tr -d '[:space:]')
             OUTVER="${TRIMMED_VERSION}"
             echo "version=${TRIMMED_VERSION}"
-          elif [[ "${{ steps.calculate-version.outputs.need-release }}" == "true" ]] && [[ "${{ inputs.dry-run-enabled }}" == "true" ]] && [[ ! -f VERSION ]]; then
+          elif [[ "${NEED_RELEASE}" == "true" ]] && [[ "${DRY_RUN_ENABLED_INPUT}" == "true" ]] && [[ ! -f VERSION ]]; then
             VER=$(jq -r '.version' './package.json')
             OUTVER="${VER}"
             echo "Dry run enabled and VERSION file not found, using package.json version: ${VER}"
@@ -145,9 +155,11 @@ jobs:
       - name: 'Check: Hashgraph Release Needed'
         id: check-hg-release-needed
         if: ${{ steps.calculate-version.outputs.need-release == 'true' && inputs.dual-publish-enabled == true }}
+        env:
+          EXTRACTED_VERSION: ${{ steps.set-outputs.outputs.version }}
         run: |
           PUBLISH_REQUIRED="false"
-          if ! curl -sSLf "https://registry.npmjs.org/${{ env.HASHGRAPH_PKG_NAME }}/${{ steps.set-outputs.outputs.version }}" >/dev/null 2>&1; then
+          if ! curl -sSLf "https://registry.npmjs.org/${HASHGRAPH_PKG_NAME}/${EXTRACTED_VERSION}" >/dev/null 2>&1; then
             PUBLISH_REQUIRED="true"
           fi
 
@@ -169,7 +181,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # 1.4.0
+        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # v1.4.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -184,25 +196,29 @@ jobs:
       - name: Generate Hashgraph Package Name
         id: set-hg-package-name
         if: ${{ inputs.dual-publish-enabled == true }}
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           clean_pkg_name() {
             echo "${1}" | sed 's/^@//; s/\//-/g'
           }
-          full_pname=$(clean_pkg_name "${{ env.HASHGRAPH_PKG_NAME }}-${{ needs.prepare-release.outputs.version }}.tgz")
+          full_pname=$(clean_pkg_name "${HASHGRAPH_PKG_NAME}-${RELEASE_VERSION}.tgz")
           echo "hg-package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
 
       - name: Generate Hiero-Ledger Package Name
         id: set-hl-package-name
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           clean_pkg_name() {
             echo "${1}" | sed 's/^@//; s/\//-/g'
           }
           pname=$(jq -r '.name' './package.json')
-          if [[ "${pname}" != "${{ env.HIERO_PKG_NAME }}" ]]; then
-            echo "::error file=flow-deploy-release-artifact.yaml::Package name in package.json does not match expected package name '${{ env.HIERO_PKG_NAME }}'"
+          if [[ "${pname}" != "${HIERO_PKG_NAME}" ]]; then
+            echo "::error file=flow-deploy-release-artifact.yaml::Package name in package.json does not match expected package name '${HIERO_PKG_NAME}'"
             exit 1
           fi
-          full_pname=$(clean_pkg_name "${pname}-${{ needs.prepare-release.outputs.version }}.tgz")
+          full_pname=$(clean_pkg_name "${pname}-${RELEASE_VERSION}.tgz")
           echo "hl-package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
 
   create-github-release:
@@ -224,7 +240,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # 1.4.0
+        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # v1.4.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -270,14 +286,21 @@ jobs:
         with:
           version: 1.7
 
+      # npm install -g npm@11.7.0 upgrades npm itself, pinned to an exact version, before
+      # npm ci runs. There is no lockfile to point at for the tool that reads the lockfile,
+      # so zizmor's adhoc-packages audit is flagging the one ad-hoc install that cannot be
+      # replaced by npm ci without a chicken-and-egg problem.
       - name: Build Production Distribution
-        run: |
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
+        run: | # zizmor: ignore[adhoc-packages]
           set -eo pipefail
           npm install -g npm@11.7.0
           npm ci
-          echo "VERSION=${{ needs.prepare-release.outputs.version }}"
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-            [[ -n "${{ needs.prepare-release.outputs.version }}" ]] && npm version ${{ needs.prepare-release.outputs.version }} -f --no-git-tag-version --allow-same-version
+          echo "VERSION=${RELEASE_VERSION}"
+          if [[ "${DRY_RUN_ENABLED_INPUT}" == "true" ]]; then
+            [[ -n "${RELEASE_VERSION}" ]] && npm version "${RELEASE_VERSION}" -f --no-git-tag-version --allow-same-version
           fi
           task build
 
@@ -306,8 +329,15 @@ jobs:
             cat .jfrog/projects/npm.yaml
           echo "::endgroup::"
 
+      # semantic-release and every plugin/helper here are exact-pinned; only their
+      # transitive dependencies are unresolved by a lockfile, which is what zizmor's
+      # adhoc-packages audit flags regardless of top-level pinning. The correct fix is a
+      # manifest + `npm ci`, but this toolchain runs inside the release pipeline, directly
+      # ahead of the publish steps that use its output (git tag, GitHub release, npm
+      # publish) — a lockfile migration here can only be verified against a real release
+      # run, not a dry run. Deferred rather than risked; revisit if this toolchain changes.
       - name: Install Semantic Release
-        run: |
+        run: | # zizmor: ignore[adhoc-packages]
           npm install -g semantic-release@25.0.2 @semantic-release/git@10.0.1 @semantic-release/github@12.0.2 @semantic-release/exec@7.1.0 gradle-semantic-release-plugin@1.7.6
           npm install -g conventional-changelog-conventionalcommits@9.1.0 @commitlint/cli@18.6.0 @commitlint/config-conventional@18.6.0
           npm install -g marked-mangle@1.1.6 marked-gfm-heading-id@3.1.2 semantic-release-conventional-commits@3.0.0
@@ -347,8 +377,10 @@ jobs:
 
       - name: Deploy to JFrog Registry
         if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && !failure() }}
+        env:
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
         run: |
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+          if [[ "${DRY_RUN_ENABLED_INPUT}" == "true" ]]; then
             echo "Dry run enabled, skipping publish to JFrog registry."
           else
             jf npm publish
@@ -358,8 +390,9 @@ jobs:
         if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && !failure() }}
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          RELEASE_TAG="v${{ needs.prepare-release.outputs.version }}"
+          RELEASE_TAG="v${RELEASE_VERSION}"
           echo "Creating example asset archives..."
           task -t scripts/Taskfile.examples.yml create-example-asset-archives UPLOAD_TO_RELEASE=false RELEASE_TAG="${RELEASE_TAG}" CLEAN_UP=false
           echo "Example assets created under scripts/solo-examples/."
@@ -384,9 +417,10 @@ jobs:
         if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          RELEASE_TAG="v${{ needs.prepare-release.outputs.version }}"
-          REPO="${{ github.repository }}"
+          RELEASE_TAG="v${RELEASE_VERSION}"
+          REPO="${GITHUB_REPOSITORY}"
           ZIP_DIR="scripts/solo-examples"
 
           echo "Ensuring GitHub release exists for ${RELEASE_TAG}..."
@@ -448,10 +482,12 @@ jobs:
       - name: Verify Hiero-Ledger Package is Created
         id: verify-hl-package
         if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
+        env:
+          HL_PACKAGE_NAME: ${{ needs.get-package-info.outputs.hl-package-name }}
         run: |
           PROCEED="true"
           echo "::group::Verify Package is Created"
-            if ls -l output/hl | grep "${{ needs.get-package-info.outputs.hl-package-name }}" > /dev/null 2>&1 ; then
+            if ls -l output/hl | grep "${HL_PACKAGE_NAME}" > /dev/null 2>&1 ; then
               echo "::notice file=flow-deploy-release-artifact.yaml::Hiero-Ledger Package is created"
             else
               PROCEED="false"
@@ -475,23 +511,25 @@ jobs:
         env:
           IGNORE_LIST_FILE: .github/workflows/support/.ignore-deploy-release
           CI_TASK: scripts/Taskfile.release.yml
+          HG_PACKAGE_NAME: ${{ needs.get-package-info.outputs.hg-package-name }}
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
         run: |
           echo "::group::Rename package references"
-          task -t ${{ env.CI_TASK }} dual-publish:rename \
-            SOURCE_PKG_NAME="${{ env.HIERO_PKG_NAME }}" \
-            TARGET_PKG_NAME="${{ env.HASHGRAPH_PKG_NAME }}" \
-            IGNORE_LIST_FILE="${{ env.IGNORE_LIST_FILE }}"
+          task -t "${CI_TASK}" dual-publish:rename \
+            SOURCE_PKG_NAME="${HIERO_PKG_NAME}" \
+            TARGET_PKG_NAME="${HASHGRAPH_PKG_NAME}" \
+            IGNORE_LIST_FILE="${IGNORE_LIST_FILE}"
           echo "::endgroup::"
 
           echo "::group::Build and pack Hashgraph package"
-          task -t ${{ env.CI_TASK }} dual-publish:pack \
+          task -t "${CI_TASK}" dual-publish:pack \
             OUTPUT_DIR="output/hg" \
-            DRY_RUN="${{ inputs.dry-run-enabled }}"
+            DRY_RUN="${DRY_RUN_ENABLED_INPUT}"
           echo "::endgroup::"
 
           PROCEED="true"
           echo "::group::Verify Hashgraph Package is Created"
-          if ls -l output/hg | grep "${{ needs.get-package-info.outputs.hg-package-name }}" > /dev/null 2>&1; then
+          if ls -l output/hg | grep "${HG_PACKAGE_NAME}" > /dev/null 2>&1; then
             echo "::notice file=flow-deploy-release-artifact.yaml::Hashgraph Package is created"
           else
             PROCEED="false"
@@ -501,7 +539,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Publish Hashgraph Package to JFrog"
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+          if [[ "${DRY_RUN_ENABLED_INPUT}" == "true" ]]; then
             echo "Dry run enabled, skipping publish to JFrog registry."
           elif [[ "${PROCEED}" == "true" ]]; then
             jf npm publish
@@ -549,7 +587,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # 1.4.0
+        uses: pandaswhocode/initialize-github-job@0ed960ecaed898893e404ad55c7aa12fdc3b2a53 # v1.4.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -558,8 +596,10 @@ jobs:
           node-version: '24'
           node-registry: 'https://registry.npmjs.org/'
 
+      # Same chicken-and-egg case as "Build Production Distribution" above: this upgrades
+      # npm itself, pinned to an exact version, before any lockfile-aware command runs.
       - name: Install NPM latest
-        run: npm install -g npm@11.7.0
+        run: npm install -g npm@11.7.0 # zizmor: ignore[adhoc-packages]
 
       - name: Resolve NPM Dist Tag
         id: dist-tag
@@ -573,13 +613,13 @@ jobs:
           # Publish those to the channel tag for their line instead, matching the
           # release-<major>.<minor>.x tags already on the registry for earlier lines.
           # The default branch keeps "latest".
-          if [[ "${{ github.ref_name }}" =~ ^release/([0-9]+)\.([0-9]+)$ ]]; then
+          if [[ "${GITHUB_REF_NAME}" =~ ^release/([0-9]+)\.([0-9]+)$ ]]; then
             NPM_DIST_TAG="release-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.x"
           else
             NPM_DIST_TAG="latest"
           fi
 
-          echo "Publishing from '${{ github.ref_name }}' to dist-tag '${NPM_DIST_TAG}'"
+          echo "Publishing from '${GITHUB_REF_NAME}' to dist-tag '${NPM_DIST_TAG}'"
           echo "npm-dist-tag=${NPM_DIST_TAG}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Hiero-Ledger NPM Package Artifact
@@ -604,44 +644,52 @@ jobs:
 
       - name: Publish Hiero-Ledger NPM Package
         if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
+        env:
+          NPM_DIST_TAG: ${{ steps.dist-tag.outputs.npm-dist-tag }}
+          HL_PACKAGE_NAME: ${{ needs.get-package-info.outputs.hl-package-name }}
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
         run: |
           echo "::group::Set Publish Args"
-            FLAGS="--access=public --tag ${{ steps.dist-tag.outputs.npm-dist-tag }}"
+            FLAGS="--access=public --tag ${NPM_DIST_TAG}"
             echo "flags=${FLAGS}"
           echo "::endgroup::"
 
           echo "::group::Set tarball output"
-            TARBALL="./output/hl/${{ needs.get-package-info.outputs.hl-package-name }}"
-            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            TARBALL="./output/hl/${HL_PACKAGE_NAME}"
+            if [[ "${DRY_RUN_ENABLED_INPUT}" == "true" ]]; then
               TARBALL=""
             fi
             echo "tarball=${TARBALL}"
           echo "::endgroup::"
 
           echo "::group::Publish Hiero-Ledger NPM Package"
-            if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
+            if [[ "${DRY_RUN_ENABLED_INPUT}" != "true" ]]; then
               npm publish ${TARBALL} ${FLAGS}
             fi
           echo "::endgroup::"
 
       - name: Publish Hashgraph NPM Package
         if: ${{ inputs.dual-publish-enabled == true && (needs.create-github-release.outputs.need-hg-publish == 'true' || inputs.dry-run-enabled == true) }}
+        env:
+          NPM_DIST_TAG: ${{ steps.dist-tag.outputs.npm-dist-tag }}
+          HG_PACKAGE_NAME: ${{ needs.get-package-info.outputs.hg-package-name }}
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
         run: |
           echo "::group::Set Publish Args"
-            FLAGS="--access=public --tag ${{ steps.dist-tag.outputs.npm-dist-tag }}"
+            FLAGS="--access=public --tag ${NPM_DIST_TAG}"
             echo "flags=${FLAGS}"
           echo "::endgroup::"
 
           echo "::group::Set tarball output"
-            TARBALL="./output/hg/${{ needs.get-package-info.outputs.hg-package-name }}"
-            if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            TARBALL="./output/hg/${HG_PACKAGE_NAME}"
+            if [[ "${DRY_RUN_ENABLED_INPUT}" == "true" ]]; then
               TARBALL=""
             fi
             echo "tarball=${TARBALL}"
           echo "::endgroup::"
 
           echo "::group::Publish Hashgraph NPM Package"
-            if [[ "${{ inputs.dry-run-enabled }}" != "true" ]]; then
+            if [[ "${DRY_RUN_ENABLED_INPUT}" != "true" ]]; then
               npm publish ${TARBALL} ${FLAGS}
             fi
           echo "::endgroup::"
@@ -665,16 +713,20 @@ jobs:
 
       - name: Set Inputs
         id: set-inputs
+        env:
+          # github.ref is read below through the GITHUB_REF variable the runner already provides.
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -eo pipefail
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-            echo "Dry run enabled, setting ref to `github.ref` since tag won't exist."
-            echo "tag_ref=${{ github.ref }}" >> $GITHUB_OUTPUT
-            echo "tag_ref=${{ github.ref }}"
+          if [[ "${DRY_RUN_ENABLED_INPUT}" == "true" ]]; then
+            echo 'Dry run enabled, setting ref to `github.ref` since tag will not exist.'
+            echo "tag_ref=${GITHUB_REF}" >> $GITHUB_OUTPUT
+            echo "tag_ref=${GITHUB_REF}"
           else
-            echo "Dry run not enabled, setting ref to 'refs/tags/v${{ needs.prepare-release.outputs.version }}'."
-            echo "tag_ref=refs/tags/v${{ needs.prepare-release.outputs.version }}" >> $GITHUB_OUTPUT
-            echo "tag_ref=refs/tags/v${{ needs.prepare-release.outputs.version }}"
+            echo "Dry run not enabled, setting ref to 'refs/tags/v${RELEASE_VERSION}'."
+            echo "tag_ref=refs/tags/v${RELEASE_VERSION}" >> $GITHUB_OUTPUT
+            echo "tag_ref=refs/tags/v${RELEASE_VERSION}"
           fi
 
   # Do a Hugo build for the docs site for the release branch

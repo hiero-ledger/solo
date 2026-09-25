@@ -55,6 +55,8 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
@@ -90,6 +92,8 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Read JSON and Set Matrix Output
@@ -125,6 +129,8 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
@@ -270,8 +276,19 @@ jobs:
       actions: read # flow-performance-test.yaml polls the current workflow run
     needs:
       - generate_matrix
-    # No `secrets:` block: this workflow only uses secrets.GITHUB_TOKEN, which GitHub provides to
-    # called workflows automatically and which cannot be passed explicitly.
+    # Only the nightly Slack webhook is passed explicitly; secrets.GITHUB_TOKEN is provided to
+    # called workflows automatically and cannot be passed here.
     uses: $/.github/workflows/flow-performance-test.yaml
     with:
-      cn-edge-version: v0.75.1
+      cn-edge-version: v0.76.4
+      report-to-slack: true
+    secrets:
+      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+
+  windows-one-shot-redeployment:
+    name: Extended Test (windows-one-shot-redeployment)
+    needs:
+      - generate_matrix
+    uses: $/.github/workflows/flow-standard-runner-one-shot-windows.yaml
+    with:
+      run-twice: true

@@ -460,6 +460,20 @@ export class Flags {
     },
   };
 
+  public static readonly transplant: CommandFlag = {
+    constName: 'transplant',
+    name: 'transplant',
+    definition: {
+      describe:
+        'Treat the supplied state file as captured on a different network.' +
+        "\nInstalls this network's address book as override-network.json so the consensus node adopts it" +
+        " instead of the roster carried by the state. Leave unset when restoring a network's own state.",
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly upgradeZipFile: CommandFlag = {
     constName: 'upgradeZipFile',
     name: 'upgrade-zip-file',
@@ -545,6 +559,18 @@ export class Flags {
       defaultValue: '',
       type: 'string',
       alias: 'relay-image',
+    },
+  };
+
+  public static readonly componentImageArchive: CommandFlag = {
+    constName: 'componentImageArchive',
+    name: 'component-image-archive',
+    definition: {
+      describe:
+        'Path to a docker save image archive. Requires --component-image to identify the archived image. ' +
+        'The archive is loaded into every target Kind cluster and uses pullPolicy: Never.',
+      defaultValue: '',
+      type: 'string',
     },
   };
 
@@ -1627,6 +1653,18 @@ export class Flags {
     ): Promise<boolean> {
       return await Flags.prompt('toggle', task, input, Flags.persistentVolumeClaims);
     },
+  };
+
+  public static readonly verifyPersistentVolumeClaimMounts: CommandFlag = {
+    constName: 'verifyPersistentVolumeClaimMounts',
+    name: 'verify-pvc-mounts',
+    definition: {
+      describe:
+        'Fail the deployment when a persistent volume claim is mounted on storage smaller than it requested; requires --pvcs',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
   };
 
   public static readonly debugNodeAlias: CommandFlag = {
@@ -2873,6 +2911,7 @@ export class Flags {
     Flags.outputDir,
     Flags.outputValuesFile,
     Flags.persistentVolumeClaims,
+    Flags.verifyPersistentVolumeClaimMounts,
     Flags.pinger,
     Flags.predefinedAccounts,
     Flags.privateKey,
@@ -2880,6 +2919,7 @@ export class Flags {
     Flags.output,
     Flags.imageTag,
     Flags.componentImage,
+    Flags.componentImageArchive,
     Flags.relayReleaseTag,
     Flags.relayVersion,
     Flags.releaseTag,
@@ -2894,6 +2934,7 @@ export class Flags {
     Flags.stakeAmounts,
     Flags.stateFile,
     Flags.storageType,
+    Flags.transplant,
     Flags.gcsWriteAccessKey,
     Flags.gcsWriteSecrets,
     Flags.gcsEndpoint,
