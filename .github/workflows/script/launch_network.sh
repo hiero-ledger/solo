@@ -577,6 +577,19 @@ if [[ -z "${fromSoloVersion}" ]]; then
   exit 1
 fi
 
+if [[ -n "${toConsensusNodeVersion}" ]]; then
+  fromConsensusNodeVersion="$(extract_version TEST_UPGRADE_FROM_VERSION version-test.ts)"
+  normalizedFromConsensusNodeVersion="${fromConsensusNodeVersion#v}"
+  normalizedToConsensusNodeVersion="${toConsensusNodeVersion#v}"
+
+  if [[ "${normalizedFromConsensusNodeVersion}" == "${normalizedToConsensusNodeVersion}" ]] ||
+    [[ "$(printf '%s\n' "${normalizedFromConsensusNodeVersion}" "${normalizedToConsensusNodeVersion}" | sort -V | head -n 1)" != "${normalizedFromConsensusNodeVersion}" ]]; then
+    echo "Invalid consensus node migration: target ${toConsensusNodeVersion} must be newer than source ${fromConsensusNodeVersion}."
+    echo "Usage: $0 <fromSoloVersion> [toConsensusNodeVersion]"
+    exit 1
+  fi
+fi
+
 # check if yq is installed
 if ! command -v yq &> /dev/null
 then

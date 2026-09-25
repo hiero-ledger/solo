@@ -13,16 +13,16 @@ env:
   # still exercising block node deploy/upgrade.
   BLOCK_STREAM_STREAM_MODE: BOTH
   BLOCK_STREAM_WRITER_MODE: FILE_AND_GRPC
-  DISABLE_IMPORTER_SPRING_PROFILES: "true"
+  DISABLE_IMPORTER_SPRING_PROFILES: 'true'
 
 vars:
-  NODE_IDENTIFIERS: "node1,node2"
-  SOLO_NETWORK_SIZE: "2"
-  DEPLOYMENT: "deployment-version-upgrade-test"
-  NAMESPACE: "namespace-version-upgrade-test"
-  CLUSTER_NAME: "version-upgrade-test-cluster"
-  CONTEXT: "kind-version-upgrade-test-cluster"
-  CLUSTER_REFERENCE: "kind-version-upgrade-test-cluster"
+  NODE_IDENTIFIERS: 'node1,node2'
+  SOLO_NETWORK_SIZE: '2'
+  DEPLOYMENT: 'deployment-version-upgrade-test'
+  NAMESPACE: 'namespace-version-upgrade-test'
+  CLUSTER_NAME: 'version-upgrade-test-cluster'
+  CONTEXT: 'kind-version-upgrade-test-cluster'
+  CLUSTER_REFERENCE: 'kind-version-upgrade-test-cluster'
 
   # Previous versions (current minus one)
   PREV_CN_VERSION:
@@ -37,6 +37,8 @@ vars:
     sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 
   # Current versions to upgrade to
+  CURRENT_CN_VERSION:
+    sh: sed -n "s/^export const HEDERA_PLATFORM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
   CURRENT_MIRROR_VERSION:
     sh: sed -n "s/^export const MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
   # Local build path for network upgrade
@@ -91,7 +93,6 @@ tasks:
       - cmd: |
           $SOLO_COMMAND deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} \
           --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
-
 
   deploy-old-versions:
     desc: Deploy network with previous versions of all components
@@ -152,16 +153,16 @@ tasks:
       # block buffer and stalls the network. Upgrading both while no consensus node is producing
       # removes that window entirely, so no version comparison is needed here.
       - cmd: |
-          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
-          echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
+          echo "Upgrading consensus network to version: {{ .CURRENT_CN_VERSION }}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --upgrade-version ${CONSENSUS_NODE_VERSION} \
+          --upgrade-version {{ .CURRENT_CN_VERSION }} \
           --deployment {{ .DEPLOYMENT }} \
           --skip-node-start
 
       # Upgrade block node while the consensus nodes are still stopped
       - cmd: |
-          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
+          $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }} \
+          --consensus-node-version {{ .CURRENT_CN_VERSION }}
 
       # Start the upgraded consensus nodes now that the block node also speaks the new format
       - cmd: |
@@ -176,7 +177,6 @@ tasks:
       # Upgrade explorer
       - cmd: |
           $SOLO_COMMAND explorer node upgrade --deployment {{ .DEPLOYMENT }}
-
 
   verify-functionality:
     desc: Verify all components are working correctly
@@ -199,10 +199,10 @@ tasks:
       - cmd: |
           ACCOUNT_ID=$(cat /tmp/first_account_id.txt)
           echo "Checking Explorer API for account: $ACCOUNT_ID"
-          
+
           # Get the explorer service URL (assuming port-forward or ingress)
           EXPLORER_URL="http://localhost:38080"
-          
+
           # Try to access the account via Explorer API
           curl -s "${EXPLORER_URL}/api/v1/accounts/${ACCOUNT_ID}" | jq '.' || echo "Explorer API check completed"
       - echo "Explorer API verification completed"
@@ -211,7 +211,7 @@ tasks:
       - cmd: |
           # Get relay service URL (assuming port-forward or ingress)
           RELAY_URL="http://localhost:37546"
-          
+
           # Make a simple JSON-RPC call to verify relay is working
           curl -X POST "${RELAY_URL}" \
             -H "Content-Type: application/json" \

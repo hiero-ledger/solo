@@ -307,6 +307,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.upgradeVersion,
+      flags.consensusNodeVersion,
       flags.id,
     ],
   };
