@@ -62,6 +62,7 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {ResumableCopySource} from '../integration/kube/resources/container/resumable-copy-source.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -1938,7 +1939,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
-          task: async ({config}, task): Promise<SoloListr<NetworkDeployContext>> => {
+          task: async ({config}, task): Promise<void> => {
             const wraps: Wraps = this.soloConfig.tss.wraps;
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
@@ -1994,7 +1995,8 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
-            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz
+            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz.
+            // Keep the archive on the node because it is required during genesis.
             // (tss.wrapsProvingKeyPath) at genesis, not from the pre-extracted
             // TSS_LIB_WRAPS_ARTIFACTS_PATH directory. If the wraps-key-path directory carries the
             // tarball, stage it under that exact name so the library is ready for the genesis history
@@ -2011,6 +2013,17 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
+            const downloadedWrapsArchive: string = PathEx.join(
+              constants.SOLO_CACHE_DIR,
+              `${wraps.directoryName}.tar.gz`,
+            );
+            const wrapsArchivePath: string | undefined =
+              wrapsTarball ??
+              (!config.wrapsKeyPath && fs.existsSync(downloadedWrapsArchive) ? downloadedWrapsArchive : undefined);
+            const preparedWrapsSource: ResumableCopySource | undefined = wrapsArchivePath
+              ? ResumableCopySource.create(wrapsArchivePath, constants.CONTAINER_COPY_CHUNK_SIZE_BYTES)
+              : undefined;
+
             // The library is hundreds of megabytes per node, so on a large network the copies
             // dominate deploy time. Running them concurrently is much faster but puts every
             // transfer on the same link at once, which is the wrong trade on a constrained
@@ -2023,21 +2036,58 @@ export class NetworkCommand extends BaseCommand {
                     consensusNode.context,
                   ).getConsensusNodeRootContainer(config.namespace, consensusNode.name);
 
-                  await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  const targetKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+                  const targetWrapsPath: string = `${targetKeysDirectory}/${wraps.directoryName}`;
 
-                  if (wrapsTarball) {
-                    await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  if (wrapsArchivePath) {
+                    const targetWrapsTarball: string = `${targetKeysDirectory}/wraps.tar.gz`;
+                    await rootContainer.copyFileResumable(
+                      wrapsArchivePath,
+                      targetWrapsTarball,
+                      constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                      preparedWrapsSource,
+                    );
+
+                    const allowedArchiveMembers: string[] = [...wraps.allowedKeyFileSet];
+                    await rootContainer.execContainer([
+                      'bash',
+                      '-c',
+                      `temporary_directory="${targetWrapsPath}.partial" && ` +
+                        'rm -rf "$temporary_directory" && mkdir -p "$temporary_directory" && ' +
+                        `tar -xzf "${targetWrapsTarball}" -C "$temporary_directory" -- "$@" && ` +
+                        `rm -rf "${targetWrapsPath}" && ` +
+                        `mv "$temporary_directory" "${targetWrapsPath}"`,
+                      'wraps-archive-members',
+                      ...allowedArchiveMembers,
+                    ]);
+                  } else {
+                    await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
+                    for (const file of wraps.allowedKeyFileSet) {
+                      const sourcePath: string = PathEx.join(extractedDirectory, file);
+                      if (fs.existsSync(sourcePath)) {
+                        await rootContainer.copyFileResumable(
+                          sourcePath,
+                          `${targetWrapsPath}/${file}`,
+                          constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                        );
+                      }
+                    }
                   }
                 },
               }),
             );
 
-            return task.newListr(subTasks, {
+            const copyTasks: SoloListr<NetworkDeployContext> = task.newListr(subTasks, {
               concurrent: constants.EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL,
               rendererOptions: {
                 collapseSubtasks: false,
               },
             });
+            try {
+              await copyTasks.run();
+            } finally {
+              preparedWrapsSource?.dispose();
+            }
           },
         },
         {

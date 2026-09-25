@@ -393,6 +393,7 @@ export const SOLO_CACHE_IMAGES_TARGET_FILE: string = PathEx.joinWithRealPath(
 
 export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
 export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAINER_COPY_BACKOFF_MS') || 300;
+export const CONTAINER_COPY_CHUNK_SIZE_BYTES: number = 128 * 1024 * 1024;
 
 export const CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS') || 10;

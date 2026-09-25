@@ -31,6 +31,7 @@ import type * as stream from 'node:stream';
 import {platform} from 'node:process';
 import {PathEx} from '../../../../../business/utils/path-ex.js';
 import eol from 'eol';
+import {ResumableCopySource} from '../../../resources/container/resumable-copy-source.js';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -317,6 +318,87 @@ export class K8ClientContainer implements Container {
           // ignore
         }
       }
+    }
+  }
+
+  public async copyFileResumable(
+    sourcePath: string,
+    destinationPath: string,
+    chunkSizeBytes: number,
+    preparedSource?: ResumableCopySource,
+  ): Promise<boolean> {
+    const resumableSource: ResumableCopySource =
+      preparedSource ?? ResumableCopySource.create(sourcePath, chunkSizeBytes);
+    const transferDirectory: string = `${path.dirname(destinationPath)}/.solo-transfer-${resumableSource.sourceChecksum}`;
+
+    try {
+      const destinationValid: boolean = await this.isRemoteFileValid(
+        destinationPath,
+        resumableSource.sourceSize,
+        resumableSource.sourceChecksum,
+      );
+      if (destinationValid) {
+        return true;
+      }
+
+      await this.execContainer(['bash', '-c', `mkdir -p "${transferDirectory}"`]);
+
+      for (const chunk of resumableSource.chunks) {
+        const remoteChunkPath: string = `${transferDirectory}/${path.basename(chunk.path)}`;
+
+        const remoteChunkValid: boolean = await this.isRemoteFileValid(remoteChunkPath, chunk.length, chunk.checksum);
+        if (!remoteChunkValid) {
+          await this.copyTo(chunk.path, transferDirectory);
+          const copiedChunkValid: boolean = await this.isRemoteFileValid(remoteChunkPath, chunk.length, chunk.checksum);
+          if (!copiedChunkValid) {
+            throw new KubeContainerOperationFailedError(
+              `resumable copy verification for ${remoteChunkPath}`,
+              new Error('remote chunk checksum or size did not match'),
+            );
+          }
+        }
+      }
+
+      const remoteTemporaryPath: string = `${destinationPath}.partial`;
+      const chunkPattern: string = `${transferDirectory}/chunk-*`;
+      await this.execContainer([
+        'bash',
+        '-c',
+        `cat ${chunkPattern} > "${remoteTemporaryPath}" && ` +
+          `test "$(stat -c %s "${remoteTemporaryPath}")" = "${resumableSource.sourceSize}" && ` +
+          `test "$(sha256sum "${remoteTemporaryPath}" | cut -d ' ' -f 1)" = "${resumableSource.sourceChecksum}" && ` +
+          `mv "${remoteTemporaryPath}" "${destinationPath}" && ` +
+          `rm -rf "${transferDirectory}"`,
+      ]);
+
+      this.logger.info(
+        `copyFileResumable: completed ${sourcePath} -> ${destinationPath} (${resumableSource.sourceSize} bytes in ${resumableSource.chunks.length} chunks)`,
+      );
+      return true;
+    } finally {
+      if (!preparedSource) {
+        resumableSource.dispose();
+      }
+    }
+  }
+
+  private async isRemoteFileValid(
+    remotePath: string,
+    expectedSize: number,
+    expectedChecksum: string,
+  ): Promise<boolean> {
+    try {
+      const result: string = await this.execContainer([
+        'bash',
+        '-c',
+        `test -f "${remotePath}" && ` +
+          `test "$(stat -c %s "${remotePath}")" = "${expectedSize}" && ` +
+          `test "$(sha256sum "${remotePath}" | cut -d ' ' -f 1)" = "${expectedChecksum}" && echo -n valid`,
+      ]);
+      return result.trim() === 'valid';
+    } catch {
+      // A missing, partial, or unreadable remote chunk is not reusable; the caller will upload it again.
+      return false;
     }
   }
 

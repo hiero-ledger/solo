@@ -4347,7 +4347,7 @@ export class NodeCommandTasks {
           let found: boolean = false;
           while (attempt < attempts) {
             try {
-              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+              if (await rootContainer.hasDir(targetWrapsPath)) {
                 found = true;
                 break;
               }
@@ -4357,14 +4357,31 @@ export class NodeCommandTasks {
               );
               await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
               attempt++;
+              continue;
             }
+
+            this.logger.info(
+              `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+            );
+            await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
+            attempt++;
           }
 
           if (found) {
             continue;
           }
 
-          await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+          await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
+          for (const file of wraps.allowedKeyFileSet) {
+            const sourcePath: string = PathEx.join(extractedDirectory, file);
+            if (fs.existsSync(sourcePath)) {
+              await rootContainer.copyFileResumable(
+                sourcePath,
+                `${targetWrapsPath}/${file}`,
+                constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+              );
+            }
+          }
         }
       },
     };
