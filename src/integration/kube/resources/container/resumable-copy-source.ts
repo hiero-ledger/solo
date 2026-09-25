@@ -23,16 +23,30 @@ export class ResumableCopySource {
   ) {}
 
   public static create(sourcePath: string, chunkSizeBytes: number): ResumableCopySource {
-    if (!fs.existsSync(sourcePath)) {
-      throw new KubeContainerInvalidPathError('source', sourcePath);
-    }
     if (!Number.isSafeInteger(chunkSizeBytes) || chunkSizeBytes <= 0) {
       throw new KubeIllegalArgumentError('chunk size must be a positive safe integer');
     }
 
-    const sourceSize: number = fs.statSync(sourcePath).size;
-    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-resumable-copy-'));
-    const sourceHandle: number = fs.openSync(sourcePath, 'r');
+    let sourceHandle: number;
+    try {
+      sourceHandle = fs.openSync(sourcePath, 'r');
+    } catch (error) {
+      const errorCode: string | undefined = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
+      if (errorCode === 'ENOENT') {
+        throw new KubeContainerInvalidPathError('source', sourcePath);
+      }
+      throw error;
+    }
+
+    let sourceSize: number;
+    let temporaryDirectory: string;
+    try {
+      sourceSize = fs.fstatSync(sourceHandle).size;
+      temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-resumable-copy-'));
+    } catch (error) {
+      fs.closeSync(sourceHandle);
+      throw error;
+    }
     const sourceChecksum: crypto.Hash = crypto.createHash('sha256');
     const chunks: ResumableCopyChunk[] = [];
     const buffer: Buffer = Buffer.allocUnsafe(Math.min(16 * 1024 * 1024, chunkSizeBytes));
