@@ -5,8 +5,8 @@ import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 /**
- * @description Thrown when a cached image archive no longer matches the SHA-256 the image cache manifest publishes
- * for it, checked again immediately before the archive is loaded into the cluster; the message names the image and
+ * @description Thrown when a cached image archive no longer matches the SHA-256 published for it (in the image cache
+ * manifest or its cached `.sha256` file), checked again immediately before the archive is loaded into the cluster; the message names the image and
  * the archive. solo refuses to load bytes it cannot vouch for, so this means the archive was corrupted or altered
  * after it was downloaded — the archive has been deleted and `solo cache image pull` will download it again.
  */

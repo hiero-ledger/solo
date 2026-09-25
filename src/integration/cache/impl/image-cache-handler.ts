@@ -298,9 +298,9 @@ export class ImageCacheHandler implements CacheOperationHandler {
   /**
    * Loads the cached image archives into the cluster.
    *
-   * Every archive is rehashed and checked against the manifest immediately before it is handed to the
-   * container engine, so an archive that was corrupted or altered after it was downloaded never reaches the
-   * cluster.
+   * Every archive is rehashed and checked against the manifest and its cached hash file immediately before it
+   * is handed to the container engine, so an archive that was corrupted or altered after it was downloaded never
+   * reaches the cluster.
    */
   public async load(target: string): Promise<SoloListrTask<AnyListrContext>[]> {
     const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
@@ -324,7 +324,18 @@ export class ImageCacheHandler implements CacheOperationHandler {
             return;
           }
 
-          await this.assertArchiveMatchesManifest(name, item.localPath, manifestImages.get(name));
+          const manifestImage: CacheManifestImage | undefined = manifestImages.get(name);
+          const cachedHash: string | undefined = await ImageCacheHandler.readCachedHash(item.localPath);
+
+          // An archive cached by an older solo version has no hash file and never matches the manifest;
+          // `solo cache image pull` replaces it, so skip it here rather than fail the first load after an upgrade.
+          if (manifestImage && cachedHash === undefined) {
+            task.title += ' - ' + chalk.yellow('cached by an older solo version, skipped');
+            this.recordFailure(`${name} was not loaded: run \`solo cache image pull\` to replace its archive.`);
+            return;
+          }
+
+          await this.assertArchiveMatchesPublishedHashes(name, item.localPath, manifestImage?.sha256, cachedHash);
 
           try {
             await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
@@ -360,31 +371,37 @@ export class ImageCacheHandler implements CacheOperationHandler {
   }
 
   /**
-   * Rehashes a cached archive and compares it against the hash the manifest publishes for the image, so an
-   * archive that was corrupted or tampered with after it was downloaded is never loaded into the cluster.
+   * Rehashes a cached archive and compares it against every hash published for it: the manifest hash and the
+   * hash file `solo cache image pull` kept next to the archive. An archive that was corrupted or tampered with
+   * after it was downloaded is never loaded into the cluster, and the hash file keeps that check working when
+   * the manifest cannot be fetched.
    *
-   * With no manifest entry for the image there is no trusted hash to compare against and the archive is
-   * loaded as it is. That is the deliberate choice: no Solo release publishes a `cache-manifest.json` yet, an
-   * image can legitimately be absent from the manifest (a component version supplied by a flag, for example),
-   * and treating "nothing to compare against" as a failure would make loading impossible rather than safer.
-   * The archive still had to be written by `solo cache image pull`, which is the only path that writes into
-   * the cache and verifies everything it writes.
+   * With neither hash there is nothing trusted to compare against and the archive is loaded as it is. That is
+   * the deliberate choice: no Solo release publishes a `cache-manifest.json` yet, an archive cached by an older
+   * solo version has no hash file, and treating "nothing to compare against" as a failure would make loading
+   * impossible rather than safer.
    *
-   * @throws CacheArchiveHashMismatchSoloError when the archive does not match the manifest hash
+   * @throws CacheArchiveHashMismatchSoloError when the archive does not match a published hash
    */
-  private async assertArchiveMatchesManifest(
+  private async assertArchiveMatchesPublishedHashes(
     image: string,
     archivePath: string,
-    manifestImage: CacheManifestImage | undefined,
+    manifestHash: string | undefined,
+    cachedHash: string | undefined,
   ): Promise<void> {
-    if (!manifestImage) {
-      this.logger.debug(`No manifest hash for ${image}; loading ${archivePath} without re-validation.`);
+    const expectedHashes: string[] = [manifestHash, cachedHash].filter(
+      (hash: string | undefined): hash is string => hash !== undefined,
+    );
+
+    if (expectedHashes.length === 0) {
+      this.logger.debug(`No published hash for ${image}; loading ${archivePath} without re-validation.`);
       return;
     }
 
     const computed: string = await ImageCacheHandler.computeSha256(archivePath);
+    const mismatched: string | undefined = expectedHashes.find((hash: string): boolean => hash !== computed);
 
-    if (computed === manifestImage.sha256) {
+    if (mismatched === undefined) {
       return;
     }
 
@@ -392,7 +409,20 @@ export class ImageCacheHandler implements CacheOperationHandler {
     // rehashing the same bad archive and failing the load a second time.
     await this.discardArchive(archivePath);
 
-    throw new SoloErrors.system.cacheArchiveHashMismatch(image, archivePath, manifestImage.sha256, computed);
+    throw new SoloErrors.system.cacheArchiveHashMismatch(image, archivePath, mismatched, computed);
+  }
+
+  /** Reads the hash file kept next to a cached archive, or `undefined` when the archive has none. */
+  private static async readCachedHash(archivePath: string): Promise<string | undefined> {
+    try {
+      return await ImageCacheHandler.readPublishedHash(`${archivePath}${ImageCacheHousekeeper.HASH_FILE_EXTENSION}`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+
+      return undefined;
+    }
   }
 
   private async resolveLoadedClusterImages(clusterName: string): Promise<ReadonlySet<string>> {

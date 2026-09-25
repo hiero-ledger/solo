@@ -187,6 +187,7 @@ describe('ImageCacheHandler load', (): void => {
 
   it('loads an archive whose hash still matches the manifest', async (): Promise<void> => {
     await fs.writeFile(archivePath, ARCHIVE_CONTENTS);
+    await fs.writeFile(`${archivePath}.sha256`, ARCHIVE_HASH);
     stubManifest(manifestImage());
 
     const loadArchiveStub: SinonStub = sinon.stub().resolves();
@@ -251,5 +252,56 @@ describe('ImageCacheHandler load', (): void => {
     await runReturnedLoadTasks(handler, 'my-cluster');
 
     expect(loadArchiveStub).to.have.been.calledOnceWithExactly(archivePath, 'my-cluster');
+  });
+
+  it('skips an archive cached by an older solo version instead of failing the load', async (): Promise<void> => {
+    // No hash file next to the archive: the layout the registry-pull model left behind.
+    await fs.writeFile(archivePath, 'exported from a registry pull');
+    stubManifest(manifestImage());
+
+    const loadArchiveStub: SinonStub = sinon.stub().resolves();
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      createEngine({loadImageArchiveIntoCluster: loadArchiveStub}),
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+    );
+
+    await runReturnedLoadTasks(handler, 'my-cluster');
+
+    expect(loadArchiveStub).to.not.have.been.called;
+    expect(loggerStub.addMessageGroupMessage).to.have.been.calledWithMatch(
+      sinon.match.any,
+      sinon.match('solo cache image pull'),
+    );
+    // Left for `solo cache image pull` to replace.
+    expect(await exists(archivePath)).to.equal(true);
+  });
+
+  it('aborts the load when the archive no longer matches its cached hash file and no manifest is available', async (): Promise<void> => {
+    await fs.writeFile(archivePath, 'corrupted after it was downloaded');
+    await fs.writeFile(`${archivePath}.sha256`, ARCHIVE_HASH);
+
+    const loadArchiveStub: SinonStub = sinon.stub().resolves();
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      createEngine({loadImageArchiveIntoCluster: loadArchiveStub}),
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+    );
+
+    let thrown: unknown;
+    try {
+      await runReturnedLoadTasks(handler, 'my-cluster');
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect((thrown as SoloError).getFormattedCode()).to.equal(ErrorCodeRegistry.CACHE_ARCHIVE_HASH_MISMATCH);
+    expect(loadArchiveStub).to.not.have.been.called;
+    expect(await exists(archivePath)).to.equal(false);
+    expect(await exists(`${archivePath}.sha256`)).to.equal(false);
   });
 });
