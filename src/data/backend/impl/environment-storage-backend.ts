@@ -7,6 +7,7 @@ import {UnsupportedStorageOperationError} from '../api/unsupported-storage-opera
 import {StorageBackendError} from '../api/storage-backend-error.js';
 import {Prefix} from '../../key/prefix.js';
 import {EnvironmentKeyFormatter} from '../../key/environment-key-formatter.js';
+import {EnvironmentKeyRegistry} from '../../key/environment-key-registry.js';
 import {StringEx} from '../../../business/utils/string-ex.js';
 
 export class EnvironmentStorageBackend implements StorageBackend {
@@ -61,18 +62,32 @@ export class EnvironmentStorageBackend implements StorageBackend {
    */
 
   public async list(): Promise<string[]> {
-    let environment: object = process.env;
+    let environment: NodeJS.ProcessEnv = process.env;
     if (!environment) {
       environment = {};
     }
 
     const keys: string[] = Object.keys(environment);
+    // A variable that is set but empty must not be listed: readBytes rejects a blank value, so listing it
+    // would hand the caller a key that cannot be read and abort config loading over a variable carrying
+    // no configuration at all.
     return keys
       .filter(
         (value): boolean =>
           Prefix.matcher(value, this.prefix, EnvironmentKeyFormatter.instance()) && Boolean(environment[value]),
       )
-      .map((value): string => Prefix.strip(value, this.prefix));
+      .map((value): string => this.toConfigKey(value));
+  }
+
+  /**
+   * Resolves an environment variable name to the config key it overrides. `_` separates both nesting levels
+   * and camelCase word boundaries, so the name is ambiguous on its own and is resolved against the schema;
+   * a name no registered schema declares falls back to treating every `_` as a nesting level.
+   */
+  private toConfigKey(environmentVariableName: string): string {
+    const name: string = Prefix.strip(environmentVariableName, this.prefix, EnvironmentKeyFormatter.instance());
+
+    return EnvironmentKeyRegistry.resolve(name) ?? Prefix.strip(environmentVariableName, this.prefix);
   }
 
   public async readBytes(key: string): Promise<Buffer> {
