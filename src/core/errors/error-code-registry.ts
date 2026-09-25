@@ -225,6 +225,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   BACKUP_DATABASE_DUMP_NOT_FOUND: 'SOLO-4080',
   INVALID_FLAG_VALUE: 'SOLO-4081',
   TRANSPLANT_REQUIRES_STATE_FILE: 'SOLO-4082',
+  BLOCK_NODE_BLOCK_PROOF_INCOMPATIBLE: 'SOLO-4083',
   COMPONENT_IMAGE_ARCHIVE_TAG_MISMATCH: 'SOLO-4084',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts

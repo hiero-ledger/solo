@@ -760,8 +760,8 @@ describe('DefaultOneShotDeployOrchestrator reconcileEffectiveVersions', (): void
     // reflected in the printed "Versions Used" summary, not just in the actual deployment.
     const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
     const config: OneShotSingleDeployConfigClass = makeConfig({
-      networkConfiguration: {[releaseTagKey]: 'v0.77.0-rc.2'},
-      setupConfiguration: {[releaseTagKey]: 'v0.77.0-rc.2'},
+      networkConfiguration: {[releaseTagKey]: 'v0.77.2'},
+      setupConfiguration: {[releaseTagKey]: 'v0.77.2'},
       versions: {
         soloChart: '0.64.0',
         consensus: 'v0.74.0',
@@ -775,7 +775,7 @@ describe('DefaultOneShotDeployOrchestrator reconcileEffectiveVersions', (): void
     // @ts-expect-error - to access private method
     orchestrator.reconcileEffectiveVersions(config);
 
-    expect(config.versions.consensus).to.equal('v0.77.0-rc.2');
+    expect(config.versions.consensus).to.equal('v0.77.2');
   });
 
   it('reflects per-component version overrides for block, mirror, explorer, and relay nodes', (): void => {
