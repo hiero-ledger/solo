@@ -705,16 +705,17 @@ CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
 
 # TEMPORARY WORKAROUND:
-#   Keep the migration source network in BOTH mode while hiero-block-node#3150 is open.
-#   Pure BLOCKS mode makes mirror importer depend entirely on BN live-subscriber streaming.
-#   That path can send batches starting with ROUND_HEADER, causing mirror to reconnect and
-#   contract-result ingestion to stall. BOTH keeps native block streaming enabled for BN while
-#   also preserving record streams/MinIO for mirror smoke coverage.
-MIGRATION_BLOCK_STREAM_MODE="BOTH"
+#   Keep the migration source network in RECORDS mode while the CN upgrade is bypassed.
+#   The source CN is pre-0.77 and the source BN is pre-0.41, but the live block-proof stream
+#   can still fail with BAD_BLOCK_PROOF when the legacy BN is attached after the network starts.
+#   RECORDS keeps mirror/relay smoke coverage on MinIO without sending incompatible block proofs
+#   to the legacy BN. The block node is still deployed for component coverage and upgraded only
+#   after a coordinated consensus transition is available.
+MIGRATION_BLOCK_STREAM_MODE="RECORDS"
 
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${MIGRATION_BLOCK_STREAM_MODE}"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
-set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 # Keep enough blocks so the BN pod replacement (50s) + gRPC reconnect delay still finds block 96
 # in CN's in-memory buffer. Default 150 is too small: at 2s/block CN evicts block 96 after ~300s.
@@ -760,7 +761,7 @@ EOF
 #   Solo below so the BN upgrade path is still covered while mirror smoke avoids BN #3150.
 export ONE_SHOT_WITH_BLOCK_NODE=false
 export BLOCK_STREAM_STREAM_MODE="${MIGRATION_BLOCK_STREAM_MODE}"
-export BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
+export BLOCK_STREAM_WRITER_MODE="FILE"
 export DISABLE_IMPORTER_SPRING_PROFILES="true"
 
 solo one-shot falcon deploy \
@@ -780,6 +781,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Deploying source block node ${PREV_BLOCK_VE
 npm run solo -- block node add \
   --deployment "${SOLO_DEPLOYMENT}" \
   --block-node-version "${PREV_BLOCK_VERSION_NO_V}" \
+  --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --block-node-tss-overlay \
   -q --dev
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Source block node ${PREV_BLOCK_VERSION_NO_V} deployed"
@@ -826,8 +828,8 @@ SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED=false
 # consensus node produces that shape from the v0.77 line and the block node verifies it from 0.41.0.
 # A pre-boundary producer streaming to a post-boundary verifier (or the reverse) is rejected with
 # BAD_BLOCK_PROOF, which saturates the consensus node block buffer and stalls the network. Because
-# blockStream.writerMode is FILE_AND_GRPC here, the consensus node always publishes to the block
-# node, so the two must stay on the same side of the boundary.
+# blockStream.writerMode is FILE here during the CN-upgrade bypass, so the legacy block node is
+# not sent live proofs until a coordinated cross-boundary transition is implemented.
 cn_uses_16_slot_block_proof() {
   local version="${1#v}"
   local major="${version%%.*}"
