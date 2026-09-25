@@ -3,6 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import * as constants from '../core/constants.js';
+import {NetworkLoadGeneratorLibraries} from '../core/network-load-generator-libraries.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
@@ -244,10 +245,7 @@ export class RapidFireCommand extends BaseCommand {
                   pod.podReference,
                   constants.NETWORK_LOAD_GENERATOR_CONTAINER,
                 );
-                const container: Container = k8Containers.readByRef(containerReference);
-                await container.execContainer('apt-get update -qq');
-                await container.execContainer('apt-get install -y libsodium23');
-                await container.execContainer('apt-get clean -qq');
+                await NetworkLoadGeneratorLibraries.install(k8Containers.readByRef(containerReference));
               }
             },
           },
@@ -1182,11 +1180,20 @@ export class RapidFireCommand extends BaseCommand {
         const k8Containers: Containers = this.k8Factory.getK8(context_.config.context).containers();
 
         for (const pod of nlgPods) {
+          if (pod.phase !== constants.POD_PHASE_RUNNING) {
+            continue;
+          }
           const containerReference: ContainerReference = ContainerReference.of(
             pod.podReference,
             constants.NETWORK_LOAD_GENERATOR_CONTAINER,
           );
           const container: Container = k8Containers.readByRef(containerReference);
+          try {
+            await container.execContainer(`pgrep -f ${testClass}`);
+          } catch {
+            // process does not exist, no need to kill it
+            continue;
+          }
           try {
             await container.execContainer(`pkill -f ${testClass}`);
           } catch (error) {

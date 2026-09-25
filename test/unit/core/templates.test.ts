@@ -61,4 +61,47 @@ describe('core/templates', (): void => {
       'http://mirror-1-web3.solo.svc.cluster.local',
     );
   });
+
+  describe('parseNodeAliasToPortMapping', (): void => {
+    it('should return an empty mapping when no port was supplied', (): void => {
+      expect(Templates.parseNodeAliasToPortMapping()).to.deep.equal({nodeAliasToPort: {}});
+      expect(Templates.parseNodeAliasToPortMapping('')).to.deep.equal({nodeAliasToPort: {}});
+    });
+
+    it('should apply a single port to every consensus node', (): void => {
+      expect(Templates.parseNodeAliasToPortMapping('50211')).to.deep.equal({
+        defaultPort: 50_211,
+        nodeAliasToPort: {},
+      });
+    });
+
+    it('should parse per node alias ports', (): void => {
+      expect(Templates.parseNodeAliasToPortMapping('node1=50211,node2=50212')).to.deep.equal({
+        nodeAliasToPort: {node1: 50_211, node2: 50_212},
+      });
+    });
+
+    it('should combine a default port with per node alias ports', (): void => {
+      expect(Templates.parseNodeAliasToPortMapping('50211,node2=50212')).to.deep.equal({
+        defaultPort: 50_211,
+        nodeAliasToPort: {node2: 50_212},
+      });
+    });
+
+    it('should throw when a port is not a valid port number', (): void => {
+      const invalidPorts: string[] = ['abc', '0', '65536', '50211.5', '-1', 'node1=abc', 'node1='];
+
+      for (const invalidPort of invalidPorts) {
+        expect((): void => {
+          Templates.parseNodeAliasToPortMapping(invalidPort);
+        }, invalidPort).to.throw(/Invalid port number/);
+      }
+    });
+
+    it('should throw when the node alias is missing', (): void => {
+      expect((): void => {
+        Templates.parseNodeAliasToPortMapping('=50211');
+      }).to.throw(/Cannot parse node alias/);
+    });
+  });
 });

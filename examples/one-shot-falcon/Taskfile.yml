@@ -53,6 +53,14 @@ tasks:
             --values-file "${RESOLVED}" --num-consensus-nodes 2 --no-rollback
           rm -f "${RESOLVED}"
 
+  deploy-defaults:
+    desc: Deploy without a values file, using the one-shot single defaults
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
+    cmds:
+      # Solo one-shot falcon deploy with no --values-file falls back to the one-shot single defaults
+      - cmd: $SOLO_COMMAND one-shot falcon deploy
+
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
     env:
@@ -92,6 +100,12 @@ tasks:
     cmds:    
       - cmd: |
           mkdir -p "{{ .TEMP_DIR }}"
+          echo "==== Normalizing port-forwards before baseline ===="
+          RESOLVED_DEPLOYMENT="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}")"
+          $SOLO_COMMAND deployment refresh port-forwards --deployment "${RESOLVED_DEPLOYMENT}" --dev
+          echo ""
+
+      - cmd: |
           node {{ .USER_WORKING_DIR }}/port-forward-status.mjs \
             --mode summary \
             --expected-port-count-file "{{ .EXPECTED_PORT_COUNT_FILE }}"

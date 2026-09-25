@@ -2,11 +2,12 @@
 
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
-import sinon, {type SinonSandbox, type SinonStub} from 'sinon';
+import sinon, {type SinonFakeTimers, type SinonSandbox, type SinonStub} from 'sinon';
 import {Readable} from 'node:stream';
 import got, {type OptionsInit} from 'got';
 
 import {PackageDownloader} from '../../../src/core/package-downloader.js';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
@@ -15,6 +16,7 @@ import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/res
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {UrlCheckOutcome} from '../../../src/core/url-check-outcome.js';
 
 describe('PackageDownloader', (): void => {
   const testLogger: SoloPinoLogger = new SoloPinoLogger('debug', true);
@@ -29,8 +31,29 @@ describe('PackageDownloader', (): void => {
     delete process.env.PACKAGE_DOWNLOADER_URL_EXISTS_TIMEOUT_MS;
     delete process.env.PACKAGE_DOWNLOADER_DOWNLOAD_CONNECT_TIMEOUT_MS;
     delete process.env.PACKAGE_DOWNLOADER_DOWNLOAD_RESPONSE_TIMEOUT_MS;
+    delete process.env.PACKAGE_DOWNLOADER_RETRY_LIMIT;
     sandbox.restore();
   });
+
+  // stubs fetchFile so that it writes the given content instead of hitting the network
+  function stubFetchFile(content: string): SinonStub {
+    return sandbox
+      .stub(downloader, 'fetchFile')
+      .callsFake(async (_url: string, destinationPath: string): Promise<string> => {
+        fs.writeFileSync(destinationPath, content);
+        return destinationPath;
+      });
+  }
+
+  // stubs fetchFile so that each URL writes its own content instead of hitting the network
+  function stubFetchFileByURL(contentByURL: Record<string, string>): SinonStub {
+    return sandbox
+      .stub(downloader, 'fetchFile')
+      .callsFake(async (url: string, destinationPath: string): Promise<string> => {
+        fs.writeFileSync(destinationPath, contentByURL[url]);
+        return destinationPath;
+      });
+  }
 
   describe('urlExists', (): void => {
     it('should return true if source URL is valid', async (): Promise<void> => {
@@ -40,6 +63,24 @@ describe('PackageDownloader', (): void => {
     it('should return false if source URL is invalid', async (): Promise<void> => {
       const url: string = 'https://builds.hedera.com/node/software/v0.42/build-v0.42.5.INVALID';
       await expect(downloader.urlExists(url)).to.eventually.equal(false);
+    });
+  });
+
+  describe('checkUrl', (): void => {
+    it('should report EXISTS for an available URL', async (): Promise<void> => {
+      const url: string = 'https://builds.hedera.com/node/software/v0.42/build-v0.42.5.sha384';
+      await expect(downloader.checkUrl(url)).to.eventually.equal(UrlCheckOutcome.EXISTS);
+    });
+
+    it('should report MISSING when the server answers 404', async (): Promise<void> => {
+      const url: string = 'https://builds.hedera.com/node/software/v0.42/build-v0.42.5.INVALID';
+      await expect(downloader.checkUrl(url)).to.eventually.equal(UrlCheckOutcome.MISSING);
+    });
+
+    it('should report INCONCLUSIVE when the host cannot be reached', async (): Promise<void> => {
+      await expect(downloader.checkUrl('https://localhost:9/unreachable')).to.eventually.equal(
+        UrlCheckOutcome.INCONCLUSIVE,
+      );
     });
   });
 
@@ -59,11 +100,15 @@ describe('PackageDownloader', (): void => {
       );
     });
 
-    it('should fail with an invalid URL', async (): Promise<void> => {
+    it('should fail without a download attempt when the HEAD check reports a missing URL', async (): Promise<void> => {
+      sandbox.stub(downloader, 'checkUrl').resolves(UrlCheckOutcome.MISSING);
+      const gotStreamStub: SinonStub = sandbox.stub(got, 'stream');
+
       await expect(downloader.fetchFile('https://localhost/INVALID_FILE', os.tmpdir())).to.be.rejectedWith(
         ResourceNotFoundError,
         'Resource not found: https://localhost/INVALID_FILE',
       );
+      expect(gotStreamStub).to.not.have.been.called;
     });
 
     it('should succeed with a valid release artifact URL', async (): Promise<void> => {
@@ -92,7 +137,7 @@ describe('PackageDownloader', (): void => {
 
       const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
       const destinationPath: string = PathEx.join(temporaryDirectory, 'artifact.txt');
-      const urlExistsStub: SinonStub = sandbox.stub(downloader, 'urlExists').resolves(true);
+      const checkUrlStub: SinonStub = sandbox.stub(downloader, 'checkUrl').resolves(UrlCheckOutcome.EXISTS);
       const gotStreamStub: SinonStub = sandbox
         .stub(got, 'stream')
         .callsFake((...arguments_: unknown[]): ReturnType<typeof got.stream> => {
@@ -110,10 +155,230 @@ describe('PackageDownloader', (): void => {
         destinationPath,
       );
       expect(fs.readFileSync(destinationPath, 'utf8')).to.equal('payload');
-      expect(urlExistsStub.calledOnce).to.equal(true);
+      expect(checkUrlStub.calledOnce).to.equal(true);
       expect(gotStreamStub.calledOnce).to.equal(true);
 
       fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+
+    it('should retry transient download failures with capped exponential backoff', async (): Promise<void> => {
+      process.env.PACKAGE_DOWNLOADER_RETRY_LIMIT = '7';
+      const clock: SinonFakeTimers = sandbox.useFakeTimers({toFake: ['setTimeout']});
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'artifact.txt');
+      sandbox.stub(downloader, 'checkUrl').resolves(UrlCheckOutcome.EXISTS);
+      const gotStreamStub: SinonStub = sandbox.stub(got, 'stream').callsFake((): ReturnType<typeof got.stream> => {
+        if (gotStreamStub.callCount < 7) {
+          throw new Error(`transient failure ${gotStreamStub.callCount}`);
+        }
+        return Readable.from(['payload']) as ReturnType<typeof got.stream>;
+      });
+
+      const pendingFetch: Promise<string> = downloader.fetchFile('https://example.com/artifact.txt', destinationPath);
+      pendingFetch.catch((): void => {
+        // suppress unhandled rejection warnings while the fake clock is advanced; awaited below
+      });
+
+      const expectedDelays: number[] = [2000, 4000, 8000, 16_000, 32_000, 32_000];
+      let expectedAttempts: number = 1;
+      for (const delay of expectedDelays) {
+        await clock.tickAsync(delay - 1);
+        expect(gotStreamStub.callCount).to.equal(expectedAttempts);
+        await clock.tickAsync(1);
+        expectedAttempts++;
+        expect(gotStreamStub.callCount).to.equal(expectedAttempts);
+      }
+
+      await expect(pendingFetch).to.eventually.equal(destinationPath);
+      expect(fs.readFileSync(destinationPath, 'utf8')).to.equal('payload');
+
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+
+    it('should continue download when GitHub release HEAD check reports missing URL', async (): Promise<void> => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'artifact.txt');
+      const checkUrlStub: SinonStub = sandbox.stub(downloader, 'checkUrl').resolves(UrlCheckOutcome.MISSING);
+      const gotStreamStub: SinonStub = sandbox
+        .stub(got, 'stream')
+        .returns(Readable.from(['payload']) as ReturnType<typeof got.stream>);
+
+      await expect(
+        downloader.fetchFile(
+          'https://github.com/google/go-containerregistry/releases/download/v0.21.4/go-containerregistry_Linux_x86_64.tar.gz',
+          destinationPath,
+        ),
+      ).to.eventually.equal(destinationPath);
+      expect(fs.readFileSync(destinationPath, 'utf8')).to.equal('payload');
+      expect(checkUrlStub.calledOnce).to.equal(true);
+      expect(gotStreamStub.calledOnce).to.equal(true);
+
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+
+    it('should continue download when the HEAD pre-check is inconclusive', async (): Promise<void> => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'artifact.txt');
+      const checkUrlStub: SinonStub = sandbox.stub(downloader, 'checkUrl').resolves(UrlCheckOutcome.INCONCLUSIVE);
+      const gotStreamStub: SinonStub = sandbox
+        .stub(got, 'stream')
+        .returns(Readable.from(['payload']) as ReturnType<typeof got.stream>);
+
+      await expect(downloader.fetchFile('https://get.helm.sh/artifact.tar.gz', destinationPath)).to.eventually.equal(
+        destinationPath,
+      );
+      expect(fs.readFileSync(destinationPath, 'utf8')).to.equal('payload');
+      expect(checkUrlStub.calledOnce).to.equal(true);
+      expect(gotStreamStub.calledOnce).to.equal(true);
+
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+
+    it('should report the download failure when both the HEAD pre-check and the download fail', async (): Promise<void> => {
+      process.env.PACKAGE_DOWNLOADER_RETRY_LIMIT = '1';
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'artifact.tar.gz');
+      sandbox.stub(downloader, 'checkUrl').resolves(UrlCheckOutcome.INCONCLUSIVE);
+      const gotStreamStub: SinonStub = sandbox.stub(got, 'stream').throws(new Error('connect ECONNREFUSED'));
+
+      await expect(downloader.fetchFile('https://get.helm.sh/artifact.tar.gz', destinationPath)).to.be.rejectedWith(
+        SoloError,
+        'Failed to download package from https://get.helm.sh/artifact.tar.gz',
+      );
+      expect(gotStreamStub.calledOnce).to.equal(true);
+
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+  });
+
+  describe('fetchPackage', (): void => {
+    const packageURL: string = 'https://example.com/build-v0.0.1.zip';
+    const packageContent: string = 'a complete package payload';
+    const packageChecksum: string = crypto.createHash('sha256').update(packageContent).digest('hex');
+
+    let temporaryDirectory: string;
+    let packageFile: string;
+
+    beforeEach((): void => {
+      temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'downloader-'));
+      packageFile = PathEx.join(temporaryDirectory, 'build-v0.0.1.zip');
+    });
+
+    afterEach((): void => {
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+
+    it('should reuse an existing file whose checksum matches without downloading', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent);
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256'),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.called).to.equal(false);
+    });
+
+    it('should re-download a truncated existing file', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256'),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.calledOnceWith(packageURL, packageFile)).to.equal(true);
+      expect(fs.readFileSync(packageFile, 'utf8')).to.equal(packageContent);
+    });
+
+    it('should fail and remove the file when the downloaded replacement is also corrupt', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+      const fetchFileStub: SinonStub = stubFetchFile('still corrupt');
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256'),
+      ).to.be.rejectedWith(SoloError, packageURL);
+      expect(fetchFileStub.calledOnce).to.equal(true);
+      expect(fs.existsSync(packageFile)).to.equal(false);
+    });
+
+    it('should download over an existing valid file when force is true', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent);
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, packageChecksum, temporaryDirectory, true, 'sha256', true),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.calledOnceWith(packageURL, packageFile)).to.equal(true);
+    });
+
+    it('should reuse an existing file without downloading when checksum verification is off', async (): Promise<void> => {
+      fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+      const fetchFileStub: SinonStub = stubFetchFile(packageContent);
+
+      await expect(
+        downloader.fetchPackage(packageURL, 'unused', temporaryDirectory, false, '', false),
+      ).to.eventually.equal(packageFile);
+      expect(fetchFileStub.called).to.equal(false);
+    });
+
+    describe('with a checksum URL', (): void => {
+      const checksumURL: string = 'https://example.com/build-v0.0.1.sha256';
+      const checksumContent: string = `${packageChecksum}  build-v0.0.1.zip`;
+
+      let checksumFile: string;
+
+      beforeEach((): void => {
+        checksumFile = PathEx.join(temporaryDirectory, 'build-v0.0.1.sha256');
+      });
+
+      it('should reuse a cached package and checksum file without any download', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent);
+        fs.writeFileSync(checksumFile, checksumContent);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({});
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.called).to.equal(false);
+      });
+
+      it('should download only the checksum file when it is missing next to a cached package', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({[checksumURL]: checksumContent});
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.calledOnceWith(checksumURL, checksumFile)).to.equal(true);
+      });
+
+      it('should keep a cached package when only the cached checksum file is stale', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent);
+        fs.writeFileSync(checksumFile, `${'0'.repeat(64)}  build-v0.0.1.zip`);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({[checksumURL]: checksumContent});
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.calledOnceWith(checksumURL, checksumFile)).to.equal(true);
+        expect(fs.readFileSync(packageFile, 'utf8')).to.equal(packageContent);
+      });
+
+      it('should re-download a truncated package after re-verifying against a fresh checksum file', async (): Promise<void> => {
+        fs.writeFileSync(packageFile, packageContent.slice(0, 5));
+        fs.writeFileSync(checksumFile, checksumContent);
+        const fetchFileStub: SinonStub = stubFetchFileByURL({
+          [checksumURL]: checksumContent,
+          [packageURL]: packageContent,
+        });
+
+        await expect(
+          downloader.fetchPackage(packageURL, checksumURL, temporaryDirectory, true, 'sha256'),
+        ).to.eventually.equal(packageFile);
+        expect(fetchFileStub.calledTwice).to.equal(true);
+        expect(fetchFileStub.firstCall.calledWith(checksumURL, checksumFile)).to.equal(true);
+        expect(fetchFileStub.secondCall.calledWith(packageURL, packageFile)).to.equal(true);
+        expect(fs.readFileSync(packageFile, 'utf8')).to.equal(packageContent);
+      });
     });
   });
 

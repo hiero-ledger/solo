@@ -30,6 +30,18 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.localBuildPath,
   flags.force,
   flags.upgradeZipFile,
+  flags.upgradeVersion,
+  flags.freezeBlockDrainSeconds,
+  flags.skipNodeStart,
+];
+const UPGRADE_CONFIG_FILE_FLAGS: CommandFlag[] = [
+  flags.networkDeploymentValuesFile,
+  flags.apiPermissionProperties,
+  flags.applicationEnv,
+  flags.applicationProperties,
+  flags.bootstrapProperties,
+  flags.log4j2Xml,
+  flags.settingTxt,
 ];
 
 const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [];
@@ -48,6 +60,8 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.gossipEndpoints,
   flags.grpcEndpoints,
   flags.domainNames,
+  flags.gossipEndpointPort,
+  flags.serviceEndpointPort,
   // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
   flags.consensusNodeVersion,
@@ -59,23 +73,16 @@ export const UPGRADE_FLAGS: CommandFlags = {
   optional: [
     ...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 
-    flags.upgradeVersion,
     flags.wrapsKeyPath,
 
     // Node config file flags
-    flags.networkDeploymentValuesFile,
-    flags.apiPermissionProperties,
-    flags.applicationEnv,
-    flags.applicationProperties,
-    flags.bootstrapProperties,
-    flags.log4j2Xml,
-    flags.settingTxt,
+    ...UPGRADE_CONFIG_FILE_FLAGS,
   ],
 };
 
 export const UPGRADE_PREPARE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.outputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIG_FILE_FLAGS],
 };
 
 export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
@@ -85,7 +92,7 @@ export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
 
 export const UPGRADE_EXECUTE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIG_FILE_FLAGS],
 };
 
 export const UPDATE_FLAGS: CommandFlags = {
@@ -140,6 +147,8 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.quiet,
   flags.chartDirectory,
   flags.domainNames,
+  flags.gossipEndpointPort,
+  flags.serviceEndpointPort,
   // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
   flags.consensusNodeVersion,
@@ -167,6 +176,8 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.chartDirectory,
   flags.quiet,
   flags.domainNames,
+  flags.gossipEndpointPort,
+  flags.serviceEndpointPort,
   flags.cacheDir,
   flags.endpointType,
   flags.generateGossipKeys,
@@ -254,6 +265,8 @@ export const REFRESH_FLAGS: CommandFlags = {
     flags.consensusNodeVersion,
     flags.cacheDir,
     flags.domainNames,
+    flags.gossipEndpointPort,
+    flags.serviceEndpointPort,
   ],
 };
 
@@ -279,7 +292,7 @@ export const STOP_FLAGS: CommandFlags = {
 
 export const FREEZE_FLAGS: CommandFlags = {
   required: [],
-  optional: [flags.deployment, flags.quiet],
+  optional: [flags.deployment, flags.quiet, flags.freezeBlockDrainSeconds],
 };
 
 export const START_FLAGS: CommandFlags = {
@@ -291,12 +304,19 @@ export const START_FLAGS: CommandFlags = {
     flags.nodeAliasesUnparsed,
     flags.debugNodeAlias,
     flags.stateFile,
+    flags.transplant,
     flags.stakeAmounts,
     flags.forcePortForward,
     flags.externalAddress,
     flags.wrapsKeyPath,
     flags.grpcWebEndpoints,
     flags.skipGrpcWebEndpoint,
+    // The override roster --transplant writes describes the endpoints these three define. Solo does not
+    // persist what `consensus node setup` was given, so a transplant into a network that overrode them
+    // has to be given the same values again, or the roster would be written on the defaults.
+    flags.domainNames,
+    flags.gossipEndpointPort,
+    flags.serviceEndpointPort,
   ],
 };
 
@@ -321,6 +341,8 @@ export const SETUP_FLAGS: CommandFlags = {
     flags.localBuildPath,
     flags.adminPublicKeys,
     flags.domainNames,
+    flags.gossipEndpointPort,
+    flags.serviceEndpointPort,
   ],
 };
 

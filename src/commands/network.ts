@@ -5,13 +5,18 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
 import {SoloErrors} from '../core/errors/solo-errors.js';
+import {type PvcMountVerifier} from '../core/pvc-mount-verifier.js';
+import {type PvcMountFinding} from '../core/pvc-mount-finding.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
+import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
+import {ClusterCrdProbe} from '../core/cluster-crd-probe.js';
 import {Templates} from '../core/templates.js';
 import {
+  Helpers,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
   resolveValidJsonFilePath,
@@ -56,15 +61,14 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type Lock} from '../core/lock/lock.js';
-import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
-import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {type Pvc} from '../integration/kube/resources/pvc/pvc.js';
+import {type PvcDetail} from '../integration/kube/resources/pvc/pvc-detail.js';
+import {KubernetesQuantity} from '../business/utils/kubernetes-quantity.js';
 import {type Pvcs} from '../integration/kube/resources/pvc/pvcs.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -106,6 +110,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
     @inject(InjectTokens.StorageClassHelper) private readonly storageClassHelper: StorageClassHelper,
+    @inject(InjectTokens.PvcMountVerifier) private readonly pvcMountVerifier: PvcMountVerifier,
   ) {
     super();
 
@@ -116,6 +121,7 @@ export class NetworkCommand extends BaseCommand {
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
     this.storageClassHelper = patchInject(storageClassHelper, InjectTokens.StorageClassHelper, this.constructor.name);
+    this.pvcMountVerifier = patchInject(pvcMountVerifier, InjectTokens.PvcMountVerifier, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -144,6 +150,7 @@ export class NetworkCommand extends BaseCommand {
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
       flags.pvcStorageClass,
+      flags.verifyPersistentVolumeClaimMounts,
       flags.quiet,
       // Keep the legacy flag visible in help as deprecated while canonical parsing
       // uses --consensus-node-version.
@@ -178,6 +185,8 @@ export class NetworkCommand extends BaseCommand {
       flags.backupRegion,
       flags.backupProvider,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
@@ -230,13 +239,13 @@ export class NetworkCommand extends BaseCommand {
   ): Promise<void> {
     const pvcs: Pvcs = this.k8Factory.getK8(context).pvcs();
     const baseTitle: string = task.title;
-    let claims: Pvc[] = [];
-    let unbound: Pvc[] = [];
+    let claims: PvcDetail[] = [];
+    let unbound: PvcDetail[] = [];
     let reportedTotal: number = 0;
 
     for (let attempt: number = 0; attempt < constants.PVC_BOUND_MAX_ATTEMPTS; attempt++) {
-      claims = await pvcs.listWithStatus(namespace, [constants.SOLO_NODE_PVC_LABEL_SELECTOR]);
-      unbound = claims.filter((claim: Pvc): boolean => claim.phase !== constants.PVC_PHASE_BOUND);
+      claims = await pvcs.readAll(namespace, [constants.SOLO_NODE_PVC_LABEL_SELECTOR]);
+      unbound = claims.filter((claim: PvcDetail): boolean => claim.phase !== constants.PVC_PHASE_BOUND);
       const bound: number = claims.length - unbound.length;
 
       task.title = `${baseTitle} [${bound}/${claims.length} bound]`;
@@ -271,7 +280,15 @@ export class NetworkCommand extends BaseCommand {
       await sleep(Duration.ofMillis(constants.PVC_BOUND_DELAY));
     }
 
-    const unboundNames: string[] = unbound.map((claim: Pvc): string => claim.pvcReference.name.toString());
+    // Report the requested size with each outstanding claim: provisioning time commonly scales with it, so which
+    // sizes are lagging is the first thing worth knowing when this times out.
+    const unboundNames: string[] = unbound.map((claim: PvcDetail): string => {
+      const size: string =
+        claim.requestedStorageBytes === undefined
+          ? '<unknown size>'
+          : KubernetesQuantity.format(claim.requestedStorageBytes);
+      return `${claim.pvcReference.name.toString()} (${size})`;
+    });
     const reportedNames: string[] =
       unboundNames.length > NetworkCommand.MAX_REPORTED_UNBOUND_PVCS
         ? [
@@ -314,6 +331,60 @@ export class NetworkCommand extends BaseCommand {
             collapseSubtasks: false,
           },
         });
+      },
+    };
+  }
+
+  /**
+   * Confirms each consensus node's persistent volume claims are mounted on the storage they asked
+   * for. A claim can bind and mount successfully against a filesystem far too small to hold it —
+   * directory-based provisioners do not enforce the requested size — so without this check a node
+   * running on the wrong disk looks like a clean deployment until the disk fills up.
+   *
+   * Warns by default because a legitimately oversubscribed development cluster (kind, and any
+   * single-disk setup) reports the same shortfall; `--verify-pvc-mounts` turns it into a failure for
+   * clusters where the storage layout is expected to be correct.
+   *
+   * That flag also enables the chart's `volumeClaims.capacityCheck` init container, which fails the
+   * pod before the consensus node starts. This task stays as the backstop that still reports when
+   * the chart-side guard is unavailable — an older chart, or a values file that overrides it.
+   */
+  private verifyPersistentVolumeClaimMounts(): SoloListrTask<NetworkDeployContext> {
+    return {
+      title: 'Verify persistent volume claim mounts',
+      skip: (context_): boolean => !context_.config.persistentVolumeClaims,
+      task: async (context_, task): Promise<void> => {
+        const config: NetworkDeployConfigClass = context_.config;
+        const findings: PvcMountFinding[] = [];
+
+        for (const context of config.contexts) {
+          findings.push(
+            ...(await this.pvcMountVerifier.verify(config.namespace, context, ['solo.hedera.com/type=network-node'])),
+          );
+        }
+
+        if (findings.length === 0) {
+          return;
+        }
+
+        const descriptions: string[] = findings.map(
+          (finding: PvcMountFinding): string => `${finding.podName}: ${finding.description}`,
+        );
+
+        if (config.verifyPersistentVolumeClaimMounts) {
+          throw new SoloErrors.system.pvcMountVerificationFailed(descriptions);
+        }
+
+        task.title = `${task.title} ${chalk.yellow(`[${findings.length} warning(s)]`)}`;
+        this.logger.showUser(
+          chalk.yellow(
+            `Persistent volume claim mounts are smaller than requested (${findings.length} finding(s)); ` +
+              'consensus nodes may run out of disk. Deploy with --verify-pvc-mounts to treat this as an error.',
+          ),
+        );
+        for (const description of descriptions) {
+          this.logger.showUser(chalk.yellow(`  - ${description}`));
+        }
       },
     };
   }
@@ -690,6 +761,10 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
         chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
+        // quay.io/minio/minio stopped publishing new community images after 2025-10-23; use
+        // Chainguard's free replacement instead, pinned by digest (see version.ts).
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.repository', versions.MINIO_IMAGE_REPOSITORY);
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.digest', versions.MINIO_IMAGE_DIGEST);
       }
     } else if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
@@ -768,7 +843,10 @@ export class NetworkCommand extends BaseCommand {
         .set('telemetry.prometheus.svcMonitor.enabled', false) // remove after chart version is bumped
         .set('crds.serviceMonitor.enabled', config.singleUseServiceMonitor)
         .set('crds.podLog.enabled', config.singleUsePodLog)
-        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims);
+        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims)
+        // Turn on the chart's own pre-start capacity guard alongside solo's post-deploy check, so
+        // an undersized volume stops the node before it writes state rather than after.
+        .set('defaults.volumeClaims.capacityCheck.enabled', config.verifyPersistentVolumeClaimMounts);
 
       const resolvedStorageClass: string = config.resolvedPvcStorageClass[clusterReference];
       if (resolvedStorageClass) {
@@ -1000,6 +1078,7 @@ export class NetworkCommand extends BaseCommand {
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
       flags.pvcStorageClass,
+      flags.verifyPersistentVolumeClaimMounts,
       flags.settingTxt,
       flags.grpcTlsCertificatePath,
       flags.grpcWebTlsCertificatePath,
@@ -1016,6 +1095,8 @@ export class NetworkCommand extends BaseCommand {
       flags.gcsBucketPrefix,
       flags.nodeAliasesUnparsed,
       flags.domainNames,
+      flags.gossipEndpointPort,
+      flags.serviceEndpointPort,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -1051,6 +1132,15 @@ export class NetworkCommand extends BaseCommand {
         'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
+
+    if (config.verifyPersistentVolumeClaimMounts && !config.persistentVolumeClaims) {
+      throw new SoloErrors.validation.invalidFlagValue(
+        flags.verifyPersistentVolumeClaimMounts.name,
+        'true',
+        `requires --${flags.persistentVolumeClaims.name}`,
+      );
+    }
+
     const normalizedReleaseTag: string | undefined = SemanticVersion.normalizeToken(config.releaseTag);
     if (normalizedReleaseTag) {
       config.releaseTag = normalizedReleaseTag;
@@ -1071,6 +1161,9 @@ export class NetworkCommand extends BaseCommand {
     if (config.domainNames) {
       config.domainNamesMapping = Templates.parseNodeAliasToDomainNameMapping(config.domainNames);
     }
+
+    config.gossipEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.gossipEndpointPort);
+    config.serviceEndpointPortMapping = Templates.parseNodeAliasToPortMapping(config.serviceEndpointPort);
 
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
@@ -1107,9 +1200,20 @@ export class NetworkCommand extends BaseCommand {
 
         return blockNodeMapLength > 0 || externalBlockNodeMapLength > 0;
       });
-    // CN >= 0.74 can stream blocks directly to a block node. Without a deployed block node,
-    // keep using record streams via MinIO so mirror/importer and relay still have a source.
-    config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured);
+    const blockStreamMode: string = Helpers.getBlockStreamModeForConsensusVersion(
+      config.releaseTag,
+      blockNodeConfigured,
+      config.tssEnabled,
+    );
+    // CN >= 0.74 can stream blocks directly to a block node. If the effective stream
+    // mode is forced back to BOTH/RECORDS for compatibility, keep MinIO enabled so
+    // record uploaders and mirror importer use the same source.
+    config.minioEnabled = !(
+      tssByDefaultSupported &&
+      config.tssEnabled &&
+      blockNodeConfigured &&
+      blockStreamMode === 'BLOCKS'
+    );
 
     config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
@@ -1127,6 +1231,29 @@ export class NetworkCommand extends BaseCommand {
     await this.prepareStorageSecrets(config);
 
     return config;
+  }
+
+  private async waitForConfigMapDeletion(context: Context, namespace: NamespaceName): Promise<void> {
+    let exists: boolean = await this.k8Factory
+      .getK8(context)
+      .configMaps()
+      .exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+    let attempts: number = 0;
+
+    while (exists && attempts < constants.NETWORK_DESTROY_WAIT_TIMEOUT) {
+      await sleep(Duration.ofSeconds(1));
+
+      exists = await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+      attempts++;
+    }
+
+    if (exists) {
+      throw new SoloErrors.system.timeout(
+        `Timeout waiting for configMap ${constants.SOLO_REMOTE_CONFIGMAP_NAME} to be deleted.`,
+      );
+    }
   }
 
   private async destroyTask(
@@ -1163,6 +1290,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.allSettled(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          await this.waitForConfigMapDeletion(context, namespace);
         }),
       ),
     );
@@ -1201,6 +1329,7 @@ export class NetworkCommand extends BaseCommand {
       await Promise.all(
         contexts.map(async (context): Promise<void> => {
           await this.k8Factory.getK8(context).configMaps().delete(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+          await this.waitForConfigMapDeletion(context, namespace);
         }),
       );
 
@@ -1339,10 +1468,6 @@ export class NetworkCommand extends BaseCommand {
     }
   }
 
-  private async crdExists(context: string, crdName: string): Promise<boolean> {
-    return await this.k8Factory.getK8(context).crds().ifExists(crdName);
-  }
-
   /**
    * Ensure the PodLogs CRD from Grafana Alloy is installed
    */
@@ -1371,9 +1496,18 @@ export class NetworkCommand extends BaseCommand {
     );
 
     for (const context of contexts as string[]) {
-      const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
-      if (exists) {
-        this.logger.debug(`CRD ${PODLOGS_CRD} already exists in context ${context}`);
+      const podLogsCrdLabels: Record<string, string> | undefined = await this.k8Factory
+        .getK8(context)
+        .crds()
+        .readLabels(PODLOGS_CRD);
+      if (podLogsCrdLabels !== undefined) {
+        SharedClusterResourceReport.show(
+          this.logger,
+          `CRD '${PODLOGS_CRD}'`,
+          context,
+          SharedClusterResourceReport.versionFromLabels(podLogsCrdLabels),
+          `version ${versions.GRAFANA_PODLOGS_CRD_VERSION}`,
+        );
         continue;
       }
 
@@ -1464,19 +1598,34 @@ export class NetworkCommand extends BaseCommand {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, context] of clusterRefs) {
       const chartValues: HelmChartValues = new HelmChartValues();
-      let missingCount: number = 0;
+      const foundCrdVersions: Set<string> = new Set<string>();
+
+      const presentCrds: Map<string, Record<string, string>> = await ClusterCrdProbe.probe(
+        this.k8Factory,
+        context,
+        CRDS.map(({crd}): string => crd),
+      );
+      const missingCount: number = CRDS.length - presentCrds.size;
 
       for (const {key, crd} of CRDS) {
-        const exists: boolean = await this.crdExists(context, crd);
-        if (exists) {
+        const crdLabels: Record<string, string> | undefined = presentCrds.get(crd);
+        if (crdLabels !== undefined) {
           chartValues.set(`${key}.enabled`, false);
-        } else {
-          missingCount++;
+          foundCrdVersions.add(SharedClusterResourceReport.versionFromLabels(crdLabels));
         }
       }
 
+      if (foundCrdVersions.size > 0) {
+        SharedClusterResourceReport.show(
+          this.logger,
+          'Prometheus Operator CRDs',
+          context,
+          `${CRDS.length - missingCount} of ${CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
+          `version ${versions.PROMETHEUS_OPERATOR_CRDS_VERSION}`,
+        );
+      }
+
       if (missingCount === 0) {
-        this.logger.info(`All Prometheus Operator CRDs already present in context ${context}; skipping installation.`);
         continue;
       }
 
@@ -1739,7 +1888,6 @@ export class NetworkCommand extends BaseCommand {
             }
           },
         },
-        // TODO: Move the check for load balancer logic to a utility method or class
         {
           title: 'Check for load balancer',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
@@ -1751,34 +1899,19 @@ export class NetworkCommand extends BaseCommand {
               subTasks.push({
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
-                  let attempts: number = 0;
-                  let svc: Service[];
-
-                  while (attempts < constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS) {
-                    svc = await this.k8Factory
+                  try {
+                    await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
-
-                    if (svc && svc.length > 0 && svc[0].status?.loadBalancer?.ingress?.length > 0) {
-                      let shouldContinue: boolean = false;
-                      for (let index: number = 0; index < svc[0].status.loadBalancer.ingress.length; index++) {
-                        const ingress: LoadBalancerIngress = svc[0].status.loadBalancer.ingress[index];
-                        if (!ingress.hostname && !ingress.ip) {
-                          shouldContinue = true; // try again if there is neither a hostname nor an ip
-                          break;
-                        }
-                      }
-                      if (shouldContinue) {
-                        continue;
-                      }
-                      return;
-                    }
-
-                    attempts++;
-                    await sleep(Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS));
+                      .waitForLoadBalancerAddress(
+                        namespace,
+                        Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId),
+                        constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+                        Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+                      );
+                  } catch (error) {
+                    throw new SoloErrors.system.loadBalancerNotFound(error);
                   }
-                  throw new SoloErrors.system.loadBalancerNotFound();
                 },
               });
             }
@@ -1800,7 +1933,7 @@ export class NetworkCommand extends BaseCommand {
             const {namespace, chartDirectory, soloChartVersion, clusterRefs} = config;
 
             // Update the chartValuesMap with the external IP addresses
-            // This regenerates the config.txt and genesis-network.json files with the external IP addresses
+            // This regenerates the genesis-network.json file with the external IP addresses
             config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
             // Perform a helm upgrade for each cluster
@@ -1845,6 +1978,7 @@ export class NetworkCommand extends BaseCommand {
         },
         this.waitForNetworkPvcs(),
         this.waitForNetworkPods(),
+        this.verifyPersistentVolumeClaimMounts(),
         {
           title: 'Check proxy pods are running',
           task: (context_, task): SoloListr<NetworkDeployContext> => {
@@ -1937,7 +2071,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
-          task: async ({config}): Promise<void> => {
+          task: async ({config}, task): Promise<SoloListr<NetworkDeployContext>> => {
             const wraps: Wraps = this.soloConfig.tss.wraps;
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
@@ -2010,18 +2144,33 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
-            for (const consensusNode of config.consensusNodes) {
-              const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
-                config.namespace,
-                consensusNode.name,
-              );
+            // The library is hundreds of megabytes per node, so on a large network the copies
+            // dominate deploy time. Running them concurrently is much faster but puts every
+            // transfer on the same link at once, which is the wrong trade on a constrained
+            // connection -- hence the flag rather than a fixed choice.
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = config.consensusNodes.map(
+              (consensusNode: ConsensusNode): SoloListrTask<NetworkDeployContext> => ({
+                title: `Copy wraps lib to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
+                task: async (): Promise<void> => {
+                  const rootContainer: Container = await new K8Helper(
+                    consensusNode.context,
+                  ).getConsensusNodeRootContainer(config.namespace, consensusNode.name);
 
-              await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
 
-              if (wrapsTarball) {
-                await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
-              }
-            }
+                  if (wrapsTarball) {
+                    await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+                  }
+                },
+              }),
+            );
+
+            return task.newListr(subTasks, {
+              concurrent: constants.EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
           },
         },
         {
@@ -2036,6 +2185,7 @@ export class NetworkCommand extends BaseCommand {
                   this.k8Factory,
                   false,
                   this.remoteConfig.configuration.versions.consensusNode,
+                  this.remoteConfig.configuration.state.tssEnabled,
                 );
               }
             } catch (error) {

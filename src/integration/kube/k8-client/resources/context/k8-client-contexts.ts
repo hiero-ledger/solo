@@ -2,7 +2,6 @@
 
 import {type Contexts} from '../../../resources/context/contexts.js';
 import {type KubeConfig, CoreV1Api, type V1NamespaceList} from '@kubernetes/client-node';
-import {K8ClientApiFactory} from '../../k8-client-api-factory.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 
 export class K8ClientContexts implements Contexts {
@@ -26,6 +25,10 @@ export class K8ClientContexts implements Contexts {
     return NamespaceName.of(this.kubeConfig.getContextObject(this.readCurrent())?.namespace);
   }
 
+  public readClusterOfContext(context: string): string {
+    return this.kubeConfig.getContextObject(context)?.cluster ?? '';
+  }
+
   public updateCurrent(context: string): void {
     this.kubeConfig.setCurrentContext(context);
   }
@@ -34,7 +37,7 @@ export class K8ClientContexts implements Contexts {
     const originalContextName: string = this.readCurrent();
     this.kubeConfig.setCurrentContext(context);
 
-    const temporaryKubeClient: CoreV1Api = K8ClientApiFactory.makeApiClient(this.kubeConfig, CoreV1Api);
+    const temporaryKubeClient: CoreV1Api = this.kubeConfig.makeApiClient(CoreV1Api);
     try {
       const result: V1NamespaceList = await temporaryKubeClient.listNamespace();
       if (result?.items) {

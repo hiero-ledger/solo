@@ -5,7 +5,7 @@ This example demonstrates how to use the Solo **one-shot falcon** commands to qu
 ## What It Does
 
 * **Deploys a complete network stack** with consensus nodes, mirror node, explorer, and relay in one command
-* **Uses a values file** to configure all network components with custom settings
+* **Optionally uses a values file** to configure all network components with custom settings; without one it deploys with the `one-shot single` defaults
 * **Simplifies deployment** by avoiding multiple manual steps
 * **Provides quick teardown** with the destroy command
 * **Ideal for testing and development** workflows
@@ -63,6 +63,26 @@ Browse the source code and configuration files for this example in the [GitHub r
      * Destroy the Solo network using `solo one-shot falcon destroy`
      * Delete the Kind cluster
 
+## Deploying Without a Values File
+
+The `--values-file` flag is optional. When it is omitted, `solo one-shot falcon deploy` behaves exactly like `solo one-shot single deploy`:
+
+```sh
+solo one-shot falcon deploy
+```
+
+From this directory, the same deployment is available as a task:
+
+```sh
+task deploy-defaults
+```
+
+Command-line flags still apply, so the defaults can be adjusted without a values file:
+
+```sh
+solo one-shot falcon deploy --num-consensus-nodes 2 --deploy-explorer=false
+```
+
 ## Files
 
 * `Taskfile.yml` — Automation tasks for deploy/destroy and refresh-recovery test flow
@@ -72,7 +92,8 @@ Browse the source code and configuration files for this example in the [GitHub r
 ## Notes
 
 * The **one-shot falcon** commands are designed to streamline deployment workflows
-* All network components are configured through a single values file
+* All network components can be configured through a single values file; without one, the `one-shot single` defaults apply
+* The values file may be written as YAML or as JSON — a file starting with `{` is read as JSON
 * This is perfect for CI/CD pipelines and automated testing
 * For more advanced customization, see the main [Solo documentation](https://github.com/hiero-ledger/solo)
 

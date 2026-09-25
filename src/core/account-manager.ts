@@ -1077,15 +1077,43 @@ export class AccountManager {
     setAlias: boolean = false,
     context: string,
   ): Promise<{accountId: string; privateKey: string; publicKey: string; balance: number; accountAlias?: string}> {
-    const newAccountTransaction: AccountCreateTransaction = new AccountCreateTransaction()
-      .setKey(privateKey)
-      .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar));
+    const maxAttempts: number = 3;
+    const retryDelayMs: number = 250;
+    let newAccountResponse: TransactionResponse | undefined;
+    let lastError: PrecheckStatusError | undefined;
 
-    if (setAlias) {
-      newAccountTransaction.setAlias(privateKey.publicKey.toEvmAddress());
+    for (let attempt: number = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const newAccountTransaction: AccountCreateTransaction = new AccountCreateTransaction()
+          .setKey(privateKey)
+          .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar));
+
+        if (setAlias) {
+          newAccountTransaction.setAlias(privateKey.publicKey.toEvmAddress());
+        }
+
+        newAccountResponse = await newAccountTransaction.execute(this._nodeClient);
+        break;
+      } catch (error) {
+        if (
+          error instanceof PrecheckStatusError &&
+          error.status === Status.DuplicateTransaction &&
+          attempt < maxAttempts - 1
+        ) {
+          this.logger.warn(
+            `Account create returned DUPLICATE_TRANSACTION (attempt ${attempt + 1}/${maxAttempts}), retrying in ${retryDelayMs}ms`,
+          );
+          lastError = error;
+          await sleep(Duration.ofMillis(retryDelayMs));
+          continue;
+        }
+        throw error;
+      }
     }
 
-    const newAccountResponse: TransactionResponse = await newAccountTransaction.execute(this._nodeClient);
+    if (!newAccountResponse) {
+      throw lastError!;
+    }
 
     // Get the new account ID
     const transactionReceipt: TransactionReceipt = await newAccountResponse.getReceipt(this._nodeClient);

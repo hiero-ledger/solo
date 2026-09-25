@@ -6,7 +6,7 @@ import {describe, it} from 'mocha';
 import {ConfigManager} from '../../../src/core/config-manager.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {container} from 'tsyringe-neo';
-import {getTestLogger} from '../../test-utility.js';
+import {BASE_TEST_DIR, getTestLogger} from '../../test-utility.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
@@ -18,6 +18,10 @@ describe('ConfigManager', (): void => {
     container.clearInstances();
     container.register(InjectTokens.LogLevel, {useValue: 'debug'});
     container.register(InjectTokens.DevelopmentMode, {useValue: true});
+    // clearInstances() drops value registrations, so the home directory has to be re-registered
+    // before constructing a logger; otherwise it falls back to the real Solo home and writes into
+    // the user's own ~/.solo/logs.
+    container.register(InjectTokens.HomeDirectory, {useValue: BASE_TEST_DIR});
     container.register(InjectTokens.SoloLogger, {useValue: new SoloPinoLogger()});
     container.registerInstance(InjectTokens.SoloLogger, getTestLogger());
     container.register(InjectTokens.ConfigManager, {useClass: ConfigManager});
@@ -181,6 +185,52 @@ describe('ConfigManager', (): void => {
         relayReleaseTag: string;
       };
       expect(config.relayReleaseTag).to.equal('0.77.0');
+    });
+  });
+
+  describe('recordUserSuppliedFlags / wasFlagProvidedByUser', (): void => {
+    it('should report a flag as user-supplied when present and not defaulted', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.explorerVersion, '26.2.0');
+
+      cm.recordUserSuppliedFlags(argv.build(), {});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.true;
+    });
+
+    it('should report a flag as NOT user-supplied when it was populated from its default', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.explorerVersion, '26.1.0');
+
+      cm.recordUserSuppliedFlags(argv.build(), {[flags.explorerVersion.name]: true});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
+    });
+
+    it('should treat a flag defaulted under its camelCase constName as NOT user-supplied', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.explorerVersion, '26.1.0');
+
+      cm.recordUserSuppliedFlags(argv.build(), {[flags.explorerVersion.constName]: true});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
+    });
+
+    it('should report a flag as NOT user-supplied when absent from argv', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+
+      cm.recordUserSuppliedFlags(Argv.initializeEmpty().build(), {});
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
+    });
+
+    it('should default to not-supplied before recordUserSuppliedFlags has run', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+
+      expect(cm.wasFlagProvidedByUser(flags.explorerVersion)).to.be.false;
     });
   });
 });

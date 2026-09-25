@@ -23,6 +23,7 @@ import {type ConfigMap} from '../../../src/integration/kube/resources/config-map
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import * as constants from '../../../src/core/constants.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 describe('DeploymentCommand unit tests', (): void => {
   type K8StubbedMethods = Pick<
@@ -345,6 +346,27 @@ describe('DeploymentCommand unit tests', (): void => {
       );
       expect(untouched?.namespace).to.equal(conflictingNamespaceName);
     });
+
+    it('should regenerate a partial local config instead of failing on it', async (): Promise<void> => {
+      const localConfigPath: string = PathEx.join('test', 'data', 'tmp', constants.DEFAULT_LOCAL_CONFIG_FILE);
+      const partialContent: string = 'userIdentity:\n  name: john\n  hostname: localhost\n';
+      fs.writeFileSync(localConfigPath, partialContent);
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+      await expect(deploymentCommand.importConfig(buildImportArgv().build())).to.eventually.be.true;
+
+      // The broken original must survive the regeneration as a backup, keeping manual repair possible.
+      expect(fs.readFileSync(`${localConfigPath}.invalid`, 'utf8')).to.equal(partialContent);
+
+      await localConfig.load();
+      const imported: Deployment | undefined = localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === importedDeploymentName,
+      );
+      expect(imported).to.not.be.undefined;
+      expect(imported?.namespace).to.equal(importedNamespaceName);
+    });
   });
 
   describe('create() - deployment with no cluster refs is treated as stale', (): void => {
@@ -369,6 +391,144 @@ describe('DeploymentCommand unit tests', (): void => {
 
       // Should succeed - deployment with no cluster refs is treated as stale
       await expect(deploymentCommand.create(argv.build())).to.eventually.be.true;
+    });
+  });
+
+  describe('delete()', (): void => {
+    it('should remove the deployment without deleting cluster refs from local config', async (): Promise<void> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
+      const clusterReferenceNamesBefore: string[] = [...localConfig.configuration.clusterRefs.keys()];
+      expect(clusterReferenceNamesBefore).to.not.be.empty;
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+      argv.setArg(flags.quiet, true);
+
+      await expect(deploymentCommand.delete(argv.build())).to.eventually.be.true;
+
+      await localConfig.load();
+      const deletedDeployment: Deployment | undefined = localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === deploymentName,
+      );
+      expect(deletedDeployment).to.be.undefined;
+      expect([...localConfig.configuration.clusterRefs.keys()]).to.deep.equal(clusterReferenceNamesBefore);
+    });
+  });
+
+  describe('stopPortForwards()', (): void => {
+    interface FakeComponent {
+      metadata: {
+        id: number;
+        cluster: string;
+        namespace: string;
+        portForwardConfigs: {localPort: number; podPort: number}[];
+      };
+    }
+
+    function buildRemoteConfigStub(components: {mirrorNodes?: FakeComponent[]; explorers?: FakeComponent[]}): {
+      loadAndValidate: SinonStub;
+      persist: SinonStub;
+      configuration: {state: Record<string, FakeComponent[]>};
+    } {
+      return {
+        loadAndValidate: sinon.stub().resolves(),
+        persist: sinon.stub().resolves(),
+        configuration: {
+          state: {
+            consensusNodes: [],
+            haProxies: [],
+            blockNodes: [],
+            mirrorNodes: components.mirrorNodes ?? [],
+            relayNodes: [],
+            explorers: components.explorers ?? [],
+          },
+        },
+      };
+    }
+
+    it('should stop each configured port-forward, clear its config, and persist', async (): Promise<void> => {
+      const stopPortForwardStub: SinonStub = sinon.stub().resolves();
+      k8Stub.pods = sinon.stub().returns({
+        readByReference: sinon.stub().returns({stopPortForward: stopPortForwardStub}),
+      }) as unknown as K8['pods'];
+
+      const mirrorComponent: FakeComponent = {
+        metadata: {
+          id: 1,
+          cluster: 'cluster-1',
+          namespace: namespace.name,
+          portForwardConfigs: [{localPort: 5551, podPort: 5600}],
+        },
+      };
+      const remoteConfigStub: ReturnType<typeof buildRemoteConfigStub> = buildRemoteConfigStub({
+        mirrorNodes: [mirrorComponent],
+      });
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      (deploymentCommand as unknown as {remoteConfig: unknown}).remoteConfig = remoteConfigStub;
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+
+      await expect(deploymentCommand.stopPortForwards(argv.build())).to.eventually.be.true;
+
+      expect(stopPortForwardStub.calledOnceWith(5551)).to.be.true;
+      expect(remoteConfigStub.persist.calledOnce).to.be.true;
+      expect(mirrorComponent.metadata.portForwardConfigs).to.have.lengthOf(0);
+    });
+
+    it('should not persist when no port-forwards are configured', async (): Promise<void> => {
+      const stopPortForwardStub: SinonStub = sinon.stub().resolves();
+      k8Stub.pods = sinon.stub().returns({
+        readByReference: sinon.stub().returns({stopPortForward: stopPortForwardStub}),
+      }) as unknown as K8['pods'];
+
+      const remoteConfigStub: ReturnType<typeof buildRemoteConfigStub> = buildRemoteConfigStub({});
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      (deploymentCommand as unknown as {remoteConfig: unknown}).remoteConfig = remoteConfigStub;
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+
+      await expect(deploymentCommand.stopPortForwards(argv.build())).to.eventually.be.true;
+
+      expect(stopPortForwardStub.called).to.be.false;
+      expect(remoteConfigStub.persist.called).to.be.false;
+    });
+
+    it('should retain the config for a port-forward that fails to stop', async (): Promise<void> => {
+      const stopPortForwardStub: SinonStub = sinon.stub().rejects(new Error('kill failed'));
+      k8Stub.pods = sinon.stub().returns({
+        readByReference: sinon.stub().returns({stopPortForward: stopPortForwardStub}),
+      }) as unknown as K8['pods'];
+
+      const explorerComponent: FakeComponent = {
+        metadata: {
+          id: 2,
+          cluster: 'cluster-1',
+          namespace: namespace.name,
+          portForwardConfigs: [{localPort: 8080, podPort: 8080}],
+        },
+      };
+      const remoteConfigStub: ReturnType<typeof buildRemoteConfigStub> = buildRemoteConfigStub({
+        explorers: [explorerComponent],
+      });
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      (deploymentCommand as unknown as {remoteConfig: unknown}).remoteConfig = remoteConfigStub;
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+
+      await expect(deploymentCommand.stopPortForwards(argv.build())).to.eventually.be.true;
+
+      // Nothing stopped successfully, so the config is preserved and no persist happens.
+      expect(remoteConfigStub.persist.called).to.be.false;
+      expect(explorerComponent.metadata.portForwardConfigs).to.have.lengthOf(1);
     });
   });
 });

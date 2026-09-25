@@ -3,6 +3,7 @@
 import {type NodeAlias} from '../../../types/aliases.js';
 import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
 import {type NodeCommonConfigWithNodeAliases} from './node-common-config-with-node-aliases.js';
+import {type EndpointPortMapping} from '../../../types/index.js';
 
 export interface NodeSetupConfigClass extends NodeCommonConfigWithNodeAliases {
   app: string;
@@ -19,4 +20,8 @@ export interface NodeSetupConfigClass extends NodeCommonConfigWithNodeAliases {
   getUnusedConfigs: () => string[];
   domainNames: string;
   domainNamesMapping: Record<NodeAlias, string>;
+  gossipEndpointPort: string;
+  gossipEndpointPortMapping: EndpointPortMapping;
+  serviceEndpointPort: string;
+  serviceEndpointPortMapping: EndpointPortMapping;
 }

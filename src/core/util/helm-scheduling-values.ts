@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as fs from 'node:fs';
-import yaml from 'yaml';
+import {ValuesFileParser} from './values-file-parser.js';
 import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
 import {type HelmSchedulingValueFallback} from './helm-scheduling-value-fallback.js';
 import {type HelmSchedulingValueMapping} from './helm-scheduling-value-mapping.js';
@@ -78,7 +78,9 @@ export class HelmSchedulingValues {
 
   private static readHelmValuesObjects(chartValues: HelmChartValues): HelmValuesObject[] {
     return HelmSchedulingValues.getValuesFilePaths(chartValues)
-      .map((valuesFilePath: string): unknown => yaml.parse(fs.readFileSync(valuesFilePath, 'utf8')))
+      .map((valuesFilePath: string): unknown =>
+        ValuesFileParser.parse(valuesFilePath, fs.readFileSync(valuesFilePath, 'utf8')),
+      )
       .filter((values: unknown): values is HelmValuesObject => HelmSchedulingValues.isHelmValuesObject(values));
   }
 

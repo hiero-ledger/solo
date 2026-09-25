@@ -41,6 +41,7 @@ function buildHelper(
   } as unknown as K8Factory;
   const stubLogger: SoloLogger = {
     debug: (): void => {},
+    info: (): void => {},
     showUser: (): void => {},
   } as unknown as SoloLogger;
   return new StorageClassHelper(k8Factory, stubLogger);

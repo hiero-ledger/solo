@@ -3,6 +3,7 @@
 import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {type Pvc} from './pvc.js';
 import {type PvcReference} from './pvc-reference.js';
+import {type PvcDetail} from './pvc-detail.js';
 
 export interface Pvcs {
   /**
@@ -23,15 +24,14 @@ export interface Pvcs {
   list(namespace: NamespaceName, labels?: string[]): Promise<string[]>;
 
   /**
-   * Get the persistent volume claims for the given namespace along with their binding phase. Use this instead of
-   * {@link list} when the caller needs to know whether the claims have been bound, for example while waiting on
-   * volume provisioning before pods can be scheduled.
+   * Get the persistent volume claims for the given namespace with their binding phase and requested
+   * storage. Use this instead of {@link list} when the claim's phase or requested size matters.
    * @param namespace - the namespace of the persistent volume claims to return
    * @param [labels] - labels
-   * @returns list of persistent volume claims, each carrying its binding phase
+   * @returns list of persistent volume claim details
    * @throws {SoloError} if the persistent volume claims could not be listed
    */
-  listWithStatus(namespace: NamespaceName, labels?: string[]): Promise<Pvc[]>;
+  readAll(namespace: NamespaceName, labels?: string[]): Promise<PvcDetail[]>;
 
   /**
    * Create a persistent volume claim
