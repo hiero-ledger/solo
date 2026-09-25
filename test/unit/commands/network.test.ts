@@ -41,6 +41,7 @@ import {type ClusterReferences} from '../../../src/types/index.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
+import {SoloChartRepository} from '../../../src/core/solo-chart-repository.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {Duration} from '../../../src/core/time/duration.js';
 

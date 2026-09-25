@@ -15,6 +15,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
+import {SoloChartRepository} from '../../core/solo-chart-repository.js';
 import {
   CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
   CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
@@ -3145,7 +3146,7 @@ export class NodeCommandTasks {
                     config.namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
                     config.soloChartVersion,
                     valuesFiles[clusterReference],
                     context,
@@ -4586,7 +4587,7 @@ export class NodeCommandTasks {
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
-              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
               config.soloChartVersion,
               chartValues,
               context,
