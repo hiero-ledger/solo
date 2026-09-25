@@ -135,8 +135,6 @@ export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
 export const SOLO_SETUP_NAMESPACE: NamespaceName = NamespaceName.of('solo-setup');
 
 // TODO: remove after migrated to resources/solo-config.yaml
-export const SOLO_TESTING_CHART_URL: string = 'oci://ghcr.io/hashgraph/solo-charts';
-// TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_DEPLOYMENT_CHART: string = 'solo-deployment';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_CERT_MANAGER_CHART: string = 'solo-cert-manager';
