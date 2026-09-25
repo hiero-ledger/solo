@@ -1650,24 +1650,29 @@ export class NetworkCommand extends BaseCommand {
             await this.remoteConfig.persist();
 
             context_.config = await this.prepareConfig(task, argv);
-            for (const [clusterReference, context] of context_.config.clusterRefs) {
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
+          },
+        },
+        {
+          title: 'Check for an existing network deployment',
+          task: async ({config}): Promise<void> => {
+            for (const [clusterReference, context] of config.clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
-                context_.config.namespace,
+                config.namespace,
                 constants.SOLO_DEPLOYMENT_CHART,
                 context,
               );
               if (isInstalled) {
                 throw new SoloErrors.deployment.networkAlreadyDeployed(
-                  context_.config.deployment,
-                  context_.config.namespace.name,
+                  config.deployment,
+                  config.namespace.name,
                   clusterReference,
                 );
               }
             }
-            if (!this.oneShotState.isActive()) {
-              return ListrLock.newAcquireLockTask(lease, task);
-            }
-            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
