@@ -226,6 +226,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INVALID_FLAG_VALUE: 'SOLO-4081',
   TRANSPLANT_REQUIRES_STATE_FILE: 'SOLO-4082',
   COMPONENT_IMAGE_ARCHIVE_TAG_MISMATCH: 'SOLO-4084',
+  STORAGE_CLASS_NOT_FOUND: 'SOLO-4085',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -313,6 +314,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5083',
   PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5084',
   SAVED_STATE_HASH_TOOL_MISSING: 'SOLO-5085',
+  PVC_BIND_TIMEOUT: 'SOLO-5086',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
