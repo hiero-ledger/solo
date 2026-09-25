@@ -41,6 +41,7 @@ import {type ClusterReferences} from '../../../src/types/index.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
+import {SoloChartRepository} from '../../../src/core/solo-chart-repository.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {Duration} from '../../../src/core/time/duration.js';
 
@@ -282,7 +283,9 @@ describe('NetworkCommand unit tests', (): void => {
         expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
         expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.upgrade.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
+        expect(options.chartManager.upgrade.args[0][3]).to.equal(
+          SoloChartRepository.resolveUrl(version.SOLO_CHART_VERSION),
+        );
       } finally {
         sinon.restore();
       }
