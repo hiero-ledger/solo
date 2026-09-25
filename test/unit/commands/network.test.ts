@@ -41,7 +41,6 @@ import {type ClusterReferences} from '../../../src/types/index.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
-import {SoloChartRepository} from '../../../src/core/solo-chart-repository.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {Duration} from '../../../src/core/time/duration.js';
 
@@ -80,18 +79,21 @@ describe('NetworkCommand unit tests', (): void => {
   });
 
   describe('Chart Install Function is called correctly', (): void => {
+    // This harness intentionally mixes concrete services and Sinon stubs with private members.
+    // A structural interface would either hide the stub APIs or duplicate the production classes.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let options: any;
 
-    const k8SFactoryStub: K8Factory = sinon.stub() as any;
-    const clusterChecksStub: ClusterChecks = sinon.stub() as any;
-    const remoteConfigStub: RemoteConfigRuntimeState = sinon.stub() as any;
-    const chartManagerStub: ChartManager = sinon.stub() as any;
-    const certificateManagerStub: CertificateManager = sinon.stub() as any;
-    const profileManagerStub: ProfileManager = sinon.stub() as any;
-    const platformInstallerStub: PlatformInstaller = sinon.stub() as any;
-    const keyManagerStub: KeyManager = sinon.stub() as any;
-    const depManagerStub: DependencyManager = sinon.stub() as any;
-    const helmStub: DefaultHelmClient = sinon.stub() as any;
+    const k8SFactoryStub: K8Factory = sinon.stub() as unknown as K8Factory;
+    const clusterChecksStub: ClusterChecks = sinon.stub() as unknown as ClusterChecks;
+    const remoteConfigStub: RemoteConfigRuntimeState = sinon.stub() as unknown as RemoteConfigRuntimeState;
+    const chartManagerStub: ChartManager = sinon.stub() as unknown as ChartManager;
+    const certificateManagerStub: CertificateManager = sinon.stub() as unknown as CertificateManager;
+    const profileManagerStub: ProfileManager = sinon.stub() as unknown as ProfileManager;
+    const platformInstallerStub: PlatformInstaller = sinon.stub() as unknown as PlatformInstaller;
+    const keyManagerStub: KeyManager = sinon.stub() as unknown as KeyManager;
+    const depManagerStub: DependencyManager = sinon.stub() as unknown as DependencyManager;
+    const helmStub: DefaultHelmClient = sinon.stub() as unknown as DefaultHelmClient;
     let containerOverrides: InstanceOverrides;
 
     beforeEach(async (): Promise<void> => {
@@ -216,10 +218,6 @@ describe('NetworkCommand unit tests', (): void => {
             return false;
           }
 
-          if (releaseName === constants.SOLO_DEPLOYMENT_CHART) {
-            return true;
-          }
-
           return false;
         });
       options.chartManager.upgrade = sinon.stub().returns(true);
@@ -252,7 +250,7 @@ describe('NetworkCommand unit tests', (): void => {
       sinon.restore();
     });
 
-    it('Install function is called with expected parameters', async (): Promise<void> => {
+    it('rejects deploy when the network deployment already exists', async (): Promise<void> => {
       try {
         const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
         options.remoteConfig.getConsensusNodes = sinon
@@ -272,20 +270,19 @@ describe('NetworkCommand unit tests', (): void => {
         // @ts-expect-error - TS2341: to mock
         networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
 
+        options.chartManager.isChartInstalled = sinon.stub().resolves(true);
+
         // @ts-expect-error - TS2341: to mock
         networkCommand.componentFactory = {
           createNewEnvoyProxyComponent: sinon.stub(),
           createNewHaProxyComponent: sinon.stub(),
         };
 
-        await networkCommand.deploy(argv.build());
-
-        expect(options.chartManager.upgrade.args[0][0].name).to.equal('solo-e2e');
-        expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
-        expect(options.chartManager.upgrade.args[0][3]).to.equal(
-          SoloChartRepository.resolveUrl(version.SOLO_CHART_VERSION),
+        await expect(networkCommand.deploy(argv.build())).to.be.rejectedWith(
+          /Network deployment 'deployment' already exists.*consensus network deploy.*first-time deployments/i,
         );
+        expect(options.chartManager.uninstall).not.to.have.been.called;
+        expect(options.chartManager.upgrade).not.to.have.been.called;
       } finally {
         sinon.restore();
       }
@@ -339,8 +336,8 @@ describe('NetworkCommand unit tests', (): void => {
         const uninstallCalls: SinonSpyCall[] = options.chartManager.uninstall
           .getCalls()
           .filter((call: SinonSpyCall): boolean => call.args[1] === constants.SOLO_DEPLOYMENT_CHART);
-        // one uninstall for the pre-existing release plus one clean-up between the failed and retried attempts
-        expect(uninstallCalls).to.have.lengthOf(2);
+        // The retry removes the release created by the failed first install attempt.
+        expect(uninstallCalls).to.have.lengthOf(1);
       } finally {
         sinon.restore();
       }

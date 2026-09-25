@@ -11,6 +11,7 @@ import {DeploymentImportFailedSoloError} from './classes/deployment/deployment-i
 import {DeploymentListFailedError} from './classes/deployment/deployment-list-failed-error.js';
 import {DeploymentListPortsFailedError} from './classes/deployment/deployment-list-ports-failed-error.js';
 import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found-error.js';
+import {NetworkAlreadyDeployedSoloError} from './classes/deployment/network-already-deployed-solo-error.js';
 import {NamespaceNotSetError} from './classes/deployment/namespace-not-set-error.js';
 import {NoClustersForDeploymentError} from './classes/deployment/no-clusters-for-deployment-error.js';
 import {NoDeploymentsFoundError} from './classes/deployment/no-deployments-found-error.js';
@@ -374,6 +375,7 @@ export class SoloErrors {
     readonly deployNetworkFailed: typeof DeployNetworkFailedSoloError;
     readonly blockNodeClusterContextNotFound: typeof BlockNodeClusterContextNotFoundSoloError;
     readonly mirrorNodeClusterContextNotFound: typeof MirrorNodeClusterContextNotFoundSoloError;
+    readonly networkAlreadyDeployed: typeof NetworkAlreadyDeployedSoloError;
   } = Object.freeze({
     alreadyExists: DeploymentAlreadyExistsSoloError,
     clusterAddFailed: ClusterAddFailedError,
@@ -405,6 +407,7 @@ export class SoloErrors {
     deployNetworkFailed: DeployNetworkFailedSoloError,
     blockNodeClusterContextNotFound: BlockNodeClusterContextNotFoundSoloError,
     mirrorNodeClusterContextNotFound: MirrorNodeClusterContextNotFoundSoloError,
+    networkAlreadyDeployed: NetworkAlreadyDeployedSoloError,
   });
 
   // 3xxx — Component: Relay, Mirror Node, Explorer, CN runtime
