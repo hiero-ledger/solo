@@ -141,6 +141,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   NODE_CONTAINER_CRASHED: 'SOLO-3094',
   RELAY_OPERATOR_SECRET_CREATION_FAILED: 'SOLO-3095',
   MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3096',
+  NODE_RESTORE_STATUS_MISMATCH: 'SOLO-3097',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -193,7 +194,6 @@ export const ErrorCodeRegistry: Record<string, string> = {
   MULTIPLE_CLUSTERS_FOUND: 'SOLO-4048',
   CACHE_NOT_MATERIALIZED: 'SOLO-4049',
   CACHE_IMAGE_TEMPLATE_UNKNOWN: 'SOLO-4050',
-  INVALID_KIND_NODE_IMAGE: 'SOLO-4051',
   PATH_TRAVERSAL_DETECTED: 'SOLO-4052',
   NODE_ALIASES_MUST_BE_ARRAY: 'SOLO-4053',
   UNKNOWN_NODE_ALIAS: 'SOLO-4054',
@@ -225,6 +225,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   BACKUP_DATABASE_DUMP_NOT_FOUND: 'SOLO-4080',
   INVALID_FLAG_VALUE: 'SOLO-4081',
   TRANSPLANT_REQUIRES_STATE_FILE: 'SOLO-4082',
+  COMPONENT_IMAGE_ARCHIVE_TAG_MISMATCH: 'SOLO-4084',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -311,6 +312,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   PORT_FORWARD_STOP_FAILED: 'SOLO-5082',
   SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5083',
   PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5084',
+  SAVED_STATE_HASH_TOOL_MISSING: 'SOLO-5085',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
