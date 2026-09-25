@@ -41,7 +41,6 @@ import {type ClusterReferences} from '../../../src/types/index.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
-import {SoloChartRepository} from '../../../src/core/solo-chart-repository.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {Duration} from '../../../src/core/time/duration.js';
 
@@ -80,18 +79,31 @@ describe('NetworkCommand unit tests', (): void => {
   });
 
   describe('Chart Install Function is called correctly', (): void => {
-    let options: any;
+    interface NetworkTestOptions {
+      logger: SoloLogger;
+      configManager: ConfigManager;
+      k8Factory: K8Factory;
+      depManager: DependencyManager;
+      localConfig: LocalConfigRuntimeState;
+      helm: DefaultHelmClient;
+      certificateManager: CertificateManager;
+      chartManager: ChartManager;
+      remoteConfig: RemoteConfigRuntimeState;
+      leaseManager: LockManager;
+    }
 
-    const k8SFactoryStub: K8Factory = sinon.stub() as any;
-    const clusterChecksStub: ClusterChecks = sinon.stub() as any;
-    const remoteConfigStub: RemoteConfigRuntimeState = sinon.stub() as any;
-    const chartManagerStub: ChartManager = sinon.stub() as any;
-    const certificateManagerStub: CertificateManager = sinon.stub() as any;
-    const profileManagerStub: ProfileManager = sinon.stub() as any;
-    const platformInstallerStub: PlatformInstaller = sinon.stub() as any;
-    const keyManagerStub: KeyManager = sinon.stub() as any;
-    const depManagerStub: DependencyManager = sinon.stub() as any;
-    const helmStub: DefaultHelmClient = sinon.stub() as any;
+    let options: NetworkTestOptions = {} as NetworkTestOptions;
+
+    const k8SFactoryStub: K8Factory = sinon.stub() as unknown as K8Factory;
+    const clusterChecksStub: ClusterChecks = sinon.stub() as unknown as ClusterChecks;
+    const remoteConfigStub: RemoteConfigRuntimeState = sinon.stub() as unknown as RemoteConfigRuntimeState;
+    const chartManagerStub: ChartManager = sinon.stub() as unknown as ChartManager;
+    const certificateManagerStub: CertificateManager = sinon.stub() as unknown as CertificateManager;
+    const profileManagerStub: ProfileManager = sinon.stub() as unknown as ProfileManager;
+    const platformInstallerStub: PlatformInstaller = sinon.stub() as unknown as PlatformInstaller;
+    const keyManagerStub: KeyManager = sinon.stub() as unknown as KeyManager;
+    const depManagerStub: DependencyManager = sinon.stub() as unknown as DependencyManager;
+    const helmStub: DefaultHelmClient = sinon.stub() as unknown as DefaultHelmClient;
     let containerOverrides: InstanceOverrides;
 
     beforeEach(async (): Promise<void> => {
