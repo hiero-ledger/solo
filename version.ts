@@ -69,19 +69,18 @@ export const SOLO_CHEETAH_VERSION: string = constants.getEnvironmentVariable('SO
 export const SOLO_CONTAINERS_VERSION: string = constants.getEnvironmentVariable('SOLO_CONTAINERS_VERSION') || '0.46.0';
 
 // -------------------------------------------------------------------- //
-// Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
+// Edge (newer-than-default) versions for the one-shot `--edge` preset; version.test.ts enforces edge >= default.
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.0';
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.77.2';
 export const MIRROR_NODE_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
+  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || 'v0.163.1';
 export const EXPLORER_EDGE_VERSION: string =
   constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || EXPLORER_VERSION;
 export const HEDERA_JSON_RPC_RELAY_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || HEDERA_JSON_RPC_RELAY_VERSION;
-export const BLOCK_NODE_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || BLOCK_NODE_VERSION;
+  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || '0.78.5';
+export const BLOCK_NODE_EDGE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || '0.42.0';
 
 // -------------------------------------------------------------------- //
 
