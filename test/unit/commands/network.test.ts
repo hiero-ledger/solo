@@ -79,20 +79,10 @@ describe('NetworkCommand unit tests', (): void => {
   });
 
   describe('Chart Install Function is called correctly', (): void => {
-    interface NetworkTestOptions {
-      logger: SoloLogger;
-      configManager: ConfigManager;
-      k8Factory: K8Factory;
-      depManager: DependencyManager;
-      localConfig: LocalConfigRuntimeState;
-      helm: DefaultHelmClient;
-      certificateManager: CertificateManager;
-      chartManager: ChartManager;
-      remoteConfig: RemoteConfigRuntimeState;
-      leaseManager: LockManager;
-    }
-
-    let options: NetworkTestOptions = {} as NetworkTestOptions;
+    // This harness intentionally mixes concrete services and Sinon stubs with private members.
+    // A structural interface would either hide the stub APIs or duplicate the production classes.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let options: any;
 
     const k8SFactoryStub: K8Factory = sinon.stub() as unknown as K8Factory;
     const clusterChecksStub: ClusterChecks = sinon.stub() as unknown as ClusterChecks;
