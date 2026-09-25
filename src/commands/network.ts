@@ -2066,7 +2066,17 @@ export class NetworkCommand extends BaseCommand {
                       ]);
                     }
                   } else if (!wrapsDirectoryExists) {
-                    await rootContainer.copyTo(extractedDirectory, targetKeysDirectory);
+                    await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
+                    for (const file of wraps.allowedKeyFileSet) {
+                      const sourcePath: string = PathEx.join(extractedDirectory, file);
+                      if (fs.existsSync(sourcePath)) {
+                        await rootContainer.copyFileResumable(
+                          sourcePath,
+                          `${targetWrapsPath}/${file}`,
+                          constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                        );
+                      }
+                    }
                   }
                 },
               }),
