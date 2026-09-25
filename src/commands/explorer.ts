@@ -6,6 +6,7 @@ import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {SoloChartRepository} from '../core/solo-chart-repository.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
@@ -62,6 +63,7 @@ interface ExplorerDeployConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   componentImage: Optional<string>;
+  componentImageArchive: Optional<string>;
   loadBalancerEnabled: boolean;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
@@ -103,6 +105,7 @@ interface ExplorerUpgradeConfigClass {
   explorerStaticIp: string | '';
   explorerVersion: string;
   componentImage: Optional<string>;
+  componentImageArchive: Optional<string>;
   loadBalancerEnabled: boolean;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
@@ -184,6 +187,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.componentImage,
+      flags.componentImageArchive,
       flags.loadBalancerEnabled,
       flags.namespace,
       flags.quiet,
@@ -216,6 +220,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerStaticIp,
       flags.explorerVersion,
       flags.componentImage,
+      flags.componentImageArchive,
       flags.loadBalancerEnabled,
       flags.namespace,
       flags.quiet,
@@ -350,7 +355,7 @@ export class ExplorerCommand extends BaseCommand {
             NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
             constants.SOLO_CERT_MANAGER_CHART,
             constants.SOLO_CERT_MANAGER_CHART,
-            config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+            config.chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),
             soloChartVersion,
             new HelmChartValues().set('cert-manager.installCRDs', true),
             config.clusterContext,
@@ -381,7 +386,7 @@ export class ExplorerCommand extends BaseCommand {
           NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
           constants.SOLO_CERT_MANAGER_CHART,
           constants.SOLO_CERT_MANAGER_CHART,
-          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),
           soloChartVersion,
           soloCertManagerChartValues,
           config.clusterContext,
@@ -416,8 +421,12 @@ export class ExplorerCommand extends BaseCommand {
 
         if (config.componentImage) {
           const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+          const isComponentImageAvailableForKind: boolean = this.isComponentImageAvailableForKind(
+            config.componentImage,
+            config.componentImageArchive,
+          );
 
-          if (this.isLocalImageAvailableInDocker(config.componentImage)) {
+          if (isComponentImageAvailableForKind) {
             explorerChartValues
               .setLiteral('image.registry', parsedReference.registry)
               .setLiteral('image.repository', parsedReference.repository)
@@ -443,9 +452,7 @@ export class ExplorerCommand extends BaseCommand {
           }
         }
 
-        if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
-          await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
-        }
+        await this.loadComponentImage(config.componentImage, config.componentImageArchive, config.clusterContext);
 
         await this.chartManager.upgrade(
           config.namespace,

@@ -22,7 +22,15 @@
 name: 'ZXF: Transient Failure Retry'
 
 on:
-  workflow_run:
+  # workflow_run is required here, not incidental: GitHub only exposes a completed upstream
+  # run's jobs and logs through this trigger, and the retry endpoint needs the run ID from
+  # its payload. The trigger is only dangerous when a workflow checks out or executes the
+  # triggering run's code, or restores its artifacts, with the elevated token that comes
+  # with it - this workflow does neither. It has no actions/checkout step, downloads no
+  # artifacts, and only reads job metadata and text logs through the API (matched against
+  # fixed regexes, never executed) before calling the rerun-failed-jobs endpoint with the
+  # default, minimally-scoped github.token. Do not add a checkout step here.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows:
       - 'PR Checks'
       - 'Test Examples'
@@ -91,7 +99,46 @@ jobs:
             // in the job log, and the `forbidden` signature absent. Matching on the log as well as the step name keeps a
             // deterministic failure in an infrastructure step - a moved dependency version, a bad
             // ref, a compile error - from being retried, which only burns runners and hides the bug.
+            // Shared by every rule below that only applies to a step preparing the environment,
+            // so the download and checksum rules cannot drift apart by editing one and not the
+            // other.
+            const setupStepPrefixes = ['install', 'setup', 'set up', 'configure', 'bootstrap', 'retry'];
+
             const rules = [
+              {
+                // A setup step that is only fetching a tool or a chart fails when the download is
+                // refused or the host cannot be reached at all. `@actions/tool-cache` reports the
+                // first as "Unexpected HTTP response" and helm as "failed to fetch ...: 504 Gateway
+                // Timeout"; the second surfaces as a resolver or socket error, as in `getaddrinfo
+                // EAI_AGAIN get.helm.sh`. `step-security/retry` and the setup actions have usually
+                // already spent their own attempts by then. A 404 is deliberately not matched,
+                // since a version that does not exist is a settled failure. Gated to steps that
+                // install or configure, so a product step that merely mentions one of these in its
+                // own output is left alone.
+                //
+                // ECONNRESET, ETIMEDOUT and "socket hang up" are generic enough that a long running
+                // step - `Setup E2E Tests` runs a ten minute script - could print one from an
+                // unrelated cause buried in its own output. None of 61 audited logs did, but the
+                // three are still anchored to the same line as a fetch/download/install/request
+                // word, the way npm and http-client wrappers report a failed transfer (for example
+                // `npm ERR! network request to ... failed, reason: read ECONNRESET`), rather than
+                // trusted anywhere in the log.
+                description: 'tool download could not reach its host',
+                stepPrefixes: setupStepPrefixes,
+                required:
+                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up)|(?:ECONNRESET|ETIMEDOUT|socket hang up)[^\n]*(?:fetch|download|install|request)/i,
+                forbidden: /error TS\d{4}/,
+              },
+              {
+                // A download cut short arrives complete enough to write but fails its checksum, so
+                // the tool is never installed and the step's own cleanup then reports the binary as
+                // missing. Distinct from a Go module mismatch, which is an integrity claim about a
+                // published module and stays excluded above.
+                description: 'downloaded tool failed its checksum',
+                stepPrefixes: setupStepPrefixes,
+                required: /sha256sum: WARNING: \d+ computed checksums? did NOT match/,
+                forbidden: /SECURITY ERROR/,
+              },
               {
                 // Uploading logs and coverage goes through GitHub's artifact service, so a name
                 // that will not resolve fails the step after the toolkit's own five attempts.
@@ -299,7 +346,36 @@ jobs:
               return;
             }
 
-            await github.rest.actions.reRunWorkflowFailedJobs({ owner, repo, run_id: run.id });
+            // Multiple workflow_run events can be queued for the same source run while a rerun is
+            // starting. Refresh the run immediately before the POST so a stale event cannot try
+            // to rerun a run that is already in progress or has already succeeded.
+            const currentRun = await github.rest.actions.getWorkflowRun({ owner, repo, run_id: run.id });
+            if (
+              currentRun.data.status !== 'completed' ||
+              currentRun.data.conclusion !== 'failure' ||
+              currentRun.data.run_attempt !== run.run_attempt
+            ) {
+              core.info(
+                `Run ${run.id} changed while it was being classified ` +
+                `(event attempt ${run.run_attempt}, current attempt ${currentRun.data.run_attempt}, ` +
+                `status '${currentRun.data.status}', conclusion '${currentRun.data.conclusion}'). ` +
+                'Another retry handler may already be processing it; leaving the run alone.'
+              );
+              return;
+            }
+
+            try {
+              await github.rest.actions.reRunWorkflowFailedJobs({ owner, repo, run_id: run.id });
+            } catch (error) {
+              if (error.status === 403 && /cannot be retried/i.test(error.message)) {
+                core.info(
+                  `Run ${run.id} was changed by another retry handler before it could be rerun. ` +
+                  'Leaving the run alone.'
+                );
+                return;
+              }
+              throw error;
+            }
             core.notice(
               `Transient failures found (${reasons.join('; ')}). Reran the failed jobs of run ` +
               `${run.id}, which was at attempt ${run.run_attempt} of ${maxRunAttempts}. ${run.html_url}`

@@ -22,6 +22,13 @@ name: 'Windows One-Shot Deploy and Destroy'
 # Any PR that breaks Solo on Windows will cause this workflow to fail.
 
 on:
+  workflow_call:
+    inputs:
+      run-twice:
+        description: 'Run a second deploy/destroy cycle on the same cluster (redeployment test)'
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
   push:
     branches:
@@ -38,7 +45,9 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  # A called workflow inherits the caller's github.workflow value. Cancelling here would
+  # cancel the parent workflow when this workflow is invoked by Nightly Extended Tests.
+  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -62,7 +71,7 @@ jobs:
   standard-runner-one-shot-windows:
     name: Windows Deploy and Destroy
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: ${{ inputs.run-twice && 175 || 90 }}
     steps:
       - name: Windows Diagnostics
         shell: pwsh
@@ -147,10 +156,12 @@ jobs:
         id: validate_ubuntu_wsl_installer
         shell: pwsh
         timeout-minutes: 1
+        env:
+          CACHE_HIT: ${{ steps.restore_ubuntu_wsl_installer.outputs.cache-hit }}
         run: |
           $cacheDirectory = Join-Path $env:RUNNER_TOOL_CACHE "Ubuntu\$env:WSL_UBUNTU_VERSION\x64"
           $installerPath = Join-Path $cacheDirectory $env:WSL_UBUNTU_INSTALLER_FILE
-          $cacheHit = '${{ steps.restore_ubuntu_wsl_installer.outputs.cache-hit }}'
+          $cacheHit = $env:CACHE_HIT
           $valid = $false
           $validationResult = 'cache miss'
 
@@ -542,6 +553,54 @@ jobs:
         if: always()
         # Best-effort teardown: the runner is discarded afterwards, so a destroy failure must not
         # turn an otherwise green run red. See the note above on why `; $true` did not achieve this.
+        continue-on-error: true
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- one-shot single destroy --quiet-mode --dev
+
+      - name: One-Shot Single Redeploy
+        # Second deploy cycle on the same cluster — no cluster deletion between rounds.
+        # This validates that redeployment works correctly after a destroy (issue #6003).
+        # Only runs when called from the nightly workflow with run-twice: true.
+        if: ${{ inputs.run-twice == true }}
+        shell: pwsh
+        timeout-minutes: 70
+        env:
+          ENABLE_IMAGE_CACHE: 'false'
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- one-shot single deploy --dev
+
+      - name: Check Port Forwarding Still Works After Redeploy
+        if: ${{ inputs.run-twice == true }}
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment diagnostics connections -d one-shot --check
+
+      - name: Collect Diagnostics on Redeploy Failure
+        if: ${{ inputs.run-twice == true && failure() }}
+        continue-on-error: true
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment diagnostics logs -q --dev
+
+      - name: One-Shot Single Redestroy
+        if: ${{ inputs.run-twice == true && always() }}
+        # Best-effort teardown for the second deploy cycle.
         continue-on-error: true
         shell: pwsh
         timeout-minutes: 15

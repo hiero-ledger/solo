@@ -11,6 +11,7 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
+import {SoloChartRepository} from '../core/solo-chart-repository.js';
 import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
 import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {ClusterCrdProbe} from '../core/cluster-crd-probe.js';
@@ -648,6 +649,10 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
         chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
+        // quay.io/minio/minio stopped publishing new community images after 2025-10-23; use
+        // Chainguard's free replacement instead, pinned by digest (see version.ts).
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.repository', versions.MINIO_IMAGE_REPOSITORY);
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.digest', versions.MINIO_IMAGE_DIGEST);
       }
     } else if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
@@ -1308,7 +1313,7 @@ export class NetworkCommand extends BaseCommand {
           config.namespace,
           constants.SOLO_DEPLOYMENT_CHART,
           constants.SOLO_DEPLOYMENT_CHART,
-          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
           config.soloChartVersion,
           config.chartValuesMap[clusterReference],
           kubeContext,
@@ -1809,7 +1814,7 @@ export class NetworkCommand extends BaseCommand {
                     namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),
                     soloChartVersion,
                     config.chartValuesMap[clusterReference],
                     clusterRefs.get(clusterReference),
