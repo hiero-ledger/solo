@@ -754,7 +754,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.showVersions(PathEx.join(outputDirectory, 'versions'), deployConfig);
             await this.exposeNodePortServices(deployConfig);
             this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
-            this.showCacheImageFailures();
+            this.showCacheImageMessages();
             this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
           },
         }),
@@ -1054,9 +1054,12 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     }
   }
 
-  // Surfaces any images that failed to cache or load during the run. Only shown when there were
-  // failures, so a clean run prints nothing.
-  private showCacheImageFailures(): void {
+  // Surfaces any images that failed to cache or load during the run, and any cache files the pull removed.
+  // Each group is only shown when it has messages, so a clean run prints nothing.
+  private showCacheImageMessages(): void {
+    if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_MAINTENANCE_MESSAGE_GROUP)) {
+      this.logger.showMessageGroup(constants.CACHE_IMAGE_MAINTENANCE_MESSAGE_GROUP);
+    }
     if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP)) {
       this.logger.showMessageGroup(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP, MessageLevel.WARN);
     }
