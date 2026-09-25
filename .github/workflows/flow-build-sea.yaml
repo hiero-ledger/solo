@@ -20,6 +20,13 @@ name: "Build SEA Binaries"
 # a Node.js installation. Each matrix leg uploads its binary as a GitHub Actions artifact.
 
 on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version"
+        type: string
+        required: false
+        default: "22"
   workflow_dispatch:
     inputs:
       node-version:
@@ -27,12 +34,6 @@ on:
         type: string
         required: false
         default: "22"
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
   push:
     branches:
       - main
