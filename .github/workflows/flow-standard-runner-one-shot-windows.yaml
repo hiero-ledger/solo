@@ -44,9 +44,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  # A called workflow inherits the caller's github.workflow value. Cancelling here would
-  # cancel the parent workflow when this workflow is invoked by Nightly Extended Tests.
+  # A called workflow inherits the caller's github.workflow value. Keep its group separate
+  # from the parent workflow or GitHub cancels the parent when the called workflow queues.
+  group: ${{ format('{0}-{1}-{2}', github.workflow, github.head_ref || github.run_id, github.event_name == 'workflow_call' && 'called' || 'direct') }}
   cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
 
 env:
