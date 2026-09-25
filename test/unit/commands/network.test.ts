@@ -44,6 +44,29 @@ import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {SoloChartRepository} from '../../../src/core/solo-chart-repository.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {Duration} from '../../../src/core/time/duration.js';
+import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
+
+interface MonitoringTaskWrapper {
+  newListr: (subtasks: MonitoringTaskItem[], options?: {concurrent?: boolean; rendererOptions?: unknown}) => unknown;
+}
+
+interface MonitoringTaskItem {
+  title?: string;
+  task?: (context: unknown, taskWrapper: MonitoringTaskWrapper) => unknown;
+}
+
+interface NetworkCommandInternal {
+  taskList: {
+    newTaskList: (...arguments_: unknown[]) => unknown;
+  };
+  getBlockNodes: () => unknown[];
+  ensurePodLogsCrd: (config: unknown) => boolean;
+  ensurePrometheusOperatorCrds: (config: unknown) => boolean;
+  componentFactory: {
+    createNewEnvoyProxyComponent: sinon.SinonStub;
+    createNewHaProxyComponent: sinon.SinonStub;
+  };
+}
 
 const testName: string = 'network-cmd-unit';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -289,6 +312,83 @@ describe('NetworkCommand unit tests', (): void => {
       } finally {
         sinon.restore();
       }
+    });
+
+    const testMonitoringCrdsConcurrency: (isWindows: boolean, expectedConcurrent: boolean) => Promise<void> = async (
+      isWindows: boolean,
+      expectedConcurrent: boolean,
+    ): Promise<void> => {
+      sinon.stub(OperatingSystem, 'isWin32').returns(isWindows);
+      try {
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        const networkCommandInternal: NetworkCommandInternal = networkCommand as unknown as NetworkCommandInternal;
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'solo-e2e', 'context1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
+        const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.updateComponentVersion = sinon.stub();
+        options.remoteConfig.configuration.state = {};
+        networkCommandInternal.getBlockNodes = sinon.stub().returns([]);
+        networkCommandInternal.ensurePodLogsCrd = sinon.stub().returns(true);
+        networkCommandInternal.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
+
+        networkCommandInternal.componentFactory = {
+          createNewEnvoyProxyComponent: sinon.stub(),
+          createNewHaProxyComponent: sinon.stub(),
+        };
+
+        let monitoringCrdsOptions: {concurrent?: boolean} | undefined;
+        let monitoringCrdsSubtasks: MonitoringTaskItem[] | undefined;
+
+        const originalNewTaskList: (...arguments_: unknown[]) => unknown =
+          networkCommandInternal.taskList.newTaskList.bind(networkCommandInternal.taskList);
+
+        sinon
+          .stub(networkCommandInternal.taskList, 'newTaskList')
+          .callsFake((tasks: unknown[], ...arguments_: unknown[]): unknown => {
+            const taskListItems: MonitoringTaskItem[] = tasks as MonitoringTaskItem[];
+            const monitoringTask: MonitoringTaskItem | undefined = taskListItems.find(
+              (taskItem: MonitoringTaskItem): boolean => taskItem.title === 'Install monitoring CRDs',
+            );
+            if (monitoringTask && typeof monitoringTask.task === 'function') {
+              const originalTaskFunction: (context: unknown, taskWrapper: MonitoringTaskWrapper) => unknown =
+                monitoringTask.task;
+              monitoringTask.task = (context: unknown, taskWrapper: MonitoringTaskWrapper): unknown => {
+                const originalNewListr: (subtasks: MonitoringTaskItem[], options_?: {concurrent?: boolean}) => unknown =
+                  taskWrapper.newListr.bind(taskWrapper);
+                taskWrapper.newListr = (subtasks: MonitoringTaskItem[], options_?: {concurrent?: boolean}): unknown => {
+                  monitoringCrdsSubtasks = subtasks;
+                  monitoringCrdsOptions = options_;
+                  return originalNewListr(subtasks, options_);
+                };
+                return originalTaskFunction(context, taskWrapper);
+              };
+            }
+            return originalNewTaskList(tasks, ...arguments_);
+          });
+
+        await networkCommand.deploy(argv.build());
+
+        expect(monitoringCrdsOptions).to.be.an('object');
+        expect(monitoringCrdsOptions?.concurrent).to.equal(expectedConcurrent);
+        expect(monitoringCrdsSubtasks).to.have.lengthOf(2);
+        expect(monitoringCrdsSubtasks?.[0].title).to.equal('Pod Logs CRDs');
+        expect(monitoringCrdsSubtasks?.[1].title).to.equal('Prometheus Operator CRDs');
+      } finally {
+        sinon.restore();
+      }
+    };
+
+    it('serializes monitoring CRD installation with concurrent: false on Windows', async (): Promise<void> => {
+      await testMonitoringCrdsConcurrency(true, false);
+    });
+
+    it('runs monitoring CRD installation with concurrent: true on non-Windows', async (): Promise<void> => {
+      await testMonitoringCrdsConcurrency(false, true);
     });
 
     it('retries the solo-deployment chart install after a transient failure', async (): Promise<void> => {
