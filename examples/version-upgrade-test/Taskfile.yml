@@ -41,6 +41,8 @@ vars:
     sh: sed -n "s/^export const HEDERA_PLATFORM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
   CURRENT_MIRROR_VERSION:
     sh: sed -n "s/^export const MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+  CURRENT_BLOCK_VERSION:
+    sh: sed -n "s/^export const BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
@@ -106,7 +108,8 @@ tasks:
       # Must deploy block node before deploying consensus network due to dependency
       - cmd: |
           $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
-          --chart-version {{ .PREV_BLOCK_VERSION }}
+          --chart-version {{ .PREV_BLOCK_VERSION }} \
+          --consensus-node-version {{ .PREV_CN_VERSION }}
 
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
@@ -162,6 +165,7 @@ tasks:
       # Upgrade block node while the consensus nodes are still stopped
       - cmd: |
           $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }} \
+          --upgrade-version {{ .CURRENT_BLOCK_VERSION }} \
           --consensus-node-version {{ .CURRENT_CN_VERSION }}
 
       # Start the upgraded consensus nodes now that the block node also speaks the new format
