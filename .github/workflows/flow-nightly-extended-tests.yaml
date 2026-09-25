@@ -293,4 +293,5 @@ jobs:
     with:
       cn-edge-version: v0.77.2
       run-twice: true
-    secrets: inherit
+    # The called workflow only uses the automatically provided GITHUB_TOKEN;
+    # forwarding every repository secret is unnecessary and unsafe.
