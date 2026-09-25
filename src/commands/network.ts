@@ -54,6 +54,7 @@ import {Duration} from '../core/time/duration.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {FilePermissions} from '../business/utils/file-permissions.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -1707,7 +1708,10 @@ export class NetworkCommand extends BaseCommand {
               },
             ];
 
-            return task.newListr(tasks, {concurrent: false, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+            return task.newListr(tasks, {
+              concurrent: !OperatingSystem.isWin32(),
+              rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+            });
           },
         },
         {
