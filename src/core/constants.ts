@@ -125,8 +125,16 @@ export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
   : ['network-load-generator', 'metrics-server'];
 
+export const REDIS_SENTINEL_ENABLED: boolean = getEnvironmentVariable('REDIS_SENTINEL_ENABLED') === 'true' || false;
+export const REDIS_HOST: string =
+  getEnvironmentVariable('REDIS_HOST') || REDIS_SENTINEL_ENABLED
+    ? 'solo-shared-resources-redis'
+    : 'solo-shared-resources-redis-master';
 export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
+export const REDIS_REPLICA_REPLICACOUNT: number =
+  +getEnvironmentVariable('REDIS_REPLICA_REPLICACOUNT') || REDIS_SENTINEL_ENABLED ? 1 : 0;
+export const REDIS_SENTINEL_GETMASTERTIMEOUT: number = +getEnvironmentVariable('REDIS_SENTINEL_GETMASTERTIMEOUT') || 10;
 export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
 export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';

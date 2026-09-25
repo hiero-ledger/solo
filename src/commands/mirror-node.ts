@@ -974,13 +974,17 @@ export class MirrorNodeCommand extends BaseCommand {
                 context_.config.soloChartVersion,
                 context_.config.clusterContext,
                 {
+                  'redis.host': constants.REDIS_HOST,
                   'redis.image.registry': constants.REDIS_IMAGE_REGISTRY,
                   'redis.image.repository': constants.REDIS_IMAGE_REPOSITORY,
                   'redis.image.tag': versions.REDIS_IMAGE_VERSION,
+                  'redis.replica.replicaCount': constants.REDIS_REPLICA_REPLICACOUNT,
+                  'redis.sentinel.enabled': constants.REDIS_SENTINEL_ENABLED,
                   'redis.sentinel.image.registry': constants.REDIS_SENTINEL_IMAGE_REGISTRY,
                   'redis.sentinel.image.repository': constants.REDIS_SENTINEL_IMAGE_REPOSITORY,
                   'redis.sentinel.image.tag': versions.REDIS_SENTINEL_IMAGE_VERSION,
                   'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
+                  'redis.sentinel.getMasterTimeout': constants.REDIS_SENTINEL_GETMASTERTIMEOUT,
                 },
               );
             },
