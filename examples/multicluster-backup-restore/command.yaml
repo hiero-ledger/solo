@@ -12,6 +12,10 @@ block:
   - --quiet-mode
   - --values-file
   - block-node-values.yaml
+  - --block-node-version
+  - ${BLOCK_NODE_VERSION}
+  - --consensus-node-version
+  - ${CONSENSUS_NODE_VERSION}
 mirror:
   - --deployment
   - ${DEPLOYMENT}
@@ -64,6 +68,8 @@ relay:
 consensus:
   - --deployment
   - external-database-test-deployment
+  - --consensus-node-version
+  - ${CONSENSUS_NODE_VERSION}
   - --quiet-mode
   - --dev
   - --load-balancer
