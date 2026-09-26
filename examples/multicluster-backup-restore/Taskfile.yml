@@ -45,7 +45,10 @@ vars:
   HAPROXY_IPS: "node1=172.19.1.0,node2=172.19.2.1"
   ENVOY_IPS: "node1=172.19.1.2,node2=172.19.2.2"
   NETWORK_NODE_IPS: "node1=172.19.1.1,node2=172.19.2.0"
-
+  CURRENT_CN_VERSION:
+    sh: sed -n "s/^export const HEDERA_PLATFORM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+  CURRENT_BLOCK_VERSION:
+    sh: sed -n "s/^export const BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
 
 tasks:
   # ==================== Main Workflow Tasks ====================
@@ -208,9 +211,9 @@ tasks:
       # so running them in parallel causes one to starve and fail after max retries.
       - cmd: |
           echo "🧱 Deploying Block Node on cluster 1..."
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --block-node-version {{ .CURRENT_BLOCK_VERSION }} --consensus-node-version {{ .CURRENT_CN_VERSION }} --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
           echo "🧱 Deploying Block Node on cluster 2..."
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --block-node-version {{ .CURRENT_BLOCK_VERSION }} --consensus-node-version {{ .CURRENT_CN_VERSION }} --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
           echo "✅ Both block nodes deployed"
 
       # Deploy consensus network
@@ -221,6 +224,7 @@ tasks:
       - cmd: echo "🚀 Deploying consensus network..."
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs \
+            --consensus-node-version {{ .CURRENT_CN_VERSION }} \
             --haproxy-ips {{ .HAPROXY_IPS }} \
             --envoy-ips {{ .ENVOY_IPS }} \
             --network-node-ips {{ .NETWORK_NODE_IPS }}
@@ -347,6 +351,8 @@ tasks:
       POSTGRES_PASSWORD: "{{ .POSTGRES_PASSWORD }}"
       POSTGRES_READONLY_USERNAME: "{{ .POSTGRES_READONLY_USERNAME }}"
       POSTGRES_READONLY_PASSWORD: "{{ .POSTGRES_READONLY_PASSWORD }}"
+      CONSENSUS_NODE_VERSION: "{{ .CURRENT_CN_VERSION }}"
+      BLOCK_NODE_VERSION: "{{ .CURRENT_BLOCK_VERSION }}"
     cmds:
       # BLOCK_STREAM_WRITER_MODE=FILE: prevents CN from gRPC-streaming blocks to block nodes
       # during this intermediate phase.  Block nodes start with empty data (streamBeforeEmbOrElse
