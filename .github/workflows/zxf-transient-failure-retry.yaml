@@ -14,11 +14,11 @@
 # limitations under the License.
 ##
 
-# Reruns the failed jobs of a pull request workflow when, and only when, every failed job carries a
-# known transient infrastructure signature. Every rule below was derived from the failed job logs of
-# a five day window; a failure that does not match one is left alone so that a real regression stays
-# red instead of being hidden behind a rerun. The rerun endpoint works at run level and cannot
-# target a subset, so a run mixing transient and genuine failures is not retried at all.
+# Reruns the failed jobs of a pull request or push workflow when, and only when, every failed job
+# carries a known transient infrastructure signature. Every rule below was derived from the failed
+# job logs of a five day window; a failure that does not match one is left alone so that a real
+# regression stays red instead of being hidden behind a rerun. The rerun endpoint works at run level
+# and cannot target a subset, so a run mixing transient and genuine failures is not retried at all.
 name: 'ZXF: Transient Failure Retry'
 
 on:
@@ -70,7 +70,8 @@ jobs:
     if: >-
       ${{
         github.event.workflow_run.status == 'completed' &&
-        startsWith(github.event.workflow_run.event, 'pull_request') &&
+        (startsWith(github.event.workflow_run.event, 'pull_request') ||
+          github.event.workflow_run.event == 'push') &&
         github.event.workflow_run.conclusion == 'failure'
       }}
     runs-on: ubuntu-latest
@@ -124,7 +125,9 @@ jobs:
                 // `npm ERR! network request to ... failed, reason: read ECONNRESET`), rather than
                 // trusted anywhere in the log.
                 description: 'tool download could not reach its host',
-                stepPrefixes: setupStepPrefixes,
+                // Deploy steps can fetch a chart during environment creation. Keep this explicit
+                // rather than making every product step eligible for generic network errors.
+                stepPrefixes: [...setupStepPrefixes, 'one-shot single deploy'],
                 required:
                   /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up)|(?:ECONNRESET|ETIMEDOUT|socket hang up)[^\n]*(?:fetch|download|install|request)/i,
                 forbidden: /error TS\d{4}/,
