@@ -7,6 +7,7 @@ source "${SCRIPT_DIR}/helper.sh"
 
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE=""
+TEMP_SOURCE_RELAY_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_BN_UPGRADE_VALUES_FILE=""
@@ -42,6 +43,10 @@ on_exit() {
 
   if [[ -n "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE:-}" && -f "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE}" ]]; then
     rm -f "${TEMP_MINIO_IMAGE_OVERRIDE_VALUES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_SOURCE_RELAY_VALUES_FILE:-}" && -f "${TEMP_SOURCE_RELAY_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_SOURCE_RELAY_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -683,6 +688,19 @@ EOF
 
 TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properties-XXXX.properties)"
+TEMP_SOURCE_RELAY_VALUES_FILE="$(mktemp -t source-relay-values-XXXX.yaml)"
+
+cat > "${TEMP_SOURCE_RELAY_VALUES_FILE}" <<'EOF'
+# The source deployment uses a prior Solo release, so its bundled relay values may
+# predate the keep-alive fix in the current checkout. Keep migration smoke requests
+# from reusing connections across Mirror Web3 pod replacement.
+relay:
+  config:
+    MIRROR_NODE_HTTP_KEEP_ALIVE: false
+ws:
+  config:
+    MIRROR_NODE_HTTP_KEEP_ALIVE: false
+EOF
 
 cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
@@ -733,6 +751,7 @@ mirrorNode:
 
 relayNode:
   --relay-release: "${PREV_RELAY_VERSION}"
+  --values-file: "${TEMP_SOURCE_RELAY_VALUES_FILE}"
 
 explorerNode:
   --explorer-version: "${PREV_EXPLORER_VERSION}"
