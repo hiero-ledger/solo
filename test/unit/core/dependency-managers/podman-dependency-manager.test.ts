@@ -15,12 +15,15 @@ import {OperatingSystem} from '../../../../src/business/utils/operating-system.j
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import * as constants from '../../../../src/core/constants.js';
 import {SubprocessEnvironment} from '../../../../src/core/subprocess-environment.js';
+import {Templates} from '../../../../src/core/templates.js';
 
-function createPodman(directory: string): void {
+/** Creates an empty podman executable in the directory, named as the PATH scan expects on this platform. */
+function createPodman(directory: string): string {
   fs.mkdirSync(directory, {recursive: true});
-  const podmanPath: string = PathEx.join(directory, constants.PODMAN);
+  const podmanPath: string = Templates.localInstallationExecutableForDependency(constants.PODMAN, directory);
   fs.writeFileSync(podmanPath, '');
   fs.chmodSync(podmanPath, 0o755);
+  return podmanPath;
 }
 
 /** Limits the PATH scan to the given directory. */
@@ -204,6 +207,7 @@ describe('PodmanDependencyManager', (): void => {
     let brewPrefix: string;
     let brewBinaryDirectory: string;
     let cellarBinaryDirectory: string;
+    let cellarPodmanPath: string;
     let brewStub: SinonStub;
 
     beforeEach((): void => {
@@ -213,7 +217,7 @@ describe('PodmanDependencyManager', (): void => {
       brewBinaryDirectory = PathEx.join(brewPrefix, 'bin');
       cellarBinaryDirectory = PathEx.join(brewPrefix, 'Cellar', 'podman', '5.6.0', 'bin');
       fs.mkdirSync(brewBinaryDirectory, {recursive: true});
-      createPodman(cellarBinaryDirectory);
+      cellarPodmanPath = createPodman(cellarBinaryDirectory);
       brewStub = sinon.stub(podmanDependencyManager, 'run').resolves([brewPrefix]);
     });
 
@@ -224,10 +228,7 @@ describe('PodmanDependencyManager', (): void => {
     // File symlinks need elevated privileges on Windows, and the Homebrew podman flow is Linux-only.
     if (process.platform !== 'win32') {
       it('should treat a podman linked into the brew prefix as Homebrew-managed', async (): Promise<void> => {
-        fs.symlinkSync(
-          PathEx.join(cellarBinaryDirectory, constants.PODMAN),
-          PathEx.join(brewBinaryDirectory, constants.PODMAN),
-        );
+        fs.symlinkSync(cellarPodmanPath, PathEx.join(brewBinaryDirectory, PathEx.basename(cellarPodmanPath)));
         searchPath(brewBinaryDirectory);
 
         expect(await podmanDependencyManager.isBrewManaged()).to.be.true;
@@ -237,10 +238,7 @@ describe('PodmanDependencyManager', (): void => {
       it('should follow a shim outside the brew prefix that links into it', async (): Promise<void> => {
         const shimDirectory: string = PathEx.join(temporaryDirectory, 'usr', 'local', 'bin');
         fs.mkdirSync(shimDirectory, {recursive: true});
-        fs.symlinkSync(
-          PathEx.join(cellarBinaryDirectory, constants.PODMAN),
-          PathEx.join(shimDirectory, constants.PODMAN),
-        );
+        fs.symlinkSync(cellarPodmanPath, PathEx.join(shimDirectory, PathEx.basename(cellarPodmanPath)));
         searchPath(shimDirectory);
 
         expect(await podmanDependencyManager.isBrewManaged()).to.be.true;
