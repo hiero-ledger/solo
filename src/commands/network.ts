@@ -5,10 +5,13 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
 import {SoloErrors} from '../core/errors/solo-errors.js';
+import {type PvcMountVerifier} from '../core/pvc-mount-verifier.js';
+import {type PvcMountFinding} from '../core/pvc-mount-finding.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
+import {SoloChartRepository} from '../core/solo-chart-repository.js';
 import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
 import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {ClusterCrdProbe} from '../core/cluster-crd-probe.js';
@@ -57,8 +60,10 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
+import {ResourceNotFoundError} from '../integration/kube/errors/resource-operation-errors.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {ResumableCopySource} from '../integration/kube/resources/container/resumable-copy-source.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
@@ -97,6 +102,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.PvcMountVerifier) private readonly pvcMountVerifier: PvcMountVerifier,
   ) {
     super();
 
@@ -106,6 +112,7 @@ export class NetworkCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.pvcMountVerifier = patchInject(pvcMountVerifier, InjectTokens.PvcMountVerifier, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -133,6 +140,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.verifyPersistentVolumeClaimMounts,
       flags.quiet,
       // Keep the legacy flag visible in help as deprecated while canonical parsing
       // uses --consensus-node-version.
@@ -213,6 +221,60 @@ export class NetworkCommand extends BaseCommand {
             collapseSubtasks: false,
           },
         });
+      },
+    };
+  }
+
+  /**
+   * Confirms each consensus node's persistent volume claims are mounted on the storage they asked
+   * for. A claim can bind and mount successfully against a filesystem far too small to hold it —
+   * directory-based provisioners do not enforce the requested size — so without this check a node
+   * running on the wrong disk looks like a clean deployment until the disk fills up.
+   *
+   * Warns by default because a legitimately oversubscribed development cluster (kind, and any
+   * single-disk setup) reports the same shortfall; `--verify-pvc-mounts` turns it into a failure for
+   * clusters where the storage layout is expected to be correct.
+   *
+   * That flag also enables the chart's `volumeClaims.capacityCheck` init container, which fails the
+   * pod before the consensus node starts. This task stays as the backstop that still reports when
+   * the chart-side guard is unavailable — an older chart, or a values file that overrides it.
+   */
+  private verifyPersistentVolumeClaimMounts(): SoloListrTask<NetworkDeployContext> {
+    return {
+      title: 'Verify persistent volume claim mounts',
+      skip: (context_): boolean => !context_.config.persistentVolumeClaims,
+      task: async (context_, task): Promise<void> => {
+        const config: NetworkDeployConfigClass = context_.config;
+        const findings: PvcMountFinding[] = [];
+
+        for (const context of config.contexts) {
+          findings.push(
+            ...(await this.pvcMountVerifier.verify(config.namespace, context, ['solo.hedera.com/type=network-node'])),
+          );
+        }
+
+        if (findings.length === 0) {
+          return;
+        }
+
+        const descriptions: string[] = findings.map(
+          (finding: PvcMountFinding): string => `${finding.podName}: ${finding.description}`,
+        );
+
+        if (config.verifyPersistentVolumeClaimMounts) {
+          throw new SoloErrors.system.pvcMountVerificationFailed(descriptions);
+        }
+
+        task.title = `${task.title} ${chalk.yellow(`[${findings.length} warning(s)]`)}`;
+        this.logger.showUser(
+          chalk.yellow(
+            `Persistent volume claim mounts are smaller than requested (${findings.length} finding(s)); ` +
+              'consensus nodes may run out of disk. Deploy with --verify-pvc-mounts to treat this as an error.',
+          ),
+        );
+        for (const description of descriptions) {
+          this.logger.showUser(chalk.yellow(`  - ${description}`));
+        }
       },
     };
   }
@@ -589,6 +651,10 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
         chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
+        // quay.io/minio/minio stopped publishing new community images after 2025-10-23; use
+        // Chainguard's free replacement instead, pinned by digest (see version.ts).
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.repository', versions.MINIO_IMAGE_REPOSITORY);
+        chartValuesMap[clusterReference].set('minio-server.tenant.image.digest', versions.MINIO_IMAGE_DIGEST);
       }
     } else if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
@@ -667,7 +733,10 @@ export class NetworkCommand extends BaseCommand {
         .set('telemetry.prometheus.svcMonitor.enabled', false) // remove after chart version is bumped
         .set('crds.serviceMonitor.enabled', config.singleUseServiceMonitor)
         .set('crds.podLog.enabled', config.singleUsePodLog)
-        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims);
+        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims)
+        // Turn on the chart's own pre-start capacity guard alongside solo's post-deploy check, so
+        // an undersized volume stops the node before it writes state rather than after.
+        .set('defaults.volumeClaims.capacityCheck.enabled', config.verifyPersistentVolumeClaimMounts);
     }
 
     config.singleUseServiceMonitor = 'false';
@@ -891,6 +960,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.verifyPersistentVolumeClaimMounts,
       flags.settingTxt,
       flags.grpcTlsCertificatePath,
       flags.grpcWebTlsCertificatePath,
@@ -944,6 +1014,15 @@ export class NetworkCommand extends BaseCommand {
         'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
+
+    if (config.verifyPersistentVolumeClaimMounts && !config.persistentVolumeClaims) {
+      throw new SoloErrors.validation.invalidFlagValue(
+        flags.verifyPersistentVolumeClaimMounts.name,
+        'true',
+        `requires --${flags.persistentVolumeClaims.name}`,
+      );
+    }
+
     const normalizedReleaseTag: string | undefined = SemanticVersion.normalizeToken(config.releaseTag);
     if (normalizedReleaseTag) {
       config.releaseTag = normalizedReleaseTag;
@@ -1236,7 +1315,7 @@ export class NetworkCommand extends BaseCommand {
           config.namespace,
           constants.SOLO_DEPLOYMENT_CHART,
           constants.SOLO_DEPLOYMENT_CHART,
-          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
           config.soloChartVersion,
           config.chartValuesMap[clusterReference],
           kubeContext,
@@ -1496,6 +1575,66 @@ export class NetworkCommand extends BaseCommand {
     );
   }
 
+  /**
+   * Loads and validates the remote config for `network deploy`. Unlike other consumers of
+   * `remoteConfig.loadAndValidate`, a missing remote config here does not necessarily mean the deployment is
+   * gone — `network destroy` (by design) leaves the namespace and the recorded deployment in place unless it
+   * is asked to remove PVCs and secrets too, so the fix is to recreate the ConfigMap, not to report a
+   * misleading chart-install failure. This reports that distinctly so the user knows how to recover instead
+   * of chasing an unrelated Helm error.
+   */
+  private async loadAndValidateRemoteConfigForDeploy(argv: ArgvStruct): Promise<void> {
+    try {
+      await this.remoteConfig.loadAndValidate(argv, true, true);
+    } catch (error) {
+      const isMissingRemoteConfig: boolean =
+        error instanceof ResourceNotFoundError ||
+        error instanceof SoloErrors.system.resourceNotFound ||
+        error instanceof SoloErrors.config.remoteConfigMissingOnKindCluster;
+
+      if (!isMissingRemoteConfig) {
+        throw error;
+      }
+
+      const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+      const namespace: NamespaceName = this.configManager.getFlag(flags.namespace);
+      const context: Context = this.configManager.getFlag(flags.context);
+      const clusterReferences: string[] = this.localConfig.configuration
+        .deploymentByName(deploymentName)
+        .clusters.map((clusterReference): string => clusterReference.toString());
+
+      throw new SoloErrors.config.remoteConfigMissingForDeploy(
+        deploymentName,
+        namespace?.name,
+        context,
+        clusterReferences,
+        NetworkCommand.resolveRemoteConfigMissingCause(error),
+      );
+    }
+  }
+
+  /**
+   * Resolves a non-conflicting cause for a missing-remote-config error thrown by `remoteConfig.loadAndValidate`.
+   *
+   * `RemoteConfigMissingOnKindClusterError` and the generic resource-not-found `SoloError` both carry their own
+   * troubleshooting steps; the CLI's error renderer shows the deepest cause-chain entry that has steps, so
+   * chaining either of those directly would bury the more specific guidance built in
+   * `loadAndValidateRemoteConfigForDeploy` under theirs. Unwrapping to the raw (non-`SoloError`) cause, or
+   * dropping it entirely, keeps ours as the one shown.
+   */
+  private static resolveRemoteConfigMissingCause(error: unknown): Error | undefined {
+    if (error instanceof SoloErrors.config.remoteConfigMissingOnKindCluster) {
+      return error.cause instanceof Error ? error.cause : undefined;
+    }
+    if (error instanceof SoloErrors.system.resourceNotFound) {
+      return undefined;
+    }
+    if (error instanceof ResourceNotFoundError) {
+      return error;
+    }
+    return undefined;
+  }
+
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
@@ -1507,7 +1646,7 @@ export class NetworkCommand extends BaseCommand {
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             this.configManager.update(argv);
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv, true, true);
+            await this.loadAndValidateRemoteConfigForDeploy(argv);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
@@ -1580,6 +1719,25 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
+          title: 'Check for an existing network deployment',
+          task: async ({config}): Promise<void> => {
+            for (const [clusterReference, context] of config.clusterRefs) {
+              const isInstalled: boolean = await this.chartManager.isChartInstalled(
+                config.namespace,
+                constants.SOLO_DEPLOYMENT_CHART,
+                context,
+              );
+              if (isInstalled) {
+                throw new SoloErrors.deployment.networkAlreadyDeployed(
+                  config.deployment,
+                  config.namespace.name,
+                  clusterReference,
+                );
+              }
+            }
+          },
+        },
+        {
           title: 'Copy gRPC TLS Certificates',
           task: (
             {config: {grpcTlsCertificatePath, grpcWebTlsCertificatePath, grpcTlsKeyPath, grpcWebTlsKeyPath}},
@@ -1641,23 +1799,9 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs} = config;
+            const {clusterRefs} = config;
 
             for (const [clusterReference] of clusterRefs) {
-              const isInstalled: boolean = await this.chartManager.isChartInstalled(
-                namespace,
-                constants.SOLO_DEPLOYMENT_CHART,
-                clusterRefs.get(clusterReference),
-              );
-              if (isInstalled) {
-                await this.chartManager.uninstall(
-                  namespace,
-                  constants.SOLO_DEPLOYMENT_CHART,
-                  clusterRefs.get(clusterReference),
-                );
-                config.isUpgrade = true;
-              }
-
               config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
                 config.soloChartVersion,
                 false,
@@ -1737,7 +1881,7 @@ export class NetworkCommand extends BaseCommand {
                     namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),
                     soloChartVersion,
                     config.chartValuesMap[clusterReference],
                     clusterRefs.get(clusterReference),
@@ -1768,6 +1912,7 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         this.waitForNetworkPods(),
+        this.verifyPersistentVolumeClaimMounts(),
         {
           title: 'Check proxy pods are running',
           task: (context_, task): SoloListr<NetworkDeployContext> => {
@@ -1860,7 +2005,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: 'Copy wraps lib into consensus node',
           skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
-          task: async ({config}): Promise<void> => {
+          task: async ({config}, task): Promise<void> => {
             const wraps: Wraps = this.soloConfig.tss.wraps;
             const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
 
@@ -1916,7 +2061,8 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
-            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz
+            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz.
+            // Keep the archive on the node because it is required during genesis.
             // (tss.wrapsProvingKeyPath) at genesis, not from the pre-extracted
             // TSS_LIB_WRAPS_ARTIFACTS_PATH directory. If the wraps-key-path directory carries the
             // tarball, stage it under that exact name so the library is ready for the genesis history
@@ -1933,17 +2079,80 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
-            for (const consensusNode of config.consensusNodes) {
-              const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
-                config.namespace,
-                consensusNode.name,
-              );
+            const downloadedWrapsArchive: string = PathEx.join(
+              constants.SOLO_CACHE_DIR,
+              `${wraps.directoryName}.tar.gz`,
+            );
+            const wrapsArchivePath: string | undefined =
+              wrapsTarball ??
+              (!config.wrapsKeyPath && fs.existsSync(downloadedWrapsArchive) ? downloadedWrapsArchive : undefined);
+            const preparedWrapsSource: ResumableCopySource | undefined = wrapsArchivePath
+              ? ResumableCopySource.create(wrapsArchivePath, constants.CONTAINER_COPY_CHUNK_SIZE_BYTES)
+              : undefined;
 
-              await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+            // The library is hundreds of megabytes per node, so on a large network the copies
+            // dominate deploy time. Running them concurrently is much faster but puts every
+            // transfer on the same link at once, which is the wrong trade on a constrained
+            // connection -- hence the flag rather than a fixed choice.
+            const subTasks: SoloListrTask<NetworkDeployContext>[] = config.consensusNodes.map(
+              (consensusNode: ConsensusNode): SoloListrTask<NetworkDeployContext> => ({
+                title: `Copy wraps lib to node: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
+                task: async (): Promise<void> => {
+                  const rootContainer: Container = await new K8Helper(
+                    consensusNode.context,
+                  ).getConsensusNodeRootContainer(config.namespace, consensusNode.name);
 
-              if (wrapsTarball) {
-                await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
-              }
+                  const targetKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+                  const targetWrapsPath: string = `${targetKeysDirectory}/${wraps.directoryName}`;
+
+                  if (wrapsArchivePath) {
+                    const targetWrapsTarball: string = `${targetKeysDirectory}/wraps.tar.gz`;
+                    await rootContainer.copyFileResumable(
+                      wrapsArchivePath,
+                      targetWrapsTarball,
+                      constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                      preparedWrapsSource,
+                    );
+
+                    const allowedArchiveMembers: string[] = [...wraps.allowedKeyFileSet];
+                    await rootContainer.execContainer([
+                      'bash',
+                      '-c',
+                      `temporary_directory="${targetWrapsPath}.partial" && ` +
+                        'rm -rf "$temporary_directory" && mkdir -p "$temporary_directory" && ' +
+                        `tar -xzf "${targetWrapsTarball}" -C "$temporary_directory" -- "$@" && ` +
+                        `rm -rf "${targetWrapsPath}" && ` +
+                        `mv "$temporary_directory" "${targetWrapsPath}"`,
+                      'wraps-archive-members',
+                      ...allowedArchiveMembers,
+                    ]);
+                  } else {
+                    await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
+                    for (const file of wraps.allowedKeyFileSet) {
+                      const sourcePath: string = PathEx.join(extractedDirectory, file);
+                      if (fs.existsSync(sourcePath)) {
+                        await rootContainer.copyFileResumable(
+                          sourcePath,
+                          `${targetWrapsPath}/${file}`,
+                          constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+                        );
+                      }
+                    }
+                  }
+                },
+              }),
+            );
+
+            const copyTasks: SoloListr<NetworkDeployContext> = task.newListr(subTasks, {
+              concurrent: constants.EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL,
+              rendererOptions: {
+                collapseSubtasks: false,
+              },
+            });
+            try {
+              await copyTasks.run();
+            } finally {
+              preparedWrapsSource?.dispose();
             }
           },
         },
@@ -2015,6 +2224,9 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
+        if (error instanceof SoloErrors.deployment.networkAlreadyDeployed) {
+          throw error;
+        }
         throw new SoloErrors.component.chartInstallFailed(constants.SOLO_DEPLOYMENT_CHART, error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
@@ -2084,77 +2296,41 @@ export class NetworkCommand extends BaseCommand {
         },
         {
           title: 'Destroy network resources',
-          task: (_, parentTask): SoloListr<NetworkDestroyContext> =>
-            parentTask.newListr(
-              [
-                {
-                  title: 'Running sub-tasks to destroy network',
-                  task: async (
-                    {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
-                    task,
-                  ): Promise<void> => {
-                    if (!enableTimeout) {
-                      await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
-                      return;
-                    }
+          task: async (
+            {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
+            task,
+          ): Promise<void> => {
+            if (!enableTimeout) {
+              await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+              return;
+            }
 
-                    const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
-                      const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
-                      this.logger.error(message);
-                      this.logger.showUser(chalk.red(message));
-                      networkDestroySuccess = false;
+            const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
+              const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+              this.logger.error(message);
+              this.logger.showUser(chalk.red(message));
+              networkDestroySuccess = false;
 
-                      if (!deleteSecrets || !deletePvcs) {
-                        await this.remoteConfig.deleteComponents();
-                        return;
-                      }
+              if (!deleteSecrets || !deletePvcs) {
+                await this.remoteConfig.deleteComponents();
+                return;
+              }
 
-                      for (const context of contexts) {
-                        const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(
-                          namespace,
-                        );
+              for (const context of contexts) {
+                const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
 
-                        if (shouldDeleteNamespace) {
-                          await this.k8Factory
-                            .getK8(context)
-                            .namespaces()
-                            .delete(namespace, this.destroyGracePeriodSeconds());
-                        } else {
-                          this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
-                        }
-                      }
-                    }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
+                if (shouldDeleteNamespace) {
+                  await this.k8Factory.getK8(context).namespaces().delete(namespace, this.destroyGracePeriodSeconds());
+                } else {
+                  this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
+                }
+              }
+            }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
-                    await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+            await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
 
-                    clearTimeout(onTimeoutCallback);
-                  },
-                },
-                {
-                  title: `Remove ${constants.SOLO_SETUP_NAMESPACE.name}`,
-                  task: async ({config: {contexts}}): Promise<void> => {
-                    const namespace: NamespaceName = constants.SOLO_SETUP_NAMESPACE;
-
-                    if (this.oneShotState.isActive()) {
-                      await this.forceTerminatePods(namespace, contexts);
-                    }
-
-                    for (const context of contexts) {
-                      if (await this.k8Factory.getK8(context).namespaces().has(namespace)) {
-                        await this.k8Factory
-                          .getK8(context)
-                          .namespaces()
-                          .delete(namespace, this.destroyGracePeriodSeconds());
-                      }
-                    }
-                  },
-                },
-              ],
-              {
-                concurrent: this.oneShotState.isActive(),
-                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
-              },
-            ),
+            clearTimeout(onTimeoutCallback);
+          },
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -2189,27 +2365,22 @@ export class NetworkCommand extends BaseCommand {
     return {
       title: 'Add node and proxies to remote config',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
-      task: async ({config: {consensusNodes, namespace, isUpgrade, releaseTag}}): Promise<void> => {
+      task: async ({config: {consensusNodes, namespace, releaseTag}}): Promise<void> => {
         for (const consensusNode of consensusNodes) {
           const componentId: ComponentId = Templates.renderComponentIdFromNodeAlias(consensusNode.name);
           const clusterReference: ClusterReferenceName = consensusNode.cluster;
 
           this.remoteConfig.configuration.components.changeNodePhase(componentId, DeploymentPhase.REQUESTED);
 
-          if (isUpgrade) {
-            this.logger.info('Do not add envoy and haproxy components again during upgrade');
-          } else {
-            // do not add new envoy or haproxy components if they already exist
-            this.remoteConfig.configuration.components.addNewComponent(
-              this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
-              ComponentTypes.EnvoyProxy,
-            );
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewEnvoyProxyComponent(clusterReference, namespace),
+            ComponentTypes.EnvoyProxy,
+          );
 
-            this.remoteConfig.configuration.components.addNewComponent(
-              this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
-              ComponentTypes.HaProxy,
-            );
-          }
+          this.remoteConfig.configuration.components.addNewComponent(
+            this.componentFactory.createNewHaProxyComponent(clusterReference, namespace),
+            ComponentTypes.HaProxy,
+          );
         }
         if (releaseTag) {
           // update the solo chart version to match the deployed version

@@ -16,8 +16,10 @@ import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
+import {NetworkLoadGeneratorTest} from './tests/network-load-generator-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
+import {MirrorCommandDefinition} from '../../../src/commands/command-definitions/mirror-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -118,6 +120,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             testLogger.info(`${testName}: beginning ${testName}: block node deploy (JFR enabled)`);
             await main(soloBlockNodeJfrDeploy(testName, deployment));
             testLogger.info(`${testName}: finished ${testName}: block node deploy`);
+          }
+
+          // Opt-in: re-deploy the mirror node importer with JFR enabled so its JVM metrics are collected at teardown.
+          if (process.env.PERFORMANCE_TEST_WITH_MIRROR_NODE_JFR === 'true') {
+            testLogger.info(`${testName}: beginning ${testName}: mirror node upgrade (JFR enabled)`);
+            await main(soloMirrorNodeJfrUpgrade(testName, deployment));
+            testLogger.info(`${testName}: finished ${testName}: mirror node upgrade`);
           }
 
           startTime = new Date();
@@ -225,7 +234,15 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             testLogger.info(`${testName}: skipping metrics aggregation because one-shot deploy did not complete`);
           }
 
-          await preDestroy(endToEndTestSuite);
+          try {
+            await preDestroy(endToEndTestSuite);
+          } catch (error: unknown) {
+            // Defer so destroy still runs, but do not let a failed JFR collection pass silently.
+            testLogger.error(
+              `${testName}: pre-destroy (diagnostics/JFR collection) failed; destroy will still run: ${error}`,
+            );
+            metricsError ??= error;
+          }
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           try {
@@ -248,6 +265,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         // fungible tokens, NftTransferLoadTest with -R would load those fungible tokens as NFTs
         // and produce 0 TPS (and vice versa). To avoid this cross-contamination, NftTransferLoadTest
         // does NOT use -R so it always creates its own fresh NFT tokens.
+        // NLG chart install + libsodium download get their own budget, so a slow apt mirror fails here
+        // instead of eating the first load test's timeout and surfacing as a killed exec (#5988).
+        it('Deploy Network Load Generator', async (): Promise<void> => {
+          logEvent('Deploying Network Load Generator');
+          await NetworkLoadGeneratorTest.deployChart(deploymentName);
+        }).timeout(Duration.ofMinutes(20).toMillis());
+
         it('TokenTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting TokenTransferLoadTest');
           await runLoadTest(
@@ -409,6 +433,25 @@ export function soloBlockNodeJfrDeploy(testName: string, deployment: string): st
     deployment,
     optionFromFlag(Flags.valuesFile),
     PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'block-node-perf-values.yaml'),
+  );
+  return argv;
+}
+
+export function soloMirrorNodeJfrUpgrade(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push(
+    MirrorCommandDefinition.COMMAND_NAME,
+    MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+    MirrorCommandDefinition.NODE_UPGRADE,
+  );
+  argvPushGlobalFlags(argv, testName);
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.valuesFile),
+    PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'mirror-node-perf-values.yaml'),
   );
   return argv;
 }
