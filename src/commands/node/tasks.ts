@@ -416,6 +416,15 @@ export class NodeCommandTasks {
     }
     fs.writeFileSync(PathEx.join(upgradeConfigDirectory, constants.APPLICATION_PROPERTIES), newLines.join('\n'));
 
+    // stage the post-upgrade system files the target release expects, so the node's own
+    // post-upgrade hook (SystemTransactions#doPostUpgradeSetup) finds them instead of skipping
+    for (const postUpgradeSystemFile of [constants.SIMPLE_FEES_SCHEDULES_JSON, constants.THROTTLES_JSON]) {
+      fs.copyFileSync(
+        PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'templates', postUpgradeSystemFile),
+        PathEx.join(upgradeConfigDirectory, postUpgradeSystemFile),
+      );
+    }
+
     return await zipper.zip(
       PathEx.join(stagingDirectory, 'mock-upgrade'),
       PathEx.join(stagingDirectory, 'mock-upgrade.zip'),
@@ -4283,6 +4292,33 @@ export class NodeCommandTasks {
       task: ({config: {keysDir}}): void => {
         if (keysDir && fs.existsSync(keysDir)) {
           fs.rmSync(keysDir, {recursive: true, force: true});
+        }
+      },
+    };
+  }
+
+  public promotePostUpgradeSystemFiles(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Promote post-upgrade system files into node config',
+      task: async ({config}): Promise<void> => {
+        const upgradeConfigDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config`;
+        const liveConfigDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+        // the node only applies these on restart if they sit in its live config dir, but the freeze
+        // upgrade extracts them to data/upgrade/current; application.properties is left out because
+        // the staged copy is only a version marker, not the node's real configuration
+        const copyCommands: string[] = [constants.SIMPLE_FEES_SCHEDULES_JSON, constants.THROTTLES_JSON].map(
+          (fileName: string): string =>
+            `if [ -f "${upgradeConfigDirectory}/${fileName}" ]; then ` +
+            `cp -f "${upgradeConfigDirectory}/${fileName}" "${liveConfigDirectory}/${fileName}" && ` +
+            `chown hedera:hedera "${liveConfigDirectory}/${fileName}"; fi`,
+        );
+
+        for (const consensusNode of config.consensusNodes) {
+          const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
+            config.namespace,
+            consensusNode.name,
+          );
+          await rootContainer.execContainer(['bash', '-c', copyCommands.join('\n')]);
         }
       },
     };

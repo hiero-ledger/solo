@@ -650,6 +650,8 @@ export const RELAY_IMAGE_NAME: string = 'hiero-json-rpc-relay';
 export const EXPLORER_IMAGE_NAME: string = 'hiero-explorer';
 export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER: string = 'SOLO_ENABLE_OVERWRITE=true';
+export const SIMPLE_FEES_SCHEDULES_JSON: string = 'simpleFeesSchedules.json';
+export const THROTTLES_JSON: string = 'throttles.json';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
 export const NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME: string = 'network-node-data-config-cm';
 export const enum StorageType {
