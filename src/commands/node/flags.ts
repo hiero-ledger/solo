@@ -30,6 +30,8 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.localBuildPath,
   flags.force,
   flags.upgradeZipFile,
+  flags.simpleFeesSchedulesFile,
+  flags.throttlesFile,
   flags.upgradeVersion,
   flags.freezeBlockDrainSeconds,
   flags.skipNodeStart,

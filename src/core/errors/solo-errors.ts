@@ -82,6 +82,7 @@ import {NonInteractivePromptSoloError} from './classes/validation/non-interactiv
 import {OutputDirectoryNotSpecifiedSoloError} from './classes/validation/output-directory-not-specified-solo-error.js';
 import {PvcFlagNotEnabledSoloError} from './classes/validation/pvc-flag-not-enabled-solo-error.js';
 import {UpgradeVersionNotFoundSoloError} from './classes/validation/upgrade-version-not-found-solo-error.js';
+import {UpgradeSystemFileWithZipFileSoloError} from './classes/validation/upgrade-system-file-with-zip-file-solo-error.js';
 import {WrapsKeyPathNotFoundSoloError} from './classes/validation/wraps-key-path-not-found-solo-error.js';
 import {WrapsVersionConstraintSoloError} from './classes/validation/wraps-version-constraint-solo-error.js';
 import {ClusterReferenceUndeterminedSoloError} from './classes/system/cluster-reference-undetermined-solo-error.js';
@@ -622,6 +623,7 @@ export class SoloErrors {
     readonly configFileNotFound: typeof ConfigFileNotFoundSoloError;
     readonly nodeVersionMismatch: typeof NodeVersionMismatchSoloError;
     readonly upgradeVersionNotFound: typeof UpgradeVersionNotFoundSoloError;
+    readonly upgradeSystemFileWithZipFile: typeof UpgradeSystemFileWithZipFileSoloError;
     readonly pvcFlagNotEnabled: typeof PvcFlagNotEnabledSoloError;
     readonly nonInteractivePrompt: typeof NonInteractivePromptSoloError;
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
@@ -701,6 +703,7 @@ export class SoloErrors {
     configFileNotFound: ConfigFileNotFoundSoloError,
     nodeVersionMismatch: NodeVersionMismatchSoloError,
     upgradeVersionNotFound: UpgradeVersionNotFoundSoloError,
+    upgradeSystemFileWithZipFile: UpgradeSystemFileWithZipFileSoloError,
     pvcFlagNotEnabled: PvcFlagNotEnabledSoloError,
     nonInteractivePrompt: NonInteractivePromptSoloError,
     wrapsVersionConstraint: WrapsVersionConstraintSoloError,

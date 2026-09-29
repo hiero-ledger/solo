@@ -117,7 +117,7 @@ tasks:
         {{ .reporter_options_prefix }}-e2e-node-upgrade.xml"
 
   test-e2e-simple-fees-schedule-upgrade:
-    desc: "Runs E2E test reproducing a network upgraded past the introduction of a new simpleFeesSchedules.json extra-fee entry, with coverage and generates reports in coverage/e2e-simple-fees-schedule-upgrade"
+    desc: "Runs E2E test upgrading a network with --simple-fees-schedules-file and --throttles-file and verifying the node applies them, with coverage and generates reports in coverage/e2e-simple-fees-schedule-upgrade"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Simple Fees Schedule Upgrade Test\"
         {{ .reporter_prefix }}='coverage/e2e-simple-fees-schedule-upgrade'

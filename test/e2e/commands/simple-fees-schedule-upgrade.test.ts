@@ -29,13 +29,30 @@ import {type Container} from '../../../src/integration/kube/resources/container/
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
+import {main} from '../../../src/index.js';
+import {Flags} from '../../../src/commands/flags.js';
+import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {sleep} from '../../../src/core/helpers.js';
+import {type AccountManager} from '../../../src/core/account-manager.js';
+import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
+import {
+  Status,
+  TopicCreateTransaction,
+  TopicMessageSubmitTransaction,
+  type TransactionReceipt,
+  type TransactionResponse,
+} from '@hiero-ledger/sdk';
 
 const testName: string = 'simple-fees-schedule-upgrade-test';
 
-// Consensus node release predating the introduction of the CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES
-// extra-fee entry in the bundled genesis simpleFeesSchedules.json (added in the 0.73 line). A node bootstrapped
-// at this version creates its file 0.0.113 genesis copy without that entry.
-const PRE_SIMPLE_FEES_ENTRY_VERSION: string = 'v0.71.3';
+// v0.72.x creates file 0.0.113 at genesis from a simpleFeesSchedules.json that lacks the
+// CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES entry, which later releases require for every topic message.
+const INITIAL_VERSION: string = 'v0.72.1';
+
+// Pinned rather than taken from version-test.ts: the fixture files below must match this exact release.
+const TARGET_VERSION: string = 'v0.76.4';
+const SYSTEM_FILES_DIRECTORY: string = PathEx.join('test', 'data', 'post-upgrade-system-files', TARGET_VERSION);
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -53,7 +70,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestSuiteCallback(
     (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
       describe('Simple Fees Schedule Upgrade E2E Test', (): void => {
-        const {testCacheDirectory, testLogger, namespace, contexts} = options;
+        const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
 
         before(async (): Promise<void> => {
           fs.rmSync(testCacheDirectory, {recursive: true, force: true});
@@ -88,46 +105,93 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.addCluster(options);
         ConsensusNodeTest.keys(options);
 
-        // Bootstrap the network before the extra-fee entry existed, so file 0.0.113 is created at genesis
-        // without it.
-        NetworkTest.deploy(options, PRE_SIMPLE_FEES_ENTRY_VERSION);
-
-        ConsensusNodeTest.setup(options, PRE_SIMPLE_FEES_ENTRY_VERSION);
+        NetworkTest.deploy(options, INITIAL_VERSION);
+        ConsensusNodeTest.setup(options, INITIAL_VERSION);
         ConsensusNodeTest.start(options);
-        DeploymentTest.info(options);
-        DeploymentTest.verifyDeploymentConfigInfo(options);
 
-        // Drives the full freeze/restart upgrade cycle to a release that unconditionally expects the
-        // extra-fee entry to be present in file 0.0.113.
-        ConsensusNodeTest.upgrade(options);
+        it(`${testName}: upgrade with post-upgrade system files`, async (): Promise<void> => {
+          const argv: string[] = ConsensusNodeTest.newArgv();
+          argv.push(
+            ConsensusCommandDefinition.COMMAND_NAME,
+            ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME,
+            ConsensusCommandDefinition.NETWORK_UPGRADE,
+            ConsensusNodeTest.optionFromFlag(Flags.deployment),
+            deployment,
+            ConsensusNodeTest.optionFromFlag(Flags.force),
+            ConsensusNodeTest.optionFromFlag(Flags.upgradeVersion),
+            TARGET_VERSION,
+            ConsensusNodeTest.optionFromFlag(Flags.simpleFeesSchedulesFile),
+            PathEx.join(SYSTEM_FILES_DIRECTORY, constants.SIMPLE_FEES_SCHEDULES_JSON),
+            ConsensusNodeTest.optionFromFlag(Flags.throttlesFile),
+            PathEx.join(SYSTEM_FILES_DIRECTORY, constants.THROTTLES_JSON),
+          );
+          ConsensusNodeTest.argvPushGlobalFlags(argv, testName, true, true);
+          await main(argv);
+        }).timeout(Duration.ofMinutes(15).toMillis());
 
-        describe('Post-upgrade system file staging', (): void => {
-          it(`${testName}: solo should not have staged the post-upgrade system files`, async (): Promise<void> => {
-            const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-            const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+        it(`${testName}: every node applied the post-upgrade system files`, async (): Promise<void> => {
+          const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+          const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
-            for (const pod of pods) {
-              const containerReference: Container = k8Factory
-                .default()
-                .containers()
-                .readByRef(ContainerReference.of(PodReference.of(namespace, pod.podReference.name), ROOT_CONTAINER));
+          for (const pod of pods) {
+            const containerReference: Container = k8Factory
+              .default()
+              .containers()
+              .readByRef(ContainerReference.of(PodReference.of(namespace, pod.podReference.name), ROOT_CONTAINER));
 
-              // solo's mock upgrade zip only ever stages application.properties (see _prepareUpgradeZip in
-              // src/commands/node/tasks.ts), so the node finds nothing staged for these files and skips
-              // updating them, leaving them frozen at their pre-upgrade content. This assertion documents
-              // that current behavior; it must flip once the upgrade path stages these files for real.
-              const upgradeLog: string = await containerReference.execContainer([
+            // the node runs its post-upgrade setup on the first transaction it handles after the restart
+            let postUpgradeLog: string = '';
+            for (
+              let attempt: number = 0;
+              attempt < 24 && !postUpgradeLog.includes('Doing post-upgrade setup');
+              attempt++
+            ) {
+              await sleep(Duration.ofSeconds(5));
+              postUpgradeLog = await containerReference.execContainer([
                 'bash',
                 '-c',
-                `grep -h 'No post-upgrade file for' ${HEDERA_HAPI_PATH}/output/hgcaa*.log || true`,
+                "grep -h -e 'Doing post-upgrade setup' -e 'Dispatching synthetic update' -e 'Failed to parse update file' " +
+                  `${HEDERA_HAPI_PATH}/output/hgcaa*.log || true`,
               ]);
-
-              for (const stagedFileName of ['simpleFeesSchedules.json', 'feeSchedules.json', 'throttles.json']) {
-                expect(upgradeLog).to.include(`No post-upgrade file for ${stagedFileName} found`);
-              }
             }
-          }).timeout(Duration.ofMinutes(2).toMillis());
-        });
+
+            for (const fileName of [constants.SIMPLE_FEES_SCHEDULES_JSON, constants.THROTTLES_JSON]) {
+              expect(postUpgradeLog).to.include(
+                `Dispatching synthetic update based on contents of ${HEDERA_HAPI_PATH}/data/config/${fileName}`,
+              );
+            }
+            expect(postUpgradeLog).to.not.include('Failed to parse update file');
+          }
+        }).timeout(Duration.ofMinutes(5).toMillis());
+
+        it(`${testName}: submitting a topic message succeeds after the upgrade`, async (): Promise<void> => {
+          const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+            InjectTokens.LocalConfigRuntimeState,
+          );
+          await localConfig.load();
+
+          const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+            InjectTokens.RemoteConfigRuntimeState,
+          );
+          await remoteConfig.load(namespace, contexts[0]);
+
+          const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
+          await accountManager.loadNodeClient(namespace, remoteConfig.getClusterRefs(), deployment, false);
+
+          const topicCreateResponse: TransactionResponse = await new TopicCreateTransaction().execute(
+            accountManager._nodeClient,
+          );
+          const topicReceipt: TransactionReceipt = await topicCreateResponse.getReceipt(accountManager._nodeClient);
+
+          // with the stale 0.0.113 from genesis this precheck fails with FAIL_INVALID
+          const submitResponse: TransactionResponse = await new TopicMessageSubmitTransaction({
+            topicId: topicReceipt.topicId,
+            message: 'simple fees schedule upgrade',
+          }).execute(accountManager._nodeClient);
+          const submitReceipt: TransactionReceipt = await submitResponse.getReceipt(accountManager._nodeClient);
+
+          expect(submitReceipt.status).to.deep.equal(Status.Success);
+        }).timeout(Duration.ofMinutes(2).toMillis());
 
         describe('Write log metrics', async (): Promise<void> => {
           it('Should write log metrics', async (): Promise<void> => {
