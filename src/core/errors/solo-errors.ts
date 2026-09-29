@@ -11,6 +11,7 @@ import {DeploymentImportFailedSoloError} from './classes/deployment/deployment-i
 import {DeploymentListFailedError} from './classes/deployment/deployment-list-failed-error.js';
 import {DeploymentListPortsFailedError} from './classes/deployment/deployment-list-ports-failed-error.js';
 import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found-error.js';
+import {NetworkAlreadyDeployedSoloError} from './classes/deployment/network-already-deployed-solo-error.js';
 import {NamespaceNotSetError} from './classes/deployment/namespace-not-set-error.js';
 import {NoClustersForDeploymentError} from './classes/deployment/no-clusters-for-deployment-error.js';
 import {NoDeploymentsFoundError} from './classes/deployment/no-deployments-found-error.js';
@@ -42,6 +43,7 @@ import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-d
 import {MigrateLegacyLocalConfigError} from './classes/config/migrate-legacy-local-config-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {RemoteConfigMissingOnKindClusterError} from './classes/config/remote-config-missing-on-kind-cluster-error.js';
+import {RemoteConfigMissingForDeployError} from './classes/config/remote-config-missing-for-deploy-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
 import {BlockNodeAddExternalFailedSoloError} from './classes/component/block-node-add-external-failed-solo-error.js';
@@ -225,7 +227,6 @@ import {ConfigFileInvalidSoloError} from './classes/validation/config-file-inval
 import {MultipleClustersFoundSoloError} from './classes/validation/multiple-clusters-found-solo-error.js';
 import {CacheNotMaterializedSoloError} from './classes/validation/cache-not-materialized-solo-error.js';
 import {CacheImageTemplateUnknownSoloError} from './classes/validation/cache-image-template-unknown-solo-error.js';
-import {InvalidKindNodeImageSoloError} from './classes/validation/invalid-kind-node-image-solo-error.js';
 import {PathTraversalDetectedSoloError} from './classes/validation/path-traversal-detected-solo-error.js';
 import {NodeAliasesMustBeArraySoloError} from './classes/validation/node-aliases-must-be-array-solo-error.js';
 import {UnknownNodeAliasSoloError} from './classes/validation/unknown-node-alias-solo-error.js';
@@ -256,6 +257,7 @@ import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-r
 import {ValuesFileNotFoundSoloError} from './classes/validation/values-file-not-found-solo-error.js';
 import {ValuesFileParseFailedSoloError} from './classes/validation/values-file-parse-failed-solo-error.js';
 import {InvalidFlagValueSoloError} from './classes/validation/invalid-flag-value-solo-error.js';
+import {ComponentImageArchiveTagMismatchSoloError} from './classes/validation/component-image-archive-tag-mismatch-solo-error.js';
 import {TransplantRequiresStateFileSoloError} from './classes/validation/transplant-requires-state-file-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
@@ -299,6 +301,9 @@ import {ContainerOperationFailedSoloError} from './classes/system/container-oper
 import {PostgresPodNotFoundSoloError} from './classes/system/postgres-pod-not-found-solo-error.js';
 import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files-failed-solo-error.js';
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
+import {CacheManifestDownloadFailedSoloError} from './classes/system/cache-manifest-download-failed-solo-error.js';
+import {CacheManifestInvalidSoloError} from './classes/system/cache-manifest-invalid-solo-error.js';
+import {CacheArchiveHashMismatchSoloError} from './classes/system/cache-archive-hash-mismatch-solo-error.js';
 import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
 import {TimeoutSoloError} from './classes/system/timeout-solo-error.js';
 import {ClusterRoleCheckFailedSoloError} from './classes/system/cluster-role-check-failed-solo-error.js';
@@ -327,6 +332,7 @@ export class SoloErrors {
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
     readonly remoteConfigMissingOnKindCluster: typeof RemoteConfigMissingOnKindClusterError;
+    readonly remoteConfigMissingForDeploy: typeof RemoteConfigMissingForDeployError;
     readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
@@ -337,6 +343,7 @@ export class SoloErrors {
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
     remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteConfigMissingOnKindCluster: RemoteConfigMissingOnKindClusterError,
+    remoteConfigMissingForDeploy: RemoteConfigMissingForDeployError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
     migrateLegacyLocalConfig: MigrateLegacyLocalConfigError,
@@ -374,6 +381,7 @@ export class SoloErrors {
     readonly deployNetworkFailed: typeof DeployNetworkFailedSoloError;
     readonly blockNodeClusterContextNotFound: typeof BlockNodeClusterContextNotFoundSoloError;
     readonly mirrorNodeClusterContextNotFound: typeof MirrorNodeClusterContextNotFoundSoloError;
+    readonly networkAlreadyDeployed: typeof NetworkAlreadyDeployedSoloError;
   } = Object.freeze({
     alreadyExists: DeploymentAlreadyExistsSoloError,
     clusterAddFailed: ClusterAddFailedError,
@@ -405,6 +413,7 @@ export class SoloErrors {
     deployNetworkFailed: DeployNetworkFailedSoloError,
     blockNodeClusterContextNotFound: BlockNodeClusterContextNotFoundSoloError,
     mirrorNodeClusterContextNotFound: MirrorNodeClusterContextNotFoundSoloError,
+    networkAlreadyDeployed: NetworkAlreadyDeployedSoloError,
   });
 
   // 3xxx — Component: Relay, Mirror Node, Explorer, CN runtime
@@ -650,7 +659,6 @@ export class SoloErrors {
     readonly multipleClustersFound: typeof MultipleClustersFoundSoloError;
     readonly cacheNotMaterialized: typeof CacheNotMaterializedSoloError;
     readonly cacheImageTemplateUnknown: typeof CacheImageTemplateUnknownSoloError;
-    readonly invalidKindNodeImage: typeof InvalidKindNodeImageSoloError;
     readonly pathTraversalDetected: typeof PathTraversalDetectedSoloError;
     readonly nodeAliasesMustBeArray: typeof NodeAliasesMustBeArraySoloError;
     readonly unknownNodeAlias: typeof UnknownNodeAliasSoloError;
@@ -681,6 +689,7 @@ export class SoloErrors {
     readonly valuesFileNotFound: typeof ValuesFileNotFoundSoloError;
     readonly valuesFileParseFailed: typeof ValuesFileParseFailedSoloError;
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
+    readonly componentImageArchiveTagMismatch: typeof ComponentImageArchiveTagMismatchSoloError;
     readonly transplantRequiresStateFile: typeof TransplantRequiresStateFileSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
@@ -729,7 +738,6 @@ export class SoloErrors {
     multipleClustersFound: MultipleClustersFoundSoloError,
     cacheNotMaterialized: CacheNotMaterializedSoloError,
     cacheImageTemplateUnknown: CacheImageTemplateUnknownSoloError,
-    invalidKindNodeImage: InvalidKindNodeImageSoloError,
     pathTraversalDetected: PathTraversalDetectedSoloError,
     nodeAliasesMustBeArray: NodeAliasesMustBeArraySoloError,
     unknownNodeAlias: UnknownNodeAliasSoloError,
@@ -760,6 +768,7 @@ export class SoloErrors {
     valuesFileNotFound: ValuesFileNotFoundSoloError,
     valuesFileParseFailed: ValuesFileParseFailedSoloError,
     invalidFlagValue: InvalidFlagValueSoloError,
+    componentImageArchiveTagMismatch: ComponentImageArchiveTagMismatchSoloError,
     transplantRequiresStateFile: TransplantRequiresStateFileSoloError,
   });
 
@@ -848,6 +857,9 @@ export class SoloErrors {
     readonly postgresPodNotFound: typeof PostgresPodNotFoundSoloError;
     readonly initSystemFilesFailed: typeof InitSystemFilesFailedSoloError;
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
+    readonly cacheManifestDownloadFailed: typeof CacheManifestDownloadFailedSoloError;
+    readonly cacheManifestInvalid: typeof CacheManifestInvalidSoloError;
+    readonly cacheArchiveHashMismatch: typeof CacheArchiveHashMismatchSoloError;
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
     readonly timeout: typeof TimeoutSoloError;
     readonly clusterRoleCheckFailed: typeof ClusterRoleCheckFailedSoloError;
@@ -937,6 +949,9 @@ export class SoloErrors {
     postgresPodNotFound: PostgresPodNotFoundSoloError,
     initSystemFilesFailed: InitSystemFilesFailedSoloError,
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
+    cacheManifestDownloadFailed: CacheManifestDownloadFailedSoloError,
+    cacheManifestInvalid: CacheManifestInvalidSoloError,
+    cacheArchiveHashMismatch: CacheArchiveHashMismatchSoloError,
     podTerminationTimeout: PodTerminationTimeoutSoloError,
     timeout: TimeoutSoloError,
     clusterRoleCheckFailed: ClusterRoleCheckFailedSoloError,

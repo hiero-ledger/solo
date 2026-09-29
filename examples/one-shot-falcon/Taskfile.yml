@@ -53,6 +53,14 @@ tasks:
             --values-file "${RESOLVED}" --num-consensus-nodes 2 --no-rollback
           rm -f "${RESOLVED}"
 
+  deploy-defaults:
+    desc: Deploy without a values file, using the one-shot single defaults
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
+    cmds:
+      # Solo one-shot falcon deploy with no --values-file falls back to the one-shot single defaults
+      - cmd: $SOLO_COMMAND one-shot falcon deploy
+
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
     env:

@@ -15,6 +15,10 @@ import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/de
 import {ConfirmationRequiredSoloError} from '../../../../../../src/core/errors/classes/validation/confirmation-required-solo-error.js';
 import {UserBreak} from '../../../../../../src/core/errors/user-break.js';
 import {Flags} from '../../../../../../src/commands/flags.js';
+import {ValuesFileNotFoundSoloError} from '../../../../../../src/core/errors/classes/validation/values-file-not-found-solo-error.js';
+import {PathEx} from '../../../../../../src/business/utils/path-ex.js';
+import fs from 'node:fs';
+import os from 'node:os';
 
 type MockType = any;
 type MockListr = MockType;
@@ -800,5 +804,76 @@ describe('DefaultOneShotDeployOrchestrator reconcileEffectiveVersions', (): void
     expect(config.versions.mirror).to.equal('v0.159.0');
     expect(config.versions.explorer).to.equal('26.2.0');
     expect(config.versions.relay).to.equal('0.78.0');
+  });
+});
+
+function invokeApplyValuesFileOverrides(config: OneShotSingleDeployConfigClass): void {
+  const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+  // @ts-expect-error - to access private method
+  orchestrator.applyValuesFileOverrides(config);
+}
+
+describe('DefaultOneShotDeployOrchestrator applyValuesFileOverrides', (): void => {
+  const releaseTagKey: string = Flags.getFormattedFlagKey(Flags.consensusNodeVersion);
+  const mirrorNodeVersionKey: string = Flags.getFormattedFlagKey(Flags.mirrorNodeVersion);
+  const generatedFiles: string[] = [];
+
+  afterEach((): void => {
+    sinon.restore();
+    while (generatedFiles.length > 0) {
+      const filePath: string | undefined = generatedFiles.pop();
+      if (filePath && fs.existsSync(filePath)) {
+        fs.rmSync(filePath, {force: true});
+      }
+    }
+  });
+
+  function writeValuesFile(content: string): string {
+    const filePath: string = PathEx.join(os.tmpdir(), `falcon-values.unit.${Date.now()}.${generatedFiles.length}.yaml`);
+    fs.writeFileSync(filePath, content);
+    generatedFiles.push(filePath);
+    return filePath;
+  }
+
+  // Covers https://github.com/hiero-ledger/solo/issues/3296: `one-shot falcon deploy` without
+  // --values-file must behave exactly like `one-shot single deploy`.
+  it('keeps the one-shot single defaults when no values file is given', (): void => {
+    const existsSyncSpy: sinon.SinonSpy = sinon.spy(fs, 'existsSync');
+    const config: OneShotSingleDeployConfigClass = makeConfig({valuesFile: ''});
+
+    invokeApplyValuesFileOverrides(config);
+
+    expect(existsSyncSpy).to.not.have.been.called;
+    expect(config.networkConfiguration).to.deep.equal({});
+    expect(config.setupConfiguration).to.deep.equal({});
+    expect(config.consensusNodeConfiguration).to.deep.equal({});
+    expect(config.mirrorNodeConfiguration).to.deep.equal({});
+    expect(config.blockNodeConfiguration).to.deep.equal({});
+    expect(config.explorerNodeConfiguration).to.deep.equal({});
+    expect(config.relayNodeConfiguration).to.deep.equal({});
+  });
+
+  it('throws ValuesFileNotFoundSoloError when the given values file does not exist', (): void => {
+    const missingPath: string = PathEx.join(os.tmpdir(), `falcon-values.missing.${Date.now()}.yaml`);
+    const config: OneShotSingleDeployConfigClass = makeConfig({valuesFile: missingPath});
+
+    expect((): void => invokeApplyValuesFileOverrides(config)).to.throw(ValuesFileNotFoundSoloError, missingPath);
+  });
+
+  it('applies only the sections present in the values file and leaves the rest at the defaults', (): void => {
+    const valuesFile: string = writeValuesFile(
+      `network:\n  ${releaseTagKey}: v0.77.0\nmirrorNode:\n  ${mirrorNodeVersionKey}: v0.159.0\n`,
+    );
+    const config: OneShotSingleDeployConfigClass = makeConfig({valuesFile});
+
+    invokeApplyValuesFileOverrides(config);
+
+    expect(config.networkConfiguration).to.deep.equal({[releaseTagKey]: 'v0.77.0'});
+    expect(config.mirrorNodeConfiguration).to.deep.equal({[mirrorNodeVersionKey]: 'v0.159.0'});
+    expect(config.setupConfiguration).to.deep.equal({});
+    expect(config.consensusNodeConfiguration).to.deep.equal({});
+    expect(config.blockNodeConfiguration).to.deep.equal({});
+    expect(config.explorerNodeConfiguration).to.deep.equal({});
+    expect(config.relayNodeConfiguration).to.deep.equal({});
   });
 });

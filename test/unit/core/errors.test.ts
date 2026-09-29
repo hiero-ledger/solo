@@ -2,6 +2,7 @@
 
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
+import fs from 'node:fs';
 
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/resource-not-found-error.js';
@@ -13,6 +14,8 @@ import {SdkPingFailedSoloError} from '../../../src/core/errors/classes/component
 import {SdkClientNoHealthyNodesSoloError} from '../../../src/core/errors/classes/component/sdk-client-no-healthy-nodes-solo-error.js';
 import {SdkErrorTranslator} from '../../../src/core/errors/sdk-error-translator.js';
 import {SoloLogsDirectoryNotWritableSoloError} from '../../../src/core/errors/classes/system/solo-logs-directory-not-writable-solo-error.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
+import * as constants from '../../../src/core/constants.js';
 
 describe('Errors', (): void => {
   const message: string = 'errorMessage';
@@ -160,5 +163,18 @@ describe('Errors', (): void => {
 
       expect(error.message).to.equal(`Solo cannot write to its log destination: ${logPath}`);
     });
+  });
+
+  it('should not tell users to run the deprecated no-op `solo init` command', (): void => {
+    // Scans the sources the error docs are generated from, so troubleshooting steps and descriptions are both covered.
+    const errorClassesDirectory: string = PathEx.join(constants.ROOT_DIR, 'src', 'core', 'errors', 'classes');
+    const filesAdvisingInit: string[] = fs
+      .readdirSync(errorClassesDirectory, {recursive: true, encoding: 'utf8'})
+      .filter((file: string): boolean => file.endsWith('.ts'))
+      .filter((file: string): boolean =>
+        /\bsolo init\b/.test(fs.readFileSync(PathEx.join(errorClassesDirectory, file), 'utf8')),
+      );
+
+    expect(filesAdvisingInit).to.deep.equal([]);
   });
 });
