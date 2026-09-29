@@ -15,6 +15,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
+import {SoloChartRepository} from '../../core/solo-chart-repository.js';
 import {
   CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
   CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
@@ -491,6 +492,9 @@ export class NodeCommandTasks {
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
     await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand()]);
+    // The copy above only verifies that the destination directory exists, which is true even for the stock
+    // image, so a truncated jar would slip through - validate the copied jars themselves (issue #6010)
+    await this.platformInstaller.verifyJarIntegrity(container);
 
     const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
     if (await container.hasDir(upgradeDirectory)) {
@@ -501,6 +505,7 @@ export class NodeCommandTasks {
       ]);
       await container.copyTo(localDataLibraryBuildPath, upgradeDirectory, localBuildPathFilter);
       await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand(upgradeDirectory)]);
+      await this.platformInstaller.verifyJarIntegrity(container, upgradeDirectory);
     }
 
     await container.execContainer(['sync', constants.HEDERA_HAPI_PATH]);
@@ -3184,7 +3189,7 @@ export class NodeCommandTasks {
                     config.namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
                     config.soloChartVersion,
                     valuesFiles[clusterReference],
                     context,
@@ -4417,7 +4422,7 @@ export class NodeCommandTasks {
           let found: boolean = false;
           while (attempt < attempts) {
             try {
-              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+              if (await rootContainer.hasDir(targetWrapsPath)) {
                 found = true;
                 break;
               }
@@ -4427,14 +4432,31 @@ export class NodeCommandTasks {
               );
               await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
               attempt++;
+              continue;
             }
+
+            this.logger.info(
+              `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+            );
+            await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
+            attempt++;
           }
 
           if (found) {
             continue;
           }
 
-          await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+          await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
+          for (const file of wraps.allowedKeyFileSet) {
+            const sourcePath: string = PathEx.join(extractedDirectory, file);
+            if (fs.existsSync(sourcePath)) {
+              await rootContainer.copyFileResumable(
+                sourcePath,
+                `${targetWrapsPath}/${file}`,
+                constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+              );
+            }
+          }
         }
       },
     };
@@ -4657,7 +4679,7 @@ export class NodeCommandTasks {
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
-              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
               config.soloChartVersion,
               chartValues,
               context,

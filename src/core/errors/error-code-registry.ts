@@ -10,6 +10,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   REMOTE_CONFIG_DATA_INVALID: 'SOLO-1006',
   MIGRATE_LEGACY_LOCAL_CONFIG: 'SOLO-1007',
   REMOTE_CONFIG_MISSING_ON_KIND_CLUSTER: 'SOLO-1008',
+  REMOTE_CONFIG_MISSING_FOR_DEPLOY: 'SOLO-1009',
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
   CREATE_DEPLOYMENT: 'SOLO-2001',
@@ -44,6 +45,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   MIRROR_NODE_CLUSTER_CONTEXT_NOT_FOUND: 'SOLO-2030',
   DEPLOYMENT_IMPORT_FAILED: 'SOLO-2031',
   MINIO_OPERATOR_CRDS_ORPHANED: 'SOLO-2032',
+  NETWORK_ALREADY_DEPLOYED: 'SOLO-2033',
 
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
   NODE_TRANSACTION_FAILED: 'SOLO-3001',
@@ -314,6 +316,9 @@ export const ErrorCodeRegistry: Record<string, string> = {
   SOLO_LOGS_DIRECTORY_NOT_WRITABLE: 'SOLO-5083',
   PVC_MOUNT_VERIFICATION_FAILED: 'SOLO-5084',
   SAVED_STATE_HASH_TOOL_MISSING: 'SOLO-5085',
+  CACHE_MANIFEST_DOWNLOAD_FAILED: 'SOLO-5086',
+  CACHE_MANIFEST_INVALID: 'SOLO-5087',
+  CACHE_ARCHIVE_HASH_MISMATCH: 'SOLO-5088',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

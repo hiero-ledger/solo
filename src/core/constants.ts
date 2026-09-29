@@ -125,8 +125,16 @@ export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
   : ['network-load-generator', 'metrics-server'];
 
+export const REDIS_SENTINEL_ENABLED: boolean = getEnvironmentVariable('REDIS_SENTINEL_ENABLED') === 'true' || false;
+export const REDIS_HOST: string =
+  getEnvironmentVariable('REDIS_HOST') || REDIS_SENTINEL_ENABLED
+    ? 'solo-shared-resources-redis'
+    : 'solo-shared-resources-redis-master';
 export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
+export const REDIS_REPLICA_REPLICACOUNT: number =
+  +getEnvironmentVariable('REDIS_REPLICA_REPLICACOUNT') || REDIS_SENTINEL_ENABLED ? 1 : 0;
+export const REDIS_SENTINEL_GETMASTERTIMEOUT: number = +getEnvironmentVariable('REDIS_SENTINEL_GETMASTERTIMEOUT') || 10;
 export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
 export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
@@ -134,8 +142,6 @@ export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
 // --------------- Charts related constants ----------------------------------------------------------------------------
 export const SOLO_SETUP_NAMESPACE: NamespaceName = NamespaceName.of('solo-setup');
 
-// TODO: remove after migrated to resources/solo-config.yaml
-export const SOLO_TESTING_CHART_URL: string = 'oci://ghcr.io/hashgraph/solo-charts';
 // TODO: remove after migrated to resources/solo-config.yaml
 export const SOLO_DEPLOYMENT_CHART: string = 'solo-deployment';
 // TODO: remove after migrated to resources/solo-config.yaml
@@ -395,6 +401,7 @@ export const SOLO_CACHE_IMAGES_TARGET_FILE: string = PathEx.joinWithRealPath(
 
 export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
 export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAINER_COPY_BACKOFF_MS') || 300;
+export const CONTAINER_COPY_CHUNK_SIZE_BYTES: number = 128 * 1024 * 1024;
 
 export const CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS') || 10;
@@ -596,6 +603,8 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 // Collects images that failed to cache (pull) or load so a summary can be shown at the end of the run.
 export const CACHE_IMAGE_FAILURE_MESSAGE_GROUP: string = 'cache-image-failures';
+// Collects the housekeeping the image cache performed (pruned files) so a summary can be shown at the end of the run.
+export const CACHE_IMAGE_MAINTENANCE_MESSAGE_GROUP: string = 'cache-image-maintenance';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
 export const GRPCS_PORT: number = GRPC_PORT + 1;
 export const GRPC_LOCAL_PORT: number = +getEnvironmentVariable('GRPC_LOCAL_PORT') || 35_211;
