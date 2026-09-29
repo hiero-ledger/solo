@@ -47,6 +47,7 @@ jobs:
     uses: $/.github/workflows/flow-build-sea.yaml
     with:
       node-version: ${{ inputs.node-version || '24' }}
+      called-from-nightly: true
 
   prepare-setup:
     name: Prepare Setup
@@ -298,3 +299,4 @@ jobs:
     uses: $/.github/workflows/flow-standard-runner-one-shot-windows.yaml
     with:
       run-twice: true
+      called-from-nightly: true

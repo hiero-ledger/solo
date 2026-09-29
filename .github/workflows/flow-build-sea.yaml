@@ -27,6 +27,11 @@ on:
         type: string
         required: false
         default: "22"
+      called-from-nightly:
+        description: "Whether this workflow is called by Nightly Extended Tests"
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
     inputs:
       node-version:
@@ -49,8 +54,8 @@ permissions:
 concurrency:
   # A called workflow inherits the caller's github.workflow value. Keep its group separate
   # from the parent workflow or GitHub cancels the parent when the called workflow queues.
-  group: ${{ format('{0}-{1}-{2}', github.workflow, github.head_ref || github.run_id, github.event_name == 'workflow_call' && 'called' || 'direct') }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_call' }}
+  group: ${{ format('{0}-{1}-{2}', github.workflow, github.head_ref || github.run_id, inputs.called-from-nightly && 'called' || 'direct') }}
+  cancel-in-progress: ${{ !inputs.called-from-nightly }}
 
 jobs:
   build-sea:
