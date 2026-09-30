@@ -229,6 +229,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   TRANSPLANT_REQUIRES_STATE_FILE: 'SOLO-4082',
   COMPONENT_IMAGE_ARCHIVE_TAG_MISMATCH: 'SOLO-4084',
   UPGRADE_SYSTEM_FILE_WITH_ZIP_FILE: 'SOLO-4085',
+  POST_UPGRADE_SYSTEM_FILE_VERSION_UNSUPPORTED: 'SOLO-4086',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',

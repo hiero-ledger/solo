@@ -70,6 +70,8 @@ import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import {
   HEDERA_PLATFORM_VERSION,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_POST_UPGRADE_SIMPLE_FEES,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_POST_UPGRADE_THROTTLES,
   MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
   MINIMUM_SOLO_CHART_VERSION,
 } from '../../../version.js';
@@ -1174,18 +1176,36 @@ export class NodeCommandTasks {
 
   /** Maps each post-upgrade system file name the node expects to the validated local file the user passed. */
   private resolvePostUpgradeSystemFiles(config: NodeUpgradeConfigClass): Map<string, string> {
-    const systemFileFlags: [CommandFlag, string, string][] = [
-      [flags.simpleFeesSchedulesFile, config.simpleFeesSchedulesFile, constants.SIMPLE_FEES_SCHEDULES_JSON],
-      [flags.throttlesFile, config.throttlesFile, constants.THROTTLES_JSON],
+    const systemFileFlags: [CommandFlag, string, string, string][] = [
+      [
+        flags.simpleFeesSchedulesFile,
+        config.simpleFeesSchedulesFile,
+        constants.SIMPLE_FEES_SCHEDULES_JSON,
+        MINIMUM_HIERO_PLATFORM_VERSION_FOR_POST_UPGRADE_SIMPLE_FEES,
+      ],
+      [
+        flags.throttlesFile,
+        config.throttlesFile,
+        constants.THROTTLES_JSON,
+        MINIMUM_HIERO_PLATFORM_VERSION_FOR_POST_UPGRADE_THROTTLES,
+      ],
     ];
     const postUpgradeSystemFiles: Map<string, string> = new Map();
 
-    for (const [flag, sourceFilePath, fileName] of systemFileFlags) {
+    for (const [flag, sourceFilePath, fileName, minimumVersion] of systemFileFlags) {
       if (!sourceFilePath) {
         continue;
       }
       if (config.upgradeZipFile) {
         throw new SoloErrors.validation.upgradeSystemFileWithZipFile(flag.name);
+      }
+      // without --upgrade-version (e.g. --local-build-path upgrades) there is no target version to check
+      if (config.upgradeVersion && new SemanticVersion<string>(config.upgradeVersion).lessThan(minimumVersion)) {
+        throw new SoloErrors.validation.postUpgradeSystemFileVersionUnsupported(
+          flag.name,
+          minimumVersion,
+          config.upgradeVersion,
+        );
       }
 
       const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
