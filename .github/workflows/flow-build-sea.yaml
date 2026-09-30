@@ -46,15 +46,13 @@ defaults:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build-sea:
     name: "SEA / ${{ matrix.os }} (${{ matrix.arch }})"
-    # Keep each platform matrix leg in its own concurrency group. This workflow is also called by
-    # Nightly Extended Tests; a workflow-level group makes all of the caller's matrix legs share
-    # one slot and causes GitHub to cancel the waiting legs before they start.
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}
-      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:

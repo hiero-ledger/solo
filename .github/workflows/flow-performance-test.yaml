@@ -61,9 +61,7 @@ on:
       - main
       - 'release/*'
 concurrency:
-  # Called workflows inherit the caller's workflow name and run ID. Include this workflow's
-  # identity so it does not compete with other reusable jobs in Nightly Extended Tests.
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}-performance-test
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 defaults:
