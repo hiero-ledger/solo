@@ -549,6 +549,7 @@ export class CacheCommand extends BaseCommand {
 
           // MinIO is an external dependency and currently has no Solo edge variant.
           version.MINIO_OPERATOR_VERSION,
+          version.MINIO_IMAGE_DIGEST,
         ),
       ),
     ).renderToFile(constants.SOLO_CACHE_IMAGES_TARGET_FILE, renderedConfigDirectory);

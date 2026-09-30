@@ -6,4 +6,5 @@ export interface CacheImageTemplateValuesStructure {
   readonly RELAY_VERSION: string;
   readonly EXPLORER_VERSION: string;
   readonly MINIO_OPERATOR_VERSION: string;
+  readonly MINIO_IMAGE_DIGEST: string;
 }
