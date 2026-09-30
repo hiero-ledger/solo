@@ -70,6 +70,8 @@ import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import {
   HEDERA_PLATFORM_VERSION,
+  HIERO_PLATFORM_VERSION_WITH_INCOMPLETE_SIMPLE_FEES,
+  MINIMUM_HIERO_PLATFORM_VERSION_REQUIRING_TOPIC_MESSAGE_FEE_ENTRY,
   MINIMUM_HIERO_PLATFORM_VERSION_FOR_POST_UPGRADE_SIMPLE_FEES,
   MINIMUM_HIERO_PLATFORM_VERSION_FOR_POST_UPGRADE_THROTTLES,
   MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
@@ -1163,6 +1165,25 @@ export class NodeCommandTasks {
 
           const upgradeVersion: string | undefined =
             'upgradeVersion' in config ? (config.upgradeVersion as string) : undefined;
+          if (
+            upgradeVersion &&
+            !postUpgradeSystemFiles.has(constants.SIMPLE_FEES_SCHEDULES_JSON) &&
+            NodeCommandTasks.upgradeLeavesTopicMessageFeeEntryMissing(
+              this.remoteConfig.configuration.versions.consensusNode,
+              upgradeVersion,
+            )
+          ) {
+            this.logger.showUser(
+              chalk.yellow(
+                `Warning: Upgrading from consensus node ${this.remoteConfig.configuration.versions.consensusNode} ` +
+                  `to ${upgradeVersion} leaves the fee ` +
+                  'schedule without an entry that topic messages require, so topic message submissions will fail ' +
+                  "with FAIL_INVALID. Pass --simple-fees-schedules-file with the target version's " +
+                  'simpleFeesSchedules.json to avoid this. See ' +
+                  'https://solo.hiero.org/docs/troubleshooting/#topic-messages-fail-with-fail_invalid-after-a-network-upgrade',
+              ),
+            );
+          }
           context_.upgradeZipFile = await this._prepareUpgradeZip(
             config.stagingDir,
             upgradeVersion,
@@ -1172,6 +1193,23 @@ export class NodeCommandTasks {
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
+  }
+
+  /**
+   * v0.72.x creates the fee schedule file without the entry that topic messages require from v0.73.0, and the
+   * file is never replaced unless the upgrade supplies a new copy.
+   */
+  private static upgradeLeavesTopicMessageFeeEntryMissing(
+    currentVersion: SemanticVersion<string>,
+    upgradeVersion: string,
+  ): boolean {
+    return (
+      currentVersion.greaterThanOrEqual(HIERO_PLATFORM_VERSION_WITH_INCOMPLETE_SIMPLE_FEES) &&
+      currentVersion.lessThan(MINIMUM_HIERO_PLATFORM_VERSION_REQUIRING_TOPIC_MESSAGE_FEE_ENTRY) &&
+      new SemanticVersion<string>(upgradeVersion).greaterThanOrEqual(
+        MINIMUM_HIERO_PLATFORM_VERSION_REQUIRING_TOPIC_MESSAGE_FEE_ENTRY,
+      )
+    );
   }
 
   /** Maps each post-upgrade system file name the node expects to the validated local file the user passed. */
