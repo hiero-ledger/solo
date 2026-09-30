@@ -205,7 +205,7 @@ export class PlatformInstaller {
       '  fi',
       'done',
       "if [[ ${foundJarFile} != 'true' ]]; then",
-      "  echo 'No jar files found after extraction' >&2",
+      `  echo 'No jar files found in ${hapiPath}' >&2`,
       '  exit 1',
       'fi',
     ];
