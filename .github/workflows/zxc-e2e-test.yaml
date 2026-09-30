@@ -229,6 +229,7 @@ env:
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
   STEP_TIMEOUT_MINUTES: '5'
+  SOLO_CHARTS_REF: '02807-rustfs-prototype'
 
 jobs:
   e2e-test:
@@ -244,6 +245,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Checkout Solo Charts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: hiero-ledger/solo-charts
+          ref: ${{ env.SOLO_CHARTS_REF }}
+          path: .solo-charts
           persist-credentials: false
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
@@ -308,6 +318,22 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v${{ inputs.helm-version }}'
+
+      - name: Setup Helm for Solo Charts
+        if: ${{ !cancelled() && !failure() }}
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 'v${{ inputs.helm-version }}'
+
+      - name: Build Solo Charts Dependencies
+        if: ${{ !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          for chart in .solo-charts/charts/*/; do
+            helm dependency update "${chart}"
+          done
+          echo "SOLO_CHARTS_DIR=${{ github.workspace }}/.solo-charts/charts" >> "${GITHUB_ENV}"
 
       - name: Install Dependencies
         id: npm-deps
