@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {K8ClientContainer} from '../../../../src/integration/kube/k8-client/resources/container/k8-client-container.js';
+import {KubeContainerInvalidPathError} from '../../../../src/integration/kube/errors/kube-container-invalid-path-error.js';
 import {KubeContainerOperationFailedError} from '../../../../src/integration/kube/errors/kube-container-operation-failed-error.js';
 import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';
 import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
@@ -15,6 +16,7 @@ import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.j
 import {type Pods} from '../../../../src/integration/kube/resources/pod/pods.js';
 import {ResumableCopySource} from '../../../../src/integration/kube/resources/container/resumable-copy-source.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
+import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {resetForTest} from '../../../test-container.js';
 
 function kubectlFailure(stderr: string): KubeContainerOperationFailedError {
@@ -43,6 +45,82 @@ describe('K8ClientContainer execContainer', (): void => {
       '',
     );
     execKubectlStub = sinon.stub(containerClient, 'execKubectl' as never);
+  });
+
+  describe('K8ClientContainer copyTo', (): void => {
+    const containerReference: ContainerReference = ContainerReference.of(
+      PodReference.of(NamespaceName.of('test-namespace'), PodName.of('test-pod')),
+      ContainerName.of('test-container'),
+    );
+
+    let containerClient: K8ClientContainer;
+    let temporaryDirectory: string;
+
+    beforeEach((): void => {
+      resetForTest();
+      const pods: Pods = {waitForPodByReference: sinon.stub().resolves({})} as unknown as Pods;
+      containerClient = new K8ClientContainer(
+        {getCurrentContext: (): string => 'test-context'} as never,
+        containerReference,
+        pods,
+        '',
+      );
+      temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'k8-client-container-test-'));
+    });
+
+    afterEach((): void => {
+      if (temporaryDirectory && fs.existsSync(temporaryDirectory)) {
+        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+      }
+      sinon.restore();
+    });
+
+    it('verifies remote copied file size for copyTo', async (): Promise<void> => {
+      const localFilePath: string = PathEx.join(temporaryDirectory, 'gnark.jar');
+      const fileContent: string = '0123456789';
+      fs.writeFileSync(localFilePath, fileContent);
+
+      const destinationDirectory: string = '/opt/hgcapp/services-hedera/HapiApp2.0/data/lib';
+      const hasDirectoryStub: SinonStub = sinon.stub(containerClient, 'hasDir').resolves(true);
+      const hasFileStub: SinonStub = sinon.stub(containerClient, 'hasFile').resolves(true);
+      const execKubectlStub: SinonStub = sinon.stub(containerClient, 'execKubectl' as never) as SinonStub;
+      execKubectlStub.resolves('ok');
+      const execKubectlCpSpy: SinonStub = sinon.spy(containerClient, 'execKubectlCp' as never) as SinonStub;
+
+      const result: boolean = await containerClient.copyTo(localFilePath, destinationDirectory);
+
+      expect(result).to.be.true;
+      expect(execKubectlCpSpy).to.have.been.calledOnce;
+      expect(execKubectlStub).to.have.been.calledOnce;
+      expect(hasDirectoryStub).to.have.been.calledOnceWith(destinationDirectory);
+      expect(hasFileStub).to.have.been.calledOnceWith(PathEx.posixJoin(destinationDirectory, 'gnark.jar'), {
+        size: fileContent.length.toString(),
+      });
+    });
+
+    it('retries the copy and throws when remote copied file size verification fails', async (): Promise<void> => {
+      const localFilePath: string = PathEx.join(temporaryDirectory, 'gnark.jar');
+      fs.writeFileSync(localFilePath, '0123456789');
+
+      sinon.stub(containerClient, 'hasDir').resolves(true);
+      sinon.stub(containerClient, 'hasFile').resolves(false);
+      const execKubectlStub: SinonStub = sinon.stub(containerClient, 'execKubectl' as never) as SinonStub;
+      execKubectlStub.resolves('ok');
+      const execKubectlCpSpy: SinonStub = sinon.spy(containerClient, 'execKubectlCp' as never) as SinonStub;
+
+      try {
+        await containerClient.copyTo(localFilePath, '/opt/hgcapp/services-hedera/HapiApp2.0/data/lib');
+        expect.fail('Expected copyTo to reject');
+      } catch (error) {
+        expect(error).to.be.instanceOf(KubeContainerInvalidPathError);
+        expect((error as KubeContainerInvalidPathError).message).to.include('copy size verification');
+      }
+
+      // a failed remote verification must be retried, not throw on the first attempt: one logical
+      // copyTo, three kubectl cp attempts
+      expect(execKubectlCpSpy).to.have.been.calledOnce;
+      expect(execKubectlStub).to.have.been.calledThrice;
+    });
   });
 
   afterEach((): void => {
