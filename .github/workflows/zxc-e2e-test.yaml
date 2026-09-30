@@ -28,6 +28,11 @@ on:
         type: string
         required: false
         default: ""
+      solo-charts-ref:
+        description: "Solo Charts Ref (use charts from this hiero-ledger/solo-charts branch instead of the published chart):"
+        type: string
+        required: false
+        default: ""
       custom-job-label:
         description: "Custom Job Label:"
         type: string
@@ -122,6 +127,11 @@ on:
     inputs:
       consensus-node-version:
         description: "Consensus Node Version:"
+        type: string
+        required: false
+        default: ""
+      solo-charts-ref:
+        description: "Solo Charts Ref (use charts from this hiero-ledger/solo-charts branch instead of the published chart):"
         type: string
         required: false
         default: ""
@@ -229,7 +239,6 @@ env:
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
   STEP_TIMEOUT_MINUTES: '5'
-  SOLO_CHARTS_REF: '02807-rustfs-prototype'
 
 jobs:
   e2e-test:
@@ -249,10 +258,11 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Checkout Solo Charts
+        if: ${{ inputs.solo-charts-ref != '' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: hiero-ledger/solo-charts
-          ref: ${{ env.SOLO_CHARTS_REF }}
+          ref: ${{ inputs.solo-charts-ref }}
           path: .solo-charts
           persist-credentials: false
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
@@ -319,15 +329,8 @@ jobs:
         with:
           version: 'v${{ inputs.helm-version }}'
 
-      - name: Setup Helm for Solo Charts
-        if: ${{ !cancelled() && !failure() }}
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          version: 'v${{ inputs.helm-version }}'
-
       - name: Build Solo Charts Dependencies
-        if: ${{ !cancelled() && !failure() }}
+        if: ${{ inputs.solo-charts-ref != '' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           for chart in .solo-charts/charts/*/; do
