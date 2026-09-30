@@ -56,6 +56,10 @@ describe('core/templates', (): void => {
       // eslint-disable-next-line unicorn/prefer-https
       'http://mirror-1-rest.solo.svc.cluster.local',
     );
+    expect(Templates.renderMirrorNodeRestJavaServiceUrl('mirror-1', 'solo')).to.equal(
+      // eslint-disable-next-line unicorn/prefer-https
+      'http://mirror-1-restjava.solo.svc.cluster.local',
+    );
     expect(Templates.renderMirrorNodeWeb3ServiceUrl('mirror-1', 'solo')).to.equal(
       // eslint-disable-next-line unicorn/prefer-https
       'http://mirror-1-web3.solo.svc.cluster.local',
