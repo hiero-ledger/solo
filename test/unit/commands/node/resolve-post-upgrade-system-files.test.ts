@@ -78,6 +78,15 @@ describe('NodeCommandTasks.resolvePostUpgradeSystemFiles', (): void => {
     expect(resolve(buildConfig({simpleFeesSchedulesFile, upgradeVersion: ''})).size).to.equal(1);
   });
 
+  it('resolves files for the dev-freeze prepare-upgrade config, which has no zip file or upgrade version', (): void => {
+    const prepareUpgradeConfig: NodeUpgradeConfigClass = {
+      simpleFeesSchedulesFile,
+      throttlesFile,
+    } as unknown as NodeUpgradeConfigClass;
+
+    expect(resolve(prepareUpgradeConfig).size).to.equal(2);
+  });
+
   it('rejects a system file flag combined with --upgrade-zip-file', (): void => {
     expect((): Map<string, string> => resolve(buildConfig({throttlesFile, upgradeZipFile: 'upgrade.zip'}))).to.throw(
       SoloErrors.validation.upgradeSystemFileWithZipFile,

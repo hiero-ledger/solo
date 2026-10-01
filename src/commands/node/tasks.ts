@@ -182,6 +182,7 @@ import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
+import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
@@ -1130,8 +1131,12 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
-        const config: NodeAddConfigClass | NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass =
-          context_.config;
+        const config:
+          | NodeAddConfigClass
+          | NodeUpdateConfigClass
+          | NodeUpgradeConfigClass
+          | NodeDestroyConfigClass
+          | NodePrepareUpgradeConfigClass = context_.config;
         const {upgradeZipFile, deployment} = context_.config;
         const postUpgradeSystemFiles: Map<string, string> =
           'throttlesFile' in config ? this.resolvePostUpgradeSystemFiles(config) : new Map();
@@ -1213,7 +1218,12 @@ export class NodeCommandTasks {
   }
 
   /** Maps each post-upgrade system file name the node expects to the validated local file the user passed. */
-  private resolvePostUpgradeSystemFiles(config: NodeUpgradeConfigClass): Map<string, string> {
+  private resolvePostUpgradeSystemFiles(
+    config: NodeUpgradeConfigClass | NodePrepareUpgradeConfigClass,
+  ): Map<string, string> {
+    // dev-freeze prepare-upgrade has neither --upgrade-zip-file nor --upgrade-version
+    const upgradeZipFile: string | undefined = 'upgradeZipFile' in config ? config.upgradeZipFile : undefined;
+    const upgradeVersion: string | undefined = 'upgradeVersion' in config ? config.upgradeVersion : undefined;
     const systemFileFlags: [CommandFlag, string, string, string][] = [
       [
         flags.simpleFeesSchedulesFile,
@@ -1234,15 +1244,15 @@ export class NodeCommandTasks {
       if (!sourceFilePath) {
         continue;
       }
-      if (config.upgradeZipFile) {
+      if (upgradeZipFile) {
         throw new SoloErrors.validation.upgradeSystemFileWithZipFile(flag.name);
       }
       // without --upgrade-version (e.g. --local-build-path upgrades) there is no target version to check
-      if (config.upgradeVersion && new SemanticVersion<string>(config.upgradeVersion).lessThan(minimumVersion)) {
+      if (upgradeVersion && new SemanticVersion<string>(upgradeVersion).lessThan(minimumVersion)) {
         throw new SoloErrors.validation.postUpgradeSystemFileVersionUnsupported(
           flag.name,
           minimumVersion,
-          config.upgradeVersion,
+          upgradeVersion,
         );
       }
 
@@ -4399,15 +4409,14 @@ export class NodeCommandTasks {
         // the node only applies these on restart if they sit in its live config dir, but the freeze
         // upgrade extracts them to data/upgrade/current; application.properties is left out because
         // the staged copy is only a version marker, not the node's real configuration.
-        // A live copy left from an earlier upgrade is removed, otherwise the node would re-apply it now.
+        // Live copies from earlier upgrades are kept; a file is only replaced when the user passes a new one.
         const commands: string[] = [
           'set -e',
           ...[constants.SIMPLE_FEES_SCHEDULES_JSON, constants.THROTTLES_JSON].map(
             (fileName: string): string =>
               `if [ -f "${upgradeConfigDirectory}/${fileName}" ]; then ` +
               `cp -f "${upgradeConfigDirectory}/${fileName}" "${liveConfigDirectory}/${fileName}"; ` +
-              `chown hedera:hedera "${liveConfigDirectory}/${fileName}"; ` +
-              `else rm -f "${liveConfigDirectory}/${fileName}"; fi`,
+              `chown hedera:hedera "${liveConfigDirectory}/${fileName}"; fi`,
           ),
         ];
 
