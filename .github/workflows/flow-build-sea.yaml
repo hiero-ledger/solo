@@ -20,6 +20,13 @@ name: "Build SEA Binaries"
 # a Node.js installation. Each matrix leg uploads its binary as a GitHub Actions artifact.
 
 on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version"
+        type: string
+        required: false
+        default: "22"
   workflow_dispatch:
     inputs:
       node-version:
@@ -27,12 +34,6 @@ on:
         type: string
         required: false
         default: "22"
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
   push:
     branches:
       - main
@@ -45,13 +46,15 @@ defaults:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 jobs:
   build-sea:
     name: "SEA / ${{ matrix.os }} (${{ matrix.arch }})"
+    # Keep each platform matrix leg in its own concurrency group. This workflow is also called by
+    # Nightly Extended Tests; a workflow-level group makes all of the caller's matrix legs share
+    # one slot and causes GitHub to cancel the waiting legs before they start.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
@@ -77,18 +80,20 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ inputs.node-version || '22' }}
-          cache: npm
+          package-manager-cache: false
 
       - name: Install Dependencies
         run: npm ci
@@ -123,7 +128,7 @@ jobs:
           echo "✓ Smoke test passed (version $EXPECTED)"
 
       - name: Upload Binary Artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: solo-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.sha }}
           path: sea/dist/solo-${{ matrix.platform }}-*
