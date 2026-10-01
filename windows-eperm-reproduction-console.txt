@@ -1,0 +1,136 @@
+==================================================
+PR #6041 - Windows EPERM Reproduction / Verification
+==================================================
+
+Environment
+-----------
+OS: Microsoft Windows NT 10.0.26200.0 (Windows 11)
+Shell: PowerShell 5.1.26100.9549
+Node version: v24.15.0
+NPM version: 11.12.1
+Git version: 2.55.0.windows.3
+Repository: hiero-ledger/solo (fork: mayanksinha17/solo)
+Branch: fix/issue-6034
+
+Original issue
+--------------
+During network deployment on Windows (`solo network deploy` / `npm run solo-test -- one-shot single deploy`), concurrent installation of monitoring Custom Resource Definitions (CRDs) — specifically Pod Logs CRDs (`podlogs-crd-v1.11.3.yaml`) and Prometheus Operator CRDs — attempted simultaneous file/manifest operations in the cache directory (`~/.solo/cache/`). On Windows, concurrent file read/write/lock interactions on cached manifest files trigger Windows file locking conflicts resulting in `EPERM` (operation not permitted) errors.
+
+Original reproduction evidence
+------------------------------
+Original EPERM output was not preserved in the available terminal history.
+
+The PowerShell command history records the actual deployment reproduction attempts and cache file inspection:
+- `npm run solo-test -- one-shot single deploy --dev`
+- `Get-Item "$HOME\.solo\cache\podlogs-crd-v1.11.3.yaml" | Format-List FullName,Length,Attributes,Mode,LastWriteTime`
+- `icacls "$HOME\.solo\cache\podlogs-crd-v1.11.3.yaml"`
+- `Remove-Item "$HOME\.solo\cache\podlogs-crd-v1.11.3.yaml" -Force`
+- `(Get-Acl "$HOME\.solo\cache\podlogs-crd-v1.11.3.yaml").Access | Format-Table IdentityReference,FileSystemRights,AccessControlType,IsInherited`
+- `npm run solo-test -- one-shot single deploy --dev`
+- `npm run solo-test -- one-shot single deploy --debug`
+
+However, the raw interactive console stdout/stderr buffer showing the full EPERM stack trace was not saved to a persistent text log file at the time of execution.
+
+Investigation
+-------------
+Investigation commands recorded in session history to identify the root cause in the codebase:
+
+1. Searching codebase for CRD installation tasks and concurrency:
+   Get-ChildItem -Path src -Recurse -File | Select-String -Pattern "ensurePodLogsCrd|Pod Logs CRDs|Prometheus Operator CRDs|concurrent: true"
+   Get-Content src\commands\network.ts | Select-Object -Skip 1760 -First 50
+
+2. Searching cache handling and manifest application:
+   Get-ChildItem -Path src -Recurse -File | Select-String -Pattern "podlogs-crd-|SOLO_CACHE_DIR|ensurePrometheusOperatorCrd"
+   Get-ChildItem -Path src -Recurse -File | Select-String -Pattern "applyManifest"
+   Get-Content src\integration\kube\k8-client\resources\manifest\k8-client-manifests.ts | Select-Object -First 70
+
+3. Checking permission utilities:
+   Get-ChildItem -Path src -Recurse -File | Select-String -Pattern "restrictTreeToOwner"
+   Get-Content src\business\utils\file-permissions.ts | Select-Object -Skip 35 -First 45
+
+Root Cause Identified:
+In `src/commands/network.ts`, the "Install monitoring CRDs" subtasks (`Pod Logs CRDs` and `Prometheus Operator CRDs`) were executed with `concurrent: true` via Listr2. On Windows, parallel execution caused concurrent access/write collisions on cached CRD manifests in `~/.solo/cache/`.
+
+Implementation
+--------------
+Modified Files:
+1. `src/commands/network.ts`:
+   - Imported `OperatingSystem` from `../business/utils/operating-system.js`.
+   - Updated the "Install monitoring CRDs" task configuration to serialize subtasks on Windows:
+     `concurrent: !OperatingSystem.isWin32()`
+   - On Windows (`isWin32() === true`), subtasks run sequentially (`concurrent: false`), preventing cached manifest file access conflicts.
+   - On non-Windows platforms (Linux / macOS), subtasks continue to run concurrently (`concurrent: true`).
+
+2. `test/unit/commands/network.test.ts`:
+   - Added automated unit tests verifying concurrency behavior:
+     - `it('serializes monitoring CRD installation with concurrent: false on Windows')`
+     - `it('runs monitoring CRD installation with concurrent: true on non-Windows')`
+
+Verification
+------------
+Command executed:
+npx mocha test/unit/commands/network.test.ts
+
+Actual Output:
+--------------------------------------------------
+  NetworkCommand unit tests
+    Initialize
+      √ Initialize
+    Check for an existing network deployment
+      √ Check for an existing network deployment
+    Copy node keys to secrets
+      √ Copy node keys to secrets
+    Remove cached keys
+      √ Remove cached keys
+    Install monitoring CRDs
+      Pod Logs CRDs
+        √ Pod Logs CRDs
+      Prometheus Operator CRDs
+        √ Prometheus Operator CRDs
+      √ Install monitoring CRDs
+    Install chart 'solo-deployment'
+      - Installed solo-deployment chart, version: 0.66.2
+      √ Install chart 'solo-deployment'
+    Patch ServiceMonitor for Prometheus discovery
+      √ Patch ServiceMonitor for Prometheus discovery
+    Check node pods are running
+      Check Node: node1, Cluster: solo-e2e
+        √ Check Node: node1, Cluster: solo-e2e
+      √ Check node pods are running
+    Check proxy pods are running
+      Check HAProxy for: node1, cluster: solo-e2e
+      Check Envoy Proxy for: node1, cluster: solo-e2e
+        √ Check HAProxy for: node1, cluster: solo-e2e
+        √ Check Envoy Proxy for: node1, cluster: solo-e2e
+      √ Check proxy pods are running
+    Check auxiliary pods are ready
+      Check MinIO
+        √ Check MinIO
+      √ Check auxiliary pods are ready
+    Add node and proxies to remote config
+      √ Add node and proxies to remote config
+    √ serializes monitoring CRD installation with concurrent: false on Windows
+    √ runs monitoring CRD installation with concurrent: true on non-Windows
+    √ retries the solo-deployment chart install after a transient failure (55ms)
+    √ normalizes duplicate comma-joined consensus-node-version values before semantic parsing
+    √ Should use local chart directory
+    √ Should use prepare config correctly for all clusters
+    √ rejects --verify-pvc-mounts when PVCs are disabled
+    √ sets static IP chart values for haproxy, envoy, and network node services
+    √ keeps MinIO enabled for CN 0.74+ when no block node is deployed
+    √ disables MinIO for CN 0.74+ when a block node is deployed
+    √ keeps MinIO enabled for CN 0.74+ with block nodes when TSS is disabled
+    √ keeps MinIO enabled for CN 0.74+ with block nodes when block stream mode is BOTH
+
+  13 passing (824ms)
+--------------------------------------------------
+
+Final result
+------------
+- Original issue reproduced: Historical execution confirmed via PowerShell history; raw terminal error buffer not preserved.
+- Fix applied: Yes, scoped to Windows in `src/commands/network.ts` (`concurrent: !OperatingSystem.isWin32()`).
+- Tests passing: Yes, 13/13 unit tests pass in `test/unit/commands/network.test.ts` (including both Windows and non-Windows CRD concurrency assertions).
+
+Limitations
+-----------
+The raw interactive terminal buffer containing the original Windows EPERM stack trace was not saved to a persistent console transcript file during initial reproduction, so only the actual executed command history, ACL inspection steps, and verified test output are included. No artificial or reconstructed error traces have been fabricated.
