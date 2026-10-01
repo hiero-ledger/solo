@@ -112,8 +112,9 @@ jobs:
                 // refused or the host cannot be reached at all. `@actions/tool-cache` reports the
                 // first as "Unexpected HTTP response" and helm as "failed to fetch ...: 504 Gateway
                 // Timeout"; the second surfaces as a resolver or socket error, as in `getaddrinfo
-                // EAI_AGAIN get.helm.sh`. `step-security/retry` and the setup actions have usually
-                // already spent their own attempts by then. A 404 is deliberately not matched,
+                // EAI_AGAIN get.helm.sh`. APT reports the same transient condition as "Connection
+                // timed out" or "Connection failed". `step-security/retry` and the setup actions
+                // have usually already spent their own attempts by then. A 404 is deliberately not matched,
                 // since a version that does not exist is a settled failure. Gated to steps that
                 // install or configure, so a product step that merely mentions one of these in its
                 // own output is left alone.
@@ -130,7 +131,7 @@ jobs:
                 // rather than making every product step eligible for generic network errors.
                 stepPrefixes: [...setupStepPrefixes, 'one-shot single deploy'],
                 required:
-                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up)|(?:ECONNRESET|ETIMEDOUT|socket hang up)[^\n]*(?:fetch|download|install|request)/i,
+                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)|(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)[^\n]*(?:fetch|download|install|request)/i,
                 forbidden: /error TS\d{4}/,
               },
               {
