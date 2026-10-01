@@ -34,7 +34,7 @@ begin_case() {
   export HOME
   mkdir -p "${HOME}"
   export SHELL='/bin/bash'
-  unset ZDOTDIR SOLO_INSTALL_DIR 2>/dev/null || true
+  unset ZDOTDIR SOLO_INSTALL_DIR SUDO_USER 2>/dev/null || true
   export PATH="${original_path}"
   export FAKE_SOLO_CALLS="${HOME}/solo-calls.log"
   export FAKE_SOLO_STDIN="${HOME}/solo-stdin.log"
@@ -125,6 +125,12 @@ begin_case 'installs a pinned version'
 run_installer --version 1.2.3 --skip-image-cache
 check 'binary is installed' test -x "${HOME}/.solo/bin/solo"
 check 'image cache pull was skipped' test ! -e "${FAKE_SOLO_CALLS}"
+
+begin_case 'skips the image cache pull under sudo'
+export SUDO_USER='alice'
+run_installer
+check 'image cache pull was skipped' test ! -e "${FAKE_SOLO_CALLS}"
+check 'pull command is printed for the sudo user' contains "${HOME}/install.log" "run 'solo cache image pull' as alice"
 
 begin_case 'rejects a checksum mismatch'
 check 'installer fails' test "$(run_installer --version v9.9.9 && echo passed || echo failed)" = 'failed'

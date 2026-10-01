@@ -112,7 +112,10 @@ detect_asset_name() {
   esac
 
   libc_suffix=''
-  if ls /lib/ld-musl-* >/dev/null 2>&1 || { ldd --version 2>&1 | grep -qi musl; }; then
+  # Trust ldd first: a glibc system with the musl package installed also has /lib/ld-musl-* on disk.
+  if ldd --version 2>&1 | grep -qi musl; then
+    libc_suffix='-musl'
+  elif ! command -v ldd >/dev/null 2>&1 && ls /lib/ld-musl-* >/dev/null 2>&1; then
     libc_suffix='-musl'
   fi
 
@@ -162,12 +165,13 @@ verify_checksums_signature() {
     return 0
   fi
 
-  cosign verify-blob \
+  if ! cosign_output="$(cosign verify-blob \
     --bundle "${bundle}" \
     --certificate-identity-regexp "^${SOLO_REPOSITORY_URL}/\\.github/workflows/" \
     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-    "${work_directory}/${CHECKSUMS_ASSET}" >/dev/null 2>&1 ||
-    fail "signature verification of ${CHECKSUMS_ASSET} failed"
+    "${work_directory}/${CHECKSUMS_ASSET}" 2>&1)"; then
+    fail "signature verification of ${CHECKSUMS_ASSET} failed: ${cosign_output}"
+  fi
   info "verified the signature of ${CHECKSUMS_ASSET}"
 }
 
@@ -278,6 +282,12 @@ warn_if_shadowed() {
 warm_image_cache() {
   if [ "${skip_image_cache}" = 'true' ]; then
     info "skipped the image cache; run 'solo cache image pull' before your first deployment to speed it up"
+    return 0
+  fi
+
+  # Under sudo the pull would run as root and fill root's cache, or leave root-owned files in the user's ~/.solo.
+  if [ -n "${SUDO_USER:-}" ]; then
+    info "installed with sudo; run 'solo cache image pull' as ${SUDO_USER} to warm the cache"
     return 0
   fi
 
