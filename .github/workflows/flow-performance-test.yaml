@@ -61,7 +61,9 @@ on:
       - main
       - 'release/*'
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  # Called workflows inherit the caller's workflow name and run ID. Include this workflow's
+  # identity so it does not compete with other reusable jobs in Nightly Extended Tests.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}-performance-test
   cancel-in-progress: true
 
 defaults:
@@ -81,8 +83,8 @@ jobs:
   performance-test:
     name: Performance Test
     if: >-
-      ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
-      startsWith(github.event.pull_request.title, 'trunk-merge') && !cancelled() && !failure() }}
+      ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
+      startsWith(github.event.pull_request.title, 'trunk-merge')) && !cancelled() && !failure() }}
     timeout-minutes: 90
     runs-on: hiero-solo-linux-large
     steps:

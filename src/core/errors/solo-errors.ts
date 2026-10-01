@@ -11,6 +11,7 @@ import {DeploymentImportFailedSoloError} from './classes/deployment/deployment-i
 import {DeploymentListFailedError} from './classes/deployment/deployment-list-failed-error.js';
 import {DeploymentListPortsFailedError} from './classes/deployment/deployment-list-ports-failed-error.js';
 import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found-error.js';
+import {NetworkAlreadyDeployedSoloError} from './classes/deployment/network-already-deployed-solo-error.js';
 import {NamespaceNotSetError} from './classes/deployment/namespace-not-set-error.js';
 import {NoClustersForDeploymentError} from './classes/deployment/no-clusters-for-deployment-error.js';
 import {NoDeploymentsFoundError} from './classes/deployment/no-deployments-found-error.js';
@@ -42,6 +43,7 @@ import {RemoteConfigDataInvalidSoloError} from './classes/config/remote-config-d
 import {MigrateLegacyLocalConfigError} from './classes/config/migrate-legacy-local-config-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {RemoteConfigMissingOnKindClusterError} from './classes/config/remote-config-missing-on-kind-cluster-error.js';
+import {RemoteConfigMissingForDeployError} from './classes/config/remote-config-missing-for-deploy-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
 import {BlockNodeAddExternalFailedSoloError} from './classes/component/block-node-add-external-failed-solo-error.js';
@@ -248,6 +250,9 @@ import {BackupOptionsFileNotFoundSoloError} from './classes/validation/backup-op
 import {BackupZipFileRequiredSoloError} from './classes/validation/backup-zip-file-required-solo-error.js';
 import {BackupInputPathNotFoundSoloError} from './classes/validation/backup-input-path-not-found-solo-error.js';
 import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-must-be-zip-solo-error.js';
+import {SubprocessConfigLoadFailedSoloError} from './classes/validation/subprocess-config-load-failed-solo-error.js';
+import {SubprocessConfigInvalidValueSoloError} from './classes/validation/subprocess-config-invalid-value-solo-error.js';
+import {SubprocessConfigUnsafePermissionsSoloError} from './classes/validation/subprocess-config-unsafe-permissions-solo-error.js';
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
 import {BackupDatabaseDumpNotFoundSoloError} from './classes/validation/backup-database-dump-not-found-solo-error.js';
 import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-solo-error.js';
@@ -299,6 +304,9 @@ import {ContainerOperationFailedSoloError} from './classes/system/container-oper
 import {PostgresPodNotFoundSoloError} from './classes/system/postgres-pod-not-found-solo-error.js';
 import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files-failed-solo-error.js';
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
+import {CacheManifestDownloadFailedSoloError} from './classes/system/cache-manifest-download-failed-solo-error.js';
+import {CacheManifestInvalidSoloError} from './classes/system/cache-manifest-invalid-solo-error.js';
+import {CacheArchiveHashMismatchSoloError} from './classes/system/cache-archive-hash-mismatch-solo-error.js';
 import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
 import {TimeoutSoloError} from './classes/system/timeout-solo-error.js';
 import {ClusterRoleCheckFailedSoloError} from './classes/system/cluster-role-check-failed-solo-error.js';
@@ -327,6 +335,7 @@ export class SoloErrors {
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
     readonly remoteConfigMissingOnKindCluster: typeof RemoteConfigMissingOnKindClusterError;
+    readonly remoteConfigMissingForDeploy: typeof RemoteConfigMissingForDeployError;
     readonly remoteDataInvalid: typeof RemoteConfigDataInvalidSoloError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
@@ -337,6 +346,7 @@ export class SoloErrors {
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
     remoteDataInvalid: RemoteConfigDataInvalidSoloError,
     remoteConfigMissingOnKindCluster: RemoteConfigMissingOnKindClusterError,
+    remoteConfigMissingForDeploy: RemoteConfigMissingForDeployError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
     migrateLegacyLocalConfig: MigrateLegacyLocalConfigError,
@@ -374,6 +384,7 @@ export class SoloErrors {
     readonly deployNetworkFailed: typeof DeployNetworkFailedSoloError;
     readonly blockNodeClusterContextNotFound: typeof BlockNodeClusterContextNotFoundSoloError;
     readonly mirrorNodeClusterContextNotFound: typeof MirrorNodeClusterContextNotFoundSoloError;
+    readonly networkAlreadyDeployed: typeof NetworkAlreadyDeployedSoloError;
   } = Object.freeze({
     alreadyExists: DeploymentAlreadyExistsSoloError,
     clusterAddFailed: ClusterAddFailedError,
@@ -405,6 +416,7 @@ export class SoloErrors {
     deployNetworkFailed: DeployNetworkFailedSoloError,
     blockNodeClusterContextNotFound: BlockNodeClusterContextNotFoundSoloError,
     mirrorNodeClusterContextNotFound: MirrorNodeClusterContextNotFoundSoloError,
+    networkAlreadyDeployed: NetworkAlreadyDeployedSoloError,
   });
 
   // 3xxx — Component: Relay, Mirror Node, Explorer, CN runtime
@@ -674,6 +686,9 @@ export class SoloErrors {
     readonly backupInputPathNotFound: typeof BackupInputPathNotFoundSoloError;
     readonly backupInputMustBeZip: typeof BackupInputMustBeZipSoloError;
     readonly backupNoLogFiles: typeof BackupNoLogFilesSoloError;
+    readonly subprocessConfigLoadFailed: typeof SubprocessConfigLoadFailedSoloError;
+    readonly subprocessConfigUnsafePermissions: typeof SubprocessConfigUnsafePermissionsSoloError;
+    readonly subprocessConfigInvalidValue: typeof SubprocessConfigInvalidValueSoloError;
     readonly backupDatabaseDumpNotFound: typeof BackupDatabaseDumpNotFoundSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
@@ -753,6 +768,9 @@ export class SoloErrors {
     backupInputPathNotFound: BackupInputPathNotFoundSoloError,
     backupInputMustBeZip: BackupInputMustBeZipSoloError,
     backupNoLogFiles: BackupNoLogFilesSoloError,
+    subprocessConfigLoadFailed: SubprocessConfigLoadFailedSoloError,
+    subprocessConfigUnsafePermissions: SubprocessConfigUnsafePermissionsSoloError,
+    subprocessConfigInvalidValue: SubprocessConfigInvalidValueSoloError,
     backupDatabaseDumpNotFound: BackupDatabaseDumpNotFoundSoloError,
     flagInputFailed: FlagInputFailedSoloError,
     confirmationRequired: ConfirmationRequiredSoloError,
@@ -848,6 +866,9 @@ export class SoloErrors {
     readonly postgresPodNotFound: typeof PostgresPodNotFoundSoloError;
     readonly initSystemFilesFailed: typeof InitSystemFilesFailedSoloError;
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
+    readonly cacheManifestDownloadFailed: typeof CacheManifestDownloadFailedSoloError;
+    readonly cacheManifestInvalid: typeof CacheManifestInvalidSoloError;
+    readonly cacheArchiveHashMismatch: typeof CacheArchiveHashMismatchSoloError;
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
     readonly timeout: typeof TimeoutSoloError;
     readonly clusterRoleCheckFailed: typeof ClusterRoleCheckFailedSoloError;
@@ -937,6 +958,9 @@ export class SoloErrors {
     postgresPodNotFound: PostgresPodNotFoundSoloError,
     initSystemFilesFailed: InitSystemFilesFailedSoloError,
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
+    cacheManifestDownloadFailed: CacheManifestDownloadFailedSoloError,
+    cacheManifestInvalid: CacheManifestInvalidSoloError,
+    cacheArchiveHashMismatch: CacheArchiveHashMismatchSoloError,
     podTerminationTimeout: PodTerminationTimeoutSoloError,
     timeout: TimeoutSoloError,
     clusterRoleCheckFailed: ClusterRoleCheckFailedSoloError,
