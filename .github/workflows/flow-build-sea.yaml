@@ -27,8 +27,8 @@ on:
         type: string
         required: false
         default: "22"
-      ref:
-        description: "Git ref to build, for example a release tag (default: the triggering commit)"
+      version:
+        description: "Version to embed in the binary, for example 0.92.0 (default: the package.json version)"
         type: string
         required: false
         default: ""
@@ -92,7 +92,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Setup Node
@@ -103,6 +102,12 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Set Version
+        if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
       - name: Compile TypeScript
         run: npx tsc

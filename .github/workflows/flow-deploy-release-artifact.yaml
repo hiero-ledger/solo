@@ -694,17 +694,16 @@ jobs:
             fi
           echo "::endgroup::"
 
-  # Builds the SEA binaries from the release tag, so they embed the released version.
+  # Builds the triggering commit with the release version; the release commit only bumps version files, so this matches the tag.
   build-sea:
     name: Build SEA Binaries
     if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
     needs:
       - prepare-release
       - create-github-release
-      - setup
     uses: $/.github/workflows/flow-build-sea.yaml
     with:
-      ref: ${{ needs.setup.outputs.tag-ref }}
+      version: ${{ needs.prepare-release.outputs.version }}
 
   # Attaches the Linux SEA binary, install.sh and SHA256SUMS to the GitHub Release.
   publish-linux-installer:
@@ -713,11 +712,10 @@ jobs:
     permissions:
       contents: read # the release upload authenticates with GH_ACCESS_TOKEN, not GITHUB_TOKEN
     # A failed non-Linux SEA leg must not block the Linux assets; a missing Linux binary fails below.
-    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && needs.create-github-release.result == 'success' && needs.setup.result == 'success' }}
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && needs.create-github-release.result == 'success' }}
     needs:
       - prepare-release
       - create-github-release
-      - setup
       - build-sea
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -728,7 +726,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.setup.outputs.tag-ref }}
           persist-credentials: false
           sparse-checkout: installers/linux
 
