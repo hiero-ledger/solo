@@ -15,6 +15,7 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
+import {SoloChartRepository} from '../../core/solo-chart-repository.js';
 import {
   CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
   CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
@@ -483,8 +484,7 @@ export class NodeCommandTasks {
       `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
     ]);
 
-    await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
-    await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand()]);
+    await this.copyAndVerifyLocalBuildJars(container, localDataLibraryBuildPath, constants.HEDERA_HAPI_PATH);
 
     const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
     if (await container.hasDir(upgradeDirectory)) {
@@ -493,8 +493,7 @@ export class NodeCommandTasks {
         '-c',
         `rm -rf ${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
       ]);
-      await container.copyTo(localDataLibraryBuildPath, upgradeDirectory, localBuildPathFilter);
-      await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand(upgradeDirectory)]);
+      await this.copyAndVerifyLocalBuildJars(container, localDataLibraryBuildPath, upgradeDirectory);
     }
 
     await container.execContainer(['sync', constants.HEDERA_HAPI_PATH]);
@@ -505,6 +504,35 @@ export class NodeCommandTasks {
         if (fs.existsSync(jsonFile)) {
           await container.copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
         }
+      }
+    }
+  }
+
+  /**
+   * Copy the local build into `hapiPath` and verify the copied jars, copying again when a jar is corrupt.
+   *
+   * `copyTo` only checks that a copied directory exists, which is true even for the stock image, so a truncated jar
+   * slips through it (issue #6010). The truncation is intermittent, so another copy usually fixes it (issue #6079).
+   */
+  private async copyAndVerifyLocalBuildJars(
+    container: Container,
+    localDataLibraryBuildPath: string,
+    hapiPath: string,
+  ): Promise<void> {
+    const maxAttempts: number = constants.CONTAINER_COPY_MAX_ATTEMPTS;
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      await container.copyTo(localDataLibraryBuildPath, hapiPath, localBuildPathFilter);
+      await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand(hapiPath)]);
+      try {
+        await this.platformInstaller.verifyJarIntegrity(container, hapiPath);
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts) {
+          throw error;
+        }
+        this.logger.warn(
+          `Jar integrity check failed in ${hapiPath} on attempt ${attempt} of ${maxAttempts}, copying again: ${error.message}`,
+        );
       }
     }
   }
@@ -3145,7 +3173,7 @@ export class NodeCommandTasks {
                     config.namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
                     constants.SOLO_DEPLOYMENT_CHART,
-                    config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
                     config.soloChartVersion,
                     valuesFiles[clusterReference],
                     context,
@@ -4346,7 +4374,7 @@ export class NodeCommandTasks {
           let found: boolean = false;
           while (attempt < attempts) {
             try {
-              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+              if (await rootContainer.hasDir(targetWrapsPath)) {
                 found = true;
                 break;
               }
@@ -4356,14 +4384,31 @@ export class NodeCommandTasks {
               );
               await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
               attempt++;
+              continue;
             }
+
+            this.logger.info(
+              `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+            );
+            await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
+            attempt++;
           }
 
           if (found) {
             continue;
           }
 
-          await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+          await rootContainer.execContainer(['bash', '-c', `mkdir -p "${targetWrapsPath}"`]);
+          for (const file of wraps.allowedKeyFileSet) {
+            const sourcePath: string = PathEx.join(extractedDirectory, file);
+            if (fs.existsSync(sourcePath)) {
+              await rootContainer.copyFileResumable(
+                sourcePath,
+                `${targetWrapsPath}/${file}`,
+                constants.CONTAINER_COPY_CHUNK_SIZE_BYTES,
+              );
+            }
+          }
         }
       },
     };
@@ -4586,7 +4631,7 @@ export class NodeCommandTasks {
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
-              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+              config.chartDirectory || SoloChartRepository.resolveUrl(config.soloChartVersion),
               config.soloChartVersion,
               chartValues,
               context,
