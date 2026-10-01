@@ -70,6 +70,8 @@ import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-de
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
+import {MirrorNodeModuleImages} from './mirror-node-module-images.js';
+import {type MirrorNodeModuleImageReference} from './mirror-node-module-image-reference.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
 import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
@@ -568,35 +570,30 @@ export class MirrorNodeCommand extends BaseCommand {
     const environmentVariablePrefix: string = MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX;
 
     if (config.componentImage) {
-      const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
-      chartValues
-        .setLiteral('importer.image.registry', parsedImageReference.registry)
-        .setLiteral('grpc.image.registry', parsedImageReference.registry)
-        .setLiteral('rest.image.registry', parsedImageReference.registry)
-        .setLiteral('restjava.image.registry', parsedImageReference.registry)
-        .setLiteral('web3.image.registry', parsedImageReference.registry)
-        .setLiteral('monitor.image.registry', parsedImageReference.registry)
-        .setLiteral('importer.image.repository', parsedImageReference.repository)
-        .setLiteral('grpc.image.repository', parsedImageReference.repository)
-        .setLiteral('rest.image.repository', parsedImageReference.repository)
-        .setLiteral('restjava.image.repository', parsedImageReference.repository)
-        .setLiteral('web3.image.repository', parsedImageReference.repository)
-        .setLiteral('monitor.image.repository', parsedImageReference.repository)
-        .setLiteral('importer.image.tag', parsedImageReference.tag)
-        .setLiteral('grpc.image.tag', parsedImageReference.tag)
-        .setLiteral('rest.image.tag', parsedImageReference.tag)
-        .setLiteral('restjava.image.tag', parsedImageReference.tag)
-        .setLiteral('web3.image.tag', parsedImageReference.tag)
-        .setLiteral('monitor.image.tag', parsedImageReference.tag);
+      const moduleImages: MirrorNodeModuleImageReference[] = MirrorNodeModuleImages.expand(config.componentImage);
 
-      if (this.isComponentImageAvailableForKind(config.componentImage, config.componentImageArchive)) {
+      for (const {chartKey, imageReference} of moduleImages) {
+        const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(imageReference);
         chartValues
-          .setLiteral('importer.image.pullPolicy', 'Never')
-          .setLiteral('grpc.image.pullPolicy', 'Never')
-          .setLiteral('rest.image.pullPolicy', 'Never')
-          .setLiteral('restjava.image.pullPolicy', 'Never')
-          .setLiteral('web3.image.pullPolicy', 'Never')
-          .setLiteral('monitor.image.pullPolicy', 'Never');
+          .setLiteral(`${chartKey}.image.registry`, parsedImageReference.registry)
+          .setLiteral(`${chartKey}.image.repository`, parsedImageReference.repository)
+          .setLiteral(`${chartKey}.image.tag`, parsedImageReference.tag);
+      }
+
+      if (this.hasComponentImageArchiveValue(config.componentImageArchive)) {
+        this.validateComponentImageArchive(
+          moduleImages.map(({imageReference}: MirrorNodeModuleImageReference): string => imageReference),
+          config.componentImageArchive,
+        );
+        for (const {chartKey} of moduleImages) {
+          chartValues.setLiteral(`${chartKey}.image.pullPolicy`, 'Never');
+        }
+      } else {
+        for (const {chartKey, imageReference} of moduleImages) {
+          if (this.isLocalImageAvailableInDocker(imageReference)) {
+            chartValues.setLiteral(`${chartKey}.image.pullPolicy`, 'Never');
+          }
+        }
       }
     } else if (this.shouldApplyMirrorNodeImageTagOverrides(config.mirrorNodeChartDirectory)) {
       this.addMirrorNodeImageTagOverrides(chartValues, config.mirrorNodeVersion);
@@ -831,7 +828,11 @@ export class MirrorNodeCommand extends BaseCommand {
       commandType,
     );
 
-    await this.loadComponentImage(config.componentImage, config.componentImageArchive, config.clusterContext);
+    await this.loadMirrorNodeComponentImages(
+      config.componentImage,
+      config.componentImageArchive,
+      config.clusterContext,
+    );
 
     await this.upgradeMirrorNodeChart(config, shouldReuseValues);
 
@@ -924,6 +925,39 @@ export class MirrorNodeCommand extends BaseCommand {
             constants.MIRROR_INGRESS_CLASS_NAME,
             constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
           );
+      }
+    }
+  }
+
+  /**
+   * Loads the six Mirror Node module images derived from `--component-image` into the target Kind
+   * clusters. An archive is loaded as a whole (it may already contain all six images), while the
+   * live-Docker path loads each module image only if that specific image was found locally, mirroring
+   * `BaseCommand.loadComponentImage`'s single-image semantics.
+   */
+  private async loadMirrorNodeComponentImages(
+    componentImage: Optional<string>,
+    componentImageArchive: Optional<string>,
+    clusterContext: Context,
+  ): Promise<void> {
+    if (this.hasComponentImageArchiveValue(componentImageArchive)) {
+      const expectedImages: Optional<string> | string[] = componentImage
+        ? MirrorNodeModuleImages.expand(componentImage).map(
+            ({imageReference}: MirrorNodeModuleImageReference): string => imageReference,
+          )
+        : componentImage;
+      this.validateComponentImageArchive(expectedImages, componentImageArchive);
+      await this.kindLoadComponentImageArchive(componentImageArchive, clusterContext, this.remoteConfig.getContexts());
+      return;
+    }
+
+    if (!componentImage) {
+      return;
+    }
+
+    for (const {imageReference} of MirrorNodeModuleImages.expand(componentImage)) {
+      if (this.isLocalImageAvailableInDocker(imageReference)) {
+        await this.kindLoadComponentImage(imageReference, clusterContext, this.remoteConfig.getContexts());
       }
     }
   }
