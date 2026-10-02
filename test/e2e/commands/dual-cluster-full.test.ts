@@ -132,13 +132,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         RelayTest.add(options);
 
         /**
-         * KNOWN BUG (https://github.com/hiero-ledger/solo/issues/6118): `explorer node upgrade` only
-         * updates the explorer's ConfigMap -- the running pod never picks up the change. So after a
-         * redeploy-without-ingress + upgrade, the explorer pod keeps proxying to the just-destroyed
-         * ingress controller and every request hangs. Re-enable this whole block (describe.skip -> describe)
-         * once the issue is fixed.
+         * Regression test for https://github.com/hiero-ledger/solo/issues/6118: `explorer node
+         * upgrade` used to only update the explorer's ConfigMap -- the running pod never picked up
+         * the change, so after a redeploy-without-ingress + upgrade, the explorer pod kept proxying
+         * to the just-destroyed ingress controller and every request hung. `explorer node upgrade`
+         * now patches a restart annotation onto the explorer Deployment's pod template after the
+         * Helm upgrade, forcing a rollout so the new pod picks up the refreshed routing config.
          */
-        describe.skip('Explorer routing survives disabling mirror node ingress after the fact', (): void => {
+        describe('Explorer routing survives disabling mirror node ingress after the fact', (): void => {
           // With ingress enabled (as deployed above), resolveMirrorNodeServices collapses
           // rest/restjava/web3 to the same ingress-controller URL. Redeploy without ingress so the
           // three become genuinely distinct backends, then re-run the same proxy-routing check again.
