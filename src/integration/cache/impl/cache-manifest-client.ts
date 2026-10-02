@@ -5,6 +5,7 @@ import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import * as constants from '../../../core/constants.js';
 import {CacheManifestImage} from '../models/impl/cache-manifest-image.js';
 import {getSoloVersion} from '../../../../version.js';
+import {type Duration} from '../../../core/time/duration.js';
 
 /** Raw shape of one `images` entry in `cache-manifest.json`. Every field is validated before use. */
 interface RawCacheManifestImage {
@@ -12,6 +13,7 @@ interface RawCacheManifestImage {
   tarFile?: unknown;
   hashFile?: unknown;
   sha256?: unknown;
+  size?: unknown;
 }
 
 /** Raw shape of `cache-manifest.json`. Every field is validated before use. */
@@ -26,8 +28,8 @@ interface RawCacheManifest {
  * and resolves each entry to its CDN locations.
  *
  * The manifest lists, for the Solo version that produced it, every container image the deployment needs,
- * the archive file name for that image, the file name holding the archive's SHA-256, and the hash value
- * itself. Both hash representations are kept so a download can be checked against the manifest and against
+ * the archive file name for that image, the file name holding the archive's SHA-256, the hash value
+ * itself and, optionally, the archive size in bytes. Both hash representations are kept so a download can be checked against the manifest and against
  * the published hash file, and the two must agree.
  *
  * The CDN is flat: `<base>/<tarFile>` and `<base>/<hashFile>`. The base defaults to
@@ -81,15 +83,19 @@ export class CacheManifestClient {
    * Downloads the manifest for the given Solo version and returns its images with CDN URLs resolved.
    *
    * @param soloVersion the Solo version whose manifest to fetch; defaults to the running version
+   * @param timeout aborts the download when it takes longer; unset means no timeout
    * @throws CacheManifestDownloadFailedSoloError when the manifest cannot be fetched or read
    * @throws CacheManifestInvalidSoloError when the manifest does not match the expected schema
    */
-  public static async fetchImages(soloVersion: string = getSoloVersion()): Promise<readonly CacheManifestImage[]> {
+  public static async fetchImages(
+    soloVersion: string = getSoloVersion(),
+    timeout?: Duration,
+  ): Promise<readonly CacheManifestImage[]> {
     const url: string = CacheManifestClient.getManifestUrl(soloVersion);
 
     let body: string;
     try {
-      const response: Response = await GitHubApiClient.get(url);
+      const response: Response = await GitHubApiClient.get(url, timeout);
       body = await response.text();
     } catch (error) {
       throw new SoloErrors.system.cacheManifestDownloadFailed(url, error);
@@ -163,8 +169,22 @@ export class CacheManifestClient {
         sha256,
         `${baseUrl}/${tarFile}`,
         `${baseUrl}/${hashFile}`,
+        CacheManifestClient.optionalSize(url, raw.size, index),
       );
     });
+  }
+
+  /** The archive size is optional so manifests published before it was added still parse. */
+  private static optionalSize(url: string, value: unknown, index: number): number | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+      throw new SoloErrors.system.cacheManifestInvalid(url, `images[${index}].size must be a non-negative integer`);
+    }
+
+    return value;
   }
 
   private static stripVersionPrefix(version: string): string {

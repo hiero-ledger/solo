@@ -68,16 +68,21 @@ export class GitHubApiClient {
    * Up to three attempts are made with exponential backoff honouring the
    * Retry-After and X-RateLimit-Reset headers when present.
    *
+   * @param timeout aborts each attempt that takes longer; unset means no timeout
    * @throws SoloError on network failure or a non-retryable HTTP error status.
    */
-  public static async get(url: string): Promise<Response> {
+  public static async get(url: string, timeout?: Duration): Promise<Response> {
     const headers: Record<string, string> = GitHubApiClient.buildHeaders(url);
     let lastStatus: number = 0;
 
     for (let attempt: number = 1; attempt <= GitHubApiClient.RETRY_MAX_ATTEMPTS; attempt++) {
       let response: Response;
       try {
-        response = await fetch(url, {method: 'GET', headers});
+        response = await fetch(url, {
+          method: 'GET',
+          headers,
+          signal: timeout ? AbortSignal.timeout(timeout.toMillis()) : undefined,
+        });
       } catch (error) {
         throw new SoloErrors.system.githubApiRequestFailed(url, error);
       }
