@@ -149,12 +149,11 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
   }
 
   /**
-   * Rewrites each loaded value into the canonical JSON form of the type its schema field declares.
+   * Rewrites each value into the canonical JSON form of the type its schema field declares.
    *
-   * <p>Values leave here as strings and reach the schema through `JSON.parse`, which neither knows nor
-   * checks the target type: `FALSE` would stay a truthy string on a boolean flag, `abc` a string on a
-   * numeric field where `0 < 'abc'` is false and a retry loop never runs. Normalising here makes the parse
-   * produce the declared type, and turns a typo into an error naming the variable.
+   * <p>Values reach the schema through `JSON.parse`, which does not check the target type: `FALSE` would
+   * stay a truthy string on a boolean flag, and `abc` a string on a numeric field where `0 < 'abc'` is
+   * false. Normalising here makes the parse produce the declared type, and a typo an error.
    */
   private coerceToDeclaredTypes(): void {
     const declaredTypes: ReadonlyMap<string, string> = EnvironmentAliasRegistry.configLeaves();

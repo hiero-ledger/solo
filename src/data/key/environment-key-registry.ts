@@ -8,10 +8,10 @@ import {EnvironmentKeyFormatter} from './environment-key-formatter.js';
  * The environment variable name every config key the schema declares is read from.
  *
  * <p>Names use `_` for both nesting levels and camelCase word boundaries, so a name cannot be taken apart
- * again — `HELM_CHART_DIRECTORY` could be `helmChart.directory` or `helm.chart.directory`. The schema is
- * therefore the only side that can generate names, and the environment is read forwards from this map
- * rather than scanned and mapped back. Two keys formatting to the same name would read the same variable
- * into both; that is a schema defect and fails fast.
+ * again — `HELM_CHART_DIRECTORY` could be `helmChart.directory` or `helm.chart.directory`. Only the schema
+ * can generate names, so the environment is read forwards from this map rather than scanned and mapped
+ * back; a `SOLO_*` variable matching no declared key is not configuration and is ignored. Two keys
+ * formatting to one name would both read that variable, which is a schema defect and fails fast.
  */
 export class EnvironmentKeyRegistry {
   /** Memoized `environment variable name` (unprefixed) -> `dotted config key path`. */

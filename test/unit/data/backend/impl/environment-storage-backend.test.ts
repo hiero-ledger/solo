@@ -27,19 +27,9 @@ describe('EnvironmentStorageBackend', (): void => {
     expect(backend.isSupported(StorageOperation.ReadObject)).to.be.false;
   });
 
-  it('variableNameFor applies the prefix and the naming convention', (): void => {
-    const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend('SOLO');
-    expect(backend.variableNameFor('helmChart.directory')).to.equal('SOLO_HELM_CHART_DIRECTORY');
+  it('variableNameFor omits the prefix when none is configured', (): void => {
     expect(new EnvironmentStorageBackend().variableNameFor('tss.readyMaxAttempts')).to.equal('TSS_READY_MAX_ATTEMPTS');
   });
-
-  it(
-    'list returns the config keys the environment sets',
-    EnvironmentScope.with({SOLO_TSS_READY_MAX_ATTEMPTS: '7'}, async (): Promise<void> => {
-      const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend('SOLO');
-      expect(await backend.list()).to.include('tss.readyMaxAttempts');
-    }),
-  );
 
   it(
     'list ignores a variable no config key generates',
@@ -54,10 +44,10 @@ describe('EnvironmentStorageBackend', (): void => {
   for (const prefix of ['SOLO', 'SOLO_', 'solo']) {
     it(
       `treats the prefix '${prefix}' as SOLO_`,
-      EnvironmentScope.with({SOLO_TSS_READY_MAX_ATTEMPTS: '7'}, async (): Promise<void> => {
+      EnvironmentScope.with({SOLO_HELM_CHART_DIRECTORY: '/tmp/charts'}, async (): Promise<void> => {
         const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend(prefix);
-        expect(backend.variableNameFor('tss.readyMaxAttempts')).to.equal('SOLO_TSS_READY_MAX_ATTEMPTS');
-        expect(await backend.list()).to.include('tss.readyMaxAttempts');
+        expect(backend.variableNameFor('helmChart.directory')).to.equal('SOLO_HELM_CHART_DIRECTORY');
+        expect(await backend.list()).to.include('helmChart.directory');
       }),
     );
   }

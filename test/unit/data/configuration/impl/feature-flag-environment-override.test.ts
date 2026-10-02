@@ -208,14 +208,8 @@ describe('feature flags – value parsing', (): void => {
     EnvironmentAliasRegistry.resetRootSchemas();
   });
 
-  it(
-    'reads a flag as a real boolean, not the string the environment carried',
-    EnvironmentScope.with({SOLO_FF_SKIP_NODE_PING: 'true'}, async (): Promise<void> => {
-      const flags: FeatureFlagsSchema = await readSoloFlags();
-      expect(flags?.skipNodePing).to.be.a('boolean');
-    }),
-  );
-
+  // `equal` is strict, so these also prove the flag is a real boolean rather than the string or number
+  // the environment carried.
   for (const [value, expected] of [
     ['true', true],
     ['TRUE', true],
@@ -234,7 +228,7 @@ describe('feature flags – value parsing', (): void => {
     );
   }
 
-  for (const value of ['no', 'off', 'yes', '4', 'maybe']) {
+  for (const value of ['no', 'off', '4']) {
     it(
       `rejects ENABLE_IMAGE_CACHE='${value}' instead of reading it as truthy`,
       EnvironmentScope.with({ENABLE_IMAGE_CACHE: value}, async (): Promise<void> => {

@@ -26,17 +26,10 @@ export class EnvironmentStorageBackend implements StorageBackend {
   }
 
   /**
-   * Returns the config keys the environment currently sets.
+   * Returns the config keys the environment currently sets, by looking up the name each declared key
+   * generates — see {@link EnvironmentKeyRegistry} for why this direction is the only workable one.
    *
-   * <p>Resolved forwards, from the schema out: every key the registered schemas declare is formatted into
-   * its environment variable name and looked up. Going the other way — scanning `process.env` for the
-   * prefix and taking names apart on `_` — cannot work, because `_` separates both nesting levels and
-   * camelCase word boundaries; it also drags every unrelated `SOLO_*` variable into the config tree, where
-   * a pair such as `SOLO_CHARTS_DIR` and `SOLO_CHARTS_DIR_FLAG` is an unrepresentable shape that aborts
-   * startup. A variable matching no declared key is simply not configuration.
-   *
-   * <p>A variable that is set but empty is skipped: readBytes rejects a blank value, so listing it would
-   * hand the caller a key that cannot be read.
+   * <p>An empty value is skipped: readBytes rejects it, so the key would be listed but unreadable.
    */
   public async list(): Promise<string[]> {
     const environment: NodeJS.ProcessEnv = process.env ?? {};
