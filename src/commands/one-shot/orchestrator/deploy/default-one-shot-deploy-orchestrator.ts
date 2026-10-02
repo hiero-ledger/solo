@@ -1309,7 +1309,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       const networkValuesFileKey: string = flags.getFormattedFlagKey(flags.valuesFile);
       const networkValuesFile: unknown = config.networkConfiguration[networkValuesFileKey];
       if (typeof networkValuesFile === 'string' && networkValuesFile) {
-        config.networkConfiguration[networkValuesFileKey] = PathEx.resolve(networkValuesFile);
+        // Relative to the directory containing the outer --values-file, not the process cwd:
+        // npm run-script executes with cwd set to the package root, not the caller's directory,
+        // which otherwise silently resolves this against the wrong base.
+        config.networkConfiguration[networkValuesFileKey] = PathEx.resolve(
+          path.dirname(config.valuesFile),
+          networkValuesFile,
+        );
       }
     }
     if (profileItems.setup) {
