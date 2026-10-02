@@ -394,6 +394,30 @@ describe('DeploymentCommand unit tests', (): void => {
     });
   });
 
+  describe('delete()', (): void => {
+    it('should remove the deployment without deleting cluster refs from local config', async (): Promise<void> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
+      const clusterReferenceNamesBefore: string[] = [...localConfig.configuration.clusterRefs.keys()];
+      expect(clusterReferenceNamesBefore).to.not.be.empty;
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+      argv.setArg(flags.quiet, true);
+
+      await expect(deploymentCommand.delete(argv.build())).to.eventually.be.true;
+
+      await localConfig.load();
+      const deletedDeployment: Deployment | undefined = localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === deploymentName,
+      );
+      expect(deletedDeployment).to.be.undefined;
+      expect([...localConfig.configuration.clusterRefs.keys()]).to.deep.equal(clusterReferenceNamesBefore);
+    });
+  });
+
   describe('stopPortForwards()', (): void => {
     interface FakeComponent {
       metadata: {
