@@ -725,6 +725,48 @@ describe('NetworkCommand unit tests', (): void => {
         sinon.restore();
       }
     });
+
+    describe('ensurePodLogsCrd cached-file error wrapping', (): void => {
+      // #5302: a cache file an older solo left unreadable must surface as CachedFileInaccessibleSoloError,
+      // with repair steps, rather than the bare EACCES/EPERM that removing it under the hood raises.
+      it('wraps a failure to remove an unreadable cache file', async (): Promise<void> => {
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // The PodLogs CRD itself must look missing so ensurePodLogsCrd attempts to (re)install it
+        // instead of short-circuiting on the happy path exercised by the tests above.
+        options.k8Factory.getK8().crds = sinon.stub().returns({readLabels: sinon.stub().resolves()});
+        sinon.stub(FilePermissions, 'isReadable').returns(false);
+        sinon.stub(fs, 'rmSync').throws(Object.assign(new Error('access denied'), {code: 'EACCES'}));
+
+        const config: NetworkDeployConfigClass = {contexts: ['context-1']} as unknown as NetworkDeployConfigClass;
+
+        await expect(
+          // @ts-expect-error - to access private method
+          networkCommand.ensurePodLogsCrd(config),
+        )
+          .to.be.rejectedWith(/Cached file is not accessible/)
+          .and.eventually.have.property('code', 'SOLO-5089');
+      });
+
+      // The same cache file surfaces its inaccessibility at apply time instead, when the readability probe
+      // and the removal it would gate both happen to succeed but the file still cannot be used by kubectl.
+      it('wraps an EPERM from applying the cached manifest', async (): Promise<void> => {
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        options.k8Factory.getK8().crds = sinon.stub().returns({readLabels: sinon.stub().resolves()});
+        sinon.stub(FilePermissions, 'isReadable').returns(true);
+        options.k8Factory.getK8().manifests = sinon.stub().returns({
+          applyManifest: sinon.stub().rejects(Object.assign(new Error('operation not permitted'), {code: 'EPERM'})),
+        });
+
+        const config: NetworkDeployConfigClass = {contexts: ['context-1']} as unknown as NetworkDeployConfigClass;
+
+        await expect(
+          // @ts-expect-error - to access private method
+          networkCommand.ensurePodLogsCrd(config),
+        )
+          .to.be.rejectedWith(/Cached file is not accessible/)
+          .and.eventually.have.property('code', 'SOLO-5089');
+      });
+    });
   });
   // #5302: a cache file left unreadable by an older solo still satisfies existsSync, so the deploy would
   // reuse it and fail at apply time. writeCacheFile is the replacement path; it stages the content under a
