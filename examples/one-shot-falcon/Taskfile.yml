@@ -11,8 +11,10 @@ env:
 
 vars:
   DEPLOYMENT: "falcon-deployment"
-  CLUSTER_NAME: "falcon-cluster"
-  CONTEXT: "kind-falcon-cluster"
+  # one-shot falcon deploy always creates its Kind cluster as constants.DEFAULT_CLUSTER
+  # ('solo-cluster'); there is no flag to name it after this example.
+  CLUSTER_NAME: "solo-cluster"
+  CONTEXT: "kind-solo-cluster"
   TEMP_DIR: "{{ .USER_WORKING_DIR }}/.tmp"
   KILLED_PORT_FILE: "{{ .TEMP_DIR }}/killed_port.txt"
   EXPECTED_PORT_COUNT_FILE: "{{ .TEMP_DIR }}/expected_port_count.txt"
