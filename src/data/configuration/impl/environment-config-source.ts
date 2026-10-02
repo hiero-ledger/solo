@@ -8,13 +8,15 @@ import {type Refreshable} from '../spi/refreshable.js';
 import {ConfigurationError} from '../api/configuration-error.js';
 import {Forest} from '../../key/lexer/forest.js';
 import {EnvironmentAliasRegistry} from '../../schema/decorators/environment-alias-registry.js';
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 
 /**
  * A {@link ConfigSource} that reads configuration data from the environment.
  *
  * <p>
  * Strings are read verbatim from the environment variables.
- * Numbers and booleans are converted from strings using the JSON parser.
+ * Numbers and booleans are normalized against the type the schema declares, and rejected when the value
+ * cannot be read as that type.
  * Objects, arrays of objects, and arrays of primitives are assumed to be stored as serialized JSON strings.
  */
 export class EnvironmentConfigSource extends LayeredConfigSource implements ConfigSource, Refreshable {
@@ -27,11 +29,15 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
   /** Typed reference to the backend for reading fixed/legacy env var aliases verbatim. */
   private readonly environmentBackend: EnvironmentStorageBackend;
 
+  /** Config key -> the environment variable name that supplied it, so errors can name what the user set. */
+  private readonly sourceNames: Map<string, string>;
+
   public constructor(mapper: ObjectMapper, prefix?: string) {
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend(prefix);
     super(backend, mapper, prefix);
     this.environmentBackend = backend;
     this.data = new Map<string, string>();
+    this.sourceNames = new Map<string, string>();
   }
 
   public get name(): string {
@@ -48,20 +54,24 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
 
   public async load(): Promise<void> {
     this.data.clear();
+    this.sourceNames.clear();
     this.forest = undefined;
 
-    const variables: string[] = await this.backend.list();
-    for (const k of variables) {
+    const configKeys: string[] = await this.backend.list();
+    for (const configKey of configKeys) {
+      const variableName: string = this.environmentBackend.variableNameFor(configKey);
       try {
-        const va: Buffer = await this.backend.readBytes(k);
-        this.data.set(k, va.toString('utf8'));
+        const value: Buffer = await this.backend.readBytes(configKey);
+        this.data.set(configKey, value.toString('utf8'));
+        this.sourceNames.set(configKey, variableName);
       } catch (error) {
-        throw new ConfigurationError(`Failed to read environment variable: ${k}`, error);
+        throw new ConfigurationError(`Failed to read environment variable: ${variableName}`, error);
       }
     }
 
     this.applyAliases();
     this.rejectEnvironmentOverrides();
+    this.coerceToDeclaredTypes();
 
     this.forest = Forest.from(this.data);
   }
@@ -71,7 +81,7 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
    *
    * `subprocess.*` controls which environment variables Solo forwards to external commands. A
    * setting that relaxes environment filtering must not itself be settable from the environment
-   * being filtered — otherwise `SOLO_SUBPROCESS_ADDITIONAL-ENVIRONMENT-VARIABLES=LD_PRELOAD`
+   * being filtered — otherwise `SOLO_SUBPROCESS_ADDITIONAL_ENVIRONMENT_VARIABLES=LD_PRELOAD`
    * would let anything that can set a variable switch the filter off using the filter's own
    * configuration. It is configurable from the config file only.
    */
@@ -97,28 +107,99 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
   }
 
   /**
-   * Applies fixed/legacy environment variable aliases.
-   * The generated `SOLO_*` name always wins,
-   * so an alias is only used when its canonical key
-   * was not already set from a generated name.
+   * Applies fixed environment variable aliases, in descending precedence: the generated `SOLO_*` name,
+   * then supported aliases, then legacy ones. An alias is used only when nothing higher has already set
+   * its canonical key.
    */
   private applyAliases(): void {
-    for (const [legacyName, canonicalKey] of EnvironmentAliasRegistry.aliasMap()) {
-      if (this.data.has(canonicalKey)) {
-        continue;
-      }
+    const aliases: [string, string][] = [...EnvironmentAliasRegistry.aliasMap()];
 
-      const value: string | undefined = this.environmentBackend.readRawValue(legacyName);
+    // Ordered explicitly rather than relying on declaration order: property decorators evaluate bottom-up,
+    // so a field's legacy alias would otherwise be registered before the supported one above it and win.
+    const ordered: [string, string][] = [
+      ...aliases.filter(([name]: [string, string]): boolean => !EnvironmentAliasRegistry.isLegacy(name)),
+      ...aliases.filter(([name]: [string, string]): boolean => EnvironmentAliasRegistry.isLegacy(name)),
+    ];
+
+    const generatedKeys: Set<string> = new Set<string>(this.data.keys());
+
+    for (const [name, canonicalKey] of ordered) {
+      const value: string | undefined = this.environmentBackend.readRawValue(name);
       if (value === undefined) {
         continue;
       }
 
-      this.data.set(canonicalKey, value);
+      // Aliases are a supported, documented spelling — routine use is not worth a warning. Only the
+      // ambiguous case earns one: two spellings set at once, with the higher-precedence one silently
+      // winning. Warning unconditionally would put a console.warn (which bypasses SoloLogger and
+      // SOLO_SILENT_MODE) into every CI run, since CI sets ENABLE_IMAGE_CACHE and
+      // DISABLE_IMPORTER_SPRING_PROFILES.
+      if (this.data.has(canonicalKey)) {
+        const winner: string = generatedKeys.has(canonicalKey) ? 'the generated name' : 'a higher-precedence alias';
+        console.warn(
+          `Environment variable '${name}' is ignored because ${winner} for config key ` +
+            `'${canonicalKey}' is also set and takes precedence.`,
+        );
+        continue;
+      }
 
-      console.warn(
-        `Using environment variable alias '${legacyName}' for config key '${canonicalKey}'; ` +
-          'the generated SOLO_* name takes precedence when both are set.',
-      );
+      this.data.set(canonicalKey, value);
+      this.sourceNames.set(canonicalKey, name);
     }
+  }
+
+  /**
+   * Rewrites each value into the canonical JSON form of the type its schema field declares.
+   *
+   * <p>Values reach the schema through `JSON.parse`, which does not check the target type: `FALSE` would
+   * stay a truthy string on a boolean flag, and `abc` a string on a numeric field where `0 < 'abc'` is
+   * false. Normalising here makes the parse produce the declared type, and a typo an error.
+   */
+  private coerceToDeclaredTypes(): void {
+    const declaredTypes: ReadonlyMap<string, string> = EnvironmentAliasRegistry.configLeaves();
+
+    for (const [key, value] of this.data) {
+      // Strings are taken verbatim; objects and arrays are already serialized JSON.
+      switch (declaredTypes.get(key)) {
+        case 'boolean': {
+          this.data.set(key, String(this.asDeclaredBoolean(key, value)));
+          break;
+        }
+        case 'number': {
+          this.data.set(key, String(this.asDeclaredNumber(key, value)));
+          break;
+        }
+      }
+    }
+  }
+
+  private asDeclaredBoolean(key: string, value: string): boolean {
+    switch (value.trim().toLowerCase()) {
+      case 'true':
+      case '1': {
+        return true;
+      }
+      case 'false':
+      case '0': {
+        return false;
+      }
+      default: {
+        throw new SoloErrors.validation.environmentVariableTypeMismatch(
+          this.sourceNames.get(key),
+          key,
+          value,
+          'boolean',
+        );
+      }
+    }
+  }
+
+  private asDeclaredNumber(key: string, value: string): number {
+    const parsed: number = Number(value.trim());
+    if (value.trim() === '' || !Number.isFinite(parsed)) {
+      throw new SoloErrors.validation.environmentVariableTypeMismatch(this.sourceNames.get(key), key, value, 'number');
+    }
+
+    return parsed;
   }
 }

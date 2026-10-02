@@ -232,6 +232,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   SUBPROCESS_CONFIG_LOAD_FAILED: 'SOLO-4085',
   SUBPROCESS_CONFIG_UNSAFE_PERMISSIONS: 'SOLO-4086',
   SUBPROCESS_CONFIG_INVALID_VALUE: 'SOLO-4087',
+  ENVIRONMENT_VARIABLE_TYPE_MISMATCH: 'SOLO-4088',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
