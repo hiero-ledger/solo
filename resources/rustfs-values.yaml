@@ -9,7 +9,16 @@ mode:
 storageclass:
   name: '' # use the cluster default storage class
   dataStorageSize: 10Gi
-  logStorageSize: 256Mi
+
+config:
+  rustfs:
+    # `info` emits tracing span events for every operation (~600 MB/hour under a pinger workload)
+    log_level: warn
+    # empty logs to stdout instead of a file on a dedicated logs PVC
+    obs_log_directory: ''
+    scanner:
+      speed: slowest
+      bitrot_cycle_secs: 'off'
 
 ingress:
   enabled: false
