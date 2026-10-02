@@ -33,6 +33,10 @@ on:
     workflows: ["Deploy Release Artifact"]
     types:
       - completed
+  # TEMPORARY: collects Harden Runner audit data for allowed-endpoints. Remove before merge.
+  pull_request:
+    paths:
+      - .github/workflows/flow-sign-release-assets.yaml
 
 defaults:
   run:
@@ -50,7 +54,7 @@ jobs:
     name: Sign Release Assets
     runs-on: hiero-solo-linux-medium
     timeout-minutes: 30
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       # Uploading release assets goes through the Releases API, which is only
       # covered by the contents scope — GitHub has no narrower releases-only
@@ -103,14 +107,22 @@ jobs:
         if: ${{ steps.release.outputs.tag != '' }}
         env:
           TAG: ${{ steps.release.outputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Accept signatures from any workflow of this repository, so bundles
-          # created before a rename of this file keep verifying.
-          IDENTITY_REGEXP="^https://github.com/${REPO}/"
+          # Scoped to this workflow file specifically, not just this repository: a
+          # broader match would let any workflow with id-token: write (several
+          # already exist in this repo) produce a signature that verifies here. A
+          # future rename of this file isn't a problem: bundles signed under the
+          # old identity simply stop verifying and this reconciler re-signs them
+          # under the new one on its next run.
+          IDENTITY_REGEXP="^https://github.com/${REPO}/\\.github/workflows/flow-sign-release-assets\\.yaml@"
 
           mkdir -p release-assets
           cd release-assets
+          # Tolerates a release with zero assets (nothing to download yet); any
+          # other download failure surfaces later as "nothing to sign" and is
+          # caught on the next scheduled/manual run.
           gh release download --repo "${REPO}" -- "${TAG}" || true
 
           shopt -s nullglob
@@ -129,6 +141,12 @@ jobs:
               continue
             fi
 
+            # TEMPORARY: PR runs never sign release assets.
+            if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+              echo "Would sign: ${asset}"
+              continue
+            fi
+
             echo "Signing: ${asset}"
             cosign sign-blob --yes --bundle "${bundle}" -- "${asset}"
             cosign verify-blob \
@@ -138,6 +156,22 @@ jobs:
               -- "${asset}"
             to_upload+=("${bundle}")
           done
+
+          # TEMPORARY: PR runs sign a throwaway file outside release-assets/ so
+          # Harden Runner records the Fulcio/Rekor/TUF endpoints, then exit before
+          # any upload. No release asset is signed and the release is never modified.
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            probe="${RUNNER_TEMP}/egress-probe.txt"
+            echo "egress probe ${GITHUB_RUN_ID}" > "${probe}"
+            cosign sign-blob --yes --bundle "${probe}.sigstore.json" -- "${probe}"
+            cosign verify-blob \
+              --bundle "${probe}.sigstore.json" \
+              --certificate-identity-regexp "${IDENTITY_REGEXP}" \
+              --certificate-oidc-issuer "${OIDC_ISSUER}" \
+              -- "${probe}"
+            echo "::notice file=flow-sign-release-assets.yaml::PR run: signed a throwaway probe only; ${TAG} was not modified."
+            exit 0
+          fi
 
           if [[ ${#to_upload[@]} -eq 0 ]]; then
             echo "::notice file=flow-sign-release-assets.yaml::All assets of ${TAG} are already signed."
