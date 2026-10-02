@@ -260,6 +260,9 @@ describe('ClusterCommand unit tests', (): void => {
       sandbox.stub(resolvedChartManager, 'install').resolves(true);
       sandbox.stub(resolvedChartManager, 'uninstall').resolves(true);
       sandbox.stub(resolvedChartManager, 'getInstalledRelease').resolves();
+      // No other release running the minio-operator chart by default, so the "no release found" path in
+      // the tests below falls through to the orphaned-CRD cleanup rather than the ownership-gap skip.
+      sandbox.stub(resolvedChartManager, 'getInstalledReleases').resolves([]);
       chartManager = resolvedChartManager as SinonStubbedInstance<ChartManager>;
 
       const resolvedClusterChecks: ClusterChecks = container.resolve(InjectTokens.ClusterChecks);
@@ -427,6 +430,23 @@ describe('ClusterCommand unit tests', (): void => {
       for (const crdName of constants.MINIO_OPERATOR_CRDS) {
         expect(crdsStub.delete.calledWith(crdName)).to.be.true;
       }
+    });
+
+    // A release named anything else that still runs the minio-operator chart owns these CRDs just as
+    // much as one named constants.MINIO_OPERATOR_RELEASE_NAME would. Concluding "orphaned" from a
+    // name-only miss would delete CRDs out from under that release's own Tenants cluster-wide.
+    it('leaves the CRDs alone when a differently-named release still runs the minio-operator chart', async (): Promise<void> => {
+      chartManager.getInstalledReleases.resolves([
+        {
+          name: 'my-own-minio',
+          namespace: 'someone-elses-namespace',
+          chart: soloChart,
+        } as unknown as ReleaseItem,
+      ]);
+
+      await runUninstall();
+
+      expect(crdsStub.delete.notCalled).to.be.true;
     });
   });
 });
