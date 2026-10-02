@@ -123,7 +123,7 @@ jobs:
                 // ECONNRESET, ETIMEDOUT and "socket hang up" are generic enough that a long running
                 // step - `Setup E2E Tests` runs a ten minute script - could print one from an
                 // unrelated cause buried in its own output. None of 61 audited logs did, but the
-                // three are still anchored to the same line as a fetch/download/install/request
+                // below lines are still anchored to the same line as a fetch/download/install/request
                 // word, except for npm's structured multi-line network error block, rather than
                 // trusted anywhere in the log.
                 description: 'tool download could not reach its host',
