@@ -70,7 +70,9 @@ describe('EnvironmentConfigSource', (): void => {
       {
         'SOLO_FOO-BAR': 'dashed, not a POSIX identifier',
         SOLO_myVar: 'mixed case',
-        solo_tss_ready_max_attempts: 'lowercase: a different variable entirely',
+        // Deliberately not the lowercase spelling of a declared key: process.env is case-insensitive on
+        // Windows, so that would set the real key and prove nothing about this code.
+        solo_lowercase_name: 'lowercase',
         SOLO_: 'bare prefix, empty key',
         SOLO: 'the prefix alone',
         SOLO__DOUBLE: 'empty segment between separators',
