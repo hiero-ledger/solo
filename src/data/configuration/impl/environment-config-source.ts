@@ -8,13 +8,15 @@ import {type Refreshable} from '../spi/refreshable.js';
 import {ConfigurationError} from '../api/configuration-error.js';
 import {Forest} from '../../key/lexer/forest.js';
 import {EnvironmentAliasRegistry} from '../../schema/decorators/environment-alias-registry.js';
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 
 /**
  * A {@link ConfigSource} that reads configuration data from the environment.
  *
  * <p>
  * Strings are read verbatim from the environment variables.
- * Numbers and booleans are converted from strings using the JSON parser.
+ * Numbers and booleans are normalized against the type the schema declares, and rejected when the value
+ * cannot be read as that type.
  * Objects, arrays of objects, and arrays of primitives are assumed to be stored as serialized JSON strings.
  */
 export class EnvironmentConfigSource extends LayeredConfigSource implements ConfigSource, Refreshable {
@@ -27,11 +29,15 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
   /** Typed reference to the backend for reading fixed/legacy env var aliases verbatim. */
   private readonly environmentBackend: EnvironmentStorageBackend;
 
+  /** Config key -> the environment variable name that supplied it, so errors can name what the user set. */
+  private readonly sourceNames: Map<string, string>;
+
   public constructor(mapper: ObjectMapper, prefix?: string) {
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend(prefix);
     super(backend, mapper, prefix);
     this.environmentBackend = backend;
     this.data = new Map<string, string>();
+    this.sourceNames = new Map<string, string>();
   }
 
   public get name(): string {
@@ -48,21 +54,56 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
 
   public async load(): Promise<void> {
     this.data.clear();
+    this.sourceNames.clear();
     this.forest = undefined;
 
-    const variables: string[] = await this.backend.list();
-    for (const k of variables) {
+    const configKeys: string[] = await this.backend.list();
+    for (const configKey of configKeys) {
+      const variableName: string = this.environmentBackend.variableNameFor(configKey);
       try {
-        const va: Buffer = await this.backend.readBytes(k);
-        this.data.set(k, va.toString('utf8'));
+        const value: Buffer = await this.backend.readBytes(configKey);
+        this.data.set(configKey, value.toString('utf8'));
+        this.sourceNames.set(configKey, variableName);
       } catch (error) {
-        throw new ConfigurationError(`Failed to read environment variable: ${k}`, error);
+        throw new ConfigurationError(`Failed to read environment variable: ${variableName}`, error);
       }
     }
 
     this.applyAliases();
+    this.rejectEnvironmentOverrides();
+    this.coerceToDeclaredTypes();
 
     this.forest = Forest.from(this.data);
+  }
+
+  /**
+   * Config key prefixes that may never be sourced from the environment.
+   *
+   * `subprocess.*` controls which environment variables Solo forwards to external commands. A
+   * setting that relaxes environment filtering must not itself be settable from the environment
+   * being filtered — otherwise `SOLO_SUBPROCESS_ADDITIONAL_ENVIRONMENT_VARIABLES=LD_PRELOAD`
+   * would let anything that can set a variable switch the filter off using the filter's own
+   * configuration. It is configurable from the config file only.
+   */
+  private static readonly ENVIRONMENT_OVERRIDE_FORBIDDEN_PREFIXES: readonly string[] = ['subprocess.'];
+
+  /**
+   * Drops any loaded key under a forbidden prefix, warning so the attempt is visible rather than
+   * silently ignored.
+   */
+  private rejectEnvironmentOverrides(): void {
+    const forbiddenKeys: string[] = [...this.data.keys()].filter((key: string): boolean =>
+      EnvironmentConfigSource.ENVIRONMENT_OVERRIDE_FORBIDDEN_PREFIXES.some((prefix: string): boolean =>
+        key.toLowerCase().startsWith(prefix),
+      ),
+    );
+    for (const key of forbiddenKeys) {
+      this.data.delete(key);
+      console.warn(
+        `Ignoring environment override for config key '${key}': this setting controls environment ` +
+          'filtering for external commands and can only be set in the Solo config file.',
+      );
+    }
   }
 
   /**
@@ -103,6 +144,63 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
       }
 
       this.data.set(canonicalKey, value);
+      this.sourceNames.set(canonicalKey, name);
     }
+  }
+
+  /**
+   * Rewrites each loaded value into the canonical JSON form of the type its schema field declares.
+   *
+   * <p>Values leave here as strings and reach the schema through `JSON.parse`, which neither knows nor
+   * checks the target type: `FALSE` would stay a truthy string on a boolean flag, `abc` a string on a
+   * numeric field where `0 < 'abc'` is false and a retry loop never runs. Normalising here makes the parse
+   * produce the declared type, and turns a typo into an error naming the variable.
+   */
+  private coerceToDeclaredTypes(): void {
+    const declaredTypes: ReadonlyMap<string, string> = EnvironmentAliasRegistry.configLeaves();
+
+    for (const [key, value] of this.data) {
+      // Strings are taken verbatim; objects and arrays are already serialized JSON.
+      switch (declaredTypes.get(key)) {
+        case 'boolean': {
+          this.data.set(key, String(this.asDeclaredBoolean(key, value)));
+          break;
+        }
+        case 'number': {
+          this.data.set(key, String(this.asDeclaredNumber(key, value)));
+          break;
+        }
+      }
+    }
+  }
+
+  private asDeclaredBoolean(key: string, value: string): boolean {
+    switch (value.trim().toLowerCase()) {
+      case 'true':
+      case '1': {
+        return true;
+      }
+      case 'false':
+      case '0': {
+        return false;
+      }
+      default: {
+        throw new SoloErrors.validation.environmentVariableTypeMismatch(
+          this.sourceNames.get(key),
+          key,
+          value,
+          'boolean',
+        );
+      }
+    }
+  }
+
+  private asDeclaredNumber(key: string, value: string): number {
+    const parsed: number = Number(value.trim());
+    if (value.trim() === '' || !Number.isFinite(parsed)) {
+      throw new SoloErrors.validation.environmentVariableTypeMismatch(this.sourceNames.get(key), key, value, 'number');
+    }
+
+    return parsed;
   }
 }

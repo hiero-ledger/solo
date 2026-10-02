@@ -5,20 +5,20 @@ import {EnvironmentAliasRegistry} from '../schema/decorators/environment-alias-r
 import {EnvironmentKeyFormatter} from './environment-key-formatter.js';
 
 /**
- * Resolves an environment variable name back to the config key it overrides.
+ * The environment variable name every config key the schema declares is read from.
  *
- * <p>Names use `_` for both nesting levels and camelCase word boundaries, so a name is ambiguous on its own
- * — `HELM_CHART_DIRECTORY` could be `helmChart.directory` or `helm.chart.directory`. The mapping is
- * therefore built by formatting every leaf path the schema declares and inverting the result. Two paths
- * formatting to the same name are a schema defect and fail fast rather than silently resolving to whichever
- * was walked last.
+ * <p>Names use `_` for both nesting levels and camelCase word boundaries, so a name cannot be taken apart
+ * again — `HELM_CHART_DIRECTORY` could be `helmChart.directory` or `helm.chart.directory`. The schema is
+ * therefore the only side that can generate names, and the environment is read forwards from this map
+ * rather than scanned and mapped back. Two keys formatting to the same name would read the same variable
+ * into both; that is a schema defect and fails fast.
  */
 export class EnvironmentKeyRegistry {
   /** Memoized `environment variable name` (unprefixed) -> `dotted config key path`. */
   private static cachedKeyMap: Map<string, string> | undefined;
 
-  /** The config paths {@link cachedKeyMap} was built from; a new Set means the schemas changed. */
-  private static cachedPaths: ReadonlySet<string> | undefined;
+  /** The config leaves {@link cachedKeyMap} was built from; a new Map means the schemas changed. */
+  private static cachedLeaves: ReadonlyMap<string, string> | undefined;
 
   private constructor() {}
 
@@ -28,13 +28,13 @@ export class EnvironmentKeyRegistry {
    * @throws ConfigurationError if two config keys format to the same environment variable name.
    */
   public static keyMap(): ReadonlyMap<string, string> {
-    const paths: ReadonlySet<string> = EnvironmentAliasRegistry.configPaths();
-    if (EnvironmentKeyRegistry.cachedKeyMap && EnvironmentKeyRegistry.cachedPaths === paths) {
+    const leaves: ReadonlyMap<string, string> = EnvironmentAliasRegistry.configLeaves();
+    if (EnvironmentKeyRegistry.cachedKeyMap && EnvironmentKeyRegistry.cachedLeaves === leaves) {
       return EnvironmentKeyRegistry.cachedKeyMap;
     }
 
     const result: Map<string, string> = new Map<string, string>();
-    for (const path of paths) {
+    for (const path of leaves.keys()) {
       const name: string = EnvironmentKeyFormatter.instance().normalize(path);
       const existing: string | undefined = result.get(name);
       if (existing !== undefined) {
@@ -47,12 +47,12 @@ export class EnvironmentKeyRegistry {
     }
 
     EnvironmentKeyRegistry.cachedKeyMap = result;
-    EnvironmentKeyRegistry.cachedPaths = paths;
+    EnvironmentKeyRegistry.cachedLeaves = leaves;
     return result;
   }
 
-  /** Returns the config key the name overrides, or undefined when no registered schema declares it. */
-  public static resolve(environmentName: string): string | undefined {
-    return EnvironmentKeyRegistry.keyMap().get(environmentName);
+  /** Every config key the environment may override, as dotted camelCase. */
+  public static configKeys(): Iterable<string> {
+    return EnvironmentKeyRegistry.keyMap().values();
   }
 }

@@ -26,68 +26,29 @@ export class EnvironmentStorageBackend implements StorageBackend {
   }
 
   /**
-   * Let prefix = SOLO
-   * Let separator = _
+   * Returns the config keys the environment currently sets.
    *
-   * Given:
-   *  env = SOLO_CACHE_DIR=/tmp
-   *  cfg = solo.cache.dir=/tmp
-   * Then:
-   *  key = cache.dir
-   *  rnode = cache
-   *  lnode = dir
-   *  ltype = string
-   *  value = /tmp
+   * <p>Resolved forwards, from the schema out: every key the registered schemas declare is formatted into
+   * its environment variable name and looked up. Going the other way — scanning `process.env` for the
+   * prefix and taking names apart on `_` — cannot work, because `_` separates both nesting levels and
+   * camelCase word boundaries; it also drags every unrelated `SOLO_*` variable into the config tree, where
+   * a pair such as `SOLO_CHARTS_DIR` and `SOLO_CHARTS_DIR_FLAG` is an unrepresentable shape that aborts
+   * startup. A variable matching no declared key is simply not configuration.
    *
-   * Given:
-   *  env = SOLO_DEPLOYMENTS_0_NAME=deployment1
-   *  cfg = solo.deployments.0.name=deployment1
-   * Then:
-   *  key = deployments.0.name
-   *  rnode = deployments
-   *  inode = 0
-   *  itype = array<object>
-   *  lnode = name
-   *  ltype = string
-   *
-   *  Given:
-   *  env = SOLO_DEPLOYMENTS_0_CLUSTERS_0=e2e-cluster-1
-   *  cfg = solo.deployments.0.clusters.0=e2e-cluster-1
-   * Then:
-   *  key = deployments.0.clusters.0
-   *  rnode = deployments
-   *  rtype = array
-   *  lnode = clusters
-   *  ltype = array<string>
+   * <p>A variable that is set but empty is skipped: readBytes rejects a blank value, so listing it would
+   * hand the caller a key that cannot be read.
    */
-
   public async list(): Promise<string[]> {
-    let environment: NodeJS.ProcessEnv = process.env;
-    if (!environment) {
-      environment = {};
-    }
+    const environment: NodeJS.ProcessEnv = process.env ?? {};
 
-    const keys: string[] = Object.keys(environment);
-    // A variable that is set but empty must not be listed: readBytes rejects a blank value, so listing it
-    // would hand the caller a key that cannot be read and abort config loading over a variable carrying
-    // no configuration at all.
-    return keys
-      .filter(
-        (value): boolean =>
-          Prefix.matcher(value, this.prefix, EnvironmentKeyFormatter.instance()) && Boolean(environment[value]),
-      )
-      .map((value): string => this.toConfigKey(value));
+    return [...EnvironmentKeyRegistry.configKeys()].filter((key: string): boolean =>
+      Boolean(environment[this.variableNameFor(key)]),
+    );
   }
 
-  /**
-   * Resolves an environment variable name to the config key it overrides. `_` separates both nesting levels
-   * and camelCase word boundaries, so the name is ambiguous on its own and is resolved against the schema;
-   * a name no registered schema declares falls back to treating every `_` as a nesting level.
-   */
-  private toConfigKey(environmentVariableName: string): string {
-    const name: string = Prefix.strip(environmentVariableName, this.prefix, EnvironmentKeyFormatter.instance());
-
-    return EnvironmentKeyRegistry.resolve(name) ?? Prefix.strip(environmentVariableName, this.prefix);
+  /** The environment variable name a config key is read from, e.g. `helmChart.directory` -> `SOLO_HELM_CHART_DIRECTORY`. */
+  public variableNameFor(key: string): string {
+    return Prefix.add(key, this.prefix, EnvironmentKeyFormatter.instance());
   }
 
   public async readBytes(key: string): Promise<Buffer> {
@@ -95,13 +56,9 @@ export class EnvironmentStorageBackend implements StorageBackend {
       throw new SoloErrors.validation.illegalArgument('key must not be null, undefined, or empty');
     }
 
-    const normalizedKey: string = Prefix.add(key, this.prefix, EnvironmentKeyFormatter.instance());
-    let environment: NodeJS.ProcessEnv = process.env;
-    if (!environment) {
-      environment = {};
-    }
+    const environment: NodeJS.ProcessEnv = process.env ?? {};
 
-    const value: string = environment[normalizedKey];
+    const value: string = environment[this.variableNameFor(key)];
     if (!value) {
       throw new StorageBackendError(`key not found: ${key}`);
     }
@@ -116,10 +73,7 @@ export class EnvironmentStorageBackend implements StorageBackend {
    * Used to resolve environment variable aliases.
    */
   public readRawValue(name: string): string | undefined {
-    let environment: NodeJS.ProcessEnv = process.env;
-    if (!environment) {
-      environment = {};
-    }
+    const environment: NodeJS.ProcessEnv = process.env ?? {};
 
     const value: string | undefined = environment[name];
     return value && value.trim() !== '' ? value : undefined;

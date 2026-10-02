@@ -17,7 +17,7 @@ setting — that is a CLI flag or a plain `SoloConfigSchema` field.
 | `copyWrapsLibraryInParallel`  | `false` | `src/commands/network.ts`                                    | `EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL`                                    |
 | `skipNodePing`                | `false` | `src/core/account-manager.ts`                                | `SOLO_FF_SKIP_NODE_PING`, `SKIP_NODE_PING`                                   |
 | `disableBlockNodeIntegration` | `false` | `src/commands/mirror-node.ts`                                | `SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION`, `DISABLE_IMPORTER_SPRING_PROFILES` |
-| `enableImageCache`            | `true`  | `src/core/cluster-task-manager.ts`, `src/commands/one-shot/` | `SOLO_FF_ENABLE_IMAGE_CACHE`, `ENABLE_IMAGE_CACHE`                           |
+| `enableImageCache`            | `true`  | `src/commands/one-shot/`                                     | `SOLO_FF_ENABLE_IMAGE_CACHE`, `ENABLE_IMAGE_CACHE`                           |
 
 Every flag also answers to its generated `SOLO_FEATURE_FLAGS_*` name. `copyWrapsLibraryInParallel` is still
 experimental, so it carries only an `EXPERIMENTAL_` alias. `enableImageCache` is the one opt-out flag — it
@@ -102,9 +102,10 @@ A flag answers to several names. The first match in this order wins:
 | legacy name                        | `legacyAlias` preserved when a flag replaces an ad-hoc environment variable | `SKIP_NODE_PING`                     |
 
 The generated form uses `_` for both camelCase word boundaries and schema nesting levels, so every name is a
-valid POSIX identifier and can be set with `export`. The reverse mapping is ambiguous from the name alone and
-is resolved against the schema by `EnvironmentKeyRegistry`, which fails fast if two config keys would generate
-the same name. The shorter `SOLO_FF_*` aliases remain for convenience.
+valid POSIX identifier and can be set with `export`. A name therefore cannot be taken apart again, so the
+environment is read forwards: `EnvironmentKeyRegistry` generates the name for every config key the schema
+declares and looks each one up, failing fast if two keys would generate the same name. A `SOLO_*` variable
+matching no declared key is left alone. The shorter `SOLO_FF_*` aliases remain for convenience.
 
 Never add an alias that merely repeats the generated name — `test/unit/data/key/environment-key-registry.test.ts`
 rejects it, along with any name containing a dash.
@@ -116,7 +117,16 @@ applied explicitly rather than taken from decorator declaration order. An alias 
 uniquely-typed schema field — a reused type such as `HelmChartSchema` fails fast at startup. Setting two
 spellings at once logs a warning naming the one that won.
 
-Values parse as booleans, so `SOLO_FF_SKIP_NODE_PING=false` genuinely means "off", unlike the
+---
+
+## Flag values
+
+`EnvironmentConfigSource` parses a flag against the type its schema field declares, so a flag holds a real
+boolean rather than whatever `JSON.parse` made of the string. Accepted, case-insensitively and ignoring
+surrounding whitespace: `true`, `false`, `1`, `0`. Anything else — `yes`, `off`, `2` — is rejected at load
+with an error naming the variable, rather than being read as truthy.
+
+So `SOLO_FF_SKIP_NODE_PING=false` and `=FALSE` and `=0` all genuinely mean "off", unlike the
 `Boolean('false')` reads these flags replaced. An empty or whitespace-only value counts as unset and falls
 through to the default. Precedence, lowest to highest: the `FeatureFlagsSchema` constructor default, then a
 `resources/config/*.yaml` entry (there is no feature-flag file today), then the environment variable.

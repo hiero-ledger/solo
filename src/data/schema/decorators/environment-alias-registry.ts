@@ -36,8 +36,8 @@ export class EnvironmentAliasRegistry {
   /** Memoized `fixed env var name` -> `dotted config key path` (e.g. `tss.readyMaxAttempts`). */
   private static cachedAliasMap: Map<string, string> | undefined;
 
-  /** Memoized set of every leaf config key path reachable from the registered root schemas. */
-  private static cachedConfigPaths: Set<string> | undefined;
+  /** Memoized `leaf config key path` -> `typeof its schema default` for the registered root schemas. */
+  private static cachedConfigLeaves: Map<string, string> | undefined;
 
   /**
    * Registers one or more supported fixed environment variable names for the annotated field.
@@ -91,7 +91,7 @@ export class EnvironmentAliasRegistry {
   /** Drops the memoized maps so the next read rebuilds them. */
   private static invalidate(): void {
     EnvironmentAliasRegistry.cachedAliasMap = undefined;
-    EnvironmentAliasRegistry.cachedConfigPaths = undefined;
+    EnvironmentAliasRegistry.cachedConfigLeaves = undefined;
   }
 
   /**
@@ -117,35 +117,42 @@ export class EnvironmentAliasRegistry {
 
   /**
    * Returns every leaf config key path reachable from the registered root schemas, as dotted camelCase
-   * (e.g. `helmChart.directory`) — the authoritative list of keys the environment can override. A fresh
-   * Set is built on each invalidation, so dependents can cache against its identity.
+   * (e.g. `helmChart.directory`), mapped to the `typeof` its schema default — the authoritative list of
+   * keys the environment can override, and of the type each one expects. A fresh Map is built on each
+   * invalidation, so dependents can cache against its identity.
    */
-  public static configPaths(): ReadonlySet<string> {
+  public static configLeaves(): ReadonlyMap<string, string> {
     EnvironmentAliasRegistry.build();
-    return EnvironmentAliasRegistry.cachedConfigPaths;
+    return EnvironmentAliasRegistry.cachedConfigLeaves;
   }
 
   /** Builds and memoizes both derived maps in a single walk of the registered root schemas. */
   private static build(): void {
-    if (EnvironmentAliasRegistry.cachedAliasMap && EnvironmentAliasRegistry.cachedConfigPaths) {
+    if (EnvironmentAliasRegistry.cachedAliasMap && EnvironmentAliasRegistry.cachedConfigLeaves) {
       return;
     }
 
     const aliases: Map<string, string> = new Map<string, string>();
-    const paths: Set<string> = new Set<string>();
+    const leaves: Map<string, string> = new Map<string, string>();
     for (const rootClass of EnvironmentAliasRegistry.rootSchemas) {
-      EnvironmentAliasRegistry.walk(new rootClass(), '', aliases, paths);
+      EnvironmentAliasRegistry.walk(new rootClass(), '', aliases, leaves);
     }
 
     EnvironmentAliasRegistry.cachedAliasMap = aliases;
-    EnvironmentAliasRegistry.cachedConfigPaths = paths;
+    EnvironmentAliasRegistry.cachedConfigLeaves = leaves;
   }
 
   /**
    * Recursively collects aliases and leaf config paths from a schema instance, building dotted config paths
-   * as it descends.
+   * as it descends. Each leaf records the `typeof` of its default, which is the type the schema declares
+   * for that field.
    */
-  private static walk(instance: object, prefix: string, result: Map<string, string>, paths: Set<string>): void {
+  private static walk(
+    instance: object,
+    prefix: string,
+    result: Map<string, string>,
+    leaves: Map<string, string>,
+  ): void {
     const declaredAliases: Map<string, string[]> | undefined = EnvironmentAliasRegistry.fieldAliases.get(
       Object.getPrototypeOf(instance) as object,
     );
@@ -169,9 +176,9 @@ export class EnvironmentAliasRegistry {
       const value: unknown = (instance as Record<string, unknown>)[key];
       const path: string = prefix ? `${prefix}.${key}` : key;
       if (EnvironmentAliasRegistry.isSchemaInstance(value)) {
-        EnvironmentAliasRegistry.walk(value, path, result, paths);
+        EnvironmentAliasRegistry.walk(value, path, result, leaves);
       } else {
-        paths.add(path);
+        leaves.set(path, typeof value);
       }
     }
   }

@@ -7,16 +7,14 @@
  * joined by dots, e.g. `helmChart.directory`.  The EnvironmentStorageBackend must produce the
  * same keys so that EnvironmentConfigSource can override those YAML values.
  *
- * Forward direction  (config key -> env var name), via Prefix.add / EnvironmentKeyFormatter:
+ * Names are generated from the schema, via Prefix.add / EnvironmentKeyFormatter:
  *   `helmChart.directory`  ->  `SOLO_HELM_CHART_DIRECTORY`
  *
- * Reverse direction  (env var name -> config key), via EnvironmentKeyRegistry:
- *   `SOLO_HELM_CHART_DIRECTORY`  ->  `helmChart.directory`
- *
- * `_` separates both nesting levels and camelCase word boundaries, so the reverse direction is not
- * decidable from the name alone and is resolved against the config schema instead.  Environment
- * variable names must be POSIX identifiers (`[A-Za-z_][A-Za-z0-9_]*`); a dash cannot appear in one,
- * because `export SOLO_HELM-CHART_DIRECTORY=...` is rejected by every POSIX shell.
+ * `_` separates both nesting levels and camelCase word boundaries, so a name cannot be taken apart
+ * again; EnvironmentStorageBackend therefore reads the environment forwards, looking up the name each
+ * declared config key generates.  Environment variable names must be POSIX identifiers
+ * (`[A-Za-z_][A-Za-z0-9_]*`); a dash cannot appear in one, because
+ * `export SOLO_HELM-CHART_DIRECTORY=...` is rejected by every POSIX shell.
  */
 
 import {expect} from 'chai';
@@ -33,7 +31,7 @@ import {EnvironmentScope} from '../../../../../test/helpers/environment-scope.js
 
 const mapper: ClassToObjectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
 
-// The reverse direction is schema-derived, so SoloConfigSchema has to be the registered root for these
+// Name generation is schema-derived, so SoloConfigSchema has to be the registered root for these
 // assertions.  This runs before each test, not once for the file: other suites call resetRootSchemas(),
 // and a one-shot `before` would leave the registry empty underneath these assertions.
 beforeEach((): void => {
@@ -75,9 +73,9 @@ describe('EnvironmentKeyFormatter – env var naming (config key → env var)', 
 });
 
 // ---------------------------------------------------------------------------
-// Section 2 – Reverse direction: env var name → config key, resolved against the schema
+// Section 2 – Which config keys the environment supplies
 // ---------------------------------------------------------------------------
-describe('EnvironmentStorageBackend – key stripping (env var → config key)', (): void => {
+describe('EnvironmentStorageBackend – listing set keys', (): void => {
   it(
     'SOLO_HELM_CHART_DIRECTORY resolves to helmChart.directory',
     EnvironmentScope.with({SOLO_HELM_CHART_DIRECTORY: '/tmp/charts'}, async (): Promise<void> => {
@@ -208,5 +206,33 @@ describe('EnvironmentConfigSource – names that no longer need an alias still r
         expect(source.asObject(SoloConfigSchema)?.tss?.wraps?.libraryDownloadUrl).to.equal('https://example.com/w.tgz');
       },
     ),
+  );
+});
+
+describe('EnvironmentConfigSource – a numeric field holds a number after load', (): void => {
+  // Regression (PR #6021 review): class-transformer does no type conversion, so an override reached
+  // tss.readyMaxAttempts as the string it was typed as. '0 < "abc"' is false, which silently reduced the
+  // TSS ready wait to zero attempts.
+  it(
+    'keeps a numeric override a number',
+    EnvironmentScope.with({SOLO_TSS_READY_MAX_ATTEMPTS: '99'}, async (): Promise<void> => {
+      const source: EnvironmentConfigSource = new EnvironmentConfigSource(mapper, 'SOLO');
+      await source.load();
+      expect(source.asObject(SoloConfigSchema)?.tss?.readyMaxAttempts).to.be.a('number');
+    }),
+  );
+
+  it(
+    'rejects a numeric override that is not a number',
+    EnvironmentScope.with({SOLO_TSS_READY_MAX_ATTEMPTS: 'abc'}, async (): Promise<void> => {
+      const source: EnvironmentConfigSource = new EnvironmentConfigSource(mapper, 'SOLO');
+      try {
+        await source.load();
+        expect.fail('expected a type mismatch error');
+      } catch (error) {
+        expect(error.message).to.include('SOLO_TSS_READY_MAX_ATTEMPTS');
+        expect(error.message).to.include('not a valid number');
+      }
+    }),
   );
 });

@@ -32,12 +32,12 @@ describe('environment variable naming contract', (): void => {
   });
 
   it('exposes at least one config path, so the assertions below are not vacuous', (): void => {
-    expect(EnvironmentAliasRegistry.configPaths().size).to.be.greaterThan(0);
+    expect(EnvironmentAliasRegistry.configLeaves().size).to.be.greaterThan(0);
   });
 
   it('generates no environment variable name containing a dash', (): void => {
     const offenders: string[] = [];
-    for (const path of EnvironmentAliasRegistry.configPaths()) {
+    for (const path of EnvironmentAliasRegistry.configLeaves().keys()) {
       const name: string = Prefix.add(path, 'SOLO', EnvironmentKeyFormatter.instance());
       if (name.includes('-')) {
         offenders.push(`${path} -> ${name}`);
@@ -50,7 +50,7 @@ describe('environment variable naming contract', (): void => {
 
   it('generates only POSIX-valid environment variable names', (): void => {
     const offenders: string[] = [];
-    for (const path of EnvironmentAliasRegistry.configPaths()) {
+    for (const path of EnvironmentAliasRegistry.configLeaves().keys()) {
       const name: string = Prefix.add(path, 'SOLO', EnvironmentKeyFormatter.instance());
       if (!POSIX_NAME.test(name)) {
         offenders.push(`${path} -> ${name}`);
@@ -103,13 +103,29 @@ describe('environment variable naming contract', (): void => {
 
   it('maps every config key to a distinct environment variable name', (): void => {
     // keyMap() throws on collision; asserting the size proves nothing was silently dropped.
-    expect(EnvironmentKeyRegistry.keyMap().size).to.equal(EnvironmentAliasRegistry.configPaths().size);
+    expect(EnvironmentKeyRegistry.keyMap().size).to.equal(EnvironmentAliasRegistry.configLeaves().size);
   });
 
-  it('resolves a generated name back to the config key it came from', (): void => {
-    for (const path of EnvironmentAliasRegistry.configPaths()) {
+  it('declares no config key whose first segment is the prefix itself', (): void => {
+    // Prefix.add skips the prefix when the normalized key already starts with it, so a key such as
+    // `solo.cacheDir` would be read from SOLO_CACHE_DIR — the same variable as a plain `cacheDir`.
+    // keyMap() compares unprefixed names and would see those two as distinct, so this is the only
+    // place the clash can be caught. No such key exists today; this fails the build if one is added.
+    const offenders: string[] = [];
+    for (const path of EnvironmentAliasRegistry.configLeaves().keys()) {
+      if (path.split('.', 1)[0].toUpperCase() === 'SOLO') {
+        offenders.push(`${path} -> ${Prefix.add(path, 'SOLO', EnvironmentKeyFormatter.instance())}`);
+      }
+    }
+
+    expect(offenders, `config keys that collide with the SOLO prefix, rename them:\n${offenders.join('\n')}`).to.be
+      .empty;
+  });
+
+  it('generates a distinct name for every config key it declares', (): void => {
+    for (const path of EnvironmentAliasRegistry.configLeaves().keys()) {
       const name: string = EnvironmentKeyFormatter.instance().normalize(path);
-      expect(EnvironmentKeyRegistry.resolve(name), `${name} should resolve to ${path}`).to.equal(path);
+      expect(EnvironmentKeyRegistry.keyMap().get(name), `${name} should resolve to ${path}`).to.equal(path);
     }
   });
 });

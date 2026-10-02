@@ -197,3 +197,55 @@ describe('feature flags – legacy environment variable names', (): void => {
     }),
   );
 });
+
+describe('feature flags – value parsing', (): void => {
+  beforeEach((): void => {
+    EnvironmentAliasRegistry.resetRootSchemas();
+    EnvironmentAliasRegistry.registerRootSchema(SoloConfigSchema);
+  });
+
+  afterEach((): void => {
+    EnvironmentAliasRegistry.resetRootSchemas();
+  });
+
+  it(
+    'reads a flag as a real boolean, not the string the environment carried',
+    EnvironmentScope.with({SOLO_FF_SKIP_NODE_PING: 'true'}, async (): Promise<void> => {
+      const flags: FeatureFlagsSchema = await readSoloFlags();
+      expect(flags?.skipNodePing).to.be.a('boolean');
+    }),
+  );
+
+  for (const [value, expected] of [
+    ['true', true],
+    ['TRUE', true],
+    ['1', true],
+    ['false', false],
+    ['FALSE', false],
+    ['0', false],
+    [' True ', true],
+  ] as [string, boolean][]) {
+    it(
+      `reads SKIP_NODE_PING='${value}' as ${expected}`,
+      EnvironmentScope.with({SKIP_NODE_PING: value}, async (): Promise<void> => {
+        const flags: FeatureFlagsSchema = await readSoloFlags();
+        expect(flags?.skipNodePing).to.equal(expected);
+      }),
+    );
+  }
+
+  for (const value of ['no', 'off', 'yes', '4', 'maybe']) {
+    it(
+      `rejects ENABLE_IMAGE_CACHE='${value}' instead of reading it as truthy`,
+      EnvironmentScope.with({ENABLE_IMAGE_CACHE: value}, async (): Promise<void> => {
+        try {
+          await readSoloFlags();
+          expect.fail('expected a type mismatch error');
+        } catch (error) {
+          expect(error.message).to.include('ENABLE_IMAGE_CACHE');
+          expect(error.message).to.include('not a valid boolean');
+        }
+      }),
+    );
+  }
+});

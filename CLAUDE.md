@@ -101,11 +101,19 @@ SOLO_HELM-CHART_DIRECTORY=x` is rejected by every POSIX shell — so no generate
 contain one. This is enforced by `test/unit/data/key/environment-key-registry.test.ts`; run it after
 adding or renaming a schema field.
 
-Because `_` is overloaded, an env var name is ambiguous on its own (`SOLO_HELM_CHART_DIRECTORY` could
-be `helmChart.directory` or `helm.chart.directory`). The reverse mapping is therefore resolved against
-the schema by `EnvironmentKeyRegistry` (`src/data/key/environment-key-registry.ts`), which walks every
-leaf path `SoloConfigSchema` declares and **fails fast if two paths generate the same name**. If you
-add a field that collides, rename it.
+Because `_` is overloaded, an env var name cannot be taken apart again (`SOLO_HELM_CHART_DIRECTORY`
+could be `helmChart.directory` or `helm.chart.directory`). The environment is therefore read
+**forwards**: `EnvironmentKeyRegistry` (`src/data/key/environment-key-registry.ts`) walks every leaf
+path `SoloConfigSchema` declares, generates each one's name, and `EnvironmentStorageBackend` looks up
+only those. A `SOLO_*` variable matching no declared key is not configuration and is ignored — never
+scan the environment and split names on `_`, which turns an unrelated pair such as `SOLO_CHARTS_DIR`
+and `SOLO_CHARTS_DIR_FLAG` into an unrepresentable config tree that aborts startup. The registry
+**fails fast if two paths generate the same name**; if you add a field that collides, rename it.
+
+Values are parsed against the type the schema field declares — a boolean accepts `true`/`false`/`1`/`0`
+case-insensitively, a number an integer or decimal literal — and anything else is rejected at load with
+an error naming the variable. Without this, `JSON.parse` would leave `FALSE` a truthy string and `abc`
+a string on a numeric field.
 
 **Environment variable aliases.** A field may declare fixed alias env var names the generated name
 cannot reproduce, via two property decorators in
