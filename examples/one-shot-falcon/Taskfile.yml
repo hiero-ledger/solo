@@ -16,6 +16,7 @@ vars:
   TEMP_DIR: "{{ .USER_WORKING_DIR }}/.tmp"
   KILLED_PORT_FILE: "{{ .TEMP_DIR }}/killed_port.txt"
   EXPECTED_PORT_COUNT_FILE: "{{ .TEMP_DIR }}/expected_port_count.txt"
+  CUSTOM_BUCKET: "falcon-values-file-override"
   RELEASE_TAG:
     sh: |
       awk -v RS=';' '/HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' \
@@ -51,6 +52,16 @@ tasks:
             "{{ .USER_WORKING_DIR }}/falcon-values.yaml" > "${RESOLVED}"
           $SOLO_COMMAND one-shot falcon deploy \
             --values-file "${RESOLVED}" --num-consensus-nodes 2 --no-rollback
+          NAMESPACE="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}" namespace)"
+          BUCKETS="$(kubectl --context "{{ .CONTEXT }}" --namespace "${NAMESPACE}" \
+            get tenants.minio.min.io/minio -o jsonpath='{range .spec.buckets[*]}{.name}{"\n"}{end}')"
+          echo "Configured Silo buckets:"
+          echo "${BUCKETS}"
+          if ! printf '%s\n' "${BUCKETS}" | grep -Fxq "{{ .CUSTOM_BUCKET }}"; then
+            echo "Expected custom bucket '{{ .CUSTOM_BUCKET }}' was not applied" >&2
+            exit 1
+          fi
+          echo "Verified nested custom values file was applied successfully"
           rm -f "${RESOLVED}"
 
   deploy-defaults:

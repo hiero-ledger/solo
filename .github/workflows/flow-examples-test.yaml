@@ -431,6 +431,7 @@ jobs:
           MATRIX_ONE_SHOT_WITH_BLOCK_NODE: ${{ matrix.example.one-shot-with-block-node }}
           MATRIX_BLOCK_NODE_ENABLED: ${{ matrix.example.block-node-enabled }}
           EXAMPLE_DIRECTORY: ${{ matrix.example.directory }}
+          ENABLE_IMAGE_CACHE: 'true'
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "Running example: ${EXAMPLE_NAME}"
