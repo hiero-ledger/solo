@@ -16,8 +16,12 @@ module at the same (non-existent) image.
 * **Builds the six Mirror Node module images locally** with the same Gradle invocation
   `hiero-mirror-node`'s own CI uses (`./gradlew ":${module}:dockerBuild" -PimageTag=...`)
 * **Deploys a single-node consensus-only network** with the standard step-by-step Solo commands
-* **Adds Mirror Node with `--component-image gcr.io/mirrornode/hedera-mirror:<tag>`** — a repository
-  prefix, not a real image — and lets Solo derive, locally-load, and wire up all six module images
+* **Adds Mirror Node with `--component-image solo-local-test/hedera-mirror:<tag>`** — a repository
+  prefix, not a real image — and lets Solo derive, locally-load, and wire up all six module images.
+  The prefix is deliberately not a real registry hostname: Solo's local-vs-remote image
+  classification looks at the first path segment, and anything that looks like a registry host
+  (e.g. the Gradle default `gcr.io/mirrornode`) is treated as a published image and never loaded
+  into Kind, even when it happens to already exist in the local Docker daemon
 * **Verifies** every Mirror Node pod becomes Ready and is running the expected locally built image
   with `pullPolicy: Never`
 
@@ -66,10 +70,10 @@ This will:
 
 1. Clone `hiero-mirror-node` next to the `solo` directory (e.g., `../hiero-mirror-node`)
 2. Build the six module images with Gradle, all tagged
-   `gcr.io/mirrornode/hedera-mirror-<module>:solo-component-image-test`
+   `solo-local-test/hedera-mirror-<module>:solo-component-image-test`
 3. Create a local Kind cluster
 4. Deploy a single consensus node
-5. Add Mirror Node with `--component-image gcr.io/mirrornode/hedera-mirror:solo-component-image-test`
+5. Add Mirror Node with `--component-image solo-local-test/hedera-mirror:solo-component-image-test`
 6. Verify every Mirror Node pod is Ready and using the expected local image with `pullPolicy: Never`
 
 ### Step-by-Step Workflow
@@ -109,6 +113,8 @@ This will:
 ## Files
 
 * `Taskfile.yml` — Automation tasks for checkout, build, deploy, verify, and destroy
+* `mirror-memory-values.yaml` — Raises module memory limits above Solo's defaults for this
+  deployment only; a cold start of several modules was observed to OOMKill at the defaults
 
 ## Customization
 

@@ -28,9 +28,11 @@ vars:
   # images; Solo's own bundled hedera-mirror chart is used for the deployment (no --mirror-node-chart-dir).
   MIRROR_NODE_REPO_DIR: "{{.ROOT_DIR}}/../hiero-mirror-node"
 
-  # Matches the registry default in hiero-mirror-node's buildSrc/docker-conventions.gradle.kts
-  # (imageRegistry=gcr.io/mirrornode), so no -PimageRegistry override is needed.
-  IMAGE_REGISTRY: "gcr.io/mirrornode"
+  # Must NOT look like a real registry host (no dot, no colon, not "localhost"): Solo's
+  # isLocalImageReference classifies a reference by its first path segment, and anything that
+  # looks like a registry hostname (e.g. the gradle default "gcr.io/mirrornode") is treated as a
+  # published remote image and never loaded into Kind, even if it happens to exist locally.
+  IMAGE_REGISTRY: "solo-local-test"
   IMAGE_TAG: "solo-component-image-test"
   COMPONENT_IMAGE: "{{.IMAGE_REGISTRY}}/hedera-mirror:{{.IMAGE_TAG}}"
 
@@ -57,7 +59,8 @@ tasks:
           cd {{.MIRROR_NODE_REPO_DIR}}
           for module in {{.MODULES}}; do
             echo "Building hedera-mirror-${module}:{{.IMAGE_TAG}}..."
-            ./gradlew ":${module}:dockerBuild" -x :rest:monitoring:dockerBuild -PimageTag={{.IMAGE_TAG}} --stacktrace
+            ./gradlew ":${module}:dockerBuild" -x :rest:monitoring:dockerBuild \
+              -PimageRegistry={{.IMAGE_REGISTRY}} -PimageTag={{.IMAGE_TAG}} --stacktrace
           done
           echo "Built module images:"
           docker images --filter "reference={{.IMAGE_REGISTRY}}/hedera-mirror-*:{{.IMAGE_TAG}}"
@@ -124,36 +127,44 @@ tasks:
           # Solo expands this prefix into the six module images (importer, grpc, rest, rest-java,
           # web3, monitor), loads whichever are found in the local Docker daemon into the Kind
           # cluster, and sets pullPolicy: Never only for those — see issue #5938.
+          # mirror-memory-values.yaml raises memory limits above Solo's defaults for this
+          # deployment only; a cold start was observed to OOMKill several modules at the defaults.
           $SOLO_COMMAND mirror node add --deployment {{ .SOLO_DEPLOYMENT }} \
-          --mirror-node-version {{ .MIRROR_NODE_VERSION }} --component-image {{.COMPONENT_IMAGE}} --dev
+          --mirror-node-version {{ .MIRROR_NODE_VERSION }} --component-image {{.COMPONENT_IMAGE}} \
+          --values-file {{ .TASKFILE_DIR }}/mirror-memory-values.yaml --dev
 
       - task: verify
 
   verify:
-    desc: Verify every Mirror Node module pod is Ready, using the locally built image with pullPolicy Never
+    desc: Verify the Helm release has all six module images wired up, and that their pods are Ready
     cmds:
       - cmd: |
-          echo "==== Waiting for all Mirror Node pods to become Ready ===="
+          echo "==== Checking registry/repository/tag/pullPolicy for all six modules on the Helm release ===="
+          # Checked against the rendered Helm release values rather than live pods: the "monitor"
+          # module is not enabled by Solo's default mirror-node-values.yaml (no pod is ever
+          # created for it), but Solo still must set its image values correctly — this check
+          # covers all six regardless of which ones actually get a running pod.
+          VALUES_JSON="$(helm get values mirror-1 -n {{ .SOLO_NAMESPACE }} --all -o json)"
+          for module in {{.MODULES}}; do
+            chartKey="$(printf '%s' "${module}" | tr -d '-')"
+            ACTUAL="$(printf '%s' "${VALUES_JSON}" | jq -r --arg key "${chartKey}" \
+              '.[$key].image | "\(.registry)/\(.repository):\(.tag) \(.pullPolicy)"')"
+            EXPECTED="docker.io/{{.IMAGE_REGISTRY}}/hedera-mirror-${module}:{{.IMAGE_TAG}} Never"
+            if [ "${ACTUAL}" != "${EXPECTED}" ]; then
+              echo "ERROR: ${module} (chart key ${chartKey}) image mismatch: got '${ACTUAL}', expected '${EXPECTED}'" >&2
+              exit 1
+            fi
+            echo "OK: ${module} (chart key ${chartKey}) -> ${ACTUAL}"
+          done
+
+      - cmd: |
+          echo "==== Waiting for the deployed Mirror Node pods to become Ready ===="
           if ! kubectl wait --for=condition=Ready pods --all -n {{ .SOLO_NAMESPACE }} \
             -l app.kubernetes.io/instance=mirror-1 --timeout=15m; then
             echo "ERROR: not every Mirror Node pod became Ready; see pod status below" >&2
             kubectl get pods -n {{ .SOLO_NAMESPACE }} -l app.kubernetes.io/instance=mirror-1 -o wide
             exit 1
           fi
-
-      - cmd: |
-          echo "==== Checking image and pullPolicy on every Mirror Node pod ===="
-          ACTUAL="$(kubectl get pods -n {{ .SOLO_NAMESPACE }} -l app.kubernetes.io/instance=mirror-1 \
-            -o jsonpath='{range .items[*]}{range .spec.containers[*]}{.image}{" "}{.imagePullPolicy}{"\n"}{end}{end}')"
-          echo "${ACTUAL}"
-          for module in {{.MODULES}}; do
-            EXPECTED="{{.IMAGE_REGISTRY}}/hedera-mirror-${module}:{{.IMAGE_TAG}} Never"
-            if ! printf '%s\n' "${ACTUAL}" | grep -Fxq "${EXPECTED}"; then
-              echo "ERROR: expected container image/pullPolicy line not found: '${EXPECTED}'" >&2
-              exit 1
-            fi
-            echo "OK: ${module} is running ${EXPECTED}"
-          done
 
   destroy:
     desc: Destroy the Solo network and clean up
