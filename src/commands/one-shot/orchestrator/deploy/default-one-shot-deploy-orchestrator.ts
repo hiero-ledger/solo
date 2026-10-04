@@ -1313,7 +1313,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         // npm run-script executes with cwd set to the package root, not the caller's directory,
         // which otherwise silently resolves this against the wrong base.
         config.networkConfiguration[networkValuesFileKey] = PathEx.resolve(
-          path.dirname(config.valuesFile),
+          PathEx.dirname(config.valuesFile),
           networkValuesFile,
         );
       }

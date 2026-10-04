@@ -916,7 +916,7 @@ describe('DefaultOneShotDeployOrchestrator applyValuesFileOverrides', (): void =
   // Covers the real on-disk layout: the Falcon example's nested --values-file is a bare filename
   // resolved next to falcon-values.yaml, not relative to the process cwd (npm run-script executes
   // with cwd set to the package root, not the caller's directory).
-  it('propagates a customized values file based on the one-shot Falcon example', (): void => {
+  it('propagates the nested values file using the real one-shot Falcon example layout', (): void => {
     const examplePath: string = PathEx.resolve('examples/one-shot-falcon/falcon-values.yaml');
     const config: OneShotSingleDeployConfigClass = makeConfig({valuesFile: examplePath});
 

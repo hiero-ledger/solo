@@ -51,6 +51,7 @@ tasks:
           # references (silo-helm-values.yaml) is a bare filename resolved next to whichever
           # file references it, so the copy must stay in the same directory as the original.
           RESOLVED=$(mktemp "{{ .USER_WORKING_DIR }}/falcon-values-XXXXXX")
+          trap 'rm -f "${RESOLVED}"' EXIT
           RELEASE_TAG="{{ .RELEASE_TAG }}"
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
@@ -67,7 +68,6 @@ tasks:
             exit 1
           fi
           echo "Verified nested custom values file was applied successfully"
-          rm -f "${RESOLVED}"
 
   deploy-defaults:
     desc: Deploy without a values file, using the one-shot single defaults
@@ -88,6 +88,7 @@ tasks:
           # references (silo-helm-values.yaml) is a bare filename resolved next to whichever
           # file references it, so the copy must stay in the same directory as the original.
           RESOLVED=$(mktemp "{{ .USER_WORKING_DIR }}/falcon-values-XXXXXX")
+          trap 'rm -f "${RESOLVED}"' EXIT
           RELEASE_TAG="{{ .RELEASE_TAG }}"
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
@@ -95,7 +96,6 @@ tasks:
           $SOLO_COMMAND one-shot falcon deploy \
             --values-file "${RESOLVED}" --num-consensus-nodes 2 \
             --deploy-explorer=false --deploy-relay=false
-          rm -f "${RESOLVED}"
 
   deploy-consensus-only:
     desc: Deploy consensus nodes only (without mirror, explorer, and relay)
@@ -108,6 +108,7 @@ tasks:
           # references (silo-helm-values.yaml) is a bare filename resolved next to whichever
           # file references it, so the copy must stay in the same directory as the original.
           RESOLVED=$(mktemp "{{ .USER_WORKING_DIR }}/falcon-values-XXXXXX")
+          trap 'rm -f "${RESOLVED}"' EXIT
           RELEASE_TAG="{{ .RELEASE_TAG }}"
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
@@ -115,7 +116,6 @@ tasks:
           $SOLO_COMMAND one-shot falcon deploy \
             --values-file "${RESOLVED}" --num-consensus-nodes 2 \
             --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
-          rm -f "${RESOLVED}"
 
   test-refresh:
     desc: Kill one port-forward, then run deployment refresh port-forwards
