@@ -326,7 +326,7 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   protected validateComponentImageArchive(
-    componentImage: Optional<string> | string[],
+    componentImage: Optional<string | string[]>,
     componentImageArchive: Optional<string>,
   ): void {
     if (!this.hasComponentImageArchiveValue(componentImageArchive)) {

@@ -941,7 +941,7 @@ export class MirrorNodeCommand extends BaseCommand {
     clusterContext: Context,
   ): Promise<void> {
     if (this.hasComponentImageArchiveValue(componentImageArchive)) {
-      const expectedImages: Optional<string> | string[] = componentImage
+      const expectedImages: Optional<string | string[]> = componentImage
         ? MirrorNodeModuleImages.expand(componentImage).map(
             ({imageReference}: MirrorNodeModuleImageReference): string => imageReference,
           )

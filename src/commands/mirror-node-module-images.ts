@@ -22,13 +22,15 @@ export class MirrorNodeModuleImages {
 
   /**
    * Expands a Mirror Node `--component-image` repository prefix into the six per-module image
-   * references, inserting `-<module>` before the tag. Splitting on the last `:` is safe even for a
-   * Kind-attached local registry reference (e.g. `localhost:5001/hedera-mirror:tag`), since the
-   * port's colon always precedes the final `/` and the tag's colon is always the last one.
+   * references, inserting `-<module>` before the tag. A tag colon is only recognized when it falls
+   * after the last `/`, matching `ImageReference.parseImageReference`'s `hasTag` check, so a
+   * Kind-attached local registry reference's port colon (e.g. `localhost:5001/hedera-mirror`) is
+   * never mistaken for a missing tag's separator.
    */
   public static expand(componentImage: string): MirrorNodeModuleImageReference[] {
+    const lastSlashIndex: number = componentImage.lastIndexOf('/');
     const lastColonIndex: number = componentImage.lastIndexOf(':');
-    if (lastColonIndex === -1) {
+    if (lastColonIndex === -1 || lastColonIndex < lastSlashIndex) {
       throw new SoloErrors.validation.illegalArgument(
         `Mirror Node image reference must include a tag (e.g. hedera-mirror:tag): '${componentImage}'`,
         componentImage,

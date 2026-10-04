@@ -60,4 +60,10 @@ describe('MirrorNodeModuleImages', (): void => {
       /must include a tag/,
     );
   });
+
+  it('throws when a Kind-attached local registry reference is missing a tag, instead of mistaking the port for one', (): void => {
+    expect((): MirrorNodeModuleImageReference[] =>
+      MirrorNodeModuleImages.expand('localhost:5001/hedera-mirror'),
+    ).to.throw(/must include a tag/);
+  });
 });
