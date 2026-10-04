@@ -201,6 +201,7 @@ jobs:
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           echo ONE_SHOT_BLOCK_NODE_PERF=false >> .env
+          echo ONE_SHOT_PERFORMANCE_TUNING=true >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)

@@ -390,6 +390,7 @@ export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOU
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 export const ONE_SHOT_BLOCK_NODE_PERF: string = getEnvironmentVariable('ONE_SHOT_BLOCK_NODE_PERF') || 'false';
+export const ONE_SHOT_PERFORMANCE_TUNING: string = getEnvironmentVariable('ONE_SHOT_PERFORMANCE_TUNING') || 'false';
 export const ONE_SHOT_DEPLOYMENT_NAME: string = 'one-shot';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
