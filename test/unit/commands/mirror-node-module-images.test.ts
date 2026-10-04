@@ -55,15 +55,32 @@ describe('MirrorNodeModuleImages', (): void => {
     });
   });
 
-  it('throws when the reference has no tag', (): void => {
+  it('throws for a bare value with no slash, colon, or digest marker', (): void => {
     expect((): MirrorNodeModuleImageReference[] => MirrorNodeModuleImages.expand('hedera-mirror')).to.throw(
-      /must include a tag/,
+      /Invalid Mirror Node image reference format/,
     );
   });
 
-  it('throws when a Kind-attached local registry reference is missing a tag, instead of mistaking the port for one', (): void => {
-    expect((): MirrorNodeModuleImageReference[] =>
-      MirrorNodeModuleImages.expand('localhost:5001/hedera-mirror'),
-    ).to.throw(/must include a tag/);
+  it('defaults an untagged repository prefix to latest, matching ImageReference.parseImageReference', (): void => {
+    const moduleImages: MirrorNodeModuleImageReference[] = MirrorNodeModuleImages.expand('hiero-ledger/hedera-mirror');
+
+    expect(moduleImages).to.deep.include({
+      chartKey: 'importer',
+      imageReference: 'hiero-ledger/hedera-mirror-importer:latest',
+    });
+  });
+
+  it('defaults an untagged Kind-attached local registry reference to latest instead of mistaking the port for a tag', (): void => {
+    const moduleImages: MirrorNodeModuleImageReference[] =
+      MirrorNodeModuleImages.expand('localhost:5001/hedera-mirror');
+
+    expect(moduleImages).to.deep.include({
+      chartKey: 'importer',
+      imageReference: 'localhost:5001/hedera-mirror-importer:latest',
+    });
+    expect(moduleImages).to.deep.include({
+      chartKey: 'monitor',
+      imageReference: 'localhost:5001/hedera-mirror-monitor:latest',
+    });
   });
 });

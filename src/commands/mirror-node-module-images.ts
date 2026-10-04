@@ -22,23 +22,27 @@ export class MirrorNodeModuleImages {
 
   /**
    * Expands a Mirror Node `--component-image` repository prefix into the six per-module image
-   * references, inserting `-<module>` before the tag. A tag colon is only recognized when it falls
-   * after the last `/`, matching `ImageReference.parseImageReference`'s `hasTag` check, so a
-   * Kind-attached local registry reference's port colon (e.g. `localhost:5001/hedera-mirror`) is
-   * never mistaken for a missing tag's separator.
+   * references, inserting `-<module>` before the tag. Tag detection mirrors
+   * `ImageReference.parseImageReference` (`hasTag = lastColon > lastSlash`, default tag `latest`
+   * when absent): a Kind-attached local registry reference's port colon is never mistaken for a tag
+   * separator, and an untagged reference defaults to `latest` instead of being rejected, preserving
+   * the behavior `ImageReference.parseImageReference` already applied to this flag before Mirror
+   * Node's six-image expansion existed.
    */
   public static expand(componentImage: string): MirrorNodeModuleImageReference[] {
-    const lastSlashIndex: number = componentImage.lastIndexOf('/');
-    const lastColonIndex: number = componentImage.lastIndexOf(':');
-    if (lastColonIndex === -1 || lastColonIndex < lastSlashIndex) {
+    if (!componentImage.includes('/') && !componentImage.includes(':') && !componentImage.includes('@')) {
       throw new SoloErrors.validation.illegalArgument(
-        `Mirror Node image reference must include a tag (e.g. hedera-mirror:tag): '${componentImage}'`,
+        `Invalid Mirror Node image reference format: '${componentImage}'`,
         componentImage,
       );
     }
 
-    const repositoryPrefix: string = componentImage.slice(0, lastColonIndex);
-    const tag: string = componentImage.slice(lastColonIndex + 1);
+    const lastSlashIndex: number = componentImage.lastIndexOf('/');
+    const lastColonIndex: number = componentImage.lastIndexOf(':');
+    const hasTag: boolean = lastColonIndex > lastSlashIndex;
+
+    const repositoryPrefix: string = hasTag ? componentImage.slice(0, lastColonIndex) : componentImage;
+    const tag: string = hasTag ? componentImage.slice(lastColonIndex + 1) : 'latest';
 
     return MirrorNodeModuleImages.MODULES.map(({chartKey, dockerSuffix}): MirrorNodeModuleImageReference => ({
       chartKey,
