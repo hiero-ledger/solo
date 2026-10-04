@@ -9,7 +9,6 @@ sync.syncProtocolPermitCount,                  2                            # di
                                           #############################
 
 event.enableEventStreaming,                    false                        # differs from mainnet
-event.creation.maxCreationRate,                100                          # raised from default 20/s, lowers time-to-consensus
 transaction.transactionMaxBytes,               2621440                      # 2.5MB, differs from mainnet
 transaction.maxTransactionBytesPerEvent,       2621440                      # 2.5MB, differs from mainnet
 

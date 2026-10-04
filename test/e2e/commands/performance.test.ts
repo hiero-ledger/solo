@@ -55,8 +55,9 @@ const percent: number = 50;
 const stableTransactionPerSecondTarget: number = 100;
 // SmartContract tests require EVM execution on the consensus node plus mirror processing,
 // which makes them heavier than simple transfers; 500 ms provides adequate headroom at 97 TPS
-// now that blockStream.blockPeriod and event.creation.maxCreationRate are tuned down in the
-// small-memory consensus-node profile (see resources/templates/small-memory/).
+// now that blockStream.blockPeriod is tuned down in the small-memory consensus-node profile
+// (see resources/templates/small-memory/). event.creation.maxCreationRate was tried alongside
+// it but halved SmartContractLoadTest's achieved TPS (97 -> 51), so it was left at its default.
 const maxEndToEndRtt: number = 500;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
 const mirrorImporterWarmupSeconds: number = 60;
