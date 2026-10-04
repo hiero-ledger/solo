@@ -257,12 +257,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               const settingsOverrideFile: string =
                 config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
               const useStateOnDisk: boolean = cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_STATE_ON_DISK);
-              // Opt-in overlay (performance E2E tests only) that lowers block/event timing on top of the
-              // small-memory profile without touching its heap/thread settings, so it carries no memory cost.
-              const performanceTuningDirectory: string = PathEx.join(defaultsDirectory, 'performance-tuning');
-              const isPerformanceTuningEnabled: boolean =
-                constants.ONE_SHOT_PERFORMANCE_TUNING.toLowerCase() === 'true' &&
-                fs.existsSync(performanceTuningDirectory);
 
               const settingsMergedPath: string = PathEx.join(mergedDirectory, 'settings.txt');
               this.concatConfigFiles(
@@ -270,21 +264,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 PathEx.join(overridesDirectory, settingsOverrideFile),
                 settingsMergedPath,
               );
-              let finalSettingsPath: string = useStateOnDisk
+              config.networkConfiguration[flags.getFormattedFlagKey(flags.settingTxt)] = useStateOnDisk
                 ? this.concatConfigFiles(
                     settingsMergedPath,
                     PathEx.join(stateOnDiskDirectory, 'settings.txt'),
                     settingsMergedPath,
                   )
                 : settingsMergedPath;
-              if (isPerformanceTuningEnabled) {
-                finalSettingsPath = this.concatConfigFiles(
-                  finalSettingsPath,
-                  PathEx.join(performanceTuningDirectory, 'settings.txt'),
-                  finalSettingsPath,
-                );
-              }
-              config.networkConfiguration[flags.getFormattedFlagKey(flags.settingTxt)] = finalSettingsPath;
 
               const mergedApplicationPropertiesPath: string = PathEx.join(
                 mergedDirectory,
@@ -317,14 +303,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               });
 
               fs.writeFileSync(mergedApplicationPropertiesPath, filteredLines.join('\n'));
-
-              if (isPerformanceTuningEnabled) {
-                this.concatConfigFiles(
-                  mergedApplicationPropertiesPath,
-                  PathEx.join(performanceTuningDirectory, constants.APPLICATION_PROPERTIES),
-                  mergedApplicationPropertiesPath,
-                );
-              }
 
               // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationEnv)] = PathEx.join(

@@ -1,9 +1,0 @@
-# Opt-in overlay for the E2E performance test suite only (ONE_SHOT_PERFORMANCE_TUNING=true).
-# Layered on top of the small-memory settings profile; does not change any heap/thread
-# setting, so it carries no additional memory cost against the CI memory gate.
-#
-# event.creation.maxCreationRate defaults to 20 events/s per node and small-memory does not
-# override it. On a lightly loaded one-shot network that caps how quickly a submitted
-# transaction reaches consensus, adding fixed latency ahead of the block-close wait. Raising
-# it lets nodes create events as fast as the (already CPU-available) runner allows.
-event.creation.maxCreationRate, 100
