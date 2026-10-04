@@ -210,16 +210,20 @@ tasks:
       # credential plugin needs (EKS IRSA and friends) must be named explicitly. See GitHub
       # issue #5895.
       #
-      # This task uses a throwaway SOLO_HOME under .tmp and never touches ~/.solo: the operator's
-      # real solo-config.yaml must not be overwritten by running an example.
+      # This task uses a throwaway SOLO_HOME and never touches ~/.solo: the operator's real
+      # solo-config.yaml must not be overwritten by running an example.
       #
       # ACCEPTED is declared for helm and kubectl only. CONTROL is declared nowhere, so the
       # assertions below fail if the feature silently stops working.
       - cmd: |
           set -eu
-          DEMO_SOLO_HOME="{{ .TEMP_DIR }}/env-passthrough-home"
-          rm -rf "${DEMO_SOLO_HOME}"
-          mkdir -p "${DEMO_SOLO_HOME}"
+          # Rooted under the system temp directory (not .tmp inside the git workspace): Solo's
+          # config-file trust check walks every ancestor directory up to the filesystem root and
+          # only stops early at a sticky-bit directory such as /tmp. On self-hosted runners whose
+          # home directory is group-writable, a workspace-nested path never reaches that stop and
+          # the config file is refused as untrusted (issue #6127).
+          DEMO_SOLO_HOME="$(mktemp -d "${TMPDIR:-/tmp}/env-passthrough-home.XXXXXX")"
+          trap 'rm -rf "${DEMO_SOLO_HOME}"' EXIT
           cat > "${DEMO_SOLO_HOME}/solo-config.yaml" <<'SOLO_CONFIG'
           subprocess:
             additionalEnvironmentVariables:
