@@ -9,6 +9,11 @@ import {type MirrorNodeModuleImageReference} from './mirror-node-module-image-re
  * prefix (e.g. `ghcr.io/hiero-ledger/hedera-mirror:0.157.0-abc1234`) and expanded into the six module
  * images, preserving the `rest-java` (image suffix) to `restjava` (Helm chart key) mapping already
  * used by the legacy-image fallback in `MirrorNodeCommand`.
+ *
+ * A reference whose repository already ends in one of the six module suffixes (e.g.
+ * `gcr.io/mirrornode/hedera-mirror-importer:0.150.0`) is treated as an explicit, already-resolved
+ * single image rather than a prefix to expand further, and is applied verbatim to every chart key.
+ * This preserves the pre-expansion behavior for callers passing a single registry reference.
  */
 export class MirrorNodeModuleImages {
   private static readonly MODULES: {chartKey: string; dockerSuffix: string}[] = [
@@ -49,6 +54,17 @@ export class MirrorNodeModuleImages {
 
     const repositoryPrefix: string = hasTag ? componentImage.slice(0, lastColonIndex) : componentImage;
     const tag: string = hasTag ? componentImage.slice(lastColonIndex + 1) : 'latest';
+
+    const isExplicitSingleModuleReference: boolean = MirrorNodeModuleImages.MODULES.some(({dockerSuffix}): boolean =>
+      repositoryPrefix.endsWith(`-${dockerSuffix}`),
+    );
+    if (isExplicitSingleModuleReference) {
+      const imageReference: string = `${repositoryPrefix}:${tag}`;
+      return MirrorNodeModuleImages.MODULES.map(({chartKey}): MirrorNodeModuleImageReference => ({
+        chartKey,
+        imageReference,
+      }));
+    }
 
     return MirrorNodeModuleImages.MODULES.map(({chartKey, dockerSuffix}): MirrorNodeModuleImageReference => ({
       chartKey,

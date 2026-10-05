@@ -83,4 +83,30 @@ describe('MirrorNodeModuleImages', (): void => {
       imageReference: 'localhost:5001/hedera-mirror-monitor:latest',
     });
   });
+
+  it('applies an explicit single-module registry reference verbatim to every chart key instead of double-suffixing it', (): void => {
+    const moduleImages: MirrorNodeModuleImageReference[] = MirrorNodeModuleImages.expand(
+      'gcr.io/mirrornode/hedera-mirror-importer:0.150.0',
+    );
+
+    expect(moduleImages.map((entry: MirrorNodeModuleImageReference): string => entry.chartKey)).to.deep.equal(
+      expectedChartKeys,
+    );
+    for (const chartKey of expectedChartKeys) {
+      expect(moduleImages).to.deep.include({
+        chartKey,
+        imageReference: 'gcr.io/mirrornode/hedera-mirror-importer:0.150.0',
+      });
+    }
+  });
+
+  it('applies an explicit single-module reference ending in the rest-java suffix verbatim, without matching the rest suffix', (): void => {
+    const moduleImages: MirrorNodeModuleImageReference[] = MirrorNodeModuleImages.expand(
+      'hedera-mirror-rest-java:0.157.0',
+    );
+
+    for (const chartKey of expectedChartKeys) {
+      expect(moduleImages).to.deep.include({chartKey, imageReference: 'hedera-mirror-rest-java:0.157.0'});
+    }
+  });
 });

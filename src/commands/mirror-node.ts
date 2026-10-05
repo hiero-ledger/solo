@@ -589,10 +589,8 @@ export class MirrorNodeCommand extends BaseCommand {
           chartValues.setLiteral(`${chartKey}.image.pullPolicy`, 'Never');
         }
       } else {
-        for (const {chartKey, imageReference} of moduleImages) {
-          if (this.isLocalImageAvailableInDocker(imageReference)) {
-            chartValues.setLiteral(`${chartKey}.image.pullPolicy`, 'Never');
-          }
+        for (const {chartKey} of this.getLocallyAvailableModuleImages(moduleImages)) {
+          chartValues.setLiteral(`${chartKey}.image.pullPolicy`, 'Never');
         }
       }
     } else if (this.shouldApplyMirrorNodeImageTagOverrides(config.mirrorNodeChartDirectory)) {
@@ -930,6 +928,20 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /**
+   * Filters the given Mirror Node module images down to those found in the local Docker daemon.
+   * Shared by `prepareHelmChartValues` (deciding `pullPolicy: Never` per chart key) and
+   * `loadMirrorNodeComponentImages` (deciding which images to Kind-load), so the two call sites
+   * cannot drift on what "locally available" means.
+   */
+  private getLocallyAvailableModuleImages(
+    moduleImages: MirrorNodeModuleImageReference[],
+  ): MirrorNodeModuleImageReference[] {
+    return moduleImages.filter(({imageReference}: MirrorNodeModuleImageReference): boolean =>
+      this.isLocalImageAvailableInDocker(imageReference),
+    );
+  }
+
+  /**
    * Loads the six Mirror Node module images derived from `--component-image` into the target Kind
    * clusters. An archive is loaded as a whole (it may already contain all six images), while the
    * live-Docker path loads each module image only if that specific image was found locally, mirroring
@@ -955,10 +967,10 @@ export class MirrorNodeCommand extends BaseCommand {
       return;
     }
 
-    for (const {imageReference} of MirrorNodeModuleImages.expand(componentImage)) {
-      if (this.isLocalImageAvailableInDocker(imageReference)) {
-        await this.kindLoadComponentImage(imageReference, clusterContext, this.remoteConfig.getContexts());
-      }
+    for (const {imageReference} of this.getLocallyAvailableModuleImages(
+      MirrorNodeModuleImages.expand(componentImage),
+    )) {
+      await this.kindLoadComponentImage(imageReference, clusterContext, this.remoteConfig.getContexts());
     }
   }
 
