@@ -48,7 +48,16 @@ const duration: number = Duration.ofMinutes(
 ).seconds;
 const clients: number = 5;
 const accounts: number = 1000;
-const tokens: number = 50;
+// FungibleTransferJob (network-load-generator) picks the RECEIVER from a permutation of all
+// `accounts`, but the SENDER is always the token's treasury account, drawn uniformly from only
+// `tokens` possible values (see getTreasuryIdx -- it is bounded by nTokens, independent of
+// associations/nBalances). With tokens == associations == 50, up to 50 concurrent in-flight
+// transfers (5 clients x maxInFlight 10) collide on the same ~50 payer accounts, triggering
+// duplicate-transaction/payer-busy rejections that silently retry without counting as a transfer
+// -- this is why TokenTransferLoadTest measured ~11 TPS while every other load test reached
+// ~97-98 TPS with the same client count. Raising the treasury pool to 500 cuts collision odds by
+// 10x without changing the transfer distribution (associations/nBalances is unaffected).
+const tokens: number = 500;
 const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
