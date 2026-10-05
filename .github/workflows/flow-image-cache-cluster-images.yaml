@@ -15,9 +15,7 @@
 ##
 
 name: 'Image Cache: Capture Cluster Images'
-# Runs `one-shot single deploy` on a clean Kind cluster with the image cache disabled, then records
-# every container image the deployment runs. The list is uploaded as an artifact and is the image
-# source for the image cache tar generation step of the release pipeline.
+# Lists the images a clean one-shot deploy runs; the image source for the image cache.
 
 on:
   workflow_call:
@@ -46,7 +44,7 @@ permissions:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
-  # Namespaces created by Kind itself; their images ship inside the Kind node image.
+  # Kind's own namespaces; their images ship in the Kind node image.
   KIND_SYSTEM_NAMESPACES: 'kube-system local-path-storage'
 
 jobs:
@@ -94,7 +92,6 @@ jobs:
         run: task build:compile
 
       - name: Assert Clean Environment
-        # The capture must reflect a first-time deploy, so no Solo state or Kind cluster may exist yet.
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           if [[ -e ~/.solo ]]; then
@@ -108,7 +105,6 @@ jobs:
           echo "Environment is clean."
 
       - name: One-Shot Single Deploy
-        # The image cache is disabled so every image is pulled from its registry into the new Kind cluster.
         timeout-minutes: 70
         env:
           ENABLE_IMAGE_CACHE: 'false'
