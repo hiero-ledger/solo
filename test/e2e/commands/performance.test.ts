@@ -324,12 +324,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await runLoadTest('HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
 
-        // Disabled until hiero-block-node fixes VerificationServicePlugin gating backpressure
-        // (hiero-block-node#3150): the Disruptor ring buffer fills cumulatively across tests
-        // 1–4 at ~100 TPS and overflows before SmartContractLoadTest can start, freezing the
-        // mirror importer.  Increasing the ring buffer to 8 M prevented overflow but required
-        // ~6 GB of block-node heap, which is disproportionate.  Skipping SmartContractLoadTest
-        // keeps the ring under 4 M entries so the 4 M buffer is sufficient and memory stays low.
         it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
           await runLoadTest('SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);

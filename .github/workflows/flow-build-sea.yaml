@@ -27,6 +27,11 @@ on:
         type: string
         required: false
         default: "22"
+      version:
+        description: "Version to embed in the binary, for example 0.92.0 (default: the package.json version)"
+        type: string
+        required: false
+        default: ""
   workflow_dispatch:
     inputs:
       node-version:
@@ -97,6 +102,12 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Set Version
+        if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
       - name: Compile TypeScript
         run: npx tsc
