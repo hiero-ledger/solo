@@ -73,13 +73,28 @@ const associations: number = 50;
 const tokenAssociationCap: number = 20;
 const nfts: number = 50;
 const percent: number = 50;
-const stableTransactionPerSecondTarget: number = 100;
+// The global RateLimitedQueue (network-load-generator) precisely targets this rate on
+// submission -- confirmed via debug logging that Crypto/HCS/Nft/Token submit cleanly at
+// 99-103 TPS with zero precheck errors. The reported "Finished" TPS still lands at 96-98
+// because of tail-loss (in-flight transactions not yet confirmed when the measurement window
+// closes) plus integer-rounding in NLG's own TPS calculation, not an actual shortfall at the
+// target rate. 105 compensates for that gap without meaningfully raising load on
+// SmartContractLoadTest, which is the one test that shows real StatusRuntimeException errors
+// under contention (CPU-bound EVM execution on the small-memory consensus node) rather than a
+// measurement artifact -- a much higher target would risk growing that error rate instead of
+// closing the TPS gap.
+const stableTransactionPerSecondTarget: number = 105;
 // SmartContract tests require EVM execution on the consensus node plus mirror processing,
 // which makes them heavier than simple transfers; 500 ms provides adequate headroom at 97 TPS
 // now that blockStream.blockPeriod is tuned down in the small-memory consensus-node profile
 // (see resources/templates/small-memory/). event.creation.maxCreationRate was tried alongside
 // it but halved SmartContractLoadTest's achieved TPS (97 -> 51), so it was left at its default.
 const maxEndToEndRtt: number = 500;
+// All five load tests consistently measure 96-98 TPS against the 100 TPS target (see
+// soloRapidFire's --max-tps); 90 gives comfortable margin below that observed range while still
+// catching a genuine throughput regression (e.g. the TokenTransferLoadTest auto-association bug
+// that silently collapsed it to ~11 TPS for several runs before being fixed).
+const minimumTransactionsPerSecond: number = 90;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
 const mirrorImporterWarmupSeconds: number = 60;
 let startTime: Date;
@@ -342,9 +357,17 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // so the RTT probe does not spend its entire readiness window on stale blocks.
           await sleep(Duration.ofSeconds(mirrorImporterWarmupSeconds));
           // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
-          // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
+          // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.); it now
+          // also throws if the achieved TPS falls below minimumTransactionsPerSecond.
           await main(
-            soloRapidFire(testName, performanceTest, argumentsString, stableTransactionPerSecondTarget, maxEndToEndRtt),
+            soloRapidFire(
+              testName,
+              performanceTest,
+              argumentsString,
+              stableTransactionPerSecondTarget,
+              maxEndToEndRtt,
+              minimumTransactionsPerSecond,
+            ),
           );
           // Cool-down lets haproxy drain tunnel sockets before the next test.
           await sleep(Duration.ofSeconds(30));
@@ -508,6 +531,7 @@ export function soloRapidFire(
   argumentsString: string,
   maxTps: number,
   maxRtt: number,
+  minTps: number,
 ): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
@@ -524,6 +548,8 @@ export function soloRapidFire(
     maxTps.toString(),
     optionFromFlag(Flags.maxRtt),
     maxRtt.toString(),
+    optionFromFlag(Flags.minTps),
+    minTps.toString(),
     optionFromFlag(Flags.nlgArguments),
     `'"${argumentsString}"'`,
   );
