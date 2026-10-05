@@ -1,2 +1,2 @@
 network:
-  --values-file: test/fixtures/one-shot-falcon/silo-helm-values.yaml
+  --values-file: silo-helm-values.yaml

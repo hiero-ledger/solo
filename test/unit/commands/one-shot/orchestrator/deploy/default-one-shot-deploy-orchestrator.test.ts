@@ -892,8 +892,9 @@ describe('DefaultOneShotDeployOrchestrator applyValuesFileOverrides', (): void =
   });
 
   it('merges profile values over existing defaults and preserves unspecified values', (): void => {
+    const nestedValuesFile: string = PathEx.resolve('test/fixtures/one-shot-falcon/silo-helm-values.yaml');
     const valuesFile: string = writeValuesFile(
-      'network:\n  --values-file: test/fixtures/one-shot-falcon/silo-helm-values.yaml\n  --application-env: custom.env\n',
+      `network:\n  --values-file: ${nestedValuesFile}\n  --application-env: custom.env\n`,
     );
     const releaseTagKey: string = Flags.getFormattedFlagKey(Flags.releaseTag);
     const valuesFileKey: string = Flags.getFormattedFlagKey(Flags.valuesFile);
@@ -908,27 +909,21 @@ describe('DefaultOneShotDeployOrchestrator applyValuesFileOverrides', (): void =
     invokeApplyValuesFileOverrides(config);
 
     expect(config.networkConfiguration[releaseTagKey]).to.equal('v0.84.1');
-    expect(config.networkConfiguration[valuesFileKey]).to.equal(
-      PathEx.resolve('test/fixtures/one-shot-falcon/silo-helm-values.yaml'),
-    );
+    expect(config.networkConfiguration[valuesFileKey]).to.equal(nestedValuesFile);
     expect(config.networkConfiguration[Flags.getFormattedFlagKey(Flags.applicationEnv)]).to.equal('custom.env');
   });
 
-  it('propagates a customized values file based on the one-shot Falcon example', (): void => {
+  // Covers the real on-disk layout: the Falcon example's nested --values-file is a bare filename
+  // resolved next to falcon-values.yaml, not relative to the process cwd (npm run-script executes
+  // with cwd set to the package root, not the caller's directory).
+  it('propagates the nested values file using the real one-shot Falcon example layout', (): void => {
     const examplePath: string = PathEx.resolve('examples/one-shot-falcon/falcon-values.yaml');
-    const customizedProfile: string = fs
-      .readFileSync(examplePath, 'utf8')
-      .replace(
-        '  --values-file: silo-helm-values.yaml',
-        '  --values-file: test/fixtures/one-shot-falcon/silo-helm-values.yaml',
-      );
-    const valuesFile: string = writeValuesFile(customizedProfile);
-    const config: OneShotSingleDeployConfigClass = makeConfig({valuesFile});
+    const config: OneShotSingleDeployConfigClass = makeConfig({valuesFile: examplePath});
 
     invokeApplyValuesFileOverrides(config);
 
     expect(config.networkConfiguration[Flags.getFormattedFlagKey(Flags.valuesFile)]).to.equal(
-      PathEx.resolve('test/fixtures/one-shot-falcon/silo-helm-values.yaml'),
+      PathEx.resolve('examples/one-shot-falcon/silo-helm-values.yaml'),
     );
   });
 });
