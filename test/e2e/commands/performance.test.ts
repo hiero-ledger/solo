@@ -59,10 +59,18 @@ const accounts: number = 1000;
 // passed, every account can auto-associate with only 2 distinct tokens; any transfer attempting a
 // 3rd+ distinct token to the same receiver fails every time with NO_REMAINING_AUTOMATIC_
 // ASSOCIATIONS and retries forever without ever counting as a transfer -- hence ~11-12 TPS
-// regardless of treasury pool size. `-rel ${tokens}` below raises the cap so no receiver can ever
-// exhaust it.
+// regardless of treasury pool size.
 const tokens: number = 500;
 const associations: number = 50;
+// `-rel` raises BenchConfig.associations (see above) past the default of 2. Setting it to the
+// full `tokens` count (run 37257376069) fixed TokenTransferLoadTest (11 -> 97 TPS) but dragged
+// SmartContractLoadTest down (97 -> 60 TPS), almost certainly from the much larger live
+// TokenRelationship state that unlocks (up to accounts x tokenAssociationCap associations) adding
+// per-round hashing/compaction overhead on the CPU-constrained small-memory consensus node. A
+// receiver only needs enough headroom to cover how many distinct tokens it's realistically drawn
+// for within one ~255s run, not the full token pool, so this is 10x the broken default rather than
+// matching `tokens`.
+const tokenAssociationCap: number = 20;
 const nfts: number = 50;
 const percent: number = 50;
 const stableTransactionPerSecondTarget: number = 100;
@@ -292,7 +300,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           logEvent('Starting TokenTransferLoadTest');
           await runLoadTest(
             'TokenTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -rel ${tokens} -R -t ${duration}`,
+            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -rel ${tokenAssociationCap} -R -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
 
