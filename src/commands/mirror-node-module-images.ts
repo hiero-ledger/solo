@@ -30,7 +30,13 @@ export class MirrorNodeModuleImages {
    * Node's six-image expansion existed.
    */
   public static expand(componentImage: string): MirrorNodeModuleImageReference[] {
-    if (!componentImage.includes('/') && !componentImage.includes(':') && !componentImage.includes('@')) {
+    if (componentImage.includes('@')) {
+      throw new SoloErrors.validation.illegalArgument(
+        `Mirror Node --component-image must be a tagged repository prefix, not a digest: '${componentImage}'`,
+        componentImage,
+      );
+    }
+    if (!componentImage.includes('/') && !componentImage.includes(':')) {
       throw new SoloErrors.validation.illegalArgument(
         `Invalid Mirror Node image reference format: '${componentImage}'`,
         componentImage,
