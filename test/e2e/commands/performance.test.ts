@@ -78,12 +78,14 @@ const percent: number = 50;
 // 99-103 TPS with zero precheck errors. The reported "Finished" TPS still lands at 96-98
 // because of tail-loss (in-flight transactions not yet confirmed when the measurement window
 // closes) plus integer-rounding in NLG's own TPS calculation, not an actual shortfall at the
-// target rate. 105 compensates for that gap without meaningfully raising load on
-// SmartContractLoadTest, which is the one test that shows real StatusRuntimeException errors
-// under contention (CPU-bound EVM execution on the small-memory consensus node) rather than a
-// measurement artifact -- a much higher target would risk growing that error rate instead of
-// closing the TPS gap.
+// target rate. 105 compensates for that gap for those four tests.
 const stableTransactionPerSecondTarget: number = 105;
+// SmartContractLoadTest is CPU-bound on the consensus node's EVM execution rather than
+// submission-paced like the other four tests, so it does NOT get the +5 TPS target bump above:
+// CI run 37357536412 confirmed raising its target from 100 to 105 collapsed its achieved TPS
+// from 97 to 58 (real StatusRuntimeException gRPC errors under contention, not a measurement
+// artifact). See the SmartContractLoadTest `it(...)` block below for where this is applied.
+const smartContractMaxTpsReduction: number = 5;
 // SmartContract tests require EVM execution on the consensus node plus mirror processing,
 // which makes them heavier than simple transfers; 500 ms provides adequate headroom at 97 TPS
 // now that blockStream.blockPeriod is tuned down in the small-memory consensus-node profile
@@ -341,10 +343,24 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
-          await runLoadTest('SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
+          // Unlike the other four tests, SmartContractLoadTest is CPU-bound on the consensus
+          // node's EVM execution (confirmed via WorkingQueue debug logging: it alone accumulates
+          // real StatusRuntimeException gRPC errors under load). Raising the global --max-tps to
+          // 105 (see stableTransactionPerSecondTarget) tipped it from 97 TPS into real contention,
+          // collapsing it to 58 TPS (CI run 37357536412, caught by the new --min-tps gate) -- so
+          // it keeps the original, unraised target while the other four tests use the higher one.
+          await runLoadTest(
+            'SmartContractLoadTest',
+            `-c ${clients} -a ${accounts} -R -t ${duration}`,
+            stableTransactionPerSecondTarget - smartContractMaxTpsReduction,
+          );
         }).timeout(Duration.ofSeconds(duration * 6 + mirrorImporterWarmupSeconds).toMillis());
 
-        async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
+        async function runLoadTest(
+          performanceTest: string,
+          argumentsString: string,
+          maxTps: number = stableTransactionPerSecondTarget,
+        ): Promise<void> {
           // Wait for the mirror importer to drain the block backlog created during the deploy
           // stage. The block node takes ~46 s to reach PUBLISHER_CONNECTED, accumulating ~200
           // blocks (at ~4 blocks/sec). This sleep lets the importer catch up to near-real-time
@@ -358,7 +374,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
               testName,
               performanceTest,
               argumentsString,
-              stableTransactionPerSecondTarget,
+              maxTps,
               maxEndToEndRtt,
               minimumTransactionsPerSecond,
             ),
