@@ -21,6 +21,7 @@ import {MissingArgumentError} from './classes/validation/missing-argument-error.
 import {ConsensusNodeCountRequiredError} from './classes/validation/consensus-node-count-required-error.js';
 import {InvalidOutputFormatError} from './classes/validation/invalid-output-format-error.js';
 import {InvalidPortNumberError} from './classes/validation/invalid-port-number-error.js';
+import {PodLogsCrdInvalidSoloError} from './classes/validation/pod-logs-crd-invalid-solo-error.js';
 import {ClusterConnectionFailedError} from './classes/system/cluster-connection-failed-error.js';
 import {ClusterUnreachableError} from './classes/system/cluster-unreachable-error.js';
 import {KindClusterStoppedError} from './classes/system/kind-cluster-stopped-error.js';
@@ -274,6 +275,7 @@ import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
 import {FileInvalidJsonSoloError} from './classes/system/file-invalid-json-solo-error.js';
+import {CachedFileInaccessibleSoloError} from './classes/system/cached-file-inaccessible-solo-error.js';
 import {DirectoryCreationFailedSoloError} from './classes/system/directory-creation-failed-solo-error.js';
 import {ArchiveUnzipFailedSoloError} from './classes/system/archive-unzip-failed-solo-error.js';
 import {ArchiveTarFailedSoloError} from './classes/system/archive-tar-failed-solo-error.js';
@@ -698,6 +700,7 @@ export class SoloErrors {
     readonly invalidFlagValue: typeof InvalidFlagValueSoloError;
     readonly blockNodeBlockProofIncompatible: typeof BlockNodeBlockProofIncompatibleSoloError;
     readonly componentImageArchiveTagMismatch: typeof ComponentImageArchiveTagMismatchSoloError;
+    readonly podLogsCrdInvalid: typeof PodLogsCrdInvalidSoloError;
     readonly transplantRequiresStateFile: typeof TransplantRequiresStateFileSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
@@ -781,6 +784,7 @@ export class SoloErrors {
     invalidFlagValue: InvalidFlagValueSoloError,
     blockNodeBlockProofIncompatible: BlockNodeBlockProofIncompatibleSoloError,
     componentImageArchiveTagMismatch: ComponentImageArchiveTagMismatchSoloError,
+    podLogsCrdInvalid: PodLogsCrdInvalidSoloError,
     transplantRequiresStateFile: TransplantRequiresStateFileSoloError,
   });
 
@@ -838,6 +842,7 @@ export class SoloErrors {
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
     readonly fileInvalidJson: typeof FileInvalidJsonSoloError;
+    readonly cachedFileInaccessible: typeof CachedFileInaccessibleSoloError;
     readonly directoryCreationFailed: typeof DirectoryCreationFailedSoloError;
     readonly archiveUnzipFailed: typeof ArchiveUnzipFailedSoloError;
     readonly archiveTarFailed: typeof ArchiveTarFailedSoloError;
@@ -930,6 +935,7 @@ export class SoloErrors {
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,
     fileInvalidJson: FileInvalidJsonSoloError,
+    cachedFileInaccessible: CachedFileInaccessibleSoloError,
     directoryCreationFailed: DirectoryCreationFailedSoloError,
     archiveUnzipFailed: ArchiveUnzipFailedSoloError,
     archiveTarFailed: ArchiveTarFailedSoloError,
