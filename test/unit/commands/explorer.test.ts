@@ -23,6 +23,12 @@ type TaskContext = {
   config?: Record<string, unknown>;
 };
 
+type DeploymentRestartPatch = {
+  kind: string;
+  metadata: {name: string; namespace: string};
+  spec: {template: {metadata: {annotations: Record<string, string>}}};
+};
+
 type PromptRunner = {
   run: (promptFunction: unknown, options: {default: boolean; message: string}) => Promise<boolean>;
 };
@@ -585,7 +591,7 @@ describe('ExplorerCommand unit tests', (): void => {
     // A freshly-created pod already reflects the just-applied config, so `explorer node add` has
     // no stale state to roll away and must not patch the restart annotation (issue #6118 only
     // applies to upgrade, see restartExplorerDeploymentTask()).
-    const manifestsClient: Record<string, unknown> = (kubernetesClient as any).manifests() as Record<string, unknown>;
+    const manifestsClient: Record<string, unknown> = (kubernetesClient.manifests as () => Record<string, unknown>)();
     const patchObjectStub: SinonStub = manifestsClient.patchObject as SinonStub;
     expect(patchObjectStub).to.not.have.been.called;
     expect(getTaskTitles(harness.tasks)).to.not.include('Restart explorer deployment');
@@ -726,11 +732,11 @@ describe('ExplorerCommand unit tests', (): void => {
 
     // The explorer Deployment's pod template carries no checksum tied to ConfigMap content, so
     // `explorer node upgrade` must force a rollout by patching a restart annotation (issue #6118).
-    const manifestsClient: Record<string, unknown> = (kubernetesClient as any).manifests() as Record<string, unknown>;
+    const manifestsClient: Record<string, unknown> = (kubernetesClient.manifests as () => Record<string, unknown>)();
     const patchObjectStub: SinonStub = manifestsClient.patchObject as SinonStub;
 
     expect(patchObjectStub).to.have.been.calledOnce;
-    const patchedSpec: Record<string, any> = patchObjectStub.getCall(0).args[0] as Record<string, any>;
+    const patchedSpec: DeploymentRestartPatch = patchObjectStub.getCall(0).args[0] as DeploymentRestartPatch;
     expect(patchedSpec.kind).to.equal('Deployment');
     expect(patchedSpec.metadata.name).to.equal(`${releaseName}-explorer-upgrade`);
     expect(patchedSpec.metadata.namespace).to.equal('explorer-upgrade');
