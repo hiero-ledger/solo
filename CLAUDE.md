@@ -115,6 +115,15 @@ case-insensitively, a number an integer or decimal literal — and anything else
 an error naming the variable. Without this, `JSON.parse` would leave `FALSE` a truthy string and `abc`
 a string on a numeric field.
 
+This check is `DeclaredTypeCoercer` (`src/data/key/declared-type-coercer.ts`) and applies to **every**
+source, not just the environment: `LayeredModelConfigSource` runs it over the bundled
+`resources/config/*.yaml` files and over `~/.solo/solo-config.yaml`. It has to, because `yaml` reads
+YAML 1.2, where `off`/`no`/`yes` are strings — `skipNodePing: off` would otherwise reach the schema as
+a truthy string and invert the flag. A field the schema declares as a string is read back verbatim
+rather than through `JSON.parse`, so `SOLO_HELM_CHART_VERSION=1.0` stays the string `1.0` instead of
+becoming the number `1`. When adding a source that flattens into a `Forest`, run the coercer on its
+flat key map before `Forest.from(...)`.
+
 **Environment variable aliases.** A field may declare fixed alias env var names the generated name
 cannot reproduce, via two property decorators in
 `src/data/schema/decorators/environment-alias-registry.ts`:
@@ -239,7 +248,7 @@ TypeScript style guide bans empty or unexplained catch blocks.
 }
 ```
 
-This applies even when the catch body contains statements — the comment documents the *intent*,
+This applies even when the catch body contains statements — the comment documents the _intent_,
 not just the code.
 
 ### Error Handling — Always Use a Registered `SoloErrors` Subclass

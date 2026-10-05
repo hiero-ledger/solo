@@ -12,12 +12,12 @@ setting — that is a CLI flag or a plain `SoloConfigSchema` field.
 
 ## Current flags
 
-| Flag                          | Default | Read at                                                      | Aliases                                                                      |
-| ----------------------------- | ------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `copyWrapsLibraryInParallel`  | `false` | `src/commands/network.ts`                                    | `EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL`                                    |
-| `skipNodePing`                | `false` | `src/core/account-manager.ts`                                | `SOLO_FF_SKIP_NODE_PING`, `SKIP_NODE_PING`                                   |
-| `disableBlockNodeIntegration` | `false` | `src/commands/mirror-node.ts`                                | `SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION`, `DISABLE_IMPORTER_SPRING_PROFILES` |
-| `enableImageCache`            | `true`  | `src/commands/one-shot/`                                     | `SOLO_FF_ENABLE_IMAGE_CACHE`, `ENABLE_IMAGE_CACHE`                           |
+| Flag                          | Default | Read at                       | Aliases                                                                      |
+| ----------------------------- | ------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| `copyWrapsLibraryInParallel`  | `false` | `src/commands/network.ts`     | `EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL`                                    |
+| `skipNodePing`                | `false` | `src/core/account-manager.ts` | `SOLO_FF_SKIP_NODE_PING`, `SKIP_NODE_PING`                                   |
+| `disableBlockNodeIntegration` | `false` | `src/commands/mirror-node.ts` | `SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION`, `DISABLE_IMPORTER_SPRING_PROFILES` |
+| `enableImageCache`            | `true`  | `src/commands/one-shot/`      | `SOLO_FF_ENABLE_IMAGE_CACHE`, `ENABLE_IMAGE_CACHE`                           |
 
 Every flag also answers to its generated `SOLO_FEATURE_FLAGS_*` name. `copyWrapsLibraryInParallel` is still
 experimental, so it carries only an `EXPERIMENTAL_` alias. `enableImageCache` is the one opt-out flag — it
@@ -94,12 +94,12 @@ same reasoning applies to consumers — do not cache a flag value.
 
 A flag answers to several names. The first match in this order wins:
 
-| Form                               | When                                                                   | Example                                   |
-| ---------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
-| `SOLO_FEATURE_FLAGS_<UPPER_SNAKE>` | Generated from the property path; always available, highest precedence | `SOLO_FEATURE_FLAGS_SKIP_NODE_PING`       |
-| `SOLO_FF_<UPPER_SNAKE>`            | Readable alias for a standard flag                                     | `SOLO_FF_SKIP_NODE_PING`                  |
-| `EXPERIMENTAL_<UPPER_SNAKE>`       | Alias while the flag is experimental                                   | `EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL` |
-| legacy name                        | `legacyAlias` preserved when a flag replaces an ad-hoc environment variable | `SKIP_NODE_PING`                     |
+| Form                               | When                                                                        | Example                                   |
+| ---------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------- |
+| `SOLO_FEATURE_FLAGS_<UPPER_SNAKE>` | Generated from the property path; always available, highest precedence      | `SOLO_FEATURE_FLAGS_SKIP_NODE_PING`       |
+| `SOLO_FF_<UPPER_SNAKE>`            | Readable alias for a standard flag                                          | `SOLO_FF_SKIP_NODE_PING`                  |
+| `EXPERIMENTAL_<UPPER_SNAKE>`       | Alias while the flag is experimental                                        | `EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL` |
+| legacy name                        | `legacyAlias` preserved when a flag replaces an ad-hoc environment variable | `SKIP_NODE_PING`                          |
 
 The generated form uses `_` for both camelCase word boundaries and schema nesting levels, so every name is a
 valid POSIX identifier and can be set with `export`. A name therefore cannot be taken apart again, so the
@@ -121,15 +121,31 @@ spellings at once logs a warning naming the one that won.
 
 ## Flag values
 
-`EnvironmentConfigSource` parses a flag against the type its schema field declares, so a flag holds a real
+Every config source parses a flag against the type its schema field declares, so a flag holds a real
 boolean rather than whatever `JSON.parse` made of the string. Accepted, case-insensitively and ignoring
 surrounding whitespace: `true`, `false`, `1`, `0`. Anything else — `yes`, `off`, `2` — is rejected at load
-with an error naming the variable, rather than being read as truthy.
+with an error naming the variable or file, rather than being read as truthy.
 
 So `SOLO_FF_SKIP_NODE_PING=false` and `=FALSE` and `=0` all genuinely mean "off", unlike the
 `Boolean('false')` reads these flags replaced. An empty or whitespace-only value counts as unset and falls
 through to the default. Precedence, lowest to highest: the `FeatureFlagsSchema` constructor default, then a
-`resources/config/*.yaml` entry (there is no feature-flag file today), then the environment variable.
+`resources/config/*.yaml` entry (there is no feature-flag file today), then `~/.solo/solo-config.yaml`,
+then the environment variable.
+
+The same rule applies to a flag set in a YAML file, and it matters more there: the `yaml` package reads
+YAML 1.2, where `off`, `no` and `yes` are **strings**, not booleans. `skipNodePing: off` is therefore
+rejected rather than read as the truthy string `"off"` — which would have switched the flag _on_. Write
+`false` (or quote a value the rule accepts, `"0"`).
+
+```yaml
+featureFlags:
+  skipNodePing: false # correct
+  enableImageCache: off # rejected at load: not a valid boolean
+```
+
+The check lives in `DeclaredTypeCoercer` (`src/data/key/declared-type-coercer.ts`) and is applied by both
+`EnvironmentConfigSource` and `LayeredModelConfigSource`, so a flag cannot mean one thing in the
+environment and another in a file.
 
 ---
 

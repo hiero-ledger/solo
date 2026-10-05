@@ -8,7 +8,7 @@ import {type Refreshable} from '../spi/refreshable.js';
 import {ConfigurationError} from '../api/configuration-error.js';
 import {Forest} from '../../key/lexer/forest.js';
 import {EnvironmentAliasRegistry} from '../../schema/decorators/environment-alias-registry.js';
-import {SoloErrors} from '../../../core/errors/solo-errors.js';
+import {DeclaredTypeCoercer} from '../../key/declared-type-coercer.js';
 
 /**
  * A {@link ConfigSource} that reads configuration data from the environment.
@@ -149,57 +149,11 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
   }
 
   /**
-   * Rewrites each value into the canonical JSON form of the type its schema field declares.
-   *
-   * <p>Values reach the schema through `JSON.parse`, which does not check the target type: `FALSE` would
-   * stay a truthy string on a boolean flag, and `abc` a string on a numeric field where `0 < 'abc'` is
-   * false. Normalising here makes the parse produce the declared type, and a typo an error.
+   * Normalises each value against the type its schema field declares, naming the environment variable the
+   * user actually set when a value is rejected. The rule itself is shared with the file sources, so a flag
+   * cannot mean one thing in the environment and another in `solo-config.yaml`.
    */
   private coerceToDeclaredTypes(): void {
-    const declaredTypes: ReadonlyMap<string, string> = EnvironmentAliasRegistry.configLeaves();
-
-    for (const [key, value] of this.data) {
-      // Strings are taken verbatim; objects and arrays are already serialized JSON.
-      switch (declaredTypes.get(key)) {
-        case 'boolean': {
-          this.data.set(key, String(this.asDeclaredBoolean(key, value)));
-          break;
-        }
-        case 'number': {
-          this.data.set(key, String(this.asDeclaredNumber(key, value)));
-          break;
-        }
-      }
-    }
-  }
-
-  private asDeclaredBoolean(key: string, value: string): boolean {
-    switch (value.trim().toLowerCase()) {
-      case 'true':
-      case '1': {
-        return true;
-      }
-      case 'false':
-      case '0': {
-        return false;
-      }
-      default: {
-        throw new SoloErrors.validation.environmentVariableTypeMismatch(
-          this.sourceNames.get(key),
-          key,
-          value,
-          'boolean',
-        );
-      }
-    }
-  }
-
-  private asDeclaredNumber(key: string, value: string): number {
-    const parsed: number = Number(value.trim());
-    if (value.trim() === '' || !Number.isFinite(parsed)) {
-      throw new SoloErrors.validation.environmentVariableTypeMismatch(this.sourceNames.get(key), key, value, 'number');
-    }
-
-    return parsed;
+    DeclaredTypeCoercer.coerce(this.data, (key: string): string => `Environment variable ${this.sourceNames.get(key)}`);
   }
 }
