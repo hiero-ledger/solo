@@ -674,20 +674,13 @@ export class RapidFireCommand extends BaseCommand {
                 });
             }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
-            // TEMPORARY DIAGNOSTIC (to be reverted): WorkingQueue logs a periodic TPS + per-error-type
-            // breakdown every 60s via LOG.debug(), which is suppressed by slf4j-simple's default INFO
-            // level. Force it to DEBUG for this run to see why TokenTransferLoadTest measures ~11 TPS
-            // while every other load test reaches ~97 TPS.
-            const debugLogging: string =
-              '-Dorg.slf4j.simpleLogger.defaultLogLevel=info ' +
-              '-Dorg.slf4j.simpleLogger.log.com.hedera.benchmark.WorkingQueue=debug';
             const consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
             const nlgVersion: string = new SemanticVersion(consensusNodeVersion).greaterThanOrEqual(
               new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR),
             )
               ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72
               : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72;
-            let commandString: string = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} ${debugLogging} -cp /app/lib/*:/app/network-load-generator-${nlgVersion}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
+            let commandString: string = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${nlgVersion}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
             commandString = commandString.replaceAll('  ', ' ').trim();
             await container.execContainer(commandString, outputStream, errorStream);
           } catch (error) {

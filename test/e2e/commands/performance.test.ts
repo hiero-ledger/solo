@@ -48,15 +48,19 @@ const duration: number = Duration.ofMinutes(
 ).seconds;
 const clients: number = 5;
 const accounts: number = 1000;
-// FungibleTransferJob (network-load-generator) picks the RECEIVER from a permutation of all
-// `accounts`, but the SENDER is always the token's treasury account, drawn uniformly from only
-// `tokens` possible values (see getTreasuryIdx -- it is bounded by nTokens, independent of
-// associations/nBalances). With tokens == associations == 50, up to 50 concurrent in-flight
-// transfers (5 clients x maxInFlight 10) collide on the same ~50 payer accounts, triggering
-// duplicate-transaction/payer-busy rejections that silently retry without counting as a transfer
-// -- this is why TokenTransferLoadTest measured ~11 TPS while every other load test reached
-// ~97-98 TPS with the same client count. Raising the treasury pool to 500 cuts collision odds by
-// 10x without changing the transfer distribution (associations/nBalances is unaffected).
+// FungibleTransferJob (network-load-generator) draws a RECEIVER for each transfer from a
+// permutation of all `accounts`, and a token (treasury) from `tokens` possible values. Confirmed
+// via the WorkingQueue debug log (run 37253956703) that submissions reach the network fine at
+// ~100 TPS; the loss happens between submission and receipt. The actual culprit is
+// BenchAccount.createAccountTxn() -> setMaxAutomaticTokenAssociations(BenchConfig.associations),
+// where BenchConfig.associations (the real per-account auto-association cap) defaults to 2 and is
+// set only by the separate `-rel` flag -- NOT by `-A`/associations below, which maps to
+// BenchConfig.nBalances (a distribution parameter, not an association limit). With no `-rel`
+// passed, every account can auto-associate with only 2 distinct tokens; any transfer attempting a
+// 3rd+ distinct token to the same receiver fails every time with NO_REMAINING_AUTOMATIC_
+// ASSOCIATIONS and retries forever without ever counting as a transfer -- hence ~11-12 TPS
+// regardless of treasury pool size. `-rel ${tokens}` below raises the cap so no receiver can ever
+// exhaust it.
 const tokens: number = 500;
 const associations: number = 50;
 const nfts: number = 50;
@@ -288,7 +292,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           logEvent('Starting TokenTransferLoadTest');
           await runLoadTest(
             'TokenTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
+            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -rel ${tokens} -R -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
 
