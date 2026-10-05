@@ -705,6 +705,16 @@ jobs:
     with:
       version: ${{ needs.prepare-release.outputs.version }}
 
+  # Records the container images a one-shot deploy of the release runs, the image source for the image cache.
+  capture-image-cache-cluster-images:
+    name: Capture Image Cache Cluster Images
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
+    needs:
+      - prepare-release
+    uses: $/.github/workflows/flow-image-cache-cluster-images.yaml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+
   # Attaches the Linux SEA binary, install.sh and SHA256SUMS to the GitHub Release.
   publish-linux-installer:
     name: Publish Linux Installer Assets
