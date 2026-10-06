@@ -484,6 +484,27 @@ export class Flags {
     },
   };
 
+  public static readonly simpleFeesSchedulesFile: CommandFlag = {
+    constName: 'simpleFeesSchedulesFile',
+    name: 'simple-fees-schedules-file',
+    definition: {
+      describe:
+        'simpleFeesSchedules.json file applied to the network during the upgrade; must match the target version',
+      defaultValue: '',
+      type: 'string',
+    },
+  };
+
+  public static readonly throttlesFile: CommandFlag = {
+    constName: 'throttlesFile',
+    name: 'throttles-file',
+    definition: {
+      describe: 'throttles.json file applied to the network during the upgrade; must match the target version',
+      defaultValue: '',
+      type: 'string',
+    },
+  };
+
   public static readonly releaseTag: CommandFlag = {
     constName: 'releaseTag',
     name: 'release-tag',
@@ -2945,10 +2966,12 @@ export class Flags {
     Flags.replicaCount,
     Flags.setAlias,
     Flags.settingTxt,
+    Flags.simpleFeesSchedulesFile,
     Flags.soloChartVersion,
     Flags.stakeAmounts,
     Flags.stateFile,
     Flags.storageType,
+    Flags.throttlesFile,
     Flags.transplant,
     Flags.gcsWriteAccessKey,
     Flags.gcsWriteSecrets,
