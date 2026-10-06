@@ -12,6 +12,7 @@ interface RawCacheManifestImage {
   tarFile?: unknown;
   hashFile?: unknown;
   sha256?: unknown;
+  size?: unknown;
 }
 
 /** Raw shape of `cache-manifest.json`. Every field is validated before use. */
@@ -26,8 +27,8 @@ interface RawCacheManifest {
  * and resolves each entry to its CDN locations.
  *
  * The manifest lists, for the Solo version that produced it, every container image the deployment needs,
- * the archive file name for that image, the file name holding the archive's SHA-256, and the hash value
- * itself. Both hash representations are kept so a download can be checked against the manifest and against
+ * the archive file name for that image, the file name holding the archive's SHA-256, the hash value
+ * itself and, optionally, the archive's size in bytes. Both hash representations are kept so a download can be checked against the manifest and against
  * the published hash file, and the two must agree.
  *
  * The CDN is flat: `<base>/<tarFile>` and `<base>/<hashFile>`. The base defaults to
@@ -156,6 +157,11 @@ export class CacheManifestClient {
         );
       }
 
+      // Optional, so manifests published before the field existed still parse.
+      if (raw.size !== undefined && !(Number.isSafeInteger(raw.size) && (raw.size as number) > 0)) {
+        throw new SoloErrors.system.cacheManifestInvalid(url, `images[${index}].size must be a positive integer`);
+      }
+
       return new CacheManifestImage(
         image,
         tarFile,
@@ -163,6 +169,7 @@ export class CacheManifestClient {
         sha256,
         `${baseUrl}/${tarFile}`,
         `${baseUrl}/${hashFile}`,
+        raw.size as number | undefined,
       );
     });
   }
