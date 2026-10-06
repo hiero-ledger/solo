@@ -521,6 +521,31 @@ jobs:
             IGNORE_LIST_FILE="${IGNORE_LIST_FILE}"
           echo "::endgroup::"
 
+          # TEMPORARY: deprecation notice for the final @hashgraph/solo releases. Must run after the
+          # rename step so the @hiero-ledger/solo references in the notice are not rewritten.
+          # The README change is reverted by the dual-publish:restore task.
+          echo "::group::Add deprecation notice to Hashgraph README"
+          NOTICE_FILE="$(mktemp)"
+          cat > "${NOTICE_FILE}" <<EOF
+          > **⚠️ Deprecation Notice:** \`${HASHGRAPH_PKG_NAME}\` is deprecated and will no longer receive updates.
+          > Solo is now published as [\`${HIERO_PKG_NAME}\`](https://www.npmjs.com/package/${HIERO_PKG_NAME}).
+          > Please migrate to the new package:
+          >
+          > \`\`\`bash
+          > npm uninstall -g ${HASHGRAPH_PKG_NAME}
+          > npm install -g ${HIERO_PKG_NAME}
+          > \`\`\`
+          EOF
+          { head -n 1 README.md; echo; cat "${NOTICE_FILE}"; tail -n +2 README.md; } > README.md.tmp
+          mv README.md.tmp README.md
+          rm -f "${NOTICE_FILE}"
+          grep -q "Deprecation Notice:\*\* \`${HASHGRAPH_PKG_NAME}\`" README.md || {
+            echo "::error file=flow-deploy-release-artifact.yaml::Failed to add deprecation notice to Hashgraph README"
+            exit 1
+          }
+          head -n 15 README.md
+          echo "::endgroup::"
+
           echo "::group::Build and pack Hashgraph package"
           task -t "${CI_TASK}" dual-publish:pack \
             OUTPUT_DIR="output/hg" \
@@ -693,6 +718,80 @@ jobs:
               npm publish ${TARBALL} ${FLAGS}
             fi
           echo "::endgroup::"
+
+  # Builds the triggering commit with the release version; the release commit only bumps version files, so this matches the tag.
+  build-sea:
+    name: Build SEA Binaries
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
+    needs:
+      - prepare-release
+      - create-github-release
+    uses: $/.github/workflows/flow-build-sea.yaml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+
+  # Lists the images a one-shot deploy of the release runs, for the image cache.
+  capture-image-cache-cluster-images:
+    name: Capture Image Cache Cluster Images
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
+    needs:
+      - prepare-release
+    uses: $/.github/workflows/flow-image-cache-cluster-images.yaml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+
+  # Attaches the Linux SEA binary, install.sh and SHA256SUMS to the GitHub Release.
+  publish-linux-installer:
+    name: Publish Linux Installer Assets
+    runs-on: hiero-solo-linux-medium
+    permissions:
+      contents: read # the release upload authenticates with GH_ACCESS_TOKEN, not GITHUB_TOKEN
+    # A failed non-Linux SEA leg must not block the Linux assets; a missing Linux binary fails below.
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && needs.create-github-release.result == 'success' }}
+    needs:
+      - prepare-release
+      - create-github-release
+      - build-sea
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: installers/linux
+
+      - name: Download Linux SEA Binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: solo-linux-x64-*
+          path: sea-artifacts
+          merge-multiple: true
+
+      - name: Stage Release Assets
+        run: |
+          set -euo pipefail
+          # The SEA artifact also holds build intermediates (.blob, .cjs, .json); publish only the binary.
+          [[ -f sea-artifacts/solo-linux-x64 ]] || { echo "::error::the solo-linux-x64 SEA binary was not built"; exit 1; }
+          mkdir -p release-assets
+          cp sea-artifacts/solo-linux-x64 installers/linux/install.sh release-assets/
+          chmod 755 release-assets/solo-linux-x64 release-assets/install.sh
+          (cd release-assets && sha256sum solo-linux-x64 install.sh > SHA256SUMS)
+          cat release-assets/SHA256SUMS
+
+      - name: Upload Release Assets
+        if: ${{ inputs.dry-run-enabled != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release upload --clobber "v${RELEASE_VERSION}" \
+            release-assets/solo-linux-x64 release-assets/install.sh release-assets/SHA256SUMS \
+            --repo "${GITHUB_REPOSITORY}"
 
   docs-automation:
     name: Docs Automation
