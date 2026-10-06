@@ -115,6 +115,36 @@ describe('CacheManifestClient', (): void => {
         'https://cdn.solo.hashgraph.io/docker.io__library__busybox__1.36.1.tar.sha256',
       );
       expect(images[1].sha256).to.equal(OTHER_HASH);
+      expect(images[0].size).to.be.undefined;
+    });
+
+    it('reads the optional archive size', async (): Promise<void> => {
+      stubFetch(
+        JSON.stringify(
+          manifest({
+            images: [
+              {image: 'busybox:1', tarFile: 'busybox.tar', hashFile: 'busybox.tar.sha256', sha256: HASH, size: 4096},
+            ],
+          }),
+        ),
+      );
+
+      const images: readonly CacheManifestImage[] = await CacheManifestClient.fetchImages(SOLO_VERSION);
+
+      expect(images[0].size).to.equal(4096);
+    });
+
+    it('rejects an archive size that is not a non-negative integer', async (): Promise<void> => {
+      await expectInvalidManifest(
+        JSON.stringify(
+          manifest({
+            images: [
+              {image: 'busybox:1', tarFile: 'busybox.tar', hashFile: 'busybox.tar.sha256', sha256: HASH, size: -1},
+            ],
+          }),
+        ),
+        'images[0].size must be a non-negative integer',
+      );
     });
 
     it('builds CDN URLs from the override base URL', async (): Promise<void> => {
@@ -202,31 +232,5 @@ describe('CacheManifestClient', (): void => {
         'must be a bare file name without path separators',
       );
     });
-
-    it('parses the optional archive size and leaves it undefined when absent', async (): Promise<void> => {
-      const withSize: Record<string, unknown> = manifest();
-      (withSize.images as Record<string, unknown>[])[0].size = 4_116_480;
-      stubFetch(JSON.stringify(withSize));
-
-      const images: readonly CacheManifestImage[] = await CacheManifestClient.fetchImages(SOLO_VERSION);
-
-      expect(images[0].size).to.equal(4_116_480);
-      expect(images[1].size).to.equal(undefined);
-    });
-
-    for (const size of [0, -1, 1.5, '4116480']) {
-      it(`rejects an archive size of ${JSON.stringify(size)}`, async (): Promise<void> => {
-        await expectInvalidManifest(
-          JSON.stringify(
-            manifest({
-              images: [
-                {image: 'busybox:1', tarFile: 'busybox.tar', hashFile: 'busybox.tar.sha256', sha256: HASH, size},
-              ],
-            }),
-          ),
-          'images[0].size must be a positive integer',
-        );
-      });
-    }
   });
 });

@@ -60,7 +60,7 @@ release asset (staging, testing).
 | `images[].tarFile`  | string  | yes      | Bare file name (§4): no `/`, `\` or `..`.                             |
 | `images[].hashFile` | string  | yes      | Bare file name (§4): no `/`, `\` or `..`.                             |
 | `images[].sha256`   | string  | yes      | SHA-256 of the archive, 64 lowercase hex characters.                  |
-| `images[].size`     | integer | no       | Size of the archive in bytes; a positive integer when present.        |
+| `images[].size`     | integer | no       | Size of the archive in bytes; a non-negative integer when present.    |
 
 A manifest that breaks any rule is rejected as a whole. Without a usable manifest the CLI caches
 nothing, leaves the existing cache untouched, and the cluster pulls images from their registries.
