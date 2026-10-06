@@ -138,22 +138,25 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
          * to the just-destroyed ingress controller and every request hung. `explorer node upgrade`
          * now patches a restart annotation onto the explorer Deployment's pod template after the
          * Helm upgrade, forcing a rollout so the new pod picks up the refreshed routing config.
+         *
+         * These steps are registered directly here rather than inside a nested describe(): Mocha
+         * always runs a describe()'s own it()s before any nested describe()'s it()s regardless of
+         * source position, which would silently defer this regression test until after the
+         * destroyEnabled() teardown below has already deleted the namespace and its remote config.
          */
-        describe('Explorer routing survives disabling mirror node ingress after the fact', (): void => {
-          // With ingress enabled (as deployed above), resolveMirrorNodeServices collapses
-          // rest/restjava/web3 to the same ingress-controller URL. Redeploy without ingress so the
-          // three become genuinely distinct backends, then re-run the same proxy-routing check again.
-          MirrorNodeTest.redeployWithoutIngress({...options, valuesFile: dualClusterValuesFile});
-          ExplorerTest.upgrade(options);
+        // With ingress enabled (as deployed above), resolveMirrorNodeServices collapses
+        // rest/restjava/web3 to the same ingress-controller URL. Redeploy without ingress so the
+        // three become genuinely distinct backends, then re-run the same proxy-routing check again.
+        MirrorNodeTest.redeployWithoutIngress({...options, valuesFile: dualClusterValuesFile});
+        ExplorerTest.upgrade(options);
 
-          it(`${testName}: explorer proxy routes each mirror node API path correctly without mirror ingress`, async (): Promise<void> => {
-            const k8Factory: K8ClientFactory = container.resolve<K8ClientFactory>(InjectTokens.K8Factory);
-            const k8: K8 = k8Factory.getK8(contexts[1] || contexts[0]);
-            // Genesis treasury account: indexed first (and fastest) by the freshly-rebuilt importer.
-            // This suite deploys with a non-default shard/realm, so not assuming '0.0.2'.
-            await ExplorerTest.verifyExplorerDeployWasSuccessful(k8, namespace, `${shard}.${realm}.2`, testLogger, 30);
-          }).timeout(Duration.ofMinutes(7).toMillis());
-        });
+        it(`${testName}: explorer proxy routes each mirror node API path correctly without mirror ingress`, async (): Promise<void> => {
+          const k8Factory: K8ClientFactory = container.resolve<K8ClientFactory>(InjectTokens.K8Factory);
+          const k8: K8 = k8Factory.getK8(contexts[1] || contexts[0]);
+          // Genesis treasury account: indexed first (and fastest) by the freshly-rebuilt importer.
+          // This suite deploys with a non-default shard/realm, so not assuming '0.0.2'.
+          await ExplorerTest.verifyExplorerDeployWasSuccessful(k8, namespace, `${shard}.${realm}.2`, testLogger, 30);
+        }).timeout(Duration.ofMinutes(7).toMillis());
 
         it('Should write log metrics', async (): Promise<void> => {
           await new MetricsServerImpl().logMetrics(
