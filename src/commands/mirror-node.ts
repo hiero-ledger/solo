@@ -36,6 +36,8 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../integration/kube/resources/pod/pods.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {ContainerName} from '../integration/kube/resources/container/container-name.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {KubePodNotFoundError} from '../integration/kube/errors/kube-pod-not-found-error.js';
 import {KubePodNotReadyError} from '../integration/kube/errors/kube-pod-not-ready-error.js';
 import chalk from 'chalk';
@@ -1235,6 +1237,7 @@ export class MirrorNodeCommand extends BaseCommand {
               },
             },
             this.waitForMirrorNodeSchemaTask(),
+            this.grantExternalDatabaseReadonlyRoleTask(),
           ],
           constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
@@ -1294,6 +1297,69 @@ export class MirrorNodeCommand extends BaseCommand {
           constants.MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS,
           constants.MIRROR_NODE_SCHEMA_READY_DELAY,
         );
+      },
+    };
+  }
+
+  /**
+   * The importer's V1.0__Init.sql migration creates mirror_rest without the readonly role, so on an
+   * external database it lacks SELECT on every table added by a later migration. Solo cannot exec
+   * into a database it does not own, so it starts a short-lived psql pod in the mirror node
+   * namespace, grants the role over the network with the owner credentials, and deletes the pod.
+   * The DO block is idempotent and a no-op when either role is missing.
+   */
+  private grantExternalDatabaseReadonlyRoleTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Grant readonly role to mirror_rest on external database',
+      skip: (context_): boolean => !context_.config.useExternalDatabase,
+      task: async (context_): Promise<void> => {
+        const config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass = context_.config;
+        const pods: Pods = this.k8Factory.getK8(config.clusterContext).pods();
+        const podName: string = `${config.releaseName}-external-db-client-${Date.now().toString(36)}`;
+        const podReference: PodReference = PodReference.of(config.namespace, PodName.of(podName));
+        const containerName: ContainerName = ContainerName.of('psql');
+        const grantSql: string =
+          "DO $grant$ BEGIN IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'readonly') " +
+          "AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') " +
+          'THEN GRANT readonly TO mirror_rest; END IF; END $grant$;';
+
+        await pods.create(
+          podReference,
+          {'solo.hedera.com/type': 'external-db-client', 'solo.hedera.com/pod': podName},
+          containerName,
+          constants.MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE,
+          ['sleep', 'infinity'],
+          ['psql', '--version'],
+        );
+        try {
+          await pods.waitForReadyStatus(
+            config.namespace,
+            [`solo.hedera.com/pod=${podName}`],
+            constants.PODS_READY_MAX_ATTEMPTS,
+            constants.PODS_READY_DELAY,
+          );
+          await this.k8Factory
+            .getK8(config.clusterContext)
+            .containers()
+            .readByRef(ContainerReference.of(podReference, containerName))
+            .execContainer([
+              'env',
+              `PGPASSWORD=${config.externalDatabaseOwnerPassword}`,
+              'psql',
+              '-h',
+              config.externalDatabaseHost,
+              '-U',
+              config.externalDatabaseOwnerUsername,
+              '-d',
+              'mirror_node',
+              '-v',
+              'ON_ERROR_STOP=1',
+              '-c',
+              grantSql,
+            ]);
+        } finally {
+          await pods.delete(podReference);
+        }
       },
     };
   }
