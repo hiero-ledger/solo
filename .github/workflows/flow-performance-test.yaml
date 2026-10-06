@@ -179,6 +179,8 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
+          echo BLOCK_STREAM_STREAM_MODE=BLOCKS >> .env
+          echo ONE_SHOT_BLOCK_NODE_PERF=true >> .env
           CN_EDGE_VERSION="${CN_EDGE_VERSION_INPUT}"
           if [[ -n "${CN_EDGE_VERSION}" ]]; then
             echo "Using consensus node edge version: ${CN_EDGE_VERSION}"

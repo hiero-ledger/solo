@@ -17,6 +17,7 @@ import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
 import {type BaseTestOptions} from './base-test-options.js';
 import {MirrorCommandDefinition} from '../../../../src/commands/command-definitions/mirror-command-definition.js';
+import {negatedOptionFromFlag} from '../../../../src/commands/command-helpers.js';
 
 import * as constants from '../../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -44,6 +45,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     clusterReference: ClusterReferenceName,
     pinger: boolean,
     valuesFile?: string,
+    enableIngress: boolean = true,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
 
@@ -56,7 +58,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       deployment,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
-      optionFromFlag(Flags.enableIngress),
+      enableIngress ? optionFromFlag(Flags.enableIngress) : negatedOptionFromFlag(Flags.enableIngress),
     );
 
     if (pinger) {
@@ -425,6 +427,40 @@ export class MirrorNodeTest extends BaseCommandTest {
     it(`${testName}: mirror node destroy`, async (): Promise<void> => {
       await main(soloMirrorNodeDestroyArgv(testName, deployment, targetClusterReference));
     }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  /**
+   * Deploys the mirror node with `--no-enable-ingress`. Unlike `add()`, this skips
+   * `verifyMirrorNodeDeployWasSuccessful`/`verifyPingerStatus`: both in fact port-forward
+   * to the mirror ingress controller pod, which doesn't exist when ingress is disabled.
+   */
+  public static addWithoutIngress(options: BaseTestOptions, clusterReferenceIndex: number = 1): void {
+    const {testName, deployment, clusterReferenceNameArray, valuesFile} = options;
+    const {soloMirrorNodeDeployArgv} = MirrorNodeTest;
+    const targetClusterReference: ClusterReferenceName =
+      clusterReferenceNameArray[clusterReferenceIndex] || clusterReferenceNameArray[0];
+
+    it(`${testName}: mirror node add without ingress`, async (): Promise<void> => {
+      await main(soloMirrorNodeDeployArgv(testName, deployment, targetClusterReference, false, valuesFile, false));
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  /**
+   * Destroys the mirror node and re-adds it with `--no-enable-ingress`. `mirror node upgrade` can't
+   * do this in place: it only installs the ingress controller when the flag is true, it never
+   * uninstalls one that is already there.
+   */
+  public static redeployWithoutIngress(options: BaseTestOptions, clusterReferenceIndex: number = 1): void {
+    const {testName, deployment, clusterReferenceNameArray} = options;
+    const {addWithoutIngress, soloMirrorNodeDestroyArgv} = MirrorNodeTest;
+    const targetClusterReference: ClusterReferenceName =
+      clusterReferenceNameArray[clusterReferenceIndex] || clusterReferenceNameArray[0];
+
+    it(`${testName}: mirror node destroy (before redeploy without ingress)`, async (): Promise<void> => {
+      await main(soloMirrorNodeDestroyArgv(testName, deployment, targetClusterReference));
+    }).timeout(Duration.ofMinutes(5).toMillis());
+
+    addWithoutIngress(options, clusterReferenceIndex);
   }
 
   private static postgresPassword: string = 'XXXXXXX';

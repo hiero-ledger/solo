@@ -69,6 +69,13 @@ export class Templates {
     return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'rest');
   }
 
+  public static renderMirrorNodeRestJavaServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'restjava');
+  }
+
   public static renderMirrorNodeWeb3ServiceUrl(
     mirrorNodeReleaseName: string,
     mirrorNamespace: NamespaceNameAsString,
