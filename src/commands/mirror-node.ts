@@ -1307,12 +1307,16 @@ export class MirrorNodeCommand extends BaseCommand {
    * into a database it does not own, so it starts a short-lived psql pod in the mirror node
    * namespace, grants the role over the network with the owner credentials, and deletes the pod.
    * The DO block is idempotent and a no-op when either role is missing.
+   *
+   * A failed grant only warns: REST still starts without it, as it did before Solo ran the grant,
+   * and on PostgreSQL 16+ a non-superuser owner needs ADMIN OPTION on readonly, which only the
+   * database administrator can give.
    */
   private grantExternalDatabaseReadonlyRoleTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Grant readonly role to mirror_rest on external database',
       skip: (context_): boolean => !context_.config.useExternalDatabase,
-      task: async (context_): Promise<void> => {
+      task: async (context_, task): Promise<void> => {
         const config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass = context_.config;
         const pods: Pods = this.k8Factory.getK8(config.clusterContext).pods();
         const podName: string = `${config.releaseName}-external-db-client-${Date.now().toString(36)}`;
@@ -1323,42 +1327,52 @@ export class MirrorNodeCommand extends BaseCommand {
           "AND EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'mirror_rest') " +
           'THEN GRANT readonly TO mirror_rest; END IF; END $grant$;';
 
-        await pods.create(
-          podReference,
-          {'solo.hedera.com/type': 'external-db-client', 'solo.hedera.com/pod': podName},
-          containerName,
-          constants.MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE,
-          ['sleep', 'infinity'],
-          ['psql', '--version'],
-        );
         try {
-          await pods.waitForReadyStatus(
-            config.namespace,
-            [`solo.hedera.com/pod=${podName}`],
-            constants.PODS_READY_MAX_ATTEMPTS,
-            constants.PODS_READY_DELAY,
+          // The password goes in the pod env, not the exec command, which execContainer writes to solo.log.
+          await pods.create(
+            podReference,
+            {'solo.hedera.com/type': 'external-db-client', 'solo.hedera.com/pod': podName},
+            containerName,
+            constants.MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE,
+            ['sleep', 'infinity'],
+            ['psql', '--version'],
+            {PGPASSWORD: config.externalDatabaseOwnerPassword},
           );
-          await this.k8Factory
-            .getK8(config.clusterContext)
-            .containers()
-            .readByRef(ContainerReference.of(podReference, containerName))
-            .execContainer([
-              'env',
-              `PGPASSWORD=${config.externalDatabaseOwnerPassword}`,
-              'psql',
-              '-h',
-              config.externalDatabaseHost,
-              '-U',
-              config.externalDatabaseOwnerUsername,
-              '-d',
-              'mirror_node',
-              '-v',
-              'ON_ERROR_STOP=1',
-              '-c',
-              grantSql,
-            ]);
-        } finally {
-          await pods.delete(podReference);
+          try {
+            await pods.waitForReadyStatus(
+              config.namespace,
+              [`solo.hedera.com/pod=${podName}`],
+              constants.PODS_READY_MAX_ATTEMPTS,
+              constants.PODS_READY_DELAY,
+            );
+            await this.k8Factory
+              .getK8(config.clusterContext)
+              .containers()
+              .readByRef(ContainerReference.of(podReference, containerName))
+              .execContainer([
+                'psql',
+                '-h',
+                config.externalDatabaseHost,
+                '-U',
+                config.externalDatabaseOwnerUsername,
+                '-d',
+                'mirror_node',
+                '-v',
+                'ON_ERROR_STOP=1',
+                '-c',
+                grantSql,
+              ]);
+          } finally {
+            await pods.delete(podReference);
+          }
+        } catch (error) {
+          // Warn instead of failing: the mirror node is already deployed and REST starts without the
+          // grant, so the worst case matches the old manual step. The reason names the SQL to run.
+          const reason: string =
+            'could not grant readonly to mirror_rest; REST may fail to read tables added after the first migration. ' +
+            `Run as a database administrator: GRANT readonly TO mirror_rest; (or GRANT readonly TO ${config.externalDatabaseOwnerUsername} WITH ADMIN OPTION; and re-run)`;
+          this.logger.warn(reason, error);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
         }
       },
     };

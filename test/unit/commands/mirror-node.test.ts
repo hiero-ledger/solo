@@ -819,26 +819,25 @@ describe('MirrorNodeCommand unit tests', (): void => {
       const {pods, task} = stubClientPod(execContainer);
 
       expect((task.skip as (context: unknown) => boolean)(grantContext)).to.equal(false);
-      await (task.task as (context: unknown) => Promise<void>)(grantContext);
+      await (task.task as (context: unknown, listrTask: unknown) => Promise<void>)(grantContext, {});
 
       expect(pods.create.firstCall.args[3]).to.equal(constants.MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE);
+      expect(pods.create.firstCall.args[6]).to.deep.equal({PGPASSWORD: 'secret'});
       const command: string[] = execContainer.firstCall.args[0];
-      expect(command).to.include.members(['PGPASSWORD=secret', 'my-postgresql.database.svc.cluster.local', 'owner']);
+      expect(command).to.include.members(['my-postgresql.database.svc.cluster.local', 'owner']);
+      expect(command.join(' ')).not.to.contain('secret');
       expect(command.at(-1)).to.contain('GRANT readonly TO mirror_rest');
       expect(pods.delete.calledOnce).to.equal(true);
     });
 
-    it('should delete the client pod when the grant fails', async (): Promise<void> => {
-      const failure: Error = new Error('permission denied');
-      const {pods, task} = stubClientPod(sinon.stub().rejects(failure));
+    it('should warn, skip and delete the client pod when the grant fails', async (): Promise<void> => {
+      const {pods, task} = stubClientPod(sinon.stub().rejects(new Error('permission denied')));
+      const listrTask: {title: string; skip: sinon.SinonStub} = {title: 'Grant', skip: sinon.stub()};
 
-      try {
-        await (task.task as (context: unknown) => Promise<void>)(grantContext);
-        expect.fail('Expected the grant to reject');
-      } catch (error: Error | unknown) {
-        expect(error).to.equal(failure);
-      }
+      await (task.task as (context: unknown, listrTask: unknown) => Promise<void>)(grantContext, listrTask);
+
       expect(pods.delete.calledOnce).to.equal(true);
+      expect(listrTask.skip.firstCall.args[0]).to.contain('GRANT readonly TO owner WITH ADMIN OPTION');
     });
 
     it('should skip when the mirror node uses the shared database', (): void => {
