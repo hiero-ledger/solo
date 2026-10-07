@@ -379,6 +379,11 @@ export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath
   RESOURCES_DIR,
   'mirror-postgres-truncate.sql',
 );
+// psql client used to run SQL against an external mirror node database from inside the cluster.
+// Override for air-gapped or private registries.
+export const MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE: string =
+  getEnvironmentVariable('MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE') ||
+  'docker.io/bitnamilegacy/postgresql-repmgr:17.6.0-debian-12-r2';
 export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
