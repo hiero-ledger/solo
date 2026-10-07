@@ -95,6 +95,22 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Solo always passes resources/solo-values.yaml as the first Helm values file, so patching the
+      # root image there is a deterministic values-file override. A falcon `network: --values-file`
+      # entry is not used: the one-shot sub-commands share a global --values-file flag and the
+      # network install ended up with the mirror node's values file instead (run 37659834260).
+      # The image is preloaded into Kind, so never pull.
+      - name: Override Root Image in Solo Values
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          sed -i '/^  root:$/a\
+              image:\
+                registry: "'"${CN_IMAGE_REGISTRY}"'"\
+                repository: "'"${CN_IMAGE_REPOSITORY}"'"\
+                tag: "'"${CN_IMAGE_TAG}"'"\
+                pullPolicy: "Never"' resources/solo-values.yaml
+          sed -n '/^defaults:/,/^  haproxy:/p' resources/solo-values.yaml
+
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
@@ -196,37 +212,22 @@ jobs:
           kind create cluster -n "${KIND_CLUSTER_NAME}"
           kind load docker-image "${IMAGE}" -n "${KIND_CLUSTER_NAME}"
 
-      - name: Generate Values Files
+      - name: Generate Falcon Values File
         id: values-file
         env:
           RESOLVED_CN_VERSION: ${{ steps.versions.outputs.cn-version }}
         run: |
-          # Helm values overriding the root container image with the freshly built one.
-          # Image is preloaded into Kind, so never pull.
-          HELM_VALUES_FILE="/tmp/deterministic-image-helm-values.yaml"
-          {
-            echo "defaults:"
-            echo "  root:"
-            echo "    image:"
-            echo "      registry: \"${CN_IMAGE_REGISTRY}\""
-            echo "      repository: \"${CN_IMAGE_REPOSITORY}\""
-            echo "      tag: \"${CN_IMAGE_TAG}\""
-            echo "      pullPolicy: \"Never\""
-          } > "$HELM_VALUES_FILE"
-
           VALUES_FILE="/tmp/deterministic-image-falcon-values.yaml"
           CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
           {
             echo "network:"
             echo "  --release-tag: \"${RESOLVED_CN_VERSION}\""
-            echo "  --values-file: \"${HELM_VALUES_FILE}\""
             echo ""
             echo "setup:"
             echo "  --release-tag: \"${RESOLVED_CN_VERSION}\""
             echo "  --local-build-path: \"${CN_REPO_DIR}/hedera-node/data\""
           } > "$VALUES_FILE"
 
-          echo "Helm values:"; cat "$HELM_VALUES_FILE"
           echo "Falcon values:"; cat "$VALUES_FILE"
           echo "path=$VALUES_FILE" >> "$GITHUB_OUTPUT"
 
