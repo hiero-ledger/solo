@@ -134,6 +134,7 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
 import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {helmValuesHelper} from '../../core/helm-values-helper.js';
+import {NetworkNodeLifecycle} from '../../core/network-node-lifecycle.js';
 import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
@@ -486,7 +487,7 @@ export class NodeCommandTasks {
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
 
-    await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+    await container.execContainer(['bash', '-c', NetworkNodeLifecycle.buildStopCommand()]);
 
     // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
     await container.execContainer([
@@ -2437,7 +2438,7 @@ export class NodeCommandTasks {
                 .pods()
                 .waitForReadyStatus(config.namespace, labels, 120, 1000, undefined, true);
 
-              const startCommand: string = this.buildStartNetworkNodeCommand();
+              const startCommand: string = NetworkNodeLifecycle.buildStartCommand();
 
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
                 config.namespace,
@@ -2498,47 +2499,6 @@ export class NodeCommandTasks {
     return [
       `chown -R hedera:hedera "${applicationDirectory}" "${libraryDirectory}"`,
       `chmod -R u+rwX,g+rX,o+rX "${applicationDirectory}" "${libraryDirectory}"`,
-    ].join('\n');
-  }
-
-  /**
-   * Build the command used by `consensus node start` to restart the network-node service.
-   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
-   */
-  private buildStartNetworkNodeCommand(): string {
-    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
-    return [
-      // Fail fast when the helper is missing so callers immediately know the image
-      // does not satisfy Solo's lifecycle contract.
-      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
-      [
-        "if ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain'",
-        "then curl -sf http://localhost:9999/metrics | grep 'platform_PlatformStatus' | grep -q ' 2[.]0$' && true < /dev/tcp/127.0.0.1/50211",
-        'else false',
-        'fi',
-      ].join('\n'),
-      // ACTIVE nodes only need the autostart marker restored; the full helper start
-      // path deliberately forces a down/up cycle for transitional or frozen nodes.
-      `if [ $? -eq 0 ]; then "${lifecycleHelperPath}" enable-autostart; exit 0; fi`,
-      // A JVM can remain alive with only background threads after the main platform
-      // exits. Clear any non-ready process before asking the helper to start it.
-      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
-      // The helper owns both service control and autostart marker semantics.
-      `"${lifecycleHelperPath}" start-and-enable-autostart`,
-    ].join('\n');
-  }
-
-  /**
-   * Build the command used by `consensus node stop` to stop the network-node service.
-   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
-   */
-  private buildStopNetworkNodeCommand(): string {
-    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
-    return [
-      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
-      // Keep Solo orchestration-only: hard-stop and escalation logic must stay in
-      // solo-container's /command/network-node-lifecycle helper.
-      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
     ].join('\n');
   }
 
@@ -2954,7 +2914,7 @@ export class NodeCommandTasks {
               task: async () => {
                 const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+                await container.execContainer(['bash', '-c', NetworkNodeLifecycle.buildStopCommand()]);
               },
             });
           }
@@ -5066,11 +5026,7 @@ export class NodeCommandTasks {
               .getK8(service.context)
               .containers()
               .readByRef(containerReference)
-              .execContainer([
-                'bash',
-                '-c',
-                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
-              ]);
+              .execContainer(['bash', '-c', NetworkNodeLifecycle.buildDisableAutostartCommand()]);
           } catch {
             // Best-effort: container may already be restarting; the kill below will follow
           }
@@ -5130,11 +5086,7 @@ export class NodeCommandTasks {
               .getK8(service.context)
               .containers()
               .readByRef(containerReference)
-              .execContainer([
-                'bash',
-                '-c',
-                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
-              ]);
+              .execContainer(['bash', '-c', NetworkNodeLifecycle.buildDisableAutostartCommand()]);
           } catch {
             // Best-effort: container may already be restarting; the kill below will follow
           }

@@ -235,6 +235,8 @@ jobs:
         timeout-minutes: 40
         env:
           VALUES_FILE_PATH: ${{ steps.values-file.outputs.path }}
+          # The consensus node image has no solo-containers lifecycle helper; Solo drives its s6 service instead
+          NETWORK_NODE_LIFECYCLE_MODE: consensus-node-image
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot falcon deploy --values-file "${VALUES_FILE_PATH}"

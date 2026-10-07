@@ -107,6 +107,12 @@ export const HEDERA_CHAIN_ID: string = getEnvironmentVariable('SOLO_CHAIN_ID') |
 export const HEDERA_HGCAPP_DIR: string = '/opt/hgcapp';
 export const HEDERA_SERVICES_PATH: string = `${HEDERA_HGCAPP_DIR}/services-hedera`;
 export const HEDERA_HAPI_PATH: string = `${HEDERA_SERVICES_PATH}/HapiApp2.0`;
+
+// How Solo starts/stops the consensus node process inside the root container:
+//  - 'solo-container' (default): the solo-containers debian-s6-java25 image and its /command/network-node-lifecycle helper
+//  - 'consensus-node-image': the hiero-consensus-node deterministic image and its single s6 'consensus' service
+export const NETWORK_NODE_LIFECYCLE_MODE: string =
+  getEnvironmentVariable('NETWORK_NODE_LIFECYCLE_MODE') || 'solo-container';
 export const HEDERA_DATA_APPS_DIR: string = 'data/apps';
 export const HEDERA_DATA_LIB_DIR: string = 'data/lib';
 export const HEDERA_USER_HOME_DIR: string = '/home/hedera';
