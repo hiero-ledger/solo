@@ -190,6 +190,9 @@ jobs:
         env:
           IMAGE: ${{ steps.image.outputs.image }}
         run: |
+          # kind/kubectl/helm are not preinstalled; `solo init` installs them into ~/.solo/bin
+          npm run solo -- init
+          export PATH=~/.solo/bin:${PATH}
           kind create cluster -n "${KIND_CLUSTER_NAME}"
           kind load docker-image "${IMAGE}" -n "${KIND_CLUSTER_NAME}"
 
@@ -240,6 +243,7 @@ jobs:
         env:
           IMAGE_ID: ${{ steps.image.outputs.id }}
         run: |
+          export PATH=~/.solo/bin:${PATH}
           kubectl --context "kind-${KIND_CLUSTER_NAME}" get pods -A -l solo.hedera.com/type=network-node \
             -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{" "}{end}{"\n"}{end}' \
             | tee /tmp/network-node-images.txt
