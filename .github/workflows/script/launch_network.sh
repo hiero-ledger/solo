@@ -704,13 +704,15 @@ TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properti
 TEMP_SOURCE_RELAY_VALUES_FILE="$(mktemp -t source-relay-values-XXXX.yaml)"
 
 cat > "${TEMP_SOURCE_RELAY_VALUES_FILE}" <<'EOF'
-# The source deployment uses a prior Solo release, so its bundled relay values may
-# predate the keep-alive fix in the current checkout. Keep migration smoke requests
-# from reusing connections across Mirror Web3 pod replacement. The prior release's
-# bundled defaults also set LOG_LEVEL=error, which omits per-request logs entirely;
-# raise it to debug here so a request that silently stalls (e.g. the ERC-20 smoke
-# test's transferFrom() polling a receipt that never arrives) leaves a trail instead
-# of just running out the mocha timeout with nothing to diagnose from.
+# Re-passed to both the source deploy and the later `relay node upgrade` (see below),
+# since upgrade does not reuse this file. The source deployment uses a prior Solo
+# release, so its bundled relay values may predate the keep-alive fix in the current
+# checkout. Keep migration smoke requests from reusing connections across Mirror Web3
+# pod replacement. The bundled defaults also set LOG_LEVEL=error, which omits
+# per-request logs entirely; raise it to debug here so a request that silently stalls
+# (e.g. the ERC-20 smoke test's transferFrom() polling a receipt that never arrives)
+# leaves a trail instead of just running out the mocha timeout with nothing to
+# diagnose from.
 relay:
   config:
     MIRROR_NODE_HTTP_KEEP_ALIVE: false
@@ -1068,7 +1070,13 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Target mirror block before post-upgrade acc
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 wait_for_mirror_block_count_progress "target deployment after component upgrades" "${target_block_before_final_wait}" 1 180 2 > /dev/null
 
-npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+# `relay node upgrade` does not reuse the source deploy's --values-file (Helm's
+# --reuse-values only fills in keys the new invocation doesn't re-specify, and this
+# invocation re-specifies the baseline resources/relay-values.yaml), so the debug
+# LOG_LEVEL set above gets silently reset to the bundled error default on the upgraded
+# relay that the Final Verification smoke test actually runs against. Re-pass the same
+# override here so it survives into the post-upgrade relay too.
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_SOURCE_RELAY_VALUES_FILE}" -q --dev
 # Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
 refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
 
