@@ -521,31 +521,6 @@ jobs:
             IGNORE_LIST_FILE="${IGNORE_LIST_FILE}"
           echo "::endgroup::"
 
-          # TEMPORARY: deprecation notice for the final @hashgraph/solo releases. Must run after the
-          # rename step so the @hiero-ledger/solo references in the notice are not rewritten.
-          # The README change is reverted by the dual-publish:restore task.
-          echo "::group::Add deprecation notice to Hashgraph README"
-          NOTICE_FILE="$(mktemp)"
-          cat > "${NOTICE_FILE}" <<EOF
-          > **⚠️ Deprecation Notice:** \`${HASHGRAPH_PKG_NAME}\` is deprecated and will no longer receive updates.
-          > Solo is now published as [\`${HIERO_PKG_NAME}\`](https://www.npmjs.com/package/${HIERO_PKG_NAME}).
-          > Please migrate to the new package:
-          >
-          > \`\`\`bash
-          > npm uninstall -g ${HASHGRAPH_PKG_NAME}
-          > npm install -g ${HIERO_PKG_NAME}
-          > \`\`\`
-          EOF
-          { head -n 1 README.md; echo; cat "${NOTICE_FILE}"; tail -n +2 README.md; } > README.md.tmp
-          mv README.md.tmp README.md
-          rm -f "${NOTICE_FILE}"
-          grep -q "Deprecation Notice:\*\* \`${HASHGRAPH_PKG_NAME}\`" README.md || {
-            echo "::error file=flow-deploy-release-artifact.yaml::Failed to add deprecation notice to Hashgraph README"
-            exit 1
-          }
-          head -n 15 README.md
-          echo "::endgroup::"
-
           echo "::group::Build and pack Hashgraph package"
           task -t "${CI_TASK}" dual-publish:pack \
             OUTPUT_DIR="output/hg" \
