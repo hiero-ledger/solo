@@ -2,20 +2,21 @@
 
 ## Table of Contents
 
-| Example Directory                                                   | Description                                                                                                            |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [address-book](./address-book/)                                     | Example of using Yahcli to pull the ledger and mirror node address book                                                |
-| [consensus-node-jvm-parameters](./consensus-node-jvm-parameters/)   | Example of customizing JVM parameters for Solo consensus nodes                                                         |
-| [multicluster-backup-restore](./multicluster-backup-restore/)       | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes                |
-| [external-database-test](./external-database-test/)                 | Deploy a Solo network with an external PostgreSQL database                                                             |
+| Example Directory                                                   | Description                                                                                                         |
+|---------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| [address-book](./address-book/)                                     | Example of using Yahcli to pull the ledger and mirror node address book                                             |
+| [consensus-node-jvm-parameters](./consensus-node-jvm-parameters/)   | Example of customizing JVM parameters for Solo consensus nodes                                                      |
+| [multicluster-backup-restore](./multicluster-backup-restore/)       | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes             |
+| [external-database-test](./external-database-test/)                 | Deploy a Solo network with an external PostgreSQL database                                                          |
 | [explorer-stale-routing-repro](./explorer-stale-routing-repro/)     | Reproduces issue #6118: `explorer node upgrade` does not refresh the explorer's live routing config                    |
-| [hardhat-with-solo](./hardhat-with-solo/)                           | Example of using Hardhat to test a smart contract with a local Solo deployment                                         |
-| [local-build-with-custom-config](./local-build-with-custom-config/) | Example of how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes       |
-| [network-with-domain-names](./network-with-domain-names/)           | Setup a network using custom domain names for all components                                                           |
-| [node-create-transaction](./node-create-transaction/)               | Manually write a NodeCreateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands.    |
-| [node-delete-transaction](./node-delete-transaction/)               | Manually write a NodeDeleteTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands.    |
-| [node-update-transaction](./node-update-transaction/)               | Manually write a NodeUpdateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands.    |
-| [one-shot-falcon](./one-shot-falcon/)                               | Example of how to use the Solo **one-shot falcon** commands                                                            |
+| [hardhat-with-solo](./hardhat-with-solo/)                           | Example of using Hardhat to test a smart contract with a local Solo deployment                                      |
+| [local-build-with-custom-config](./local-build-with-custom-config/) | Example of how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes    |
+| [mirror-node-component-image](./mirror-node-component-image/)       | Deploy Mirror Node using six locally built module images via `--component-image`                                    |
+| [network-with-domain-names](./network-with-domain-names/)           | Setup a network using custom domain names for all components                                                        |
+| [node-create-transaction](./node-create-transaction/)               | Manually write a NodeCreateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
+| [node-delete-transaction](./node-delete-transaction/)               | Manually write a NodeDeleteTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
+| [node-update-transaction](./node-update-transaction/)               | Manually write a NodeUpdateTransaction and use the add-prepare/prepare-upgrade/freeze-upgrade/add-execute commands. |
+| [one-shot-falcon](./one-shot-falcon/)                               | Example of how to use the Solo **one-shot falcon** commands                                                         |
 | [one-shot-local-build](./one-shot-local-build/)                     | Example of how to deploy a complete network using locally built component sources via the Solo one-shot falcon command |
 | [rapid-fire](./rapid-fire/)                                         | Example of how to use the Solo **rapid-fire** commands                                                                 |
 | [state-save-and-restore](./state-save-and-restore/)                 | Save network state, restore it, and transplant it into a separately keyed network                                      |
