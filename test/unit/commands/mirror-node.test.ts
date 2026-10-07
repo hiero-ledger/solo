@@ -784,6 +784,68 @@ describe('MirrorNodeCommand unit tests', (): void => {
     });
   });
 
+  describe('grantExternalDatabaseReadonlyRoleTask', (): void => {
+    type GrantTask = SoloListrTask<{config: Record<string, unknown>}>;
+    const grantContext: {config: Record<string, unknown>} = {
+      config: {
+        useExternalDatabase: true,
+        releaseName: 'mirror-1',
+        clusterContext: 'kind-a',
+        namespace: NamespaceName.of('solo'),
+        externalDatabaseHost: 'my-postgresql.database.svc.cluster.local',
+        externalDatabaseOwnerUsername: 'owner',
+        externalDatabaseOwnerPassword: 'secret',
+      },
+    };
+
+    function stubClientPod(execContainer: sinon.SinonStub): {pods: Record<string, sinon.SinonStub>; task: GrantTask} {
+      const pods: Record<string, sinon.SinonStub> = {
+        create: sinon.stub().resolves({}),
+        waitForReadyStatus: sinon.stub().resolves([{}]),
+        delete: sinon.stub().resolves(),
+      };
+      const internal: Record<string, unknown> = mirrorNodeCommand as unknown as Record<string, unknown>;
+      internal.k8Factory = {
+        getK8: (): unknown => ({
+          pods: (): unknown => pods,
+          containers: (): unknown => ({readByRef: (): unknown => ({execContainer})}),
+        }),
+      };
+      return {pods, task: (internal.grantExternalDatabaseReadonlyRoleTask as () => GrantTask).call(mirrorNodeCommand)};
+    }
+
+    it('should run the grant against the external host from a client pod and delete the pod', async (): Promise<void> => {
+      const execContainer: sinon.SinonStub = sinon.stub().resolves('DO');
+      const {pods, task} = stubClientPod(execContainer);
+
+      expect((task.skip as (context: unknown) => boolean)(grantContext)).to.equal(false);
+      await (task.task as (context: unknown, listrTask: unknown) => Promise<void>)(grantContext, {});
+
+      expect(pods.create.firstCall.args[3]).to.equal(constants.MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE);
+      expect(pods.create.firstCall.args[6]).to.deep.equal({PGPASSWORD: 'secret'});
+      const command: string[] = execContainer.firstCall.args[0];
+      expect(command).to.include.members(['my-postgresql.database.svc.cluster.local', 'owner']);
+      expect(command.join(' ')).not.to.contain('secret');
+      expect(command.at(-1)).to.contain('GRANT readonly TO mirror_rest');
+      expect(pods.delete.calledOnce).to.equal(true);
+    });
+
+    it('should warn, skip and delete the client pod when the grant fails', async (): Promise<void> => {
+      const {pods, task} = stubClientPod(sinon.stub().rejects(new Error('permission denied')));
+      const listrTask: {title: string; skip: sinon.SinonStub} = {title: 'Grant', skip: sinon.stub()};
+
+      await (task.task as (context: unknown, listrTask: unknown) => Promise<void>)(grantContext, listrTask);
+
+      expect(pods.delete.calledOnce).to.equal(true);
+      expect(listrTask.skip.firstCall.args[0]).to.contain('GRANT readonly TO owner WITH ADMIN OPTION');
+    });
+
+    it('should skip when the mirror node uses the shared database', (): void => {
+      const {task} = stubClientPod(sinon.stub());
+      expect((task.skip as (context: unknown) => boolean)({config: {useExternalDatabase: false}})).to.equal(true);
+    });
+  });
+
   describe('upgradeMirrorNodeChart', (): void => {
     const transientError: Error = new Error(
       'Post "https://127.0.0.1:33745/api/v1/namespaces/one-shot/secrets?fieldManager=helm": unexpected EOF',
