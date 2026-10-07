@@ -99,6 +99,7 @@ const maxEndToEndRtt: number = 500;
 const minimumTransactionsPerSecond: number = 90;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
 const mirrorImporterWarmupSeconds: number = 60;
+const performanceTestConciseModeEnabled: boolean = process.env.PERFORMANCE_TEST_CONCISE_MODE === 'true';
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
@@ -313,48 +314,48 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await NetworkLoadGeneratorTest.deployChart(deploymentName);
         }).timeout(Duration.ofMinutes(20).toMillis());
 
-        it('TokenTransferLoadTest', async (): Promise<void> => {
-          logEvent('Starting TokenTransferLoadTest');
-          await runLoadTest(
-            'TokenTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -rel ${tokenAssociationCap} -R -t ${duration}`,
-          );
-        }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
+        if (!performanceTestConciseModeEnabled) {
+          it('TokenTransferLoadTest', async (): Promise<void> => {
+            logEvent('Starting TokenTransferLoadTest');
+            await runLoadTest(
+              'TokenTransferLoadTest',
+              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -rel ${tokenAssociationCap} -R -t ${duration}`,
+            );
+          }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
 
-        it('NftTransferLoadTest', async (): Promise<void> => {
-          logEvent('Starting NftTransferLoadTest');
-          await runLoadTest(
-            'NftTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -t ${duration}`,
+          it('NftTransferLoadTest', async (): Promise<void> => {
+            logEvent('Starting NftTransferLoadTest');
+            await runLoadTest(
+              'NftTransferLoadTest',
+              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -t ${duration}`,
+            );
+          }).timeout(
+            Duration.ofSeconds(
+              duration * nftTransferLoadTestTimeoutMultiplier + mirrorImporterWarmupSeconds,
+            ).toMillis(),
           );
-        }).timeout(
-          Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier + mirrorImporterWarmupSeconds).toMillis(),
-        );
+        }
 
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
           await runLoadTest('CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
 
-        it('HCSLoadTest', async (): Promise<void> => {
-          logEvent('Starting HCSLoadTest');
-          await runLoadTest('HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
-        }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
+        if (!performanceTestConciseModeEnabled) {
+          it('HCSLoadTest', async (): Promise<void> => {
+            logEvent('Starting HCSLoadTest');
+            await runLoadTest('HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
+          }).timeout(Duration.ofSeconds(duration * 2 + mirrorImporterWarmupSeconds).toMillis());
 
-        it('SmartContractLoadTest', async (): Promise<void> => {
-          logEvent('Starting SmartContractLoadTest');
-          // Unlike the other four tests, SmartContractLoadTest is CPU-bound on the consensus
-          // node's EVM execution (confirmed via WorkingQueue debug logging: it alone accumulates
-          // real StatusRuntimeException gRPC errors under load). Raising the global --max-tps to
-          // 105 (see stableTransactionPerSecondTarget) tipped it from 97 TPS into real contention,
-          // collapsing it to 58 TPS (CI run 37357536412, caught by the new --min-tps gate) -- so
-          // it keeps the original, unraised target while the other four tests use the higher one.
-          await runLoadTest(
-            'SmartContractLoadTest',
-            `-c ${clients} -a ${accounts} -R -t ${duration}`,
-            stableTransactionPerSecondTarget - smartContractMaxTpsReduction,
-          );
-        }).timeout(Duration.ofSeconds(duration * 6 + mirrorImporterWarmupSeconds).toMillis());
+          it('SmartContractLoadTest', async (): Promise<void> => {
+            logEvent('Starting SmartContractLoadTest');
+            await runLoadTest(
+              'SmartContractLoadTest',
+              `-c ${clients} -a ${accounts} -R -t ${duration}`,
+              stableTransactionPerSecondTarget - smartContractMaxTpsReduction,
+            );
+          }).timeout(Duration.ofSeconds(duration * 6 + mirrorImporterWarmupSeconds).toMillis());
+        }
 
         async function runLoadTest(
           performanceTest: string,
