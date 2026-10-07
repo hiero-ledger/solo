@@ -1971,6 +1971,13 @@ export class NodeCommandTasks {
 
         context_.config.releaseTag = releaseTag;
 
+        const isVersionUpgrade: boolean = 'upgradeVersion' in context_.config && !!context_.config.upgradeVersion;
+        if (!localBuildPath && !isVersionUpgrade && NetworkNodeLifecycle.isConsensusNodeImage()) {
+          // The consensus node image already contains the jar files of the release tag it was pulled for
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} platform software is baked into the node image`);
+          return;
+        }
+
         if (!localBuildPath) {
           return this._fetchPlatformSoftware(
             context_.config[aliasesField],
