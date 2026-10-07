@@ -9,4 +9,6 @@ Selects how Solo starts, stops and restarts the consensus node process inside th
 * **`consensus-node-image`:** the hiero-consensus-node deterministic image, whose single s6 `consensus` service is controlled with
   `s6-svc` (`-o` to start, `-d` to stop). Solo also sets `AUTO_START_CONSENSUS_SERVICE=false` on the root container so the node
   is not started before Solo has staged its configuration and build.
-* **Used in:** `src/core/network-node-lifecycle.ts`, `src/core/helm-values-helper.ts`, `src/commands/network.ts`, `src/commands/node/tasks.ts`
+  The root container image is also replaced with the released consensus node image
+  `gcr.io/hedera-registry/consensus-node:<release tag without the v prefix>` through the generated profile values file.
+* **Used in:** `src/core/network-node-lifecycle.ts`, `src/core/helm-values-helper.ts`, `src/core/profile-manager.ts`, `src/commands/network.ts`, `src/commands/node/tasks.ts`

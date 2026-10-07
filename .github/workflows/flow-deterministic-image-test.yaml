@@ -14,10 +14,10 @@
 # limitations under the License.
 ##
 
-# Builds the consensus node deterministic Docker image
-# (hedera-node/infrastructure/docker/containers/production-next/consensus-node) from source,
-# loads it into a Kind cluster, overrides the solo-deployment chart root image through a Helm
-# values file, and deploys a Solo network with it. See hiero-ledger/solo#4169.
+# Deploys a Solo network whose root container uses the released consensus node deterministic image
+# (gcr.io/hedera-registry/consensus-node:<version>) instead of the solo-containers image.
+# NETWORK_NODE_LIFECYCLE_MODE=consensus-node-image makes Solo load the matching root image values
+# and drive the image's s6 consensus service. See hiero-ledger/solo#4169.
 
 name: "Deterministic Image Deploy Test"
 
@@ -25,14 +25,14 @@ on:
   workflow_dispatch:
     inputs:
       consensus-node-version:
-        description: "Consensus node tag to build the image from (leave empty for version.ts default)"
+        description: "Released consensus node version (leave empty for version.ts default)"
         type: string
         required: false
         default: ""
   workflow_call:
     inputs:
       consensus-node-version:
-        description: "Consensus node tag to build the image from (leave empty for version.ts default)"
+        description: "Released consensus node version (leave empty for version.ts default)"
         type: string
         required: false
         default: ""
@@ -50,17 +50,13 @@ permissions:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
-  CN_IMAGE_REGISTRY: localhost
-  CN_IMAGE_REPOSITORY: hiero/consensus-node
-  CN_IMAGE_TAG: ci
-  KIND_CLUSTER_NAME: solo-cluster
-  CN_DOCKER_CONTEXT: hedera-node/infrastructure/docker/containers/production-next/consensus-node
+  NETWORK_NODE_LIFECYCLE_MODE: consensus-node-image
 
 jobs:
   deterministic-image-deploy:
-    name: Build CN Image and Deploy Solo Network
+    name: Deploy Solo Network with Released CN Image
     runs-on: hiero-solo-linux-large
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -95,22 +91,6 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Solo always passes resources/solo-values.yaml as the first Helm values file, so patching the
-      # root image there is a deterministic values-file override. A falcon `network: --values-file`
-      # entry is not used: the one-shot sub-commands share a global --values-file flag and the
-      # network install ended up with the mirror node's values file instead (run 37659834260).
-      # The image is preloaded into Kind, so never pull.
-      - name: Override Root Image in Solo Values
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          sed -i '/^  root:$/a\
-              image:\
-                registry: "'"${CN_IMAGE_REGISTRY}"'"\
-                repository: "'"${CN_IMAGE_REPOSITORY}"'"\
-                tag: "'"${CN_IMAGE_TAG}"'"\
-                pullPolicy: "Never"' resources/solo-values.yaml
-          sed -n '/^defaults:/,/^  haproxy:/p' resources/solo-values.yaml
-
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
@@ -139,78 +119,10 @@ jobs:
           source .github/workflows/script/helper.sh
           DEFAULT_CN=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
           CN_VERSION="${CN_VERSION_INPUT:-$DEFAULT_CN}"
-          echo "cn-version=${CN_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "### Consensus node version: ${CN_VERSION}" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Setup Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          distribution: 'temurin'
-          java-version: '25'
-
-      - name: Checkout Consensus Node
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        env:
-          RESOLVED_CN_VERSION: ${{ steps.versions.outputs.cn-version }}
-        run: |
-          CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
-          git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
-            --depth 1 --branch "${RESOLVED_CN_VERSION}" "$CN_REPO_DIR" 2>/dev/null || \
-          git clone https://github.com/hiero-ledger/hiero-consensus-node.git \
-            --depth 1 --branch "refs/tags/${RESOLVED_CN_VERSION}" "$CN_REPO_DIR"
-
-      - name: Build Consensus Node Artifacts
-        timeout-minutes: 45
-        run: |
-          cd "${GITHUB_WORKSPACE}/../hiero-consensus-node"
-          LOG_FILE="/tmp/consensus-node-build.log"
-          ./gradlew assemble --stacktrace > "$LOG_FILE" 2>&1 || {
-            echo "Build failed. Last 100 lines:"
-            tail -100 "$LOG_FILE"
-            exit 1
-          }
-
-      - name: Build Deterministic Docker Image
-        id: image
-        timeout-minutes: 20
-        run: |
-          CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
-          CONTEXT="${CN_REPO_DIR}/${CN_DOCKER_CONTEXT}"
-
-          # Stage the Gradle artifacts the Dockerfile COPYs from sdk/
-          mkdir -p "${CONTEXT}/sdk/data"
-          cp -R "${CN_REPO_DIR}/hedera-node/data/lib" "${CONTEXT}/sdk/data/"
-          cp -R "${CN_REPO_DIR}/hedera-node/data/apps" "${CONTEXT}/sdk/data/"
-
-          cd "${CN_REPO_DIR}"
-          printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" \
-            "$(./gradlew -q showVersion)" \
-            "$(git log -1 --format='%H' | cut -c1-8)" \
-            "$(date -u)" > "${CONTEXT}/sdk/VERSION"
-          SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
-
-          IMAGE="${CN_IMAGE_REGISTRY}/${CN_IMAGE_REPOSITORY}:${CN_IMAGE_TAG}"
-          DOCKER_BUILDKIT=1 docker build \
-            --no-cache \
-            --platform linux/amd64 \
-            --build-arg "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" \
-            --tag "${IMAGE}" \
-            "${CONTEXT}"
-
-          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "id=$(docker image inspect --format '{{.Id}}' "${IMAGE}")" >> "$GITHUB_OUTPUT"
-
-      - name: Create Kind Cluster and Load Image
-        timeout-minutes: 15
-        env:
-          IMAGE: ${{ steps.image.outputs.image }}
-        run: |
-          # kind/kubectl/helm are not preinstalled; `solo init` installs them into ~/.solo/bin
-          npm run solo -- init
-          export PATH=~/.solo/bin:${PATH}
-          kind create cluster -n "${KIND_CLUSTER_NAME}"
-          kind load docker-image "${IMAGE}" -n "${KIND_CLUSTER_NAME}"
+          # Image tags have no 'v' prefix; Solo release tags do
+          echo "cn-version=v${CN_VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "image=gcr.io/hedera-registry/consensus-node:${CN_VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "### Consensus node image: gcr.io/hedera-registry/consensus-node:${CN_VERSION#v}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate Falcon Values File
         id: values-file
@@ -218,14 +130,12 @@ jobs:
           RESOLVED_CN_VERSION: ${{ steps.versions.outputs.cn-version }}
         run: |
           VALUES_FILE="/tmp/deterministic-image-falcon-values.yaml"
-          CN_REPO_DIR="${GITHUB_WORKSPACE}/../hiero-consensus-node"
           {
             echo "network:"
             echo "  --release-tag: \"${RESOLVED_CN_VERSION}\""
             echo ""
             echo "setup:"
             echo "  --release-tag: \"${RESOLVED_CN_VERSION}\""
-            echo "  --local-build-path: \"${CN_REPO_DIR}/hedera-node/data\""
           } > "$VALUES_FILE"
 
           echo "Falcon values:"; cat "$VALUES_FILE"
@@ -235,27 +145,24 @@ jobs:
         timeout-minutes: 40
         env:
           VALUES_FILE_PATH: ${{ steps.values-file.outputs.path }}
-          # The consensus node image has no solo-containers lifecycle helper; Solo drives its s6 service instead
-          NETWORK_NODE_LIFECYCLE_MODE: consensus-node-image
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot falcon deploy --values-file "${VALUES_FILE_PATH}"
 
-      - name: Verify Network Runs the Built Image
+      - name: Verify Network Runs the Released Image
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
-          IMAGE_ID: ${{ steps.image.outputs.id }}
+          EXPECTED_IMAGE: ${{ steps.versions.outputs.image }}
         run: |
           export PATH=~/.solo/bin:${PATH}
-          kubectl --context "kind-${KIND_CLUSTER_NAME}" get pods -A -l solo.hedera.com/type=network-node \
+          kubectl --context kind-solo-cluster get pods -A -l solo.hedera.com/type=network-node \
             -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.containers[*]}{.image}{" "}{end}{"\n"}{end}' \
             | tee /tmp/network-node-images.txt
-          if ! grep -q "${CN_IMAGE_REGISTRY}/${CN_IMAGE_REPOSITORY}:${CN_IMAGE_TAG}" /tmp/network-node-images.txt; then
-            echo "::error::Network node pods are not running ${CN_IMAGE_REGISTRY}/${CN_IMAGE_REPOSITORY}:${CN_IMAGE_TAG}"
+          if ! grep -q "${EXPECTED_IMAGE}" /tmp/network-node-images.txt; then
+            echo "::error::Network node pods are not running ${EXPECTED_IMAGE}"
             exit 1
           fi
-          echo "### Deterministic image deployed" >> "$GITHUB_STEP_SUMMARY"
-          echo "Image ID: \`${IMAGE_ID}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Released consensus node image deployed: \`${EXPECTED_IMAGE}\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save Solo Bin Cache
         if: ${{ github.event_name != 'pull_request' && steps.solo-bin-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
@@ -301,7 +208,6 @@ jobs:
           name: deterministic-image-logs
           path: |
             ~/.solo/logs/*
-            /tmp/consensus-node-build.log
             /tmp/network-node-images.txt
           overwrite: true
           if-no-files-found: ignore

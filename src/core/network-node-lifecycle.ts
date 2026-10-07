@@ -96,4 +96,25 @@ export class NetworkNodeLifecycle {
     const helperPath: string = NetworkNodeLifecycle.SOLO_CONTAINER_HELPER_PATH;
     return `test -x "${helperPath}" && "${helperPath}" disable-autostart`;
   }
+
+  /**
+   * Helm values (relative to `defaults.root`) that replace the root container image with the released
+   * consensus node image for the given release tag, or undefined when the solo-container image is used.
+   */
+  public static buildRootImageValues(
+    releaseTag: string,
+    mode: string = constants.NETWORK_NODE_LIFECYCLE_MODE,
+  ): {image: {registry: string; repository: string; tag: string; pullPolicy: string}} | undefined {
+    if (!NetworkNodeLifecycle.isConsensusNodeImage(mode)) {
+      return undefined;
+    }
+    return {
+      image: {
+        registry: constants.CONSENSUS_NODE_IMAGE_REGISTRY,
+        repository: constants.CONSENSUS_NODE_IMAGE_REPOSITORY,
+        tag: releaseTag.replace(/^v/, ''),
+        pullPolicy: 'IfNotPresent',
+      },
+    };
+  }
 }
