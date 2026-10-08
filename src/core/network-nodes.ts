@@ -24,6 +24,7 @@ import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import {Zippy} from './zippy.js';
 import {PcesTrimmer} from './pces-trimmer.js';
+import {NetworkNodeLifecycle} from './network-node-lifecycle.js';
 
 const STATE_METADATA_FILE_NAME: string = 'stateMetadata.txt';
 
@@ -488,11 +489,7 @@ export class NetworkNodes {
       .getK8(context)
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .execContainer([
-        'bash',
-        '-c',
-        String.raw`curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v \#`,
-      ]);
+      .execContainer(['bash', '-c', NetworkNodeLifecycle.buildPlatformStatusCommand()]);
   }
 
   public async getNetworkNodePlatformStatusName(podReference: PodReference, context?: string): Promise<string> {
