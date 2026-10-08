@@ -2642,8 +2642,10 @@ export class NodeCommandTasks {
 
   /**
    * Wait for every node to settle on a terminal startup status, ACTIVE or FREEZE_COMPLETE, and
-   * record on the config which one a state restore landed in. A node found in FREEZE_COMPLETE is
-   * given one automatic restart before being accepted as genuinely frozen (see below).
+   * record on the config which one a state restore landed in. When `--resume-from-freeze` is set,
+   * a node found in FREEZE_COMPLETE is given one automatic restart before being accepted as
+   * genuinely frozen (see below); without it, FREEZE_COMPLETE is accepted as-is, since some
+   * restores (e.g. a deliberate frozen-state snapshot test) intentionally expect to stay frozen.
    *
    * A restore cannot predict the status from the archive. The restored snapshot's platform state
    * can already carry a scheduled `freezeTime` that was committed before the snapshot was taken
@@ -2677,7 +2679,7 @@ export class NodeCommandTasks {
           );
         }
 
-        if (allFrozen) {
+        if (allFrozen && context_.config.resumeFromFreeze) {
           task.title = `${task.title} - restarting to clear an already-completed freeze`;
           await Promise.all(
             nodeAliases.map((nodeAlias: NodeAlias): Promise<void> => this.startSingleNode(context_.config, nodeAlias)),

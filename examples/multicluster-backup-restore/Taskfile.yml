@@ -95,12 +95,14 @@ tasks:
           # The restored snapshot's platform state can already carry a scheduled freezeTime
           # committed before the snapshot was taken, independent of PCES content, so a node can
           # still land in FREEZE_COMPLETE on this first boot regardless of round selection or PCES
-          # trimming. `consensus node start`'s own ACTIVE-or-FREEZE_COMPLETE check now retries that
-          # case automatically: completing the freeze writes a new round with lastFrozenTime
-          # already equal to freezeTime, so a follow-up restart that does not re-upload the
-          # original snapshot sees the freeze as already handled and proceeds to ACTIVE (see
-          # issue #6164).
-          {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --state-file {{ .BACKUP_DIR }} --skip-grpc-web-endpoint
+          # trimming. --resume-from-freeze asks `consensus node start`'s own ACTIVE-or-FREEZE_COMPLETE
+          # check to retry that case automatically: completing the freeze writes a new round with
+          # lastFrozenTime already equal to freezeTime, so a follow-up restart that does not
+          # re-upload the original snapshot sees the freeze as already handled and proceeds to
+          # ACTIVE (see issue #6164). This example wants the restored network to resume live
+          # processing, unlike e.g. the State Save and Restore example, which deliberately expects
+          # to stay frozen and must not pass this flag.
+          {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --state-file {{ .BACKUP_DIR }} --skip-grpc-web-endpoint --resume-from-freeze
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
       # Block nodes were already restarted by restore-config (applyBlockNodeRestoreFixes
       # restores the backed-up block data archive, deletes each pod, and waits for ready).
