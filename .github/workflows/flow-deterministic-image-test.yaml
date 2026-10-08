@@ -17,8 +17,8 @@
 # Deploys a Solo network whose root container uses the released consensus node deterministic image
 # (gcr.io/hedera-registry/consensus-node:<version>) instead of the solo-containers image.
 # NETWORK_NODE_LIFECYCLE_MODE=consensus-node-image makes Solo load the matching root image values
-# and drive the image's s6 consensus service. The solo-charts checkout provides appJarsInImage, which stops the chart
-# from mounting empty data/lib and data/apps volumes over the jars baked into the image. See hiero-ledger/solo#4169.
+# and drive the image's s6 consensus service. Solo chart 0.67.0+ provides appJarsInImage, which stops the chart from
+# mounting empty data/lib and data/apps volumes over the jars baked into the image. See hiero-ledger/solo#4169.
 
 name: "Deterministic Image Deploy Test"
 
@@ -30,11 +30,6 @@ on:
         type: string
         required: false
         default: ""
-      solo-charts-ref:
-        description: "solo-charts branch or tag providing defaults.volumeClaims.appJarsInImage"
-        type: string
-        required: false
-        default: "feat/app-jars-in-image"
   workflow_call:
     inputs:
       consensus-node-version:
@@ -42,11 +37,6 @@ on:
         type: string
         required: false
         default: ""
-      solo-charts-ref:
-        description: "solo-charts branch or tag providing defaults.volumeClaims.appJarsInImage"
-        type: string
-        required: false
-        default: "feat/app-jars-in-image"
     secrets:
       SLACK_TEST_WEBHOOK:
         description: "Webhook used to post a failure notification"
@@ -135,23 +125,6 @@ jobs:
           echo "image=gcr.io/hedera-registry/consensus-node:${CN_VERSION#v}" >> "$GITHUB_OUTPUT"
           echo "### Consensus node image: gcr.io/hedera-registry/consensus-node:${CN_VERSION#v}" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Checkout solo-charts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          repository: hiero-ledger/solo-charts
-          ref: ${{ inputs.solo-charts-ref || 'feat/app-jars-in-image' }}
-          path: solo-charts
-          persist-credentials: false
-
-      - name: Build solo-charts Dependencies
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          # `solo init` installs helm into ~/.solo/bin
-          npm run solo -- init
-          export PATH=~/.solo/bin:${PATH}
-          helm dependency build solo-charts/charts/solo-deployment
-
       - name: Generate Falcon Values File
         id: values-file
         env:
@@ -161,7 +134,6 @@ jobs:
           {
             echo "network:"
             echo "  --release-tag: \"${RESOLVED_CN_VERSION}\""
-            echo "  --chart-dir: \"${GITHUB_WORKSPACE}/solo-charts/charts\""
             echo ""
             echo "setup:"
             echo "  --release-tag: \"${RESOLVED_CN_VERSION}\""
