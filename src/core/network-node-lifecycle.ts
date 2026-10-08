@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as constants from './constants.js';
+import * as versions from '../../version.js';
 
 /**
  * Builds the shell commands Solo runs in the root container to control the consensus node process.
@@ -165,7 +166,7 @@ export class NetworkNodeLifecycle {
         image: {
           registry: constants.CONSENSUS_NODE_IMAGE_REGISTRY,
           repository: constants.CONSENSUS_NODE_IMAGE_REPOSITORY,
-          tag: releaseTag.replace(/^v/, ''),
+          tag: (releaseTag || versions.HEDERA_PLATFORM_VERSION).replace(/^v/, ''),
           pullPolicy: 'IfNotPresent',
         },
       },

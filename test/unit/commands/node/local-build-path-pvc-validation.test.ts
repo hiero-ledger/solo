@@ -15,6 +15,7 @@ import {ConsensusNode} from '../../../../src/core/model/consensus-node.js';
 import {PlatformInstaller} from '../../../../src/core/platform-installer.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
+import {NetworkNodeLifecycle} from '../../../../src/core/network-node-lifecycle.js';
 
 type FakeContainer = {
   execContainer: sinon.SinonStub;
@@ -271,11 +272,8 @@ describe('NodeCommandTasks local build path copy', (): void => {
       .eventually.be.fulfilled;
 
     expect(execContainerStub.callCount).to.equal(5);
-    const expectedStopCommand: string = [
-      'test -x "/command/network-node-lifecycle" || { ' +
-        'echo "missing /command/network-node-lifecycle; update solo-container image" >&2; exit 1; }',
-      '"/command/network-node-lifecycle" stop-and-disable-autostart',
-    ].join('\n');
+    // the command content per lifecycle mode is covered by network-node-lifecycle.test.ts
+    const expectedStopCommand: string = NetworkNodeLifecycle.buildStopCommand();
     expect(execContainerStub.firstCall.args[0]).to.deep.equal(['bash', '-c', expectedStopCommand]);
     const expectedJarRemovalCommand: string =
       `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ` +
