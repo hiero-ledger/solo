@@ -63,12 +63,15 @@ describe('NodeCommandTasks.checkAllNodesAreActiveOrFrozen', (): void => {
     expect(context_.config.restoredFromFreezeState).to.be.undefined;
   });
 
-  it('records restoredFromFreezeState=true when every node settles in FREEZE_COMPLETE', async (): Promise<void> => {
+  it('retries once, then records restoredFromFreezeState=true when every node is still FREEZE_COMPLETE after the retry', async (): Promise<void> => {
     sinon.stub(container, 'resolve').returns({
       getNetworkNodePlatformStatusName: async (): Promise<string> => 'FREEZE_COMPLETE',
     } as never);
 
     const nodeCommandTasks: NodeCommandTasks = createNodeCommandTasks({node1: 'context-1', node2: 'context-2'});
+    const startSingleNodeStub: sinon.SinonStub = sinon
+      .stub(nodeCommandTasks as unknown as Record<string, unknown>, 'startSingleNode')
+      .resolves();
     const context_: AnyListrContext = buildContext(['node1', 'node2']);
     const task: SoloListrTaskWrapper<AnyListrContext> = {title: ''} as unknown as SoloListrTaskWrapper<AnyListrContext>;
 
@@ -79,6 +82,57 @@ describe('NodeCommandTasks.checkAllNodesAreActiveOrFrozen', (): void => {
       ) => Promise<void>
     )(context_, task);
 
+    expect(startSingleNodeStub.callCount).to.equal(2);
     expect(context_.config.restoredFromFreezeState).to.be.true;
+  });
+
+  it('recovers to ACTIVE after a single retry restart when the first check finds every node FREEZE_COMPLETE', async (): Promise<void> => {
+    let callCount: number = 0;
+    sinon.stub(container, 'resolve').returns({
+      getNetworkNodePlatformStatusName: async (): Promise<string> => {
+        callCount++;
+        return callCount <= 2 ? 'FREEZE_COMPLETE' : 'ACTIVE';
+      },
+    } as never);
+
+    const nodeCommandTasks: NodeCommandTasks = createNodeCommandTasks({node1: 'context-1', node2: 'context-2'});
+    const startSingleNodeStub: sinon.SinonStub = sinon
+      .stub(nodeCommandTasks as unknown as Record<string, unknown>, 'startSingleNode')
+      .resolves();
+    const context_: AnyListrContext = buildContext(['node1', 'node2']);
+    const task: SoloListrTaskWrapper<AnyListrContext> = {title: ''} as unknown as SoloListrTaskWrapper<AnyListrContext>;
+
+    await (
+      nodeCommandTasks.checkAllNodesAreActiveOrFrozen('nodeAliases').task as (
+        context_: AnyListrContext,
+        task: SoloListrTaskWrapper<AnyListrContext>,
+      ) => Promise<void>
+    )(context_, task);
+
+    expect(startSingleNodeStub.callCount).to.equal(2);
+    expect(context_.config.restoredFromFreezeState).to.be.false;
+  });
+
+  it('does not retry when every node is already ACTIVE on the first check', async (): Promise<void> => {
+    sinon.stub(container, 'resolve').returns({
+      getNetworkNodePlatformStatusName: async (): Promise<string> => 'ACTIVE',
+    } as never);
+
+    const nodeCommandTasks: NodeCommandTasks = createNodeCommandTasks({node1: 'context-1', node2: 'context-2'});
+    const startSingleNodeStub: sinon.SinonStub = sinon
+      .stub(nodeCommandTasks as unknown as Record<string, unknown>, 'startSingleNode')
+      .resolves();
+    const context_: AnyListrContext = buildContext(['node1', 'node2']);
+    const task: SoloListrTaskWrapper<AnyListrContext> = {title: ''} as unknown as SoloListrTaskWrapper<AnyListrContext>;
+
+    await (
+      nodeCommandTasks.checkAllNodesAreActiveOrFrozen('nodeAliases').task as (
+        context_: AnyListrContext,
+        task: SoloListrTaskWrapper<AnyListrContext>,
+      ) => Promise<void>
+    )(context_, task);
+
+    expect(startSingleNodeStub.callCount).to.equal(0);
+    expect(context_.config.restoredFromFreezeState).to.be.false;
   });
 });

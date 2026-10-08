@@ -283,19 +283,23 @@ export class NetworkNodes {
         if (trimPreconsensusEventsToSelectedRound) {
           // The top-level preconsensus-events stream is what the platform replays on the next
           // restart, and it is not naturally bounded to the selected round: it can contain later
-          // events (e.g. a freeze transaction ordered moments after this snapshot was taken) that
-          // the selected round's own state does not yet reflect. Trim those out so replay cannot
+          // events (e.g. one ordered moments after this snapshot was taken) that the selected
+          // round's own state does not yet reflect. Trim those out by birth round so replay cannot
           // cross back into that later boundary, while keeping every event up to the selected
-          // round so the restored node still has other-parent candidates to build new events on
-          // (removing the whole stream instead would leave every node with no known events at
-          // all, which the platform only permits at true genesis). Only opted into by callers
-          // that want the restored network to resume live processing (e.g. `config ops backup`);
-          // callers that intentionally restore a frozen snapshot rely on that same trailing
-          // freeze event still being present so the restored node lands back in FREEZE_COMPLETE.
-          PcesTrimmer.trimDirectoryToBirthRound(
-            PathEx.join(extractedDirectory, 'preconsensus-events'),
-            Number(selectedRound),
-          );
+          // round so the restored node still has other-parent candidates to build new events on.
+          const preconsensusEventsDirectory: string = PathEx.join(extractedDirectory, 'preconsensus-events');
+          PcesTrimmer.trimDirectoryToBirthRound(preconsensusEventsDirectory, Number(selectedRound));
+
+          // A birth-round cutoff alone cannot exclude a freeze transaction that was gossiped
+          // before the snapshot but not yet consensus-ordered as of it: its birth round can sit
+          // well below the selected round (observed in practice: 76 rounds earlier), so any
+          // threshold low enough to exclude it also discards a wide swath of legitimate,
+          // already-ordered history — which left restored nodes stuck in CHECKING indefinitely
+          // when tried (see hiero-ledger/solo#6164). Removing the one event by its transaction
+          // content instead is exact: every other event, including the rest of that history, is
+          // left untouched, regardless of how far before the snapshot the freeze was gossiped or
+          // whether the snapshot round has a clean freeze/non-freeze boundary at all.
+          PcesTrimmer.excludeFreezeTransactionEvents(preconsensusEventsDirectory);
         }
         await this.zippy.zip(extractedDirectory, archivePaths[index]);
       }

@@ -37,6 +37,50 @@ function buildGossipEventBytes(birthRound: number): Buffer {
   ]);
 }
 
+function encodeLengthDelimitedField(fieldNumber: number, payload: Buffer): Buffer {
+  const tag: Buffer = encodeVarint((fieldNumber << 3) | 2);
+  return Buffer.concat([tag, encodeVarint(payload.length), payload]);
+}
+
+// GossipEvent.transactions is field 4 (repeated SignedTransaction bytes);
+// SignedTransaction.bodyBytes is field 1; TransactionBody.freeze is field 23.
+const GOSSIP_EVENT_TRANSACTIONS_FIELD_NUMBER: number = 4;
+const SIGNED_TRANSACTION_BODY_BYTES_FIELD_NUMBER: number = 1;
+const TRANSACTION_BODY_FREEZE_FIELD_NUMBER: number = 23;
+
+/** Builds a GossipEvent carrying event_core.birth_round and, optionally, a freeze transaction. */
+function buildGossipEventBytesWithTransaction(birthRound: number, isFreeze: boolean): Buffer {
+  const eventCoreField: Buffer = buildGossipEventBytes(birthRound);
+  if (!isFreeze) {
+    return eventCoreField;
+  }
+
+  const transactionBody: Buffer = encodeLengthDelimitedField(TRANSACTION_BODY_FREEZE_FIELD_NUMBER, Buffer.alloc(0));
+  const signedTransaction: Buffer = encodeLengthDelimitedField(
+    SIGNED_TRANSACTION_BODY_BYTES_FIELD_NUMBER,
+    transactionBody,
+  );
+  const transactionsField: Buffer = encodeLengthDelimitedField(
+    GOSSIP_EVENT_TRANSACTIONS_FIELD_NUMBER,
+    signedTransaction,
+  );
+  return Buffer.concat([eventCoreField, transactionsField]);
+}
+
+/** Builds a well-formed PCES file from pre-built GossipEvent byte payloads. */
+function buildPcesFileBufferFromEvents(gossipEvents: Buffer[], version: number = PROTOBUF_EVENTS_VERSION): Buffer {
+  const header: Buffer = Buffer.alloc(4);
+  header.writeInt32BE(version, 0);
+
+  const records: Buffer[] = gossipEvents.map((gossipEventBytes: Buffer): Buffer => {
+    const lengthPrefix: Buffer = Buffer.alloc(4);
+    lengthPrefix.writeInt32BE(gossipEventBytes.length, 0);
+    return Buffer.concat([lengthPrefix, gossipEventBytes]);
+  });
+
+  return Buffer.concat([header, ...records]);
+}
+
 /** Builds a well-formed PCES file (header + length-prefixed records) for the given birth rounds. */
 function buildPcesFileBuffer(birthRounds: number[], version: number = PROTOBUF_EVENTS_VERSION): Buffer {
   const header: Buffer = Buffer.alloc(4);
@@ -158,5 +202,79 @@ describe('PcesTrimmer', (): void => {
     PcesTrimmer.trimDirectoryToBirthRound(temporaryDirectory, 10);
 
     expect(fs.readFileSync(filePath)).to.deep.equal(originalBuffer);
+  });
+
+  describe('excludeFreezeTransactionEvents', (): void => {
+    it('removes only the event carrying a freeze transaction, regardless of birth round, keeping all others', (): void => {
+      // The freeze event's birth round (5) is well below the other kept events (10, 20) —
+      // mirroring the real-world case where a freeze transaction is gossiped long before it is
+      // finally consensus-ordered, so no birth-round cutoff could exclude it without also
+      // discarding legitimate, already-ordered history.
+      const events: Buffer[] = [
+        buildGossipEventBytesWithTransaction(10, false),
+        buildGossipEventBytesWithTransaction(5, true),
+        buildGossipEventBytesWithTransaction(20, false),
+      ];
+      const filePath: string = writePcesFile('a_seq0_minr1_maxr20_orgn0.pces', buildPcesFileBufferFromEvents(events));
+
+      PcesTrimmer.excludeFreezeTransactionEvents(temporaryDirectory);
+
+      expect(fs.readFileSync(filePath)).to.deep.equal(buildPcesFileBufferFromEvents([events[0], events[2]]));
+    });
+
+    it('leaves a file byte-for-byte unchanged when it carries no freeze transaction', (): void => {
+      const originalBuffer: Buffer = buildPcesFileBufferFromEvents([
+        buildGossipEventBytesWithTransaction(10, false),
+        buildGossipEventBytesWithTransaction(20, false),
+      ]);
+      const filePath: string = writePcesFile('a_seq0_minr1_maxr20_orgn0.pces', originalBuffer);
+      const statBefore: fs.Stats = fs.statSync(filePath);
+
+      PcesTrimmer.excludeFreezeTransactionEvents(temporaryDirectory);
+
+      expect(fs.readFileSync(filePath)).to.deep.equal(originalBuffer);
+      expect(fs.statSync(filePath).mtimeMs).to.equal(statBefore.mtimeMs);
+    });
+
+    it('removes every freeze transaction event when a file carries more than one', (): void => {
+      const events: Buffer[] = [
+        buildGossipEventBytesWithTransaction(1, true),
+        buildGossipEventBytesWithTransaction(2, false),
+        buildGossipEventBytesWithTransaction(3, true),
+      ];
+      const filePath: string = writePcesFile('a_seq0_minr1_maxr3_orgn0.pces', buildPcesFileBufferFromEvents(events));
+
+      PcesTrimmer.excludeFreezeTransactionEvents(temporaryDirectory);
+
+      expect(fs.readFileSync(filePath)).to.deep.equal(buildPcesFileBufferFromEvents([events[1]]));
+    });
+
+    it('leaves a file untouched when its version header is not the recognized PROTOBUF_EVENTS version', (): void => {
+      const originalBuffer: Buffer = buildPcesFileBufferFromEvents([buildGossipEventBytesWithTransaction(1, true)], 99);
+      const filePath: string = writePcesFile('a_seq0_minr1_maxr1_orgn0.pces', originalBuffer);
+
+      PcesTrimmer.excludeFreezeTransactionEvents(temporaryDirectory);
+
+      expect(fs.readFileSync(filePath)).to.deep.equal(originalBuffer);
+    });
+
+    it('leaves a file untouched when a record is malformed instead of risking an incorrect rewrite', (): void => {
+      const header: Buffer = Buffer.alloc(4);
+      header.writeInt32BE(PROTOBUF_EVENTS_VERSION, 0);
+      const corruptLengthPrefix: Buffer = Buffer.alloc(4);
+      corruptLengthPrefix.writeInt32BE(1000, 0);
+      const originalBuffer: Buffer = Buffer.concat([header, corruptLengthPrefix, Buffer.from([1, 2, 3])]);
+      const filePath: string = writePcesFile('a_seq0_minr1_maxr10_orgn0.pces', originalBuffer);
+
+      PcesTrimmer.excludeFreezeTransactionEvents(temporaryDirectory);
+
+      expect(fs.readFileSync(filePath)).to.deep.equal(originalBuffer);
+    });
+
+    it('does nothing when the directory does not exist', (): void => {
+      const missingDirectory: string = path.join(temporaryDirectory, 'does-not-exist');
+
+      expect((): void => PcesTrimmer.excludeFreezeTransactionEvents(missingDirectory)).to.not.throw();
+    });
   });
 });
