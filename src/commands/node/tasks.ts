@@ -5188,8 +5188,11 @@ export class NodeCommandTasks {
         );
 
         // Use the -X to archive for cross-platform compatibility
+        // The consensus node image has no zip, so fall back to the JDK's jar tool, which writes a standard zip archive.
         const archiveCommand: string =
-          'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
+          'if command -v zip >/dev/null 2>&1; then ' +
+          'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"; ' +
+          'else cd "${states[0]}" && jar --create --no-manifest --file "../${states[0]}.zip" . && cd ../; fi';
 
         // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
         const zipFileName: string = await container.execContainer([
@@ -5237,7 +5240,9 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand: string = `unzip ${PathEx.basename(config.lastStateZipPath)}`;
+        // The consensus node image has no unzip, so fall back to the JDK's jar tool.
+        const stateZipName: string = PathEx.basename(config.lastStateZipPath);
+        const extractCommand: string = `if command -v unzip >/dev/null 2>&1; then unzip ${stateZipName}; else jar xf ${stateZipName}; fi`;
 
         const normalizePreconsensusEventsCommand: string = [
           `cd ${savedStatePath}`,
