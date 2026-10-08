@@ -19,6 +19,9 @@ export class NetworkNodeLifecycle {
   private static readonly S6_SERVICE_CONTROL_PATH: string = '/command/s6-svc';
   private static readonly CONSENSUS_SERVICE_PATH: string = '/run/service/consensus';
   private static readonly SERVICE_STOP_TIMEOUT_MILLISECONDS: number = 60_000;
+  private static readonly JVM_STOP_ATTEMPTS: number = 60;
+  // matches only the java process, not shells whose command line merely contains the main class name
+  private static readonly JVM_PIDS_FUNCTION: string = String.raw`jvm_pids() { for p in /proc/[0-9]*; do tr '\0' ' ' < "$p/cmdline" 2>/dev/null | grep -q '^java .*com.hedera.node.app.ServicesMain' && basename "$p"; done; }`;
 
   public static isConsensusNodeImage(mode: string = constants.NETWORK_NODE_LIFECYCLE_MODE): boolean {
     return mode === NetworkNodeLifecycle.CONSENSUS_NODE_IMAGE_MODE;
@@ -67,11 +70,12 @@ export class NetworkNodeLifecycle {
       // log4j2.xml and settings.txt come from the hapi-app config map; hedera.crt and hedera.key from the secrets
       `for file_path in /etc/network-node/config/*; do [ -e "$file_path" ] || break; ln -sf "$file_path" "${applicationDirectory}/$(basename "$file_path")"; done`,
       `if [ -d /shared-hapiapp ] && [ -n "$(ls -A /shared-hapiapp)" ]; then cp -f /shared-hapiapp/* "${applicationDirectory}/"; fi`,
+      NetworkNodeLifecycle.JVM_PIDS_FUNCTION,
       // ACTIVE nodes are left running. A JVM that is alive but not ACTIVE is stopped first.
-      "if grep -qa 'com.hedera.node.app.ServicesMain' /proc/[0-9]*/cmdline 2>/dev/null; then",
+      'if [ -n "$(jvm_pids)" ]; then',
       `  if ${NetworkNodeLifecycle.buildMetricsFetchCommand()} | grep 'platform_PlatformStatus' | grep -q ' 2[.]0$'; then exit 0; fi`,
       'fi',
-      `"${serviceControl}" -wD -T ${NetworkNodeLifecycle.SERVICE_STOP_TIMEOUT_MILLISECONDS} -d "${servicePath}"`,
+      ...NetworkNodeLifecycle.buildStopServiceCommands(),
       `"${serviceControl}" -o "${servicePath}"`,
     ].join('\n');
   }
@@ -82,6 +86,24 @@ export class NetworkNodeLifecycle {
       ? NetworkNodeLifecycle.buildMetricsFetchCommand()
       : 'curl -s http://localhost:9999/metrics';
     return String.raw`${metrics} | grep platform_PlatformStatus | grep -v \#`;
+  }
+
+  /**
+   * Stops the s6 consensus service and then the JVM itself. `s6-svc -d` only stops the supervised entrypoint; the
+   * JVM it launched survives as an orphan, so it is terminated (then killed) here. Without ps/pkill in the image the
+   * JVM is found through /proc.
+   */
+  private static buildStopServiceCommands(): string[] {
+    return [
+      `"${NetworkNodeLifecycle.S6_SERVICE_CONTROL_PATH}" -wD -T ${NetworkNodeLifecycle.SERVICE_STOP_TIMEOUT_MILLISECONDS} -d "${NetworkNodeLifecycle.CONSENSUS_SERVICE_PATH}"`,
+      'running_pids="$(jvm_pids)"',
+      'if [ -n "$running_pids" ]; then',
+      '  kill -TERM $running_pids',
+      `  for attempt in $(seq 1 ${NetworkNodeLifecycle.JVM_STOP_ATTEMPTS}); do [ -z "$(jvm_pids)" ] && break; sleep 1; done`,
+      '  running_pids="$(jvm_pids)"',
+      '  if [ -n "$running_pids" ]; then kill -KILL $running_pids; sleep 1; fi',
+      'fi',
+    ];
   }
 
   /** Fetches the node metrics over /dev/tcp, because the consensus node image has no curl. */
@@ -95,7 +117,8 @@ export class NetworkNodeLifecycle {
       const serviceControl: string = NetworkNodeLifecycle.S6_SERVICE_CONTROL_PATH;
       return [
         `test -x "${serviceControl}" || { echo "missing ${serviceControl}; update the consensus node image" >&2; exit 1; }`,
-        `"${serviceControl}" -wD -T ${NetworkNodeLifecycle.SERVICE_STOP_TIMEOUT_MILLISECONDS} -d "${NetworkNodeLifecycle.CONSENSUS_SERVICE_PATH}"`,
+        NetworkNodeLifecycle.JVM_PIDS_FUNCTION,
+        ...NetworkNodeLifecycle.buildStopServiceCommands(),
       ].join('\n');
     }
 
