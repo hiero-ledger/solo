@@ -121,7 +121,8 @@ export class NetworkNodes {
 
       await container.execContainer(['bash', '-c', `chmod 0755 ${HEDERA_HAPI_PATH}/${scriptName}`]);
       await container.execContainer(
-        `${HEDERA_HAPI_PATH}/${scriptName} true ${excludeSensitiveData === true ? 'true' : 'false'}`,
+        // the consensus node image has no zip (and no dnf to install it), so the script falls back to the jar tool
+        `${HEDERA_HAPI_PATH}/${scriptName} ${NetworkNodeLifecycle.isConsensusNodeImage() ? 'false' : 'true'} ${excludeSensitiveData === true ? 'true' : 'false'}`,
       );
       await container.copyFrom(
         `${HEDERA_HAPI_PATH}/data/${podReference.name}${LOG_CONFIG_ZIP_SUFFIX}`,

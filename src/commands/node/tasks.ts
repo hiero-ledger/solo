@@ -1849,10 +1849,11 @@ export class NodeCommandTasks {
           // The chown is required so the hedera process can access the extracted state files.
           this.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
 
+          // only root can change ownership; the consensus node image runs as hedera, so the files are already its own
           await container.execContainer([
             'bash',
             '-c',
-            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+            `if [ "$(id -u)" = "0" ]; then chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved; fi`,
           ]);
 
           // Rename node ID directories to match the target node
@@ -2075,6 +2076,10 @@ export class NodeCommandTasks {
             this.configManager,
           );
         }
+        // Fetching the platform software used to create the staging directory as a side effect; make sure it exists
+        // for the network files generated below (it is skipped when the platform software is baked into the image).
+        fs.mkdirSync(config.stagingDir, {recursive: true});
+
         if (isGenesis) {
           await this.generateNetworkJson(
             constants.GENESIS_NETWORK_FILE,
