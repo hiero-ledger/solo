@@ -36,18 +36,21 @@ describe('NetworkNodeLifecycle', (): void => {
   });
 
   it('should point the root image at the released consensus node image without the v prefix', (): void => {
-    expect(NetworkNodeLifecycle.buildRootImageValues('v0.77.2', consensusNodeImage)).to.deep.equal({
-      image: {
-        registry: 'gcr.io',
-        repository: 'hedera-registry/consensus-node',
-        tag: '0.77.2',
-        pullPolicy: 'IfNotPresent',
+    expect(NetworkNodeLifecycle.buildDefaultsValues('v0.77.2', consensusNodeImage)).to.deep.equal({
+      root: {
+        image: {
+          registry: 'gcr.io',
+          repository: 'hedera-registry/consensus-node',
+          tag: '0.77.2',
+          pullPolicy: 'IfNotPresent',
+        },
       },
+      volumeClaims: {appJarsInImage: true},
     });
-    expect(NetworkNodeLifecycle.buildRootImageValues('0.78.0', consensusNodeImage)?.image.tag).to.equal('0.78.0');
+    expect(NetworkNodeLifecycle.buildDefaultsValues('0.78.0', consensusNodeImage)?.root.image.tag).to.equal('0.78.0');
   });
 
   it('should not override the root image in the default mode', (): void => {
-    expect(NetworkNodeLifecycle.buildRootImageValues('v0.77.2', soloContainer)).to.equal(undefined);
+    expect(NetworkNodeLifecycle.buildDefaultsValues('v0.77.2', soloContainer)).to.equal(undefined);
   });
 });

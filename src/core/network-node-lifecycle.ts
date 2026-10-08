@@ -98,23 +98,32 @@ export class NetworkNodeLifecycle {
   }
 
   /**
-   * Helm values (relative to `defaults.root`) that replace the root container image with the released
-   * consensus node image for the given release tag, or undefined when the solo-container image is used.
+   * Helm values (relative to `defaults`) for the released consensus node image of the given release tag, or
+   * undefined when the solo-container image is used: the root container image, and `appJarsInImage` so the chart
+   * does not mount empty data/lib and data/apps volumes over the jar files baked into that image.
    */
-  public static buildRootImageValues(
+  public static buildDefaultsValues(
     releaseTag: string,
     mode: string = constants.NETWORK_NODE_LIFECYCLE_MODE,
-  ): {image: {registry: string; repository: string; tag: string; pullPolicy: string}} | undefined {
+  ):
+    | {
+        root: {image: {registry: string; repository: string; tag: string; pullPolicy: string}};
+        volumeClaims: {appJarsInImage: boolean};
+      }
+    | undefined {
     if (!NetworkNodeLifecycle.isConsensusNodeImage(mode)) {
       return undefined;
     }
     return {
-      image: {
-        registry: constants.CONSENSUS_NODE_IMAGE_REGISTRY,
-        repository: constants.CONSENSUS_NODE_IMAGE_REPOSITORY,
-        tag: releaseTag.replace(/^v/, ''),
-        pullPolicy: 'IfNotPresent',
+      root: {
+        image: {
+          registry: constants.CONSENSUS_NODE_IMAGE_REGISTRY,
+          repository: constants.CONSENSUS_NODE_IMAGE_REPOSITORY,
+          tag: releaseTag.replace(/^v/, ''),
+          pullPolicy: 'IfNotPresent',
+        },
       },
+      volumeClaims: {appJarsInImage: true},
     };
   }
 }

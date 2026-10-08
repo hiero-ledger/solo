@@ -451,11 +451,11 @@ export class ProfileManager {
         this._setChartItems('defaults.root', soloValuesYaml.defaults.root, yamlRoot);
       }
 
-      // Use the released consensus node image as the root container image when requested.
-      // Set after the JFR block above so the image is merged into defaults.root rather than overwritten.
+      // Use the released consensus node image as the root container image when requested (and tell the chart its
+      // jar files are baked in). Set after the JFR block above so it is merged into defaults rather than overwritten.
       this._setChartItems(
-        'defaults.root',
-        NetworkNodeLifecycle.buildRootImageValues(this.resolveStagingOptions(stagingOptions).releaseTag),
+        'defaults',
+        NetworkNodeLifecycle.buildDefaultsValues(this.resolveStagingOptions(stagingOptions).releaseTag),
         yamlRoot,
       );
 
