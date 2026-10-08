@@ -71,6 +71,9 @@ export class NetworkNodeLifecycle {
       // log4j2.xml and settings.txt come from the hapi-app config map; hedera.crt and hedera.key from the secrets
       `for file_path in /etc/network-node/config/*; do [ -e "$file_path" ] || break; ln -sf "$file_path" "${applicationDirectory}/$(basename "$file_path")"; done`,
       `if [ -d /shared-hapiapp ] && [ -n "$(ls -A /shared-hapiapp)" ]; then cp -f /shared-hapiapp/* "${applicationDirectory}/"; fi`,
+      // The image entrypoint requires genesis-network.json, but Solo only copies it at genesis. Nodes added later start
+      // from a downloaded state and never read it, so an empty placeholder is enough to let the entrypoint proceed.
+      `[ -s "${applicationDirectory}/data/config/genesis-network.json" ] || echo '{}' > "${applicationDirectory}/data/config/genesis-network.json"`,
       NetworkNodeLifecycle.JVM_PIDS_FUNCTION,
       // ACTIVE nodes are left running. A JVM that is alive but not ACTIVE is stopped first.
       'if [ -n "$(jvm_pids)" ]; then',
