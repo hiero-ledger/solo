@@ -2664,34 +2664,15 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAliases = context_.config[nodeAliasesProperty];
         const frozenStatusName: string = NodeStatusEnums[NodeStatusCodes.FREEZE_COMPLETE];
 
-        let statuses: string[] = await Promise.all(
-          nodeAliases.map((nodeAlias: NodeAlias): Promise<string> =>
-            this.waitForActiveOrFrozenStatus(context_, nodeAlias),
-          ),
-        );
-        let allFrozen: boolean = statuses.every((status: string): boolean => status === frozenStatusName);
-        let allActive: boolean = statuses.every((status: string): boolean => status !== frozenStatusName);
-        if (!allFrozen && !allActive) {
-          throw new SoloErrors.component.nodeRestoreStatusMismatch(
-            Object.fromEntries(
-              nodeAliases.map((nodeAlias: NodeAlias, index: number): [string, string] => [nodeAlias, statuses[index]]),
-            ),
-          );
-        }
-
-        if (allFrozen && context_.config.resumeFromFreeze) {
-          task.title = `${task.title} - restarting to clear an already-completed freeze`;
-          await Promise.all(
-            nodeAliases.map((nodeAlias: NodeAlias): Promise<void> => this.startSingleNode(context_.config, nodeAlias)),
-          );
-
-          statuses = await Promise.all(
+        let finalStatuses: string[] = [];
+        const collectStatuses: () => Promise<boolean> = async (): Promise<boolean> => {
+          const statuses: string[] = await Promise.all(
             nodeAliases.map((nodeAlias: NodeAlias): Promise<string> =>
               this.waitForActiveOrFrozenStatus(context_, nodeAlias),
             ),
           );
-          allFrozen = statuses.every((status: string): boolean => status === frozenStatusName);
-          allActive = statuses.every((status: string): boolean => status !== frozenStatusName);
+          const allFrozen: boolean = statuses.every((status: string): boolean => status === frozenStatusName);
+          const allActive: boolean = statuses.every((status: string): boolean => status !== frozenStatusName);
           if (!allFrozen && !allActive) {
             throw new SoloErrors.component.nodeRestoreStatusMismatch(
               Object.fromEntries(
@@ -2702,12 +2683,24 @@ export class NodeCommandTasks {
               ),
             );
           }
+
+          finalStatuses = statuses;
+          return allFrozen;
+        };
+
+        let allFrozen: boolean = await collectStatuses();
+        if (allFrozen && context_.config.resumeFromFreeze) {
+          task.title = `${task.title} - restarting to clear an already-completed freeze`;
+          await Promise.all(
+            nodeAliases.map((nodeAlias: NodeAlias): Promise<void> => this.startSingleNode(context_.config, nodeAlias)),
+          );
+          allFrozen = await collectStatuses();
         }
 
         context_.config.restoredFromFreezeState = allFrozen;
 
         const statusSummary: string = nodeAliases
-          .map((nodeAlias: NodeAlias, index: number): string => `${nodeAlias}=${statuses[index]}`)
+          .map((nodeAlias: NodeAlias, index: number): string => `${nodeAlias}=${finalStatuses[index]}`)
           .join(', ');
         task.title = `Check all nodes are ACTIVE or FREEZE_COMPLETE - ${chalk.green(statusSummary)}`;
       },

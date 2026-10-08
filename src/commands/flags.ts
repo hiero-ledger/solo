@@ -904,7 +904,7 @@ export class Flags {
     definition: {
       describe:
         'When restoring from --state-file lands every node in FREEZE_COMPLETE, automatically restart them' +
-        ' once more so they resume ACTIVE instead of staying frozen.' +
+        ' once more so they resume ACTIVE instead of staying frozen. Only used with --state-file.' +
         '\nLeave unset to restore a frozen snapshot as-is and keep it frozen.',
       type: 'boolean',
       defaultValue: false,

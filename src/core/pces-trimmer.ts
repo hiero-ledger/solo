@@ -6,10 +6,7 @@ import {SoloErrors} from './errors/solo-errors.js';
 
 const PCES_PROTOBUF_EVENTS_VERSION: number = 2;
 const GOSSIP_EVENT_CORE_FIELD_NUMBER: number = 1;
-const GOSSIP_EVENT_TRANSACTIONS_FIELD_NUMBER: number = 4;
 const EVENT_CORE_BIRTH_ROUND_FIELD_NUMBER: number = 2;
-const SIGNED_TRANSACTION_BODY_BYTES_FIELD_NUMBER: number = 1;
-const TRANSACTION_BODY_FREEZE_FIELD_NUMBER: number = 23;
 const WIRE_TYPE_VARINT: number = 0;
 const WIRE_TYPE_FIXED64: number = 1;
 const WIRE_TYPE_LENGTH_DELIMITED: number = 2;
@@ -46,90 +43,6 @@ export class PcesTrimmer {
     for (const pcesFilePath of PcesTrimmer.findPcesFilesInSequenceOrder(directory)) {
       PcesTrimmer.trimFileToBirthRound(pcesFilePath, maximumBirthRound);
     }
-  }
-
-  /**
-   * Removes every preconsensus event carrying a FreezeTransaction from all .pces files found
-   * recursively under directory, regardless of birth round. A birth-round cutoff cannot reliably
-   * exclude a freeze transaction that was gossiped before a restore snapshot but not yet
-   * consensus-ordered as of it (its birth round can be at or below the snapshot's own round), and
-   * trimming further back to compensate breaks the restored node's own continuity validation
-   * (observed: both emptying the stream and trimming to the ancient-event threshold left restored
-   * nodes stuck in CHECKING indefinitely — see hiero-ledger/solo#6164). Identifying the one
-   * specific event by its transaction content instead avoids that tradeoff: every other event,
-   * including the rest of the non-ancient window, is left untouched.
-   */
-  public static excludeFreezeTransactionEvents(directory: string): void {
-    if (!fs.existsSync(directory)) {
-      return;
-    }
-
-    for (const pcesFilePath of PcesTrimmer.findPcesFilesInSequenceOrder(directory)) {
-      PcesTrimmer.excludeFreezeTransactionEventsFromFile(pcesFilePath);
-    }
-  }
-
-  private static excludeFreezeTransactionEventsFromFile(pcesFilePath: string): void {
-    try {
-      const fileBuffer: Buffer = fs.readFileSync(pcesFilePath);
-      if (fileBuffer.length < 4 || fileBuffer.readInt32BE(0) !== PCES_PROTOBUF_EVENTS_VERSION) {
-        return;
-      }
-
-      const keptChunks: Buffer[] = [fileBuffer.subarray(0, 4)];
-      let recordOffset: number = 4;
-      let removedAny: boolean = false;
-
-      while (recordOffset + 4 <= fileBuffer.length) {
-        const recordLength: number = fileBuffer.readInt32BE(recordOffset);
-        const recordStart: number = recordOffset + 4;
-        if (recordLength < 0 || recordStart + recordLength > fileBuffer.length) {
-          // A partial trailing record; keep the remainder verbatim rather than guessing at it.
-          keptChunks.push(fileBuffer.subarray(recordOffset));
-          recordOffset = fileBuffer.length;
-          break;
-        }
-
-        const recordEnd: number = recordStart + recordLength;
-        const recordBytes: Buffer = fileBuffer.subarray(recordStart, recordEnd);
-        if (PcesTrimmer.eventContainsFreezeTransaction(recordBytes)) {
-          removedAny = true;
-        } else {
-          keptChunks.push(fileBuffer.subarray(recordOffset, recordEnd));
-        }
-        recordOffset = recordEnd;
-      }
-
-      if (removedAny) {
-        fs.writeFileSync(pcesFilePath, Buffer.concat(keptChunks));
-      }
-    } catch {
-      // Best-effort: an unexpected or unrecognized PCES layout is left untouched rather than
-      // risking corruption of a file the platform still needs to read on next startup.
-    }
-  }
-
-  /**
-   * Checks whether a GossipEvent carries a transaction whose body sets the `freeze` oneof field,
-   * by walking GossipEvent.transactions (field 4, repeated SignedTransaction bytes) ->
-   * SignedTransaction.bodyBytes (field 1) -> presence of TransactionBody.freeze (field 23).
-   * Only presence is checked; FreezeTransactionBody's own contents are irrelevant here.
-   */
-  private static eventContainsFreezeTransaction(gossipEventBytes: Buffer): boolean {
-    for (const transactionBytes of PcesTrimmer.readAllLengthDelimitedFields(
-      gossipEventBytes,
-      GOSSIP_EVENT_TRANSACTIONS_FIELD_NUMBER,
-    )) {
-      const bodyBytes: Buffer | undefined = PcesTrimmer.readLengthDelimitedField(
-        transactionBytes,
-        SIGNED_TRANSACTION_BODY_BYTES_FIELD_NUMBER,
-      );
-      if (bodyBytes && PcesTrimmer.readLengthDelimitedField(bodyBytes, TRANSACTION_BODY_FREEZE_FIELD_NUMBER)) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   private static findPcesFilesInSequenceOrder(directory: string): string[] {

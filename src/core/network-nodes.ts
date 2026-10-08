@@ -289,17 +289,6 @@ export class NetworkNodes {
           // round so the restored node still has other-parent candidates to build new events on.
           const preconsensusEventsDirectory: string = PathEx.join(extractedDirectory, 'preconsensus-events');
           PcesTrimmer.trimDirectoryToBirthRound(preconsensusEventsDirectory, Number(selectedRound));
-
-          // A birth-round cutoff alone cannot exclude a freeze transaction that was gossiped
-          // before the snapshot but not yet consensus-ordered as of it: its birth round can sit
-          // well below the selected round (observed in practice: 76 rounds earlier), so any
-          // threshold low enough to exclude it also discards a wide swath of legitimate,
-          // already-ordered history — which left restored nodes stuck in CHECKING indefinitely
-          // when tried (see hiero-ledger/solo#6164). Removing the one event by its transaction
-          // content instead is exact: every other event, including the rest of that history, is
-          // left untouched, regardless of how far before the snapshot the freeze was gossiped or
-          // whether the snapshot round has a clean freeze/non-freeze boundary at all.
-          PcesTrimmer.excludeFreezeTransactionEvents(preconsensusEventsDirectory);
         }
         await this.zippy.zip(extractedDirectory, archivePaths[index]);
       }
