@@ -201,7 +201,8 @@ export class PlatformInstaller {
       `for jarFile in ${applicationsJarGlob} ${librariesJarGlob}; do`,
       '  if [[ -f ${jarFile} ]]; then',
       "    foundJarFile='true'",
-      '    unzip -t ${jarFile} >/dev/null',
+      // the consensus node image has no unzip, only the JDK's jar tool (which checks the archive directory)
+      '    if command -v unzip >/dev/null 2>&1; then unzip -t ${jarFile} >/dev/null; else jar tf ${jarFile} >/dev/null; fi',
       '  fi',
       'done',
       "if [[ ${foundJarFile} != 'true' ]]; then",
