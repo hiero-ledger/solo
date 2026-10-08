@@ -1833,12 +1833,14 @@ export class NodeCommandTasks {
 
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
 
+          // The consensus node image has no unzip, so fall back to the JDK's jar tool.
+          const stateZipPath: string = `${constants.HEDERA_HAPI_PATH}/data/${zipFileName}`;
+          const savedStateDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved`;
           await container.execContainer([
-            'unzip',
-            '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${zipFileName}`,
-            '-d',
-            `${constants.HEDERA_HAPI_PATH}/data/saved`,
+            'bash',
+            '-c',
+            `if command -v unzip >/dev/null 2>&1; then unzip -o ${stateZipPath} -d ${savedStateDirectory}; ` +
+              `else (cd ${savedStateDirectory} && jar xf ${stateZipPath}); fi`,
           ]);
 
           // Fix ownership of extracted state files to hedera user
@@ -2495,7 +2497,10 @@ export class NodeCommandTasks {
       `  sync "${hapiPath}"`,
       'fi',
       `test -f "${applicationJar}" || { echo "missing ${applicationJar}" >&2; exit 1; }`,
-      `/command/s6-setuidgid hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | grep -q "com/hedera/node/app/ServicesMain.class" || { echo "missing ServicesMain in ${applicationJar}" >&2; exit 1; }`,
+      // solo-containers runs as root and needs to drop to hedera; the consensus node image already runs as hedera
+      // and has no unzip, so read the jar listing with the JDK's jar tool there.
+      `if [ "$(id -u)" = "0" ]; then listing="$(/command/s6-setuidgid hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class")"; else listing="$(jar tf "${applicationJar}")"; fi`,
+      `echo "$listing" | grep -q "com/hedera/node/app/ServicesMain.class" || { echo "missing ServicesMain in ${applicationJar}" >&2; exit 1; }`,
     ].join('\n');
   }
 

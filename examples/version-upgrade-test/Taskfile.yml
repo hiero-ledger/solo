@@ -14,6 +14,9 @@ env:
   BLOCK_STREAM_STREAM_MODE: BOTH
   BLOCK_STREAM_WRITER_MODE: FILE_AND_GRPC
   DISABLE_IMPORTER_SPRING_PROFILES: 'true'
+  # A version upgrade extracts the new platform into the root container, which the consensus node image mode does not
+  # support yet (it would need the image tag rolled); keep the solo-containers image for this example.
+  NETWORK_NODE_LIFECYCLE_MODE: solo-container
 
 vars:
   NODE_IDENTIFIERS: 'node1,node2'
