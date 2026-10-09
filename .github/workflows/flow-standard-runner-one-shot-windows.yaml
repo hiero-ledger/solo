@@ -582,13 +582,16 @@ jobs:
           netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
           $ready = $false
           for ($attempt = 1; $attempt -le 60; $attempt++) {
-            docker info *> $null
-            if ($LASTEXITCODE -eq 0) {
-              $ready = $true
-              Write-Host "Docker daemon reachable after restart [attempt=$attempt]"
-              break
+            try {
+              $dockerPingResponse = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:2375/_ping' -TimeoutSec 3
+              if ($dockerPingResponse.Content -match 'OK') {
+                $ready = $true
+                Write-Host "Docker daemon reachable after restart [attempt=$attempt]"
+                break
+              }
+            } catch {
+              # best-effort probe: daemon may still be starting, so keep retrying until timeout budget is exhausted
             }
-            # docker info fails while dockerd is still initializing; retry until the daemon is ready.
             Start-Sleep -Seconds 2
           }
           if (-not $ready) {
