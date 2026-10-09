@@ -548,7 +548,6 @@ jobs:
         run: |
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $OutputEncoding = [System.Text.Encoding]::UTF8
-          $wslIp = (wsl hostname -I).Trim().Split()[0]
           wsl -u root bash -lc "pkill -x dockerd || true"
           for ($attempt = 1; $attempt -le 30; $attempt++) {
             $dockerdProcessId = (wsl -u root bash -lc "pgrep -x dockerd || true").Trim()
@@ -565,7 +564,17 @@ jobs:
           if (-not [string]::IsNullOrWhiteSpace((wsl -u root bash -lc "pgrep -x dockerd || true").Trim())) {
             throw "dockerd did not stop cleanly before restart, even after SIGKILL."
           }
+          $wslIp = @(
+            (wsl hostname -I).Trim().Split() |
+              Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' }
+          ) | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($wslIp)) {
+            throw "Could not resolve a WSL IPv4 address for Docker restart."
+          }
           wsl -u root bash -lc "nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://$wslIp:2375 > /tmp/dockerd.log 2>&1 &"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to restart dockerd in WSL."
+          }
           $wslDockerReady = $false
           for ($attempt = 1; $attempt -le 60; $attempt++) {
             wsl -u root bash -lc "docker -H tcp://$wslIp:2375 info > /dev/null 2>&1"
