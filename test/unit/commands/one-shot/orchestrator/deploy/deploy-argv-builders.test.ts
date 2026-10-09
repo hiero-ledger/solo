@@ -22,7 +22,6 @@ import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/alias
 afterEach((): void => {
   delete process.env.ONE_SHOT_WITH_BLOCK_NODE;
   delete process.env.BLOCK_STREAM_STREAM_MODE;
-  delete process.env.ONE_SHOT_BLOCK_NODE_PERF;
 });
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
@@ -75,10 +74,9 @@ describe('buildBlockNodeArgv', (): void => {
     expect(argv[valueIndex + 1]).to.equal(`${existingFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`);
   });
 
-  it('injects RSA bootstrap values for one-shot block node WRB/RSA deploys outside perf mode', (): void => {
+  it('injects RSA bootstrap values for one-shot block node WRB/RSA deploys', (): void => {
     process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
     process.env.BLOCK_STREAM_STREAM_MODE = 'BOTH';
-    process.env.ONE_SHOT_BLOCK_NODE_PERF = 'false';
 
     const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
       makeConfig({
