@@ -557,6 +557,7 @@ jobs:
             Start-Sleep -Seconds 1
           }
           if (-not [string]::IsNullOrWhiteSpace((wsl -u root bash -lc "pgrep -x dockerd || true").Trim())) {
+            Write-Host "dockerd did not stop gracefully within 30 seconds; forcing shutdown."
             wsl -u root bash -lc "pkill -9 -x dockerd || true"
             Start-Sleep -Seconds 1
           }
@@ -564,6 +565,7 @@ jobs:
             throw "dockerd did not stop cleanly before restart, even after SIGKILL."
           }
           wsl -u root bash -lc "nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://$wslIp:2375 > /tmp/dockerd.log 2>&1 &"
+          Start-Sleep -Seconds 2
           netsh interface portproxy delete v4tov4 listenport=2375 listenaddress=127.0.0.1 | Out-Null
           netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
           $ready = $false
