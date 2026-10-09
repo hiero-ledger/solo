@@ -109,10 +109,10 @@ export const HEDERA_SERVICES_PATH: string = `${HEDERA_HGCAPP_DIR}/services-heder
 export const HEDERA_HAPI_PATH: string = `${HEDERA_SERVICES_PATH}/HapiApp2.0`;
 
 // How Solo starts/stops the consensus node process inside the root container:
-//  - 'solo-container': the solo-containers debian-s6-java25 image and its /command/network-node-lifecycle helper
-//  - 'consensus-node-image' (default on this branch): the hiero-consensus-node deterministic image and its single s6 'consensus' service
+//  - 'solo-container' (default): the solo-containers debian-s6-java25 image and its /command/network-node-lifecycle helper
+//  - 'consensus-node-image': opt-in; the hiero-consensus-node deterministic image and its single s6 'consensus' service
 export const NETWORK_NODE_LIFECYCLE_MODE: string =
-  getEnvironmentVariable('NETWORK_NODE_LIFECYCLE_MODE') || 'consensus-node-image';
+  getEnvironmentVariable('NETWORK_NODE_LIFECYCLE_MODE') || 'solo-container';
 
 // Public release location of the hiero-consensus-node deterministic image, used as the root container image
 // when NETWORK_NODE_LIFECYCLE_MODE is 'consensus-node-image'. Tags are the release version without a 'v' prefix.
