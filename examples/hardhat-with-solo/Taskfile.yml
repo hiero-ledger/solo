@@ -26,8 +26,11 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
 
-      # Create a Solo Deploymen
+      # Create a Solo Deployment
       - cmd: $SOLO_COMMAND one-shot single deploy
+
+      # Verify the active deployment reports the static one-shot ports
+      - cmd: $SOLO_COMMAND deployment config info --deployment one-shot
 
       - cmd: |
           cd hardhat-example
