@@ -189,9 +189,7 @@ export class KeyManager {
     FilePermissions.restrictToOwner(nodeKeyFiles.privateKeyFile, false);
 
     // remove if the certificate file exists already as otherwise we'll keep appending to the last
-    if (fs.existsSync(nodeKeyFiles.certificateFile)) {
-      fs.rmSync(nodeKeyFiles.certificateFile);
-    }
+    fs.rmSync(nodeKeyFiles.certificateFile, {force: true});
 
     for (const certPem of certPems) {
       fs.writeFileSync(nodeKeyFiles.certificateFile, certPem + '\n', {flag: 'a'});
