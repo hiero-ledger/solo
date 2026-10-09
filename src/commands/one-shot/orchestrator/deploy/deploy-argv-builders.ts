@@ -32,6 +32,7 @@ import path from 'node:path';
 import yaml from 'yaml';
 import {Templates} from '../../../../core/templates.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
+import {helmValuesHelper} from '../../../../core/helm-values-helper.js';
 
 const MIRROR_NODE_ID: number = 1;
 const GITHUB_RELEASES_PER_PAGE: number = 100;
@@ -66,6 +67,14 @@ export class DeployArgvBuilders {
   private static shouldSkipMinioSetup(config: OneShotSingleDeployConfigClass): boolean {
     if (!this.shouldDeployBlockNode(config)) {
       return false;
+    }
+
+    const networkValuesFileInput: unknown = config.networkConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
+    if (typeof networkValuesFileInput === 'string' && networkValuesFileInput.trim().length > 0) {
+      const filePaths: string[] = Object.values(Flags.parseValuesFilesInput(networkValuesFileInput)).flat();
+      if (helmValuesHelper.hasExplicitMinioEnabled(filePaths)) {
+        return false;
+      }
     }
 
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
