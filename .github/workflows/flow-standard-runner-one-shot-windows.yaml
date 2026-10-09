@@ -550,22 +550,28 @@ jobs:
           $OutputEncoding = [System.Text.Encoding]::UTF8
           wsl -u root bash -lc "pkill -x dockerd || true"
           for ($attempt = 1; $attempt -le 30; $attempt++) {
-            $dockerdProcessId = (wsl -u root bash -lc "pgrep -x dockerd || true").Trim()
+            $dockerdProcessId = [string](wsl -u root bash -lc "pgrep -x dockerd || true")
+            $dockerdProcessId = $dockerdProcessId.Trim()
             if ([string]::IsNullOrWhiteSpace($dockerdProcessId)) {
               break
             }
             Start-Sleep -Seconds 1
           }
-          if (-not [string]::IsNullOrWhiteSpace((wsl -u root bash -lc "pgrep -x dockerd || true").Trim())) {
+          $dockerdProcessId = [string](wsl -u root bash -lc "pgrep -x dockerd || true")
+          $dockerdProcessId = $dockerdProcessId.Trim()
+          if (-not [string]::IsNullOrWhiteSpace($dockerdProcessId)) {
             Write-Host "dockerd did not stop gracefully within 30 seconds; forcing shutdown."
             wsl -u root bash -lc "pkill -9 -x dockerd || true"
             Start-Sleep -Seconds 1
           }
-          if (-not [string]::IsNullOrWhiteSpace((wsl -u root bash -lc "pgrep -x dockerd || true").Trim())) {
+          $dockerdProcessId = [string](wsl -u root bash -lc "pgrep -x dockerd || true")
+          $dockerdProcessId = $dockerdProcessId.Trim()
+          if (-not [string]::IsNullOrWhiteSpace($dockerdProcessId)) {
             throw "dockerd did not stop cleanly before restart, even after SIGKILL."
           }
+          $wslIpOutput = [string](wsl hostname -I)
           $wslIp = @(
-            (wsl hostname -I).Trim().Split() |
+            $wslIpOutput.Trim().Split() |
               Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' }
           ) | Select-Object -First 1
           if ([string]::IsNullOrWhiteSpace($wslIp)) {
