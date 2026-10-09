@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import chalk from 'chalk';
 import * as versions from '../../../version.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
@@ -167,7 +168,10 @@ export class ComponentCompatibility {
       ComponentCompatibility.describeConflict(violation),
     );
     if (bypass) {
-      logger.warn(`Bypassing the component version compatibility check: ${conflicts.join('; ')}`);
+      ComponentCompatibility.warnBypass(
+        logger,
+        `Bypassing the component version compatibility check: ${conflicts.join('; ')}`,
+      );
       return;
     }
 
@@ -206,7 +210,8 @@ export class ComponentCompatibility {
 
     const componentName: string = ComponentCompatibility.displayName(component);
     if (force) {
-      logger.warn(
+      ComponentCompatibility.warnBypass(
+        logger,
         `Force flag enabled, upgrading the ${componentName} in place from ${currentVersion} to ${targetVersion} although ${transition.reason}`,
       );
       return;
@@ -246,6 +251,12 @@ export class ComponentCompatibility {
       `${violation.constraint.reason}, which requires ${ComponentCompatibility.displayName(requires.component)} ` +
       `${ComponentCompatibility.displayVersion(requires.minimumVersion)} or newer`
     );
+  }
+
+  /** Records a bypassed rule in the log and shows it on the console, so a forced run is never silent. */
+  private static warnBypass(logger: SoloLogger, message: string): void {
+    logger.warn(message);
+    logger.showUser(chalk.yellow(`⚠ ${message}`));
   }
 
   private static describeRemedy(violation: ComponentCompatibilityViolation): string {

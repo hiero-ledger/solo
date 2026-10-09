@@ -125,10 +125,12 @@ describe('ComponentCompatibility', (): void => {
   describe('assertCompatible', (): void => {
     let logger: SoloLogger;
     let warn: SinonStub;
+    let showUser: SinonStub;
 
     beforeEach((): void => {
       warn = sinon.stub();
-      logger = {warn} as unknown as SoloLogger;
+      showUser = sinon.stub();
+      logger = {warn, showUser} as unknown as SoloLogger;
     });
 
     it('throws an error that names the component to bump', (): void => {
@@ -146,21 +148,25 @@ describe('ComponentCompatibility', (): void => {
         ComponentCompatibility.assertCompatible(tuple('v0.79.0', '0.44.2'), ComponentTypes.BlockNode, true, logger),
       ).to.not.throw();
       expect(warn.calledOnce).to.be.true;
+      expect(showUser.calledOnce).to.be.true;
     });
 
     it('stays silent for a compatible tuple', (): void => {
       ComponentCompatibility.assertCompatible(tuple('v0.79.0', '0.45.0'), ComponentTypes.BlockNode, false, logger);
       expect(warn.called).to.be.false;
+      expect(showUser.called).to.be.false;
     });
   });
 
   describe('upgrade transitions', (): void => {
     let logger: SoloLogger;
     let warn: SinonStub;
+    let showUser: SinonStub;
 
     beforeEach((): void => {
       warn = sinon.stub();
-      logger = {warn} as unknown as SoloLogger;
+      showUser = sinon.stub();
+      logger = {warn, showUser} as unknown as SoloLogger;
     });
 
     it('rejects upgrading a consensus node across the redeploy boundary', (): void => {
@@ -200,6 +206,7 @@ describe('ComponentCompatibility', (): void => {
         ComponentCompatibility.assertUpgradeInPlace(ComponentTypes.ConsensusNode, 'v0.78.2', 'v0.79.0', true, logger),
       ).to.not.throw();
       expect(warn.calledOnce).to.be.true;
+      expect(showUser.calledOnce).to.be.true;
     });
   });
 

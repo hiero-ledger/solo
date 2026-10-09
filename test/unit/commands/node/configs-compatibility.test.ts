@@ -25,6 +25,7 @@ type ConfigBuilder = (argv: ArgvStruct, context_: AnyObject, task?: unknown) => 
  */
 describe('NodeCommandConfigs component version compatibility', (): void => {
   let warn: SinonStub;
+  let showUser: SinonStub;
   let builderConfig: {releaseTag: string; force: boolean};
 
   const createConfigs: () => NodeCommandConfigs = (): NodeCommandConfigs => {
@@ -50,7 +51,7 @@ describe('NodeCommandConfigs component version compatibility', (): void => {
       remoteConfig,
       {} as K8Factory,
       {} as AccountManager,
-      {warn} as unknown as SoloLogger,
+      {warn, showUser} as unknown as SoloLogger,
     );
   };
 
@@ -68,6 +69,7 @@ describe('NodeCommandConfigs component version compatibility', (): void => {
 
   beforeEach((): void => {
     warn = sinon.stub();
+    showUser = sinon.stub();
   });
 
   for (const [command, builder] of builders) {
@@ -86,6 +88,7 @@ describe('NodeCommandConfigs component version compatibility', (): void => {
         ComponentVersionIncompatibleSoloError,
       );
       expect(warn).to.have.been.calledWithMatch(/Bypassing the component version compatibility check/);
+      expect(showUser).to.have.been.calledWithMatch(/Bypassing the component version compatibility check/);
     });
   }
 });
