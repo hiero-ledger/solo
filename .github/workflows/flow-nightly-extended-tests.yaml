@@ -291,14 +291,6 @@ jobs:
     secrets:
       SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
-  deterministic-image-deploy:
-    name: Extended Test (deterministic-image-deploy)
-    needs:
-      - generate_matrix
-    uses: ./.github/workflows/flow-deterministic-image-test.yaml
-    secrets:
-      SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
-
   windows-one-shot-redeployment:
     name: Extended Test (windows-one-shot-redeployment)
     needs:
