@@ -578,23 +578,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to restart dockerd in WSL."
           }
-          $wslDockerReady = $false
-          for ($attempt = 1; $attempt -le 60; $attempt++) {
-            wsl -u root bash -lc "docker -H tcp://$wslIp:2375 info > /dev/null 2>&1"
-            if ($LASTEXITCODE -eq 0) {
-              $wslDockerReady = $true
-              Write-Host "WSL docker daemon reachable after restart [attempt=$attempt]"
-              break
-            }
-            Start-Sleep -Seconds 2
-          }
-          if (-not $wslDockerReady) {
-            throw "WSL docker daemon did not become reachable after restart."
-          }
           netsh interface portproxy delete v4tov4 listenport=2375 listenaddress=127.0.0.1 | Out-Null
           netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
           $ready = $false
-          for ($attempt = 1; $attempt -le 30; $attempt++) {
+          for ($attempt = 1; $attempt -le 60; $attempt++) {
             try {
               docker info *> $null
               $ready = $true
