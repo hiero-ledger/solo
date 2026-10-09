@@ -56,6 +56,7 @@ concurrency:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
+  SMOKE_TEST_TIMEOUT_MINUTES: '35'
   DOCKER_HOST: tcp://localhost:2375
   ACTIONS_STEP_DEBUG: 'true'
   ACTIONS_RUNNER_DEBUG: 'true'
@@ -565,11 +566,23 @@ jobs:
             throw "dockerd did not stop cleanly before restart, even after SIGKILL."
           }
           wsl -u root bash -lc "nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://$wslIp:2375 > /tmp/dockerd.log 2>&1 &"
-          Start-Sleep -Seconds 2
+          $wslDockerReady = $false
+          for ($attempt = 1; $attempt -le 60; $attempt++) {
+            wsl -u root bash -lc "docker -H tcp://$wslIp:2375 info > /dev/null 2>&1"
+            if ($LASTEXITCODE -eq 0) {
+              $wslDockerReady = $true
+              Write-Host "WSL docker daemon reachable after restart [attempt=$attempt]"
+              break
+            }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $wslDockerReady) {
+            throw "WSL docker daemon did not become reachable after restart."
+          }
           netsh interface portproxy delete v4tov4 listenport=2375 listenaddress=127.0.0.1 | Out-Null
           netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
           $ready = $false
-          for ($attempt = 1; $attempt -le 60; $attempt++) {
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
             try {
               docker info *> $null
               $ready = $true
@@ -604,7 +617,7 @@ jobs:
 
       - name: Run Smoke Test Script After Docker Restart
         shell: bash
-        timeout-minutes: 35
+        timeout-minutes: ${{ fromJSON(env.SMOKE_TEST_TIMEOUT_MINUTES) }}
         env:
           SOLO_DEPLOYMENT: one-shot
           SOLO_NAMESPACE: solo-e2e
