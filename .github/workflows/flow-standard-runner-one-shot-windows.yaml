@@ -570,6 +570,7 @@ jobs:
               Write-Host "Docker daemon reachable after restart [attempt=$attempt]"
               break
             } catch {
+              # docker info fails while dockerd is still initializing; retry until the daemon is ready.
               Start-Sleep -Seconds 2
             }
           }
