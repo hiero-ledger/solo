@@ -547,8 +547,11 @@ jobs:
         run: |
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $OutputEncoding = [System.Text.Encoding]::UTF8
+          $wslIp = (wsl hostname -I).Trim().Split()[0]
           wsl -u root bash -lc "pkill -x dockerd || true"
-          wsl -u root bash -lc "nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &"
+          wsl -u root bash -lc "nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://$wslIp:2375 > /tmp/dockerd.log 2>&1 &"
+          netsh interface portproxy delete v4tov4 listenport=2375 listenaddress=127.0.0.1 | Out-Null
+          netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
           $ready = $false
           for ($attempt = 1; $attempt -le 60; $attempt++) {
             try {
