@@ -51,6 +51,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {ComponentCompatibility} from '../business/compatibility/component-compatibility.js';
 import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {Lock} from '../core/lock/lock.js';
 import {Base64} from 'js-base64';
@@ -95,6 +96,7 @@ interface MirrorNodeDeployConfigClass {
   chartValues: HelmChartValues;
   quiet: boolean;
   mirrorNodeVersion: string;
+  force: boolean;
   componentImage: string;
   componentImageArchive: string;
   pinger: boolean;
@@ -147,6 +149,7 @@ interface MirrorNodeUpgradeConfigClass {
   chartValues: HelmChartValues;
   quiet: boolean;
   mirrorNodeVersion: string;
+  force: boolean;
   componentImage: string;
   componentImageArchive: string;
   pinger: boolean;
@@ -298,6 +301,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
       flags.parallelDeploy,
+      flags.force,
     ],
   };
 
@@ -339,6 +343,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.id,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
+      flags.force,
     ],
   };
 
@@ -717,6 +722,21 @@ export class MirrorNodeCommand extends BaseCommand {
    */
   private shouldApplyMirrorNodeImageTagOverrides(mirrorNodeChartDirectory: string): boolean {
     return !mirrorNodeChartDirectory || this.configManager.wasFlagProvidedByUser(flags.mirrorNodeVersion);
+  }
+
+  /**
+   * Rejects a mirror node version that cannot ingest the output of the deployed consensus node.
+   */
+  private assertMirrorNodeCompatibility(mirrorNodeVersion: string, force: boolean): void {
+    ComponentCompatibility.assertCompatible(
+      {
+        ...ComponentCompatibility.deployedVersions(this.remoteConfig),
+        [ComponentTypes.MirrorNode]: mirrorNodeVersion,
+      },
+      ComponentTypes.MirrorNode,
+      force,
+      this.logger,
+    );
   }
 
   private addMirrorNodeImageTagOverrides(chartValues: HelmChartValues, mirrorNodeVersion: string): void {
@@ -1652,6 +1672,8 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config = config;
 
+            this.assertMirrorNodeCompatibility(config.mirrorNodeVersion, config.force);
+
             const hasMirrorNodeMemoryImprovements: boolean = new SemanticVersion<string>(
               config.mirrorNodeVersion,
             ).greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION);
@@ -1960,6 +1982,8 @@ export class MirrorNodeCommand extends BaseCommand {
               this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
               optionFromFlag(flags.mirrorNodeVersion),
             );
+
+            this.assertMirrorNodeCompatibility(config.mirrorNodeVersion, config.force);
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,

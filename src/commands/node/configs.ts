@@ -58,6 +58,9 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 import {optionFromFlag} from '../command-helpers.js';
+import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
+import {ComponentCompatibility} from '../../business/compatibility/component-compatibility.js';
 import {type AccountIdWithKeyPairObject, type ComponentData, type Context} from '../../types/index.js';
 import {type K8} from '../../integration/kube/k8.js';
 
@@ -79,12 +82,14 @@ export class NodeCommandConfigs {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
+    @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
   private async initializeSetup(config: AnyObject, k8Factory: K8Factory): Promise<void> {
@@ -191,6 +196,27 @@ export class NodeCommandConfigs {
         context_.config.upgradeVersion,
         this.remoteConfig.configuration.versions.consensusNode,
         optionFromFlag(flags.upgradeVersion),
+      );
+
+      ComponentCompatibility.assertUpgradeInPlace(
+        ComponentTypes.ConsensusNode,
+        this.remoteConfig.configuration.versions.consensusNode.toString(),
+        context_.config.upgradeVersion,
+        context_.config.force,
+        this.logger,
+      );
+
+      // With --skip-node-start the upgraded nodes stay stopped until `consensus node start`, which is how a
+      // component that must cross a boundary together with the consensus node is upgraded in between, so a
+      // conflict is only reported, not rejected.
+      ComponentCompatibility.assertCompatible(
+        {
+          ...ComponentCompatibility.deployedVersions(this.remoteConfig),
+          [ComponentTypes.ConsensusNode]: context_.config.upgradeVersion,
+        },
+        ComponentTypes.ConsensusNode,
+        context_.config.force || context_.config.skipNodeStart,
+        this.logger,
       );
     }
 
