@@ -549,6 +549,16 @@ jobs:
           $OutputEncoding = [System.Text.Encoding]::UTF8
           $wslIp = (wsl hostname -I).Trim().Split()[0]
           wsl -u root bash -lc "pkill -x dockerd || true"
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            $dockerdProcessId = (wsl -u root bash -lc "pgrep -x dockerd || true").Trim()
+            if ([string]::IsNullOrWhiteSpace($dockerdProcessId)) {
+              break
+            }
+            Start-Sleep -Seconds 1
+          }
+          if (-not [string]::IsNullOrWhiteSpace((wsl -u root bash -lc "pgrep -x dockerd || true").Trim())) {
+            throw "dockerd did not stop cleanly before restart."
+          }
           wsl -u root bash -lc "nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://$wslIp:2375 > /tmp/dockerd.log 2>&1 &"
           netsh interface portproxy delete v4tov4 listenport=2375 listenaddress=127.0.0.1 | Out-Null
           netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
