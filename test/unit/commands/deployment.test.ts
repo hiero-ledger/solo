@@ -496,7 +496,7 @@ describe('DeploymentCommand unit tests', (): void => {
       await expect(deploymentCommand.ports(argv.build())).to.eventually.be.true;
 
       const output: string = fs.readFileSync('test/data/tmp/output/forwarded-ports.json', 'utf8');
-      const report = JSON.parse(output);
+      const report: Record<string, unknown> = JSON.parse(output) as Record<string, unknown>;
       expect(report.services.consensusNodeGrpc).to.deep.include({
         componentId: 1,
         localPort: constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT,
@@ -515,7 +515,7 @@ describe('DeploymentCommand unit tests', (): void => {
       expect(report.services.mirrorNodeRest).to.deep.include({
         componentId: 1,
         localPort: constants.ONE_SHOT_MIRROR_REST_HOST_PORT,
-        podPort: 30_003,
+        podPort: constants.ONE_SHOT_MIRROR_REST_NODE_PORT,
       });
     });
   });
