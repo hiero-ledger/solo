@@ -1689,6 +1689,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly debugMirrorNode: CommandFlag = {
+    constName: 'debugMirrorNode',
+    name: 'debug-mirror-node',
+    definition: {
+      describe:
+        'Run the mirror node importer on the JVM image with the default jvm debug port (5005) open and port-forward it to localhost',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly debugNodeAlias: CommandFlag = {
     constName: 'debugNodeAlias',
     name: 'debug-node-alias',
@@ -2868,6 +2880,7 @@ export class Flags {
     Flags.clusterSetupNamespace,
     Flags.context,
     Flags.createAmount,
+    Flags.debugMirrorNode,
     Flags.debugNodeAlias,
     Flags.deletePvcs,
     Flags.deleteSecrets,
