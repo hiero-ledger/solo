@@ -420,6 +420,106 @@ describe('DeploymentCommand unit tests', (): void => {
     });
   });
 
+  describe('ports()', (): void => {
+    it('should include the static one-shot host ports when the deployment host is one-shot', async (): Promise<void> => {
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const remoteConfigStub = {
+        loadAndValidate: sinon.stub().resolves(),
+        configuration: {
+          state: {
+            consensusNodes: [],
+            haProxies: [
+              {
+                metadata: {
+                  id: 1,
+                  cluster: 'cluster-1',
+                  namespace: namespace.name,
+                  host: 'one-shot',
+                  portForwardConfigs: [],
+                },
+              },
+            ],
+            mirrorNodes: [
+              {
+                metadata: {
+                  id: 1,
+                  cluster: 'cluster-1',
+                  namespace: namespace.name,
+                  host: 'one-shot',
+                  portForwardConfigs: [],
+                },
+              },
+            ],
+            blockNodes: [],
+            relayNodes: [
+              {
+                metadata: {
+                  id: 1,
+                  cluster: 'cluster-1',
+                  namespace: namespace.name,
+                  host: 'one-shot',
+                  portForwardConfigs: [],
+                },
+              },
+            ],
+            explorers: [
+              {
+                metadata: {
+                  id: 1,
+                  cluster: 'cluster-1',
+                  namespace: namespace.name,
+                  host: 'one-shot',
+                  portForwardConfigs: [],
+                },
+              },
+            ],
+          },
+        },
+      };
+      (deploymentCommand as unknown as {remoteConfig: unknown}).remoteConfig = remoteConfigStub;
+      (deploymentCommand as unknown as {localConfig: unknown}).localConfig = {
+        load: sinon.stub().resolves(),
+        configuration: {
+          deploymentByName: sinon.stub().returns({
+            name: deploymentName,
+            namespace: namespace.name,
+            clusters: [{toString: (): string => 'cluster-1'}],
+          }),
+        },
+      };
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+      argv.setArg(flags.output, 'json');
+      argv.setArg(flags.cacheDir, 'test/data/tmp');
+
+      await expect(deploymentCommand.ports(argv.build())).to.eventually.be.true;
+
+      const output: string = fs.readFileSync('test/data/tmp/output/forwarded-ports.json', 'utf8');
+      const report = JSON.parse(output);
+      expect(report.services.consensusNodeGrpc).to.deep.include({
+        componentId: 1,
+        localPort: constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT,
+        podPort: constants.ONE_SHOT_CONSENSUS_GRPC_NODE_PORT,
+      });
+      expect(report.services.explorer).to.deep.include({
+        componentId: 1,
+        localPort: constants.ONE_SHOT_EXPLORER_HOST_PORT,
+        podPort: constants.ONE_SHOT_EXPLORER_NODE_PORT,
+      });
+      expect(report.services.jsonRpcRelay).to.deep.include({
+        componentId: 1,
+        localPort: constants.ONE_SHOT_RELAY_HOST_PORT,
+        podPort: constants.ONE_SHOT_RELAY_NODE_PORT,
+      });
+      expect(report.services.mirrorNodeRest).to.deep.include({
+        componentId: 1,
+        localPort: constants.ONE_SHOT_MIRROR_REST_HOST_PORT,
+        podPort: 30_003,
+      });
+    });
+  });
+
   describe('stopPortForwards()', (): void => {
     interface FakeComponent {
       metadata: {

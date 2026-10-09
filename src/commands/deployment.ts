@@ -125,17 +125,27 @@ interface ImageRow {
   image: string;
 }
 
-function collectPortEntries(components: BaseStateSchema[]): PortEntry[] {
+function collectPortEntries(components: BaseStateSchema[], type?: string): PortEntry[] {
   const entries: PortEntry[] = [];
 
   for (const component of components) {
     const portForwardConfigs: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
+    const syntheticEntries: PortEntry[] =
+      component.metadata?.host === 'one-shot' && type ? buildOneShotPortEntries(type) : [];
 
     for (const portForwardConfig of portForwardConfigs) {
       entries.push({
         componentId: component.metadata.id,
         localPort: portForwardConfig.localPort,
         podPort: portForwardConfig.podPort,
+      });
+    }
+
+    for (const syntheticEntry of syntheticEntries) {
+      entries.push({
+        componentId: component.metadata.id,
+        localPort: syntheticEntry.localPort,
+        podPort: syntheticEntry.podPort,
       });
     }
   }
@@ -1041,11 +1051,11 @@ export class DeploymentCommand extends BaseCommand {
               clusterReference,
               namespace: namespace.name,
               services: {
-                consensusNodeGrpc: collectPortEntries(state.haProxies || []),
-                mirrorNodeRest: collectPortEntries(state.mirrorNodes || []),
-                jsonRpcRelay: collectPortEntries(state.relayNodes || []),
-                explorer: collectPortEntries(state.explorers || []),
-                blockNode: collectPortEntries(state.blockNodes || []),
+                consensusNodeGrpc: collectPortEntries(state.haProxies || [], 'HaProxy'),
+                mirrorNodeRest: collectPortEntries(state.mirrorNodes || [], 'MirrorNode'),
+                jsonRpcRelay: collectPortEntries(state.relayNodes || [], 'RelayNode'),
+                explorer: collectPortEntries(state.explorers || [], 'Explorer'),
+                blockNode: collectPortEntries(state.blockNodes || [], 'BlockNode'),
               },
             };
 
