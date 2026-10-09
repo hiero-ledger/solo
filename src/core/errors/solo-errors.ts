@@ -255,6 +255,7 @@ import {BackupInputPathNotFoundSoloError} from './classes/validation/backup-inpu
 import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-must-be-zip-solo-error.js';
 import {SubprocessConfigLoadFailedSoloError} from './classes/validation/subprocess-config-load-failed-solo-error.js';
 import {SubprocessConfigInvalidValueSoloError} from './classes/validation/subprocess-config-invalid-value-solo-error.js';
+import {ConfigValueTypeMismatchSoloError} from './classes/validation/config-value-type-mismatch-solo-error.js';
 import {SubprocessConfigUnsafePermissionsSoloError} from './classes/validation/subprocess-config-unsafe-permissions-solo-error.js';
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
 import {BackupDatabaseDumpNotFoundSoloError} from './classes/validation/backup-database-dump-not-found-solo-error.js';
@@ -696,6 +697,7 @@ export class SoloErrors {
     readonly subprocessConfigLoadFailed: typeof SubprocessConfigLoadFailedSoloError;
     readonly subprocessConfigUnsafePermissions: typeof SubprocessConfigUnsafePermissionsSoloError;
     readonly subprocessConfigInvalidValue: typeof SubprocessConfigInvalidValueSoloError;
+    readonly configValueTypeMismatch: typeof ConfigValueTypeMismatchSoloError;
     readonly backupDatabaseDumpNotFound: typeof BackupDatabaseDumpNotFoundSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
@@ -782,6 +784,7 @@ export class SoloErrors {
     subprocessConfigLoadFailed: SubprocessConfigLoadFailedSoloError,
     subprocessConfigUnsafePermissions: SubprocessConfigUnsafePermissionsSoloError,
     subprocessConfigInvalidValue: SubprocessConfigInvalidValueSoloError,
+    configValueTypeMismatch: ConfigValueTypeMismatchSoloError,
     backupDatabaseDumpNotFound: BackupDatabaseDumpNotFoundSoloError,
     flagInputFailed: FlagInputFailedSoloError,
     confirmationRequired: ConfirmationRequiredSoloError,
