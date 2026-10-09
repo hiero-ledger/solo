@@ -72,4 +72,16 @@ describe('NetworkNodeLifecycle', (): void => {
     expect(start).to.not.contain('ps -ef');
     expect(start).to.not.contain('curl');
   });
+
+  it('should extract archives with unzip or fall back to the jar tool', (): void => {
+    const command: string = NetworkNodeLifecycle.buildExtractArchiveCommand('/a/state.zip', '/a/saved');
+    expect(command).to.contain('unzip -o /a/state.zip -d /a/saved');
+    expect(command).to.contain('(cd /a/saved && jar xf /a/state.zip)');
+  });
+
+  it('should only change ownership when running as root', (): void => {
+    expect(NetworkNodeLifecycle.buildChangeOwnerCommand('/a/saved')).to.equal(
+      'if [ "$(id -u)" = "0" ]; then chown -R hedera:hedera /a/saved; fi',
+    );
+  });
 });

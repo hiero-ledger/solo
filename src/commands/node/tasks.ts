@@ -1833,14 +1833,12 @@ export class NodeCommandTasks {
 
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
 
-          // The consensus node image has no unzip, so fall back to the JDK's jar tool.
           const stateZipPath: string = `${constants.HEDERA_HAPI_PATH}/data/${zipFileName}`;
           const savedStateDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/saved`;
           await container.execContainer([
             'bash',
             '-c',
-            `if command -v unzip >/dev/null 2>&1; then unzip -o ${stateZipPath} -d ${savedStateDirectory}; ` +
-              `else (cd ${savedStateDirectory} && jar xf ${stateZipPath}); fi`,
+            NetworkNodeLifecycle.buildExtractArchiveCommand(stateZipPath, savedStateDirectory),
           ]);
 
           // Fix ownership of extracted state files to hedera user
@@ -1849,11 +1847,10 @@ export class NodeCommandTasks {
           // The chown is required so the hedera process can access the extracted state files.
           this.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
 
-          // only root can change ownership; the consensus node image runs as hedera, so the files are already its own
           await container.execContainer([
             'bash',
             '-c',
-            `if [ "$(id -u)" = "0" ]; then chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved; fi`,
+            NetworkNodeLifecycle.buildChangeOwnerCommand(`${constants.HEDERA_HAPI_PATH}/data/saved`),
           ]);
 
           // Rename node ID directories to match the target node
@@ -1880,7 +1877,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'bash',
             '-c',
-            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+            NetworkNodeLifecycle.buildChangeOwnerCommand(`${constants.HEDERA_HAPI_PATH}/data/saved`),
           ]);
         }
       },

@@ -176,4 +176,23 @@ export class NetworkNodeLifecycle {
       volumeClaims: {appJarsInImage: true},
     };
   }
+
+  /**
+   * Extracts a zip archive inside the root container. The consensus node image has no unzip, so it falls back to the
+   * JDK's jar tool, which extracts into the current directory.
+   */
+  public static buildExtractArchiveCommand(archivePath: string, targetDirectory: string): string {
+    return (
+      `if command -v unzip >/dev/null 2>&1; then unzip -o ${archivePath} -d ${targetDirectory}; ` +
+      `else (cd ${targetDirectory} && jar xf ${archivePath}); fi`
+    );
+  }
+
+  /**
+   * Gives the hedera user ownership of a path inside the root container. Only root can change ownership; the consensus
+   * node image already runs as hedera, so the files it extracts or copies are its own.
+   */
+  public static buildChangeOwnerCommand(path: string): string {
+    return `if [ "$(id -u)" = "0" ]; then chown -R hedera:hedera ${path}; fi`;
+  }
 }
