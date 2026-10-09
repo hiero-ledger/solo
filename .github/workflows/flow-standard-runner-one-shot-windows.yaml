@@ -522,6 +522,8 @@ jobs:
         timeout-minutes: 70
         env:
           ENABLE_IMAGE_CACHE: 'false'
+          BLOCK_STREAM_STREAM_MODE: BLOCKS
+          ONE_SHOT_WITH_BLOCK_NODE: 'true'
         run: |
           # Solo writes UTF-8 to stdout; without this the pwsh wrapper decodes it with the legacy
           # ANSI code page and every box-drawing character and emoji in the log becomes mojibake.
@@ -538,6 +540,57 @@ jobs:
           $OutputEncoding = [System.Text.Encoding]::UTF8
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- deployment diagnostics connections -d one-shot --check
+
+      - name: Restart Docker Daemon in WSL2
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          wsl -u root bash -lc "pkill -x dockerd || true"
+          wsl -u root bash -lc "nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &"
+          $ready = $false
+          for ($attempt = 1; $attempt -le 60; $attempt++) {
+            try {
+              docker info *> $null
+              $ready = $true
+              Write-Host "Docker daemon reachable after restart [attempt=$attempt]"
+              break
+            } catch {
+              Start-Sleep -Seconds 2
+            }
+          }
+          if (-not $ready) {
+            throw "Docker daemon did not become reachable after restart."
+          }
+
+      - name: Refresh Port Forwards After Docker Restart
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment refresh port-forwards --deployment one-shot --dev
+
+      - name: Verify Ledger Account Creation After Docker Restart
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- ledger account create --deployment one-shot --hbar-amount 100 --generate-ecdsa-key --set-alias --dev
+
+      - name: Run Smoke Test Script After Docker Restart
+        shell: bash
+        timeout-minutes: 35
+        env:
+          SOLO_DEPLOYMENT: one-shot
+          SOLO_NAMESPACE: solo-e2e
+        run: |
+          export PATH="$HOME/.solo/bin:${PATH}"
+          .github/workflows/script/solo_smoke_test.sh true
 
       - name: Verify Solo Cache Files Are Readable
         shell: pwsh
@@ -584,6 +637,8 @@ jobs:
         timeout-minutes: 70
         env:
           ENABLE_IMAGE_CACHE: 'false'
+          BLOCK_STREAM_STREAM_MODE: BLOCKS
+          ONE_SHOT_WITH_BLOCK_NODE: 'true'
         run: |
           # The reinstall reuses the persistent ~/.solo cache the first deploy populated.
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
@@ -633,6 +688,8 @@ jobs:
         timeout-minutes: 70
         env:
           ENABLE_IMAGE_CACHE: 'false'
+          BLOCK_STREAM_STREAM_MODE: BLOCKS
+          ONE_SHOT_WITH_BLOCK_NODE: 'true'
         run: |
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $OutputEncoding = [System.Text.Encoding]::UTF8
