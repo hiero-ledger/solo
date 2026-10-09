@@ -421,7 +421,7 @@ describe('DeploymentCommand unit tests', (): void => {
   });
 
   describe('ports()', (): void => {
-    it('should include the static one-shot host ports when the deployment host is one-shot', async (): Promise<void> => {
+    it('should include the static one-shot host ports when the deployment is one-shot', async (): Promise<void> => {
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
       const remoteConfigStub = {
         loadAndValidate: sinon.stub().resolves(),
@@ -434,7 +434,6 @@ describe('DeploymentCommand unit tests', (): void => {
                   id: 1,
                   cluster: 'cluster-1',
                   namespace: namespace.name,
-                  host: 'one-shot',
                   portForwardConfigs: [],
                 },
               },
@@ -445,7 +444,6 @@ describe('DeploymentCommand unit tests', (): void => {
                   id: 1,
                   cluster: 'cluster-1',
                   namespace: namespace.name,
-                  host: 'one-shot',
                   portForwardConfigs: [],
                 },
               },
@@ -457,7 +455,6 @@ describe('DeploymentCommand unit tests', (): void => {
                   id: 1,
                   cluster: 'cluster-1',
                   namespace: namespace.name,
-                  host: 'one-shot',
                   portForwardConfigs: [],
                 },
               },
@@ -468,7 +465,6 @@ describe('DeploymentCommand unit tests', (): void => {
                   id: 1,
                   cluster: 'cluster-1',
                   namespace: namespace.name,
-                  host: 'one-shot',
                   portForwardConfigs: [],
                 },
               },
@@ -481,7 +477,7 @@ describe('DeploymentCommand unit tests', (): void => {
         load: sinon.stub().resolves(),
         configuration: {
           deploymentByName: sinon.stub().returns({
-            name: deploymentName,
+            name: constants.ONE_SHOT_DEPLOYMENT_NAME,
             namespace: namespace.name,
             clusters: [{toString: (): string => 'cluster-1'}],
           }),
@@ -489,14 +485,14 @@ describe('DeploymentCommand unit tests', (): void => {
       };
 
       const argv: Argv = Argv.getDefaultArgv(namespace);
-      argv.setArg(flags.deployment, deploymentName);
+      argv.setArg(flags.deployment, constants.ONE_SHOT_DEPLOYMENT_NAME);
       argv.setArg(flags.output, 'json');
       argv.setArg(flags.cacheDir, 'test/data/tmp');
 
       await expect(deploymentCommand.ports(argv.build())).to.eventually.be.true;
 
       const output: string = fs.readFileSync('test/data/tmp/output/forwarded-ports.json', 'utf8');
-      const report: Record<string, unknown> = JSON.parse(output) as Record<string, unknown>;
+      const report: {services: Record<string, unknown>} = JSON.parse(output) as {services: Record<string, unknown>};
       expect(report.services.consensusNodeGrpc).to.deep.include({
         componentId: 1,
         localPort: constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT,

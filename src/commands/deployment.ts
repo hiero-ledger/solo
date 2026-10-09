@@ -133,13 +133,16 @@ export class DeploymentCommand extends BaseCommand {
     }
   }
 
-  private static collectPortEntries(components: BaseStateSchema[], type?: string): PortEntry[] {
+  private static collectPortEntries(
+    components: BaseStateSchema[],
+    type: string,
+    deploymentName: DeploymentName,
+  ): PortEntry[] {
     const entries: PortEntry[] = [];
 
     for (const component of components) {
       const portForwardConfigs: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
-      const syntheticEntries: PortEntry[] =
-        component.metadata?.host === 'one-shot' && type ? DeploymentCommand.buildOneShotPortEntries(type) : [];
+      const syntheticEntries: PortEntry[] = DeploymentCommand.isOneShotDeploymentPortForward(type, deploymentName);
 
       for (const portForwardConfig of portForwardConfigs) {
         entries.push({
@@ -178,8 +181,8 @@ export class DeploymentCommand extends BaseCommand {
     ];
   }
 
-  private static isOneShotDeploymentPortForward(type: string, component: BaseStateSchema): PortEntry[] {
-    if (!component.metadata?.host || component.metadata.host !== 'one-shot') {
+  private static isOneShotDeploymentPortForward(type: string, deploymentName: DeploymentName): PortEntry[] {
+    if (deploymentName !== constants.ONE_SHOT_DEPLOYMENT_NAME) {
       return [];
     }
     return DeploymentCommand.buildOneShotPortEntries(type);
@@ -1082,11 +1085,11 @@ export class DeploymentCommand extends BaseCommand {
               clusterReference,
               namespace: namespace.name,
               services: {
-                consensusNodeGrpc: DeploymentCommand.collectPortEntries(state.haProxies || [], 'HaProxy'),
-                mirrorNodeRest: DeploymentCommand.collectPortEntries(state.mirrorNodes || [], 'MirrorNode'),
-                jsonRpcRelay: DeploymentCommand.collectPortEntries(state.relayNodes || [], 'RelayNode'),
-                explorer: DeploymentCommand.collectPortEntries(state.explorers || [], 'Explorer'),
-                blockNode: DeploymentCommand.collectPortEntries(state.blockNodes || [], 'BlockNode'),
+                consensusNodeGrpc: DeploymentCommand.collectPortEntries(state.haProxies || [], 'HaProxy', deployment),
+                mirrorNodeRest: DeploymentCommand.collectPortEntries(state.mirrorNodes || [], 'MirrorNode', deployment),
+                jsonRpcRelay: DeploymentCommand.collectPortEntries(state.relayNodes || [], 'RelayNode', deployment),
+                explorer: DeploymentCommand.collectPortEntries(state.explorers || [], 'Explorer', deployment),
+                blockNode: DeploymentCommand.collectPortEntries(state.blockNodes || [], 'BlockNode', deployment),
               },
             };
 
@@ -1656,7 +1659,7 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Refresh port-forwards for all components',
-          task: async (_context_, task): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             const componentsToCheck: {type: string; components: BaseStateSchema[]}[] =
               DeploymentCommand.buildComponentsToCheck(this.remoteConfig.configuration.state);
 
@@ -1671,7 +1674,7 @@ export class DeploymentCommand extends BaseCommand {
               for (const component of components) {
                 const syntheticOneShotPortEntries: PortEntry[] = DeploymentCommand.isOneShotDeploymentPortForward(
                   type,
-                  component,
+                  context_.config.deployment,
                 );
                 const configuredPortEntries: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
 
@@ -2063,7 +2066,7 @@ export class DeploymentCommand extends BaseCommand {
                 for (const component of components) {
                   const syntheticOneShotPortEntries: PortEntry[] = DeploymentCommand.isOneShotDeploymentPortForward(
                     type,
-                    component,
+                    deployment.name,
                   );
                   const configuredPortEntries: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
                   const combinedEntries: CombinedPortEntry[] = DeploymentCommand.buildCombinedPortEntries(
