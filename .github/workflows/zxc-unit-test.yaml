@@ -111,14 +111,14 @@ jobs:
         run: task test-helm
 
       - name: Publish Windows Unit Test Report
-        uses: step-security/publish-unit-test-result-action/windows@681100d67b09305624c089873f12c545ee7cbc24  # v2.21.0 full SHA
+        uses: step-security/publish-unit-test-result-action/windows@8cf946dca1a299ebf36dff640273fda13717050a  # v2.21.0 full SHA
         if: ${{ runner.os == 'Windows' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           check_name: 'Unit Test Results - ${{ runner.os }}'
           files: "junit.xml"
 
       - name: Publish Linux Unit Test Report
-        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        uses: step-security/publish-unit-test-result-action@8cf946dca1a299ebf36dff640273fda13717050a # v2.24.0
         if: ${{ runner.os == 'linux' && steps.npm-deps.conclusion == 'success' && !cancelled() }}
         with:
           check_name: 'Unit Test Results - ${{ runner.os }}'
