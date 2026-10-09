@@ -92,6 +92,22 @@ export class NodeCommandConfigs {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
+  /**
+   * Rejects a consensus node version that cannot run alongside the deployed block and mirror nodes; with `bypass`
+   * the conflict is only logged.
+   */
+  private assertConsensusNodeCompatibility(consensusNodeVersion: string, bypass: boolean): void {
+    ComponentCompatibility.assertCompatible(
+      {
+        ...ComponentCompatibility.deployedVersions(this.remoteConfig),
+        [ComponentTypes.ConsensusNode]: consensusNodeVersion,
+      },
+      ComponentTypes.ConsensusNode,
+      bypass,
+      this.logger,
+    );
+  }
+
   private async initializeSetup(config: AnyObject, k8Factory: K8Factory): Promise<void> {
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
@@ -209,14 +225,9 @@ export class NodeCommandConfigs {
       // With --skip-node-start the upgraded nodes stay stopped until `consensus node start`, which is how a
       // component that must cross a boundary together with the consensus node is upgraded in between, so a
       // conflict is only reported, not rejected.
-      ComponentCompatibility.assertCompatible(
-        {
-          ...ComponentCompatibility.deployedVersions(this.remoteConfig),
-          [ComponentTypes.ConsensusNode]: context_.config.upgradeVersion,
-        },
-        ComponentTypes.ConsensusNode,
+      this.assertConsensusNodeCompatibility(
+        context_.config.upgradeVersion,
         context_.config.force || context_.config.skipNodeStart,
-        this.logger,
       );
     }
 
@@ -278,6 +289,7 @@ export class NodeCommandConfigs {
 
     // check consensus releaseTag to make sure it is a valid semantic version string starting with 'v'
     config.releaseTag = SemanticVersion.getValidSemanticVersion(config.releaseTag, true, 'Consensus release tag');
+    this.assertConsensusNodeCompatibility(config.releaseTag, config.force);
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(config.deployment);
     const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
@@ -390,6 +402,8 @@ export class NodeCommandConfigs {
     ]) as NodeAddConfigClass;
 
     context_.config = config;
+
+    this.assertConsensusNodeCompatibility(config.releaseTag, config.force);
 
     context_.adminKey = argv[flags.adminKey?.name]
       ? PrivateKey.fromStringED25519(argv[flags.adminKey?.name])
@@ -524,6 +538,8 @@ export class NodeCommandConfigs {
     ]) as NodeRefreshConfigClass;
 
     context_.config = config;
+
+    this.assertConsensusNodeCompatibility(config.releaseTag, config.force);
 
     config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     config.nodeAliases = parseNodeAliases(
@@ -731,6 +747,8 @@ export class NodeCommandConfigs {
     ) {
       throw new SoloErrors.validation.nodeVersionMismatch(savedVersion.toString(), config.releaseTag);
     }
+
+    this.assertConsensusNodeCompatibility(config.releaseTag, config.force);
 
     config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     config.consensusNodes = this.remoteConfig.getConsensusNodes();
