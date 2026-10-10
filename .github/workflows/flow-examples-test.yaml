@@ -447,8 +447,14 @@ jobs:
 
           # The weekly schedule and the manual consensus-node-image input opt in to the deterministic image;
           # every other run keeps Solo's default (solo-container).
+          # version-upgrade-test is excluded: a version upgrade extracts the new platform into the root container,
+          # which the consensus node image mode does not support yet (it would need the image tag rolled).
           if [ "${CONSENSUS_NODE_IMAGE_SCHEDULE}" = "true" ] || [ "${CONSENSUS_NODE_IMAGE_INPUT}" = "true" ]; then
-            export NETWORK_NODE_LIFECYCLE_MODE="consensus-node-image"
+            if [ "${EXAMPLE_DIRECTORY}" = "version-upgrade-test" ]; then
+              echo "Skipping consensus-node-image mode for ${EXAMPLE_DIRECTORY}; using the default solo-container image."
+            else
+              export NETWORK_NODE_LIFECYCLE_MODE="consensus-node-image"
+            fi
           fi
           echo "NETWORK_NODE_LIFECYCLE_MODE: ${NETWORK_NODE_LIFECYCLE_MODE:-solo-container}"
           echo "Running example: ${EXAMPLE_NAME}"
