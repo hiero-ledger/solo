@@ -65,6 +65,7 @@ import {Zippy} from '../../../../src/core/zippy.js';
 import {type NetworkNodes} from '../../../../src/core/network-nodes.js';
 import {NodeStatusCodes} from '../../../../src/core/enumerations.js';
 import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {NetworkNodeLifecycle} from '../../../../src/core/network-node-lifecycle.js';
 
 export class ConsensusNodeTest extends BaseCommandTest {
   public static keys(options: BaseTestOptions): void {
@@ -447,7 +448,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
           ROOT_CONTAINER,
         );
 
-        if (!enableLocalBuildPathTesting) {
+        // the consensus node image already contains the platform software, so nothing is fetched or extracted
+        if (!enableLocalBuildPathTesting && !NetworkNodeLifecycle.isConsensusNodeImage()) {
           expect(
             await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_USER_HOME_DIR}/extract-platform.sh`),
             'expect extract-platform.sh to be present on the pods',
@@ -464,12 +466,15 @@ export class ConsensusNodeTest extends BaseCommandTest {
             .hasFile(`${HEDERA_HAPI_PATH}/data/config/genesis-network.json`),
         ).to.be.true;
 
-        expect(
-          await k8
-            .containers()
-            .readByRef(rootContainer)
-            .execContainer(['bash', '-c', `ls -al ${HEDERA_HAPI_PATH} | grep output`]),
-        ).to.includes('hedera');
+        // the consensus node image mounts output as a world-writable volume, so it is not owned by hedera
+        if (!NetworkNodeLifecycle.isConsensusNodeImage()) {
+          expect(
+            await k8
+              .containers()
+              .readByRef(rootContainer)
+              .execContainer(['bash', '-c', `ls -al ${HEDERA_HAPI_PATH} | grep output`]),
+          ).to.includes('hedera');
+        }
       }
     }).timeout(Duration.ofMinutes(2).toMillis());
   }

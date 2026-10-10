@@ -76,6 +76,7 @@ import {type Service} from '../integration/kube/resources/service/service.js';
 import {Templates} from '../core/templates.js';
 import * as Base64 from 'js-base64';
 import {K8Helper} from '../business/utils/k8-helper.js';
+import {NetworkNodeLifecycle} from '../core/network-node-lifecycle.js';
 
 interface ExpectedLbIpAssignment {
   context: Context;
@@ -844,16 +845,21 @@ export class BackupRestoreCommand extends BaseCommand {
         // Unzip the log file
         this.logger.showUser(chalk.gray(`    Extracting log file in pod: ${podName}`));
         await container.execContainer([
-          'unzip',
-          '-o',
-          `${constants.HEDERA_HAPI_PATH}/${logFile}`,
-          '-d',
-          `${constants.HEDERA_HAPI_PATH}`,
+          'bash',
+          '-c',
+          NetworkNodeLifecycle.buildExtractArchiveCommand(
+            `${constants.HEDERA_HAPI_PATH}/${logFile}`,
+            constants.HEDERA_HAPI_PATH,
+          ),
         ]);
 
         // Fix ownership of extracted files to hedera user
         this.logger.showUser(chalk.gray(`    Setting ownership for extracted files in pod: ${podName}`));
-        await container.execContainer(['bash', '-c', `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}`]);
+        await container.execContainer([
+          'bash',
+          '-c',
+          NetworkNodeLifecycle.buildChangeOwnerCommand(constants.HEDERA_HAPI_PATH),
+        ]);
 
         this.logger.showUser(chalk.green(`    ✓ Restored log for pod: ${podName}`));
       }

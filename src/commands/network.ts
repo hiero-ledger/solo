@@ -13,6 +13,7 @@ import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import {SoloChartRepository} from '../core/solo-chart-repository.js';
 import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
+import {NetworkNodeLifecycle} from '../core/network-node-lifecycle.js';
 import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {ClusterCrdProbe} from '../core/cluster-crd-probe.js';
 import {Templates} from '../core/templates.js';
@@ -472,7 +473,10 @@ export class NetworkCommand extends BaseCommand {
     // array-replacement semantics from inserting nodes from other clusters.
     const perClusterExtraEnvironmentValuesFiles: Record<ClusterReferenceName, string> = {};
     const needsExtraEnvironment: boolean =
-      config.wrapsEnabled || !!config.debugNodeAlias || config.app !== constants.HEDERA_APP_NAME; // JAVA_MAIN_CLASS for tools/local builds
+      config.wrapsEnabled ||
+      !!config.debugNodeAlias ||
+      config.app !== constants.HEDERA_APP_NAME || // JAVA_MAIN_CLASS for tools/local builds
+      NetworkNodeLifecycle.isConsensusNodeImage(); // AUTO_START_CONSENSUS_SERVICE=false
 
     if (needsExtraEnvironment) {
       const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
