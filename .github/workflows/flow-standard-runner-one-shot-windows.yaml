@@ -594,12 +594,12 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($wslIp)) {
             throw "Could not resolve a WSL IPv4 address for Docker restart."
           }
-          # Same listeners as the initial start. setsid + closed stdin detach dockerd from this wsl
-          # session so it is not torn down when the wsl.exe call returns.
-          wsl -u root bash -lc "rm -f /tmp/dockerd.log; setsid nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 < /dev/null &"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to restart dockerd in WSL."
-          }
+          # Same listeners as the initial start. WSL2 tears down background processes once its last
+          # wsl.exe session ends (a short-lived `wsl ... &` call left no dockerd and no log behind), so
+          # run dockerd in the foreground of a hidden wsl.exe that stays alive for the rest of the job.
+          $dockerdSession = Start-Process -FilePath "$env:SystemRoot\System32\wsl.exe" -WindowStyle Hidden -PassThru `
+            -ArgumentList @('-u', 'root', '--', 'bash', '-c', 'exec /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1')
+          Write-Host "Started dockerd session wsl.exe [pid=$($dockerdSession.Id)]"
           netsh interface portproxy delete v4tov4 listenport=2375 listenaddress=127.0.0.1 | Out-Null
           netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
           $ready = $false
@@ -618,7 +618,9 @@ jobs:
           }
           if (-not $ready) {
             Write-Host "::group::dockerd diagnostics after failed restart"
-            wsl -u root bash -lc "pgrep -a dockerd || echo 'dockerd is not running'; ss -tlnp | grep 2375 || echo 'nothing listening on 2375'; echo '--- /tmp/dockerd.log (tail) ---'; tail -n 100 /tmp/dockerd.log"
+            Write-Host "dockerd session exited: $($dockerdSession.HasExited)"
+            wsl --list --verbose
+            wsl -u root bash -lc "uptime; pgrep -a dockerd || echo 'dockerd is not running'; ss -tlnp | grep 2375 || echo 'nothing listening on 2375'; echo '--- /tmp/dockerd.log (tail) ---'; tail -n 100 /tmp/dockerd.log"
             netsh interface portproxy show all
             Write-Host "::endgroup::"
             throw "Docker daemon did not become reachable after restart."
