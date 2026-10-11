@@ -606,8 +606,10 @@ jobs:
           # Same listeners as the initial start. WSL2 tears down background processes once its last
           # wsl.exe session ends (a short-lived `wsl ... &` call left no dockerd and no log behind), so
           # run dockerd in the foreground of a hidden wsl.exe that stays alive for the rest of the job.
+          # Start-Process joins -ArgumentList with spaces and does not quote, so the bash -c script is wrapped
+          # in explicit double quotes; unquoted, bash received only `exec` and exited 0 immediately.
           $dockerdSession = Start-Process -FilePath "$env:SystemRoot\System32\wsl.exe" -WindowStyle Hidden -PassThru `
-            -ArgumentList @('-u', 'root', '--', 'bash', '-c', 'exec /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1')
+            -ArgumentList @('-u', 'root', '--', 'bash', '-c', '"exec /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1"')
           Write-Host "Started dockerd session wsl.exe [pid=$($dockerdSession.Id)]"
           Start-Sleep -Seconds 5
           Write-WslState "after dockerd start (session exited: $($dockerdSession.HasExited))"
