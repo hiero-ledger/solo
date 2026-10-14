@@ -183,31 +183,23 @@ export class KeyManager {
       certPems.push(cert.toString('pem'));
     }
 
-    return new Promise((resolve, reject) => {
-      try {
-        this.logger.debug(`Storing ${keyName} key for node: ${nodeAlias}`, {nodeKeyFiles});
+    this.logger.debug(`Storing ${keyName} key for node: ${nodeAlias}`, {nodeKeyFiles});
 
-        fs.writeFileSync(nodeKeyFiles.privateKeyFile, keyPem, {mode: 0o600});
-        FilePermissions.restrictToOwner(nodeKeyFiles.privateKeyFile, false);
+    fs.writeFileSync(nodeKeyFiles.privateKeyFile, keyPem, {mode: 0o600});
+    FilePermissions.restrictToOwner(nodeKeyFiles.privateKeyFile, false);
 
-        // remove if the certificate file exists already as otherwise we'll keep appending to the last
-        if (fs.existsSync(nodeKeyFiles.certificateFile)) {
-          fs.rmSync(nodeKeyFiles.certificateFile);
-        }
+    // remove if the certificate file exists already as otherwise we'll keep appending to the last
+    fs.rmSync(nodeKeyFiles.certificateFile, {force: true});
 
-        for (const certPem of certPems) {
-          fs.writeFileSync(nodeKeyFiles.certificateFile, certPem + '\n', {flag: 'a'});
-        }
+    for (const certPem of certPems) {
+      fs.writeFileSync(nodeKeyFiles.certificateFile, certPem + '\n', {flag: 'a'});
+    }
 
-        this.logger.debug(`Stored ${keyName} key for node: ${nodeAlias}`, {
-          nodeKeyFiles,
-        });
-
-        resolve(nodeKeyFiles);
-      } catch (error: Error | any) {
-        reject(error);
-      }
+    this.logger.debug(`Stored ${keyName} key for node: ${nodeAlias}`, {
+      nodeKeyFiles,
     });
+
+    return nodeKeyFiles;
   }
 
   /**
