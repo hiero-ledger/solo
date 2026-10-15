@@ -137,9 +137,22 @@ export class ClusterCommandTasks {
     context: Context,
     chartLabel: string,
     installFailedError: new (cause: Error) => SoloError,
+    skipCrds: boolean = false,
   ): Promise<void> {
     try {
-      await this.chartManager.install(namespace, releaseName, chartName, repoName, version, values, context);
+      await this.chartManager.install(
+        namespace,
+        releaseName,
+        chartName,
+        repoName,
+        version,
+        values,
+        context,
+        false,
+        false,
+        false,
+        skipCrds,
+      );
       this.logger.showUserUnlessOneShot(`✅ ${chartLabel} chart installed successfully`);
     } catch (error) {
       this.logger.debug(`Error installing ${chartLabel} chart`, error);
@@ -338,6 +351,24 @@ export class ClusterCommandTasks {
             `chart version ${versions.PROMETHEUS_STACK_VERSION}`,
           );
         } else {
+          // The chart's CRDs are cluster-scoped and may already be owned by another manager (e.g. ArgoCD
+          // or another Prometheus operator install). Helm applies crds/ with server-side apply, which
+          // fails on field-ownership conflicts, so leave existing CRDs alone rather than fight for them.
+          const existingCrds: Map<string, Record<string, string>> = await ClusterCrdProbe.probe(
+            this.k8Factory,
+            context_.config.context,
+            constants.PROMETHEUS_OPERATOR_CRDS,
+          );
+          const skipCrds: boolean = existingCrds.size > 0;
+          if (skipCrds) {
+            SharedClusterResourceReport.show(
+              this.logger,
+              'Prometheus Operator CRDs',
+              context_.config.context,
+              `${existingCrds.size} of ${constants.PROMETHEUS_OPERATOR_CRDS.length} CRDs already present`,
+              `chart version ${versions.PROMETHEUS_STACK_VERSION} (installing with --skip-crds)`,
+            );
+          }
           await this.installChartWithRollback(
             clusterSetupNamespace,
             constants.PROMETHEUS_RELEASE_NAME,
@@ -348,6 +379,7 @@ export class ClusterCommandTasks {
             context_.config.context,
             'Prometheus Stack',
             SoloErrors.deployment.prometheusInstallFailed,
+            skipCrds,
           );
         }
       },
