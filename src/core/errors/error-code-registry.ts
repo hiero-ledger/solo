@@ -235,6 +235,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   UPGRADE_SYSTEM_FILE_WITH_ZIP_FILE: 'SOLO-4088',
   POST_UPGRADE_SYSTEM_FILE_VERSION_UNSUPPORTED: 'SOLO-4089',
   COMPONENT_UPGRADE_REQUIRES_REDEPLOY: 'SOLO-4090',
+  STORAGE_CLASS_NOT_FOUND: 'SOLO-4091',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -327,6 +328,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CACHE_ARCHIVE_HASH_MISMATCH: 'SOLO-5088',
   CACHED_FILE_INACCESSIBLE: 'SOLO-5089',
   POD_LOGS_CRD_INVALID: 'SOLO-5090',
+  PVC_BIND_TIMEOUT: 'SOLO-5091',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
