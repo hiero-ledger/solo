@@ -6,6 +6,7 @@ import sinon, {type SinonStub} from 'sinon';
 
 import {GitHubApiClient} from '../../../src/core/github-api-client.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {Duration} from '../../../src/core/time/duration.js';
 
 function makeOkResponse(body: unknown = {}): {
   ok: boolean;
@@ -58,6 +59,16 @@ describe('GitHubApiClient', (): void => {
 
       expect(response.ok).to.be.true;
       expect(fetchStub).to.have.been.calledOnce;
+    });
+
+    it('passes an abort signal only when a timeout is given', async (): Promise<void> => {
+      fetchStub.resolves(makeOkResponse());
+
+      await GitHubApiClient.get('https://api.github.com/repos/foo/bar/releases');
+      await GitHubApiClient.get('https://api.github.com/repos/foo/bar/releases', Duration.ofSeconds(5));
+
+      expect(fetchStub.firstCall.args[1].signal).to.be.undefined;
+      expect(fetchStub.secondCall.args[1].signal).to.be.instanceOf(AbortSignal);
     });
 
     it('adds Authorization header when GITHUB_TOKEN is set', async (): Promise<void> => {
