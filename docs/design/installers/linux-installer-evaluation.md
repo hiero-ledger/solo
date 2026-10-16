@@ -234,7 +234,7 @@ the native-package channel; on the install-script channel, `solo uninstall` itse
 The install script needs its own upgrade command, since there's no package manager on this
 channel. This sketches the mechanism as input to
 [#5722](https://github.com/hiero-ledger/solo/issues/5722), which owns the final cross-channel
-design.
+design: [Self-Upgrade](self-upgrade.md).
 
 **Mechanism — atomic self-replace.** `solo update` resolves the latest version and
 per-`(os, libc, arch)` download URL from the GitHub Releases API (the same source §6.1 already
