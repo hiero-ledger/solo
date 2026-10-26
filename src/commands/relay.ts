@@ -757,6 +757,10 @@ export class RelayCommand extends BaseCommand {
                 ['nodeAliases'],
               ) as RelayDeployConfigClass;
 
+              if (!config.relayChartDirectory) {
+                config.relayChartDirectory = constants.getEnvironmentVariable('SOLO_RELAY_CHART_DIR');
+              }
+
               context_.config = config;
 
               config.isLegacyChartInstalled = false;
