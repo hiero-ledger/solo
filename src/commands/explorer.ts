@@ -948,6 +948,10 @@ export class ExplorerCommand extends BaseCommand {
               [],
             ) as ExplorerUpgradeConfigClass;
 
+            if (!config.explorerChartDirectory) {
+              config.explorerChartDirectory = constants.getEnvironmentVariable('SOLO_EXPLORER_CHART_DIR');
+            }
+
             context_.config = config;
 
             config.clusterRef = this.getClusterReference();
