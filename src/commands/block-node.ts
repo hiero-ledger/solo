@@ -958,8 +958,9 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeDeployConfigClass;
 
-            // SOLO_BLOCK-NODE-HELM-CHART_DIRECTORY applies when the chart directory flag is not provided
-            config.blockNodeChartDirectory ||= this.soloConfig.blockNodeHelmChart.directory;
+            if (!config.blockNodeChartDirectory) {
+              config.blockNodeChartDirectory = constants.getEnvironmentVariable('SOLO_BLOCK_NODE_CHART_DIR');
+            }
 
             context_.config = config;
 
@@ -1422,8 +1423,9 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeUpgradeConfigClass;
 
-            // SOLO_BLOCK-NODE-HELM-CHART_DIRECTORY applies when the chart directory flag is not provided
-            config.blockNodeChartDirectory ||= this.soloConfig.blockNodeHelmChart.directory;
+            if (!config.blockNodeChartDirectory) {
+              config.blockNodeChartDirectory = constants.getEnvironmentVariable('SOLO_BLOCK_NODE_CHART_DIR');
+            }
 
             context_.config = config;
 
