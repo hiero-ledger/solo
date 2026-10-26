@@ -56,14 +56,15 @@ describe('ChartManager cached-chart consumption', (): void => {
     return manager;
   };
 
-  const runInstall: (manager: ChartManager) => Promise<InstallChartOptions> = async (
+  const runInstall: (manager: ChartManager, repoName?: string) => Promise<InstallChartOptions> = async (
     manager: ChartManager,
+    repoName: string = repositoryUrl,
   ): Promise<InstallChartOptions> => {
     await manager.install(
       undefined as unknown as NamespaceName,
       'release-name',
       chartName,
-      repositoryUrl,
+      repoName,
       chartVersion,
       chartValues,
       'kube-context',
@@ -94,6 +95,24 @@ describe('ChartManager cached-chart consumption', (): void => {
     expect(chart.name).to.equal(chartName);
     expect(chart.repoName).to.equal(repositoryUrl);
     expect(options.version).to.equal(chartVersion);
+  });
+
+  for (const localChartPath of ['/missing/charts', '~/missing/charts', String.raw`C:\missing\charts`]) {
+    it(`never swaps the missing local chart path ${localChartPath} for a cached chart`, async (): Promise<void> => {
+      const options: InstallChartOptions = await runInstall(buildManager(inspectorReturning(true)), localChartPath);
+
+      const chart: Chart = installChartStub.firstCall.args[1] as Chart;
+      expect(chart.name).to.equal(chartName);
+      expect(chart.repoName).to.equal(localChartPath);
+      expect(options.version).to.equal(chartVersion);
+    });
+  }
+
+  it('installs a repo alias from the cached tarball path when a cache hit exists', async (): Promise<void> => {
+    await runInstall(buildManager(inspectorReturning(true)), 'mirror');
+
+    const chart: Chart = installChartStub.firstCall.args[1] as Chart;
+    expect(chart.name).to.equal(cachedArchivePath);
   });
 
   it('passes --skip-crds only when requested', async (): Promise<void> => {
