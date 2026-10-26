@@ -1865,6 +1865,10 @@ export class MirrorNodeCommand extends BaseCommand {
               [],
             ) as MirrorNodeDeployConfigClass;
 
+            if (!config.mirrorNodeChartDirectory) {
+              config.mirrorNodeChartDirectory = constants.getEnvironmentVariable('SOLO_MIRROR_NODE_CHART_DIR');
+            }
+
             context_.config = config;
 
             this.assertMirrorNodeCompatibility(config.mirrorNodeVersion, config.force);
@@ -2151,6 +2155,10 @@ export class MirrorNodeCommand extends BaseCommand {
               allFlags,
               [],
             ) as MirrorNodeUpgradeConfigClass;
+
+            if (!config.mirrorNodeChartDirectory) {
+              config.mirrorNodeChartDirectory = constants.getEnvironmentVariable('SOLO_MIRROR_NODE_CHART_DIR');
+            }
 
             context_.config = config;
 

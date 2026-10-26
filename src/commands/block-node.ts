@@ -958,6 +958,10 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeDeployConfigClass;
 
+            if (!config.blockNodeChartDirectory) {
+              config.blockNodeChartDirectory = constants.getEnvironmentVariable('SOLO_BLOCK_NODE_CHART_DIR');
+            }
+
             context_.config = config;
 
             config.namespace = await this.getNamespace(task);
@@ -1418,6 +1422,10 @@ export class BlockNodeCommand extends BaseCommand {
               BlockNodeCommand.UPGRADE_CONFIGS_NAME,
               allFlags,
             ) as BlockNodeUpgradeConfigClass;
+
+            if (!config.blockNodeChartDirectory) {
+              config.blockNodeChartDirectory = constants.getEnvironmentVariable('SOLO_BLOCK_NODE_CHART_DIR');
+            }
 
             context_.config = config;
 
