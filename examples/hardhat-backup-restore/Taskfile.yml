@@ -1,0 +1,138 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+  TIMEOUT_COMMAND:
+    sh: command -v gtimeout >/dev/null 2>&1 && echo "gtimeout" || echo "timeout"
+
+vars:
+  DEPLOYMENT: "hardhat-backup-restore"
+  NODE_ALIASES: "node1"
+  BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
+  ZIP_PASSWORD: "xxxx"
+  ZIP_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
+  HARDHAT_DIR: "{{ .TASKFILE_DIR }}/hardhat-example"
+  HARDHAT_NETWORK: "my_solo_deployment"
+
+tasks:
+  default:
+    desc: Run the full workflow - deploy, test, backup, reset, restore, and re-test
+    cmds:
+      - task: deploy
+      - task: pre-backup-test
+      - task: backup
+      - task: reset
+      - task: restore
+      - task: post-restore-test
+      - cmd: echo "✅ Backup/reset/restore workflow completed. Run 'task destroy' to clean up."
+
+  # ==================== Deploy ====================
+
+  deploy:
+    desc: Deploy a complete Hiero network using one-shot single deploy
+    cmds:
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+      - cmd: rm -rf {{ .BACKUP_DIR }}
+      - cmd: $SOLO_COMMAND one-shot single deploy --deployment {{ .DEPLOYMENT }} --quiet-mode
+
+  # ==================== Hardhat ====================
+
+  pre-backup-test:
+    desc: Deploy a contract and store a value, recording its address for the post-restore check
+    cmds:
+      - cmd: |
+          cd {{ .HARDHAT_DIR }}
+          npm install
+          npx hardhat compile
+          npx hardhat test test/pre-backup.ts --network {{ .HARDHAT_NETWORK }}
+
+  post-restore-test:
+    desc: Verify the contract and its value survived the restore, then send a new transaction
+    cmds:
+      - cmd: |
+          cd {{ .HARDHAT_DIR }}
+          npx hardhat test test/post-restore.ts --network {{ .HARDHAT_NETWORK }}
+
+  # ==================== Backup / Reset / Restore ====================
+
+  backup:
+    desc: Freeze the network and back up ConfigMaps, Secrets, logs and consensus state
+    cmds:
+      # Freezing first guarantees the saved state is complete and consistent.
+      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+      - cmd: |
+          $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} \
+            --output-dir {{ .BACKUP_DIR }} \
+            --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_FILE }}
+      - cmd: ls -lh {{ .BACKUP_DIR }}
+
+  reset:
+    desc: Delete every Kind cluster and the local Solo configuration, simulating a lost environment
+    cmds:
+      - cmd: for cluster in $(kind get clusters); do kind delete cluster --name "$cluster"; done
+      - cmd: rm -f ~/.solo/local-config.yaml
+
+  restore:
+    desc: Recreate the cluster and network from the backup and restart the consensus node
+    cmds:
+      - task: restore-clusters
+      - task: restore-network
+      - task: restore-config
+      - task: restart
+
+  restore-clusters:
+    desc: Recreate the Kind cluster(s) recorded in the backup
+    cmds:
+      - cmd: |
+          $TIMEOUT_COMMAND 700s $SOLO_COMMAND config ops restore-clusters \
+            --input-dir {{ .BACKUP_DIR }} \
+            --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_FILE }}
+
+  restore-network:
+    desc: Deploy consensus, block node, mirror node, explorer and relay from the backup
+    env:
+      DEPLOYMENT: "{{ .DEPLOYMENT }}"
+      NODE_ALIASES: "{{ .NODE_ALIASES }}"
+    cmds:
+      # Single cluster, so there are no pinned LoadBalancer IPs to track.
+      - cmd: |
+          BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-network \
+            --input-dir {{ .BACKUP_DIR }} \
+            --options-file {{ .TASKFILE_DIR }}/command.yaml \
+            --skip-ip-tracking
+
+  restore-config:
+    desc: Restore ConfigMaps, Secrets and consensus node state from the backup
+    cmds:
+      - cmd: |
+          BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
+            --deployment {{ .DEPLOYMENT }} \
+            --input-dir {{ .BACKUP_DIR }}
+
+  restart:
+    desc: Start the consensus node from the restored state and refresh port-forwards
+    cmds:
+      # --skip-grpc-web-endpoint / --resume-from-freeze: see examples/multicluster-backup-restore.
+      - cmd: |
+          $TIMEOUT_COMMAND 300s $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} \
+            --state-file {{ .BACKUP_DIR }} --skip-grpc-web-endpoint --resume-from-freeze
+      - cmd: $SOLO_COMMAND deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
+
+  # ==================== Cleanup ====================
+
+  destroy:
+    desc: Destroy the Solo network and remove the backup
+    cmds:
+      - cmd: $SOLO_COMMAND one-shot single destroy --deployment {{ .DEPLOYMENT }} || true
+      - cmd: rm -rf {{ .BACKUP_DIR }} {{ .HARDHAT_DIR }}/.deployed-address

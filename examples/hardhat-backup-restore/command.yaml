@@ -1,0 +1,33 @@
+# Options file for `config ops restore-network`.
+# ${VAR} references are substituted from the process environment at runtime
+# (see the env: block in the Taskfile restore-network task).
+# Mirrors the components that `one-shot single deploy` creates, so the JSON-RPC relay
+# on localhost:37546 that hardhat connects to is recreated.
+consensus:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --quiet-mode
+  - --dev
+block:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --quiet-mode
+  - --dev
+mirror:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --pinger
+  - --quiet-mode
+  - --dev
+explorer:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --quiet-mode
+  - --dev
+relay:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --node-aliases
+  - ${NODE_ALIASES}
+  - --quiet-mode
+  - --dev
