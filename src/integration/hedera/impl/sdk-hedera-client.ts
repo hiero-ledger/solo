@@ -27,6 +27,8 @@ import {
 import {type HederaClient} from '../hedera-client.js';
 import {type HederaFileInfo} from '../hedera-file-info.js';
 import {type HederaFileTransactionResult} from '../hedera-file-transaction-result.js';
+import {type HederaSubmittedTransaction} from '../hedera-submitted-transaction.js';
+import {SdkHederaSubmittedTransaction} from './sdk-hedera-submitted-transaction.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {sleep} from '../../../core/helpers.js';
 import {Duration} from '../../../core/time/duration.js';
@@ -161,6 +163,19 @@ export class SdkHederaClient implements HederaClient {
     );
 
     return receipt.status === Status.Success;
+  }
+
+  public async submitTinybarTransfer(
+    fromAccountId: AccountId,
+    toAccountId: AccountId,
+    tinybars: number,
+  ): Promise<HederaSubmittedTransaction> {
+    const response: TransactionResponse = await new TransferTransaction()
+      .addHbarTransfer(fromAccountId, Hbar.fromTinybars(-tinybars))
+      .addHbarTransfer(toAccountId, Hbar.fromTinybars(tinybars))
+      .execute(this.sdkClient);
+
+    return new SdkHederaSubmittedTransaction(response, this.sdkClient);
   }
 
   public async getFileContents(fileId: FileId, retryInvalidNodeAccount: boolean = false): Promise<Uint8Array> {
