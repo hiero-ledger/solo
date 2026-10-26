@@ -192,6 +192,18 @@ jobs:
                 forbidden: /Unable to resolve action|error TS\d{4}/,
               },
               {
+                // The kind API server restarts shortly after the Prometheus Operator CRDs are
+                // installed (issue #6310), dropping the connection mid-request. Solo retries
+                // such a request itself; this covers the case where the API server stays down
+                // past those attempts. Only the discovery request of a deploy is matched, so a
+                // refusal logged by an unrelated step is left alone.
+                description: 'kind API server dropped the connection during deploy',
+                stepPrefixes: ['one-shot single deploy'],
+                required:
+                  /Failed to fetch resource metadata for[\s\S]{0,200}(socket disconnected before secure TLS|ECONNRESET|ECONNREFUSED)/,
+                forbidden: /error TS\d{4}/,
+              },
+              {
                 description: 'kind could not bind a host port held by a leaked cluster',
                 stepPrefixes: [],
                 required: /docker: Error response from daemon:[\s\S]{0,200}(port is already allocated|driver failed programming external connectivity)/,

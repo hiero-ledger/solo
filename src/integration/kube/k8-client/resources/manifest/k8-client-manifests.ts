@@ -4,8 +4,15 @@ import {type KubernetesObject, type KubernetesObjectApi, PatchStrategy} from '@k
 import yaml from 'yaml';
 import fs from 'node:fs';
 import {type Manifests} from '../../../resources/manifest/manifests.js';
+import {sleep} from '../../../../../core/helpers.js';
+import {Duration} from '../../../../../core/time/duration.js';
 
 export class K8ClientManifests implements Manifests {
+  private static readonly PATCH_MAX_ATTEMPTS: number = 5;
+  private static readonly PATCH_RETRY_DELAY: Duration = Duration.ofSeconds(2);
+  private static readonly TRANSIENT_CONNECTION_ERROR: RegExp =
+    /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|socket disconnected|socket hang up/i;
+
   public constructor(private readonly k8sObjectApi: KubernetesObjectApi) {}
 
   /**
@@ -34,14 +41,31 @@ export class K8ClientManifests implements Manifests {
    * @param spec - a partial Kubernetes object with apiVersion, kind, metadata.name, metadata.namespace, and the fields to patch
    */
   public async patchObject(spec: object): Promise<void> {
-    await this.k8sObjectApi.patch(
-      spec as KubernetesObject,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      PatchStrategy.MergePatch,
-    );
+    // A merge patch is idempotent, so it is safe to retry when the API server drops the connection
+    // (e.g. while it restarts right after a CRD install).
+    for (let attempt: number = 1; ; attempt++) {
+      try {
+        await this.k8sObjectApi.patch(
+          spec as KubernetesObject,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          PatchStrategy.MergePatch,
+        );
+        return;
+      } catch (error) {
+        const message: string =
+          error instanceof Error ? `${error.message} ${(error as {code?: string}).code ?? ''}` : '';
+        if (
+          attempt >= K8ClientManifests.PATCH_MAX_ATTEMPTS ||
+          !K8ClientManifests.TRANSIENT_CONNECTION_ERROR.test(message)
+        ) {
+          throw error;
+        }
+        await sleep(K8ClientManifests.PATCH_RETRY_DELAY);
+      }
+    }
   }
 
   public async scaleStatefulSet(namespace: string, statefulSetName: string, replicas: number): Promise<void> {
