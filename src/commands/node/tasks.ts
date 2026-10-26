@@ -24,6 +24,7 @@ import {
   HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
+import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {
   AccountId,
   type AccountInfo,
@@ -47,6 +48,7 @@ import {
   TransactionResponse,
 } from '@hiero-ledger/sdk';
 import fs from 'node:fs';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import find from 'find-process';
@@ -134,7 +136,9 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
 import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {helmValuesHelper} from '../../core/helm-values-helper.js';
+import {NetworkNodeLifecycle} from '../../core/network-node-lifecycle.js';
 import {type GitClient} from '../../integration/git/git-client.js';
+import {type ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
@@ -486,7 +490,7 @@ export class NodeCommandTasks {
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
 
-    await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+    await container.execContainer(['bash', '-c', NetworkNodeLifecycle.buildStopCommand()]);
 
     // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
     await container.execContainer([
@@ -880,6 +884,7 @@ export class NodeCommandTasks {
     }
 
     if (!success) {
+      await this.showNodeNotReadyDiagnostics(podReference, nodeAlias, context);
       throw new SoloErrors.component.nodeNotReady(nodeAlias, NodeStatusEnums[status], attempt, maxAttempts);
     }
 
@@ -888,6 +893,33 @@ export class NodeCommandTasks {
     }
 
     return podReference;
+  }
+
+  /**
+   * Best-effort: print the tail of the node's platform log and its key directory so a node that never reaches the
+   * expected status can be diagnosed from the CI log alone.
+   */
+  private async showNodeNotReadyDiagnostics(
+    podReference: PodReference,
+    nodeAlias: NodeAlias,
+    context?: string,
+  ): Promise<void> {
+    try {
+      const output: string = await this.k8Factory
+        .getK8(context)
+        .containers()
+        .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+        .execContainer([
+          'bash',
+          '-c',
+          `ls -la ${constants.HEDERA_HAPI_PATH}/data/keys; ` +
+            `grep -hE 'ERROR|WARN|Exception' ${constants.HEDERA_HAPI_PATH}/output/swirlds.log | tail -n 60; ` +
+            `tail -n 60 ${constants.HEDERA_HAPI_PATH}/output/swirlds.log`,
+        ]);
+      this.logger.showUser(`Diagnostics for node '${nodeAlias}' that is not ready:\n${output}`);
+    } catch {
+      // best-effort diagnostic only: the node-not-ready error below is what the caller needs to see
+    }
   }
 
   /**
@@ -1314,10 +1346,18 @@ export class NodeCommandTasks {
             config.adminKey = PrivateKey.fromStringED25519(privateKey);
           } catch (error) {
             this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
-            config.adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+            config.adminKey = await GenesisKeyResolver.resolve(
+              this.k8Factory,
+              this.remoteConfig.getContexts(),
+              config.namespace,
+            );
           }
         } else {
-          config.adminKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+          config.adminKey = await GenesisKeyResolver.resolve(
+            this.k8Factory,
+            this.remoteConfig.getContexts(),
+            config.namespace,
+          );
         }
       },
     };
@@ -1849,7 +1889,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'bash',
             '-c',
-            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+            NetworkNodeLifecycle.buildChangeOwnerCommand(`${constants.HEDERA_HAPI_PATH}/data/saved`),
           ]);
 
           // Rename node ID directories to match the target node
@@ -1876,7 +1916,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'bash',
             '-c',
-            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+            NetworkNodeLifecycle.buildChangeOwnerCommand(`${constants.HEDERA_HAPI_PATH}/data/saved`),
           ]);
         }
       },
@@ -1969,6 +2009,13 @@ export class NodeCommandTasks {
         }
 
         context_.config.releaseTag = releaseTag;
+
+        const isVersionUpgrade: boolean = 'upgradeVersion' in context_.config && !!context_.config.upgradeVersion;
+        if (!localBuildPath && !isVersionUpgrade && NetworkNodeLifecycle.isConsensusNodeImage()) {
+          // The consensus node image already contains the jar files of the release tag it was pulled for
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} platform software is baked into the node image`);
+          return;
+        }
 
         if (!localBuildPath) {
           return this._fetchPlatformSoftware(
@@ -2065,6 +2112,10 @@ export class NodeCommandTasks {
             this.configManager,
           );
         }
+        // Fetching the platform software used to create the staging directory as a side effect; make sure it exists
+        // for the network files generated below (it is skipped when the platform software is baked into the image).
+        fs.mkdirSync(config.stagingDir, {recursive: true});
+
         if (isGenesis) {
           await this.generateNetworkJson(
             constants.GENESIS_NETWORK_FILE,
@@ -2355,12 +2406,16 @@ export class NodeCommandTasks {
       deploymentName,
     );
 
+    const genesisKey: PrivateKey = await GenesisKeyResolver.resolve(
+      this.k8Factory,
+      this.remoteConfig.getContexts(),
+      namespace,
+    );
+    const genesisPublicKey: string = genesisKey.publicKey.toString();
     let adminPublicKeys: string[] = [];
     adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
       ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
-      : (Array.from({length: consensusNodes.length}, (): string =>
-          constants.GENESIS_PUBLIC_KEY.toString(),
-        ) as string[]);
+      : (Array.from({length: consensusNodes.length}, (): string => genesisPublicKey) as string[]);
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -2442,7 +2497,7 @@ export class NodeCommandTasks {
     const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
     await this.k8Factory.getK8(context).pods().waitForReadyStatus(config.namespace, labels, 120, 1000, undefined, true);
 
-    const startCommand: string = this.buildStartNetworkNodeCommand();
+    const startCommand: string = NetworkNodeLifecycle.buildStartCommand();
 
     const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(config.namespace, nodeAlias);
     if (config.localBuildPath) {
@@ -2481,7 +2536,9 @@ export class NodeCommandTasks {
       `  sync "${hapiPath}"`,
       'fi',
       `test -f "${applicationJar}" || { echo "missing ${applicationJar}" >&2; exit 1; }`,
-      `/command/s6-setuidgid hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | grep -q "com/hedera/node/app/ServicesMain.class" || { echo "missing ServicesMain in ${applicationJar}" >&2; exit 1; }`,
+      // s6-setuidgid needs root; the consensus node image already runs as the hedera user
+      'run_as_hedera() { if [ "$(id -u)" = "0" ]; then /command/s6-setuidgid hedera "$@"; else "$@"; fi; }',
+      `run_as_hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | grep -q "com/hedera/node/app/ServicesMain.class" || { echo "missing ServicesMain in ${applicationJar}" >&2; exit 1; }`,
     ].join('\n');
   }
 
@@ -2492,47 +2549,6 @@ export class NodeCommandTasks {
     return [
       `chown -R hedera:hedera "${applicationDirectory}" "${libraryDirectory}"`,
       `chmod -R u+rwX,g+rX,o+rX "${applicationDirectory}" "${libraryDirectory}"`,
-    ].join('\n');
-  }
-
-  /**
-   * Build the command used by `consensus node start` to restart the network-node service.
-   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
-   */
-  private buildStartNetworkNodeCommand(): string {
-    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
-    return [
-      // Fail fast when the helper is missing so callers immediately know the image
-      // does not satisfy Solo's lifecycle contract.
-      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
-      [
-        "if ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain'",
-        "then curl -sf http://localhost:9999/metrics | grep 'platform_PlatformStatus' | grep -q ' 2[.]0$' && true < /dev/tcp/127.0.0.1/50211",
-        'else false',
-        'fi',
-      ].join('\n'),
-      // ACTIVE nodes only need the autostart marker restored; the full helper start
-      // path deliberately forces a down/up cycle for transitional or frozen nodes.
-      `if [ $? -eq 0 ]; then "${lifecycleHelperPath}" enable-autostart; exit 0; fi`,
-      // A JVM can remain alive with only background threads after the main platform
-      // exits. Clear any non-ready process before asking the helper to start it.
-      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
-      // The helper owns both service control and autostart marker semantics.
-      `"${lifecycleHelperPath}" start-and-enable-autostart`,
-    ].join('\n');
-  }
-
-  /**
-   * Build the command used by `consensus node stop` to stop the network-node service.
-   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
-   */
-  private buildStopNetworkNodeCommand(): string {
-    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
-    return [
-      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
-      // Keep Solo orchestration-only: hard-stop and escalation logic must stay in
-      // solo-container's /command/network-node-lifecycle helper.
-      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
     ].join('\n');
   }
 
@@ -2967,7 +2983,7 @@ export class NodeCommandTasks {
               task: async () => {
                 const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+                await container.execContainer(['bash', '-c', NetworkNodeLifecycle.buildStopCommand()]);
               },
             });
           }
@@ -4471,7 +4487,11 @@ export class NodeCommandTasks {
   public addWrapsLib(): SoloListrTask<{config: NodeCommonConfigClass}> {
     return {
       title: 'Copy wraps lib over',
-      skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
+      skip: (): boolean =>
+        !Helpers.shouldProvisionWraps(
+          this.remoteConfig.configuration.state.wrapsEnabled,
+          this.remoteConfig.configuration.versions.consensusNode,
+        ),
       task: async ({config}): Promise<void> => {
         const wraps: Wraps = this.soloConfig.tss.wraps;
         const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
@@ -4688,8 +4708,11 @@ export class NodeCommandTasks {
 
         // Generate extraEnv values file for wraps, debug, and custom environment variables
         // This replaces the old --set extraEnv approach to prevent Helm replacement issues
-        const needsExtraEnvironment: boolean =
-          this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
+        const provisionWraps: boolean = Helpers.shouldProvisionWraps(
+          this.remoteConfig.configuration.state.wrapsEnabled,
+          this.remoteConfig.configuration.versions.consensusNode,
+        );
+        const needsExtraEnvironment: boolean = provisionWraps || !!config.debugNodeAlias;
 
         if (needsExtraEnvironment) {
           for (const [clusterReference] of clusterReferences) {
@@ -4725,7 +4748,7 @@ export class NodeCommandTasks {
               userValueFilePaths,
               clusterConsensusNodes,
               {
-                wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+                wrapsEnabled: provisionWraps,
                 tss: this.soloConfig.tss,
                 debugNodeAlias: config.debugNodeAlias,
                 useJavaMainClass: false,
@@ -4738,7 +4761,7 @@ export class NodeCommandTasks {
             const extraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
               clusterConsensusNodes,
               {
-                wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+                wrapsEnabled: provisionWraps,
                 tss: this.soloConfig.tss,
                 debugNodeAlias: config.debugNodeAlias,
                 useJavaMainClass: false,
@@ -5055,21 +5078,18 @@ export class NodeCommandTasks {
     };
   }
 
-  public killNodes(transactionType?: NodeSubcommandType): SoloListrTask<NodeDestroyContext | NodeAddContext> {
+  public killNodes(nodeAliasesProperty: string): SoloListrTask<NodeAddContext> {
     return {
-      title: 'Kill nodes',
+      title: 'Restart nodes',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
         for (const service of config.serviceMap.values()) {
-          // skip pod if it's not in the list of config.allNodeAliases
-          if (!config.allNodeAliases.includes(service.nodeAlias)) {
+          if (!config[nodeAliasesProperty].includes(service.nodeAlias)) {
             continue;
           }
 
-          // Remove the autostart flag file BEFORE killing the pod so that when the
-          // pod restarts the network-node-autostart oneshot does NOT fire prematurely
-          // (i.e. before new config files are staged by later tasks).  startNodes()
-          // will re-create the flag file when it is safe to start the platform.
+          // Disable autostart BEFORE killing the pod so that the restarted pod does not launch the JVM
+          // before the platform software, state and config are staged. startNodes() re-enables it.
           try {
             const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
             const containerReference: ContainerReference = ContainerReference.of(
@@ -5080,11 +5100,7 @@ export class NodeCommandTasks {
               .getK8(service.context)
               .containers()
               .readByRef(containerReference)
-              .execContainer([
-                'bash',
-                '-c',
-                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
-              ]);
+              .execContainer(['bash', '-c', NetworkNodeLifecycle.buildDisableAutostartCommand()]);
           } catch {
             // Best-effort: container may already be restarting; the kill below will follow
           }
@@ -5095,22 +5111,110 @@ export class NodeCommandTasks {
             .readByReference(PodReference.of(config.namespace, service.nodePodName))
             .killPod();
         }
+      },
+    };
+  }
 
-        // remove from remote config
-        if (transactionType === NodeSubcommandType.DESTROY) {
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+  /**
+   * Existing nodes only receive other nodes' gossip public keys from the key secrets through the pod's init
+   * container, so without a pod restart the new node's public key is copied into their data/keys directory.
+   */
+  public copyNewNodeGossipPublicKeys(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Copy new node gossip public key to existing nodes',
+      task: async (context_, task): Promise<SoloListr<NodeAddContext>> => {
+        const config: NodeAddConfigClass = context_.config;
+        const publicKeyFiles: string[] = config.newNodeAliases.map((nodeAlias: NodeAlias): string =>
+          PathEx.joinWithRealPath(config.keysDir, Templates.renderGossipPemPublicKeyFile(nodeAlias)),
+        );
 
-          const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
-          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.ConsensusNode);
-          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.EnvoyProxy);
-          this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.HaProxy);
+        const subTasks: SoloListrTask<NodeAddContext>[] = config.existingNodeAliases.map(
+          (nodeAlias: NodeAlias): SoloListrTask<NodeAddContext> => ({
+            title: `Node: ${chalk.yellow(nodeAlias)}`,
+            task: async (): Promise<void> => {
+              await this.platformInstaller.copyFiles(
+                config.podRefs[nodeAlias],
+                publicKeyFiles,
+                `${constants.HEDERA_HAPI_PATH}/data/keys`,
+                undefined,
+                extractContextFromConsensusNodes(nodeAlias, config.consensusNodes),
+              );
+            },
+          }),
+        );
 
-          await this.remoteConfig.persist();
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
+    };
+  }
 
-          context_.config.nodeAliases = config.allNodeAliases.filter(
-            (nodeAlias: NodeAlias): boolean => nodeAlias !== config.nodeAlias,
-          );
-        }
+  /**
+   * The pod's init container copies the shared config map files (application.properties with its bumped
+   * hedera.config.version, etc.) into data/config at pod start. Existing pods are no longer restarted by node
+   * add and delete, so the same files are copied in place; otherwise their platform version no longer matches
+   * the nodes created or updated from the new config map and gossip handshakes are rejected.
+   */
+  public copyConfigMapFilesToNodes(): SoloListrTask<NodeAddContext | NodeDestroyContext> {
+    return {
+      title: 'Copy updated config map files to nodes',
+      task: async (context_, task): Promise<SoloListr<NodeAddContext | NodeDestroyContext>> => {
+        const config: NodeAddConfigClass | NodeDestroyConfigClass = context_.config;
+
+        const subTasks: SoloListrTask<NodeAddContext | NodeDestroyContext>[] = config.allNodeAliases.map(
+          (nodeAlias: NodeAlias): SoloListrTask<NodeAddContext | NodeDestroyContext> => ({
+            title: `Node: ${chalk.yellow(nodeAlias)}`,
+            task: async (): Promise<void> => {
+              const nodeContext: Context = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const configMap: ConfigMap = await this.k8Factory
+                .getK8(nodeContext)
+                .configMaps()
+                .read(config.namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+
+              const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-config-'));
+              try {
+                const configFiles: string[] = [];
+                for (const [fileName, content] of Object.entries(configMap.data ?? {})) {
+                  const filePath: string = PathEx.join(temporaryDirectory, fileName);
+                  fs.writeFileSync(filePath, content);
+                  configFiles.push(filePath);
+                }
+
+                await this.platformInstaller.copyFiles(
+                  config.podRefs[nodeAlias],
+                  configFiles,
+                  `${constants.HEDERA_HAPI_PATH}/data/config`,
+                  undefined,
+                  nodeContext,
+                );
+              } finally {
+                fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+              }
+            },
+          }),
+        );
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
+    };
+  }
+
+  public removeNodeFromRemoteConfig(): SoloListrTask<NodeDestroyContext> {
+    return {
+      title: 'Remove node from remote config',
+      task: async (context_): Promise<void> => {
+        const config: NodeDestroyConfigClass = context_.config;
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
+        const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
+        this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.ConsensusNode);
+        this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.EnvoyProxy);
+        this.remoteConfig.configuration.components.removeComponent(componentId, ComponentTypes.HaProxy);
+
+        await this.remoteConfig.persist();
+
+        context_.config.nodeAliases = config.allNodeAliases.filter(
+          (nodeAlias: NodeAlias): boolean => nodeAlias !== config.nodeAlias,
+        );
       },
     };
   }
@@ -5144,11 +5248,7 @@ export class NodeCommandTasks {
               .getK8(service.context)
               .containers()
               .readByRef(containerReference)
-              .execContainer([
-                'bash',
-                '-c',
-                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
-              ]);
+              .execContainer(['bash', '-c', NetworkNodeLifecycle.buildDisableAutostartCommand()]);
           } catch {
             // Best-effort: container may already be restarting; the kill below will follow
           }
@@ -5201,6 +5301,38 @@ export class NodeCommandTasks {
         }
 
         // set up the sub-tasks
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  /**
+   * The consensus node image ships without zip, unzip and curl, which Solo uses to archive, extract and verify node
+   * state and platform archives and to read node metrics, so install them in every node's recreated pod once it is running.
+   */
+  public installRootContainerTools(): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
+    return {
+      title: 'Install zip, unzip and curl in the consensus node image',
+      skip: (): boolean => !NetworkNodeLifecycle.isConsensusNodeImage(),
+      task: (
+        context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext,
+        task: SoloListrTaskWrapper<NodeUpdateContext | NodeAddContext | NodeDestroyContext>,
+      ): SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext> => {
+        const config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass = context_.config;
+        const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] =
+          config.allNodeAliases.map(
+            (nodeAlias: NodeAlias): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> => ({
+              title: `Install on node: ${chalk.yellow(nodeAlias)}`,
+              task: async (): Promise<void> => {
+                await NetworkNodeLifecycle.installRootContainerTools(
+                  extractContextFromConsensusNodes(nodeAlias, config.consensusNodes),
+                  config.namespace,
+                  nodeAlias,
+                );
+              },
+            }),
+          );
+
         return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
       },
     };

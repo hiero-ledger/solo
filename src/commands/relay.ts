@@ -106,6 +106,7 @@ interface RelayDeployConfigClass {
   mirrorNodeId: ComponentId;
   mirrorNamespace: NamespaceNameAsString;
   mirrorNodeReleaseName: string;
+  mirrorNodeIngressControllerName: string;
   isMirrorNodeLegacyChartInstalled: boolean;
 }
 
@@ -145,6 +146,7 @@ interface RelayUpgradeConfigClass {
   mirrorNodeId: ComponentId;
   mirrorNamespace: NamespaceNameAsString;
   mirrorNodeReleaseName: string;
+  mirrorNodeIngressControllerName: string;
   isMirrorNodeLegacyChartInstalled: boolean;
 }
 
@@ -281,10 +283,14 @@ export class RelayCommand extends BaseCommand {
       deployment,
       mirrorNamespace,
       mirrorNodeReleaseName,
+      mirrorNodeIngressControllerName,
     }: RelayDeployConfigClass | RelayUpgradeConfigClass = config;
     let relayReleaseTag: string = config.relayReleaseTag;
 
-    const mirrorNodeUrl: string = Templates.renderMirrorNodeIngressControllerUrl(mirrorNamespace);
+    const mirrorNodeUrl: string = Templates.renderMirrorNodeIngressControllerUrl(
+      mirrorNamespace,
+      mirrorNodeIngressControllerName,
+    );
     const mirrorNodeWeb3Url: string = Templates.renderMirrorNodeWeb3ServiceUrl(mirrorNodeReleaseName, mirrorNamespace);
 
     const chartValues: HelmChartValues = new HelmChartValues()
@@ -751,6 +757,10 @@ export class RelayCommand extends BaseCommand {
                 ['nodeAliases'],
               ) as RelayDeployConfigClass;
 
+              if (!config.relayChartDirectory) {
+                config.relayChartDirectory = constants.getEnvironmentVariable('SOLO_RELAY_CHART_DIR');
+              }
+
               context_.config = config;
 
               config.isLegacyChartInstalled = false;
@@ -771,14 +781,13 @@ export class RelayCommand extends BaseCommand {
                 Templates.nodeIdFromNodeAlias(nodeAlias),
               );
 
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.context,
-              );
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName, mirrorNodeIngressControllerName} =
+                await this.inferMirrorNodeData(config.namespace, config.context);
 
               config.mirrorNodeId = mirrorNodeId;
               config.mirrorNamespace = mirrorNamespace;
               config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeIngressControllerName = mirrorNodeIngressControllerName;
 
               config.newRelayComponent = this.componentFactory.createNewRelayComponent(
                 config.clusterRef,
@@ -881,6 +890,10 @@ export class RelayCommand extends BaseCommand {
                 [],
               ) as RelayUpgradeConfigClass;
 
+              if (!config.relayChartDirectory) {
+                config.relayChartDirectory = constants.getEnvironmentVariable('SOLO_RELAY_CHART_DIR');
+              }
+
               context_.config = config;
 
               config.namespace = await this.getNamespace(task);
@@ -903,14 +916,13 @@ export class RelayCommand extends BaseCommand {
               config.releaseName = releaseName;
               config.nodeAliases = nodeAliases;
 
-              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-                config.namespace,
-                config.context,
-              );
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName, mirrorNodeIngressControllerName} =
+                await this.inferMirrorNodeData(config.namespace, config.context);
 
               config.mirrorNodeId = mirrorNodeId;
               config.mirrorNamespace = mirrorNamespace;
               config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+              config.mirrorNodeIngressControllerName = mirrorNodeIngressControllerName;
 
               const currentRelayVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
                 ComponentTypes.RelayNodes,
