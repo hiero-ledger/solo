@@ -886,6 +886,10 @@ export class RelayCommand extends BaseCommand {
                 [],
               ) as RelayUpgradeConfigClass;
 
+              if (!config.relayChartDirectory) {
+                config.relayChartDirectory = constants.getEnvironmentVariable('SOLO_RELAY_CHART_DIR');
+              }
+
               context_.config = config;
 
               config.namespace = await this.getNamespace(task);
