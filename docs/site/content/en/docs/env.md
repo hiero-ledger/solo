@@ -6,6 +6,12 @@
 * **Default:** the well-known Solo genesis key.
 * **Used in:** `src/core/constants.ts`, `src/core/genesis-key-resolver.ts`, `src/commands/network.ts`.
 
+## KUBECONFIG
+
+* **Description:** Standard Kubernetes kubeconfig path list. When Solo creates the local kind cluster through rootful podman on Linux, kind writes the `kind-kind` context into the file it would merge into: the first entry that exists, else the last entry.
+* **Default:** unset (`~/.kube/config` is used).
+* **Used in:** `src/core/cluster-task-manager.ts` (local cluster creation with rootful podman).
+
 ## SOLO\_BLOCK-NODE-HELM-CHART\_DIRECTORY
 
 * **Description:** Local Helm chart directory for the block node chart (e.g. `~/hiero-block-node/charts`), for testing a chart that has not been published. Config-system override of `blockNodeHelmChart.directory`; note the dashes inside the first segment.
