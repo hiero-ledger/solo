@@ -19,7 +19,7 @@
 
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -119,11 +119,10 @@ try {
       `checksum mismatch for ${nodeTarball}: expected ${nodeBuild.sha256[architecture]}, got ${actualSha256}`,
     );
   }
-  const tarballPath: string = path.join(workDirectory, nodeTarball);
+  // Extracted from the verified buffer on stdin, so the tarball itself is never written to disk.
   const nodeDirectory: string = path.join(workDirectory, 'node');
-  writeFileSync(tarballPath, tarball);
   mkdirSync(nodeDirectory);
-  execFileSync('tar', ['-xJf', tarballPath, '-C', nodeDirectory, '--strip-components', '1']);
+  execFileSync('tar', ['-xJf', '-', '-C', nodeDirectory, '--strip-components', '1'], {input: tarball});
 
   // The anonymous node_modules volume keeps the musl install out of the checkout.
   run(
