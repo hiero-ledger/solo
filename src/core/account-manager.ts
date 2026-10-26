@@ -29,6 +29,7 @@ import {
 } from '@hiero-ledger/sdk';
 import {SoloError} from './errors/solo-error.js'; // kept for instanceof checks
 import {Templates} from './templates.js';
+import {GenesisKeyResolver} from './genesis-key-resolver.js';
 import {type NetworkNodeServices} from './network-node-services.js';
 
 import {type SoloLogger} from './logging/solo-logger.js';
@@ -141,10 +142,11 @@ export class AccountManager {
     }
 
     // if it isn't in the secrets we can load genesis key
+    const genesisKey: PrivateKey = await GenesisKeyResolver.resolve(this.k8Factory, contexts, namespace);
     return {
       accountId,
-      privateKey: constants.GENESIS_KEY,
-      publicKey: PrivateKey.fromStringED25519(constants.GENESIS_KEY).publicKey.toString(),
+      privateKey: genesisKey.toString(),
+      publicKey: genesisKey.publicKey.toString(),
     };
   }
 
@@ -806,6 +808,10 @@ export class AccountManager {
           const serviceBuilder: NetworkNodeServicesBuilder = serviceBuilderMap.get(
             nodeAlias,
           ) as NetworkNodeServicesBuilder;
+          if (!serviceBuilder) {
+            // a pod without a node service is not part of the network, e.g. the still terminating pod of a deleted node
+            continue;
+          }
           serviceBuilder.withNodePodName(podName);
         }
       }
@@ -842,7 +848,11 @@ export class AccountManager {
     },
     deploymentName: DeploymentName,
   ): Promise<{skippedCount: number; rejectedCount: number; fulfilledCount: number}> {
-    const genesisKey: PrivateKey = PrivateKey.fromStringED25519(constants.OPERATOR_KEY);
+    const genesisKey: PrivateKey = await GenesisKeyResolver.resolve(
+      this.k8Factory,
+      this.remoteConfig.getContexts(),
+      namespace,
+    );
     const accountUpdatePromiseArray: Promise<
       {value: string; status: string} | {reason: string; value: string; status: string}
     >[] = [];
@@ -929,7 +939,7 @@ export class AccountManager {
       };
     }
 
-    if (constants.GENESIS_PUBLIC_KEY.toString() !== keys[0].toString()) {
+    if (genesisKey.publicKey.toString() !== keys[0].toString()) {
       this.logger.debug(`account ${accountId.toString()} can be skipped since it does not have a genesis key`);
       return {
         status: REJECTED,
