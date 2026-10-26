@@ -54,7 +54,7 @@ export class ChartManager {
    * Resolves the local path to a cached chart tarball for the given chart, when one is available.
    *
    * Returns undefined (so callers fall back to a normal network install) when the version is empty,
-   * when {@link repoName} points to an explicit local chart directory (dev mode must not be overridden),
+   * when {@link repoName} is a local chart path, even a missing one (dev mode must not be overridden),
    * or when no matching tarball has been pulled into the cache via `solo cache chart pull`.
    */
   private async resolveCachedChartPath(
@@ -62,7 +62,8 @@ export class ChartManager {
     version: string,
     repoName: string,
   ): Promise<string | undefined> {
-    if (!version) {
+    // A wrong local chart path must fail in helm instead of silently installing the cached published chart.
+    if (!version || ChartManager.isLocalChartPath(repoName)) {
       return undefined;
     }
 
@@ -80,6 +81,11 @@ export class ChartManager {
     const archivePath: string = this.cacheCatalogStore.resolvePath(target, CacheArtifactEnum.HELM_CHART);
 
     return (await this.cacheHealthInspector.exists(archivePath)) ? archivePath : undefined;
+  }
+
+  /** A chart reference with a path separator and no URL scheme (oci://, https://) is a local path. */
+  private static isLocalChartPath(repoName: string): boolean {
+    return !/^[a-z][\d+.a-z-]*:\/\//i.test(repoName) && /[/\\]/.test(repoName);
   }
 
   /**
