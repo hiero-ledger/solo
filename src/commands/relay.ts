@@ -757,9 +757,6 @@ export class RelayCommand extends BaseCommand {
                 ['nodeAliases'],
               ) as RelayDeployConfigClass;
 
-              // SOLO_RELAY-HELM-CHART_DIRECTORY applies when the chart directory flag is not provided
-              config.relayChartDirectory ||= this.soloConfig.relayHelmChart.directory;
-
               context_.config = config;
 
               config.isLegacyChartInstalled = false;
@@ -888,9 +885,6 @@ export class RelayCommand extends BaseCommand {
                 allFlags,
                 [],
               ) as RelayUpgradeConfigClass;
-
-              // SOLO_RELAY-HELM-CHART_DIRECTORY applies when the chart directory flag is not provided
-              config.relayChartDirectory ||= this.soloConfig.relayHelmChart.directory;
 
               context_.config = config;
 
