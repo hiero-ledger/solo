@@ -2157,6 +2157,10 @@ export class MirrorNodeCommand extends BaseCommand {
               [],
             ) as MirrorNodeUpgradeConfigClass;
 
+            if (!config.mirrorNodeChartDirectory) {
+              config.mirrorNodeChartDirectory = constants.getEnvironmentVariable('SOLO_MIRROR_NODE_CHART_DIR');
+            }
+
             context_.config = config;
 
             config.mirrorNodeVersion = UpgradeVersionResolver.resolveFromFlags(
