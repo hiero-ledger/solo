@@ -199,7 +199,7 @@ fetch_transactions() {
   local url="http://localhost:${port}/api/v1/transactions?limit=100&order=desc&timestamp=lte:${upto}"
   while [[ -n "$url" && $pages -gt 0 ]]; do
     page=$(curl -sf --max-time 20 "$url") || fail "could not fetch $url"
-    # feed the JSON on stdin: as --argjson it outgrows the 128 KiB Linux allows for one argument
+    # pass the JSON as files, not --argjson: the collected pages outgrow the 128 KiB Linux allows for one argument
     out=$(jq -c -s '.[0] + .[1].transactions' <(echo "$out") <(echo "$page"))
     next=$(jq -r '.links.next // empty' <<<"$page")
     url=""
