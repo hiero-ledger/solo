@@ -12,6 +12,7 @@ import {getSoloVersion} from '../../version.js';
 import {CacheManifestClient} from '../integration/cache/impl/cache-manifest-client.js';
 import {type CacheManifestImage} from '../integration/cache/models/impl/cache-manifest-image.js';
 import {type GitHubRequestOptions} from './git-hub-request-options.js';
+import {Architecture} from '../business/utils/architecture.js';
 
 /** What happened the last time Solo considered warming the image cache. */
 type WarmUpOutcome = 'pulled' | 'accepted' | 'declined' | 'notified' | 'unavailable';
@@ -71,10 +72,20 @@ export class ImageCacheWarmUp {
 
       let images: readonly CacheManifestImage[];
       try {
-        images = await CacheManifestClient.fetchImages(getSoloVersion(), ImageCacheWarmUp.MANIFEST_REQUEST_OPTIONS);
+        images = await CacheManifestClient.fetchImages(
+          Architecture.getLinuxPlatform(),
+          getSoloVersion(),
+          ImageCacheWarmUp.MANIFEST_REQUEST_OPTIONS,
+        );
       } catch (error) {
         // Without a manifest the pull caches nothing, so there is nothing to offer for this version.
         logger.debug('No image cache manifest for this version; skipping the image cache warm-up: ', error);
+        ImageCacheWarmUp.writeMarker(logger, 'unavailable');
+        return;
+      }
+
+      if (images.length === 0) {
+        logger.debug('The image cache manifest has no images for this platform; skipping the image cache warm-up');
         ImageCacheWarmUp.writeMarker(logger, 'unavailable');
         return;
       }

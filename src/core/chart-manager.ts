@@ -15,6 +15,7 @@ import {UpgradeChartOptionsBuilder} from '../integration/helm/model/upgrade/upgr
 import {Chart} from '../integration/helm/model/chart.js';
 import {type InstallChartOptions} from '../integration/helm/model/install/install-chart-options.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
+import {type SemanticVersion} from '../business/utils/semantic-version.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
 import {UnInstallChartOptionsBuilder} from '../integration/helm/model/install/un-install-chart-options-builder.js';
 import {AddRepoOptionsBuilder} from '../integration/helm/model/add/add-repo-options-builder.js';
@@ -53,7 +54,7 @@ export class ChartManager {
    * Resolves the local path to a cached chart tarball for the given chart, when one is available.
    *
    * Returns undefined (so callers fall back to a normal network install) when the version is empty,
-   * when {@link repoName} points to an explicit local chart directory (dev mode must not be overridden),
+   * when {@link repoName} is a local chart path, even a missing one (dev mode must not be overridden),
    * or when no matching tarball has been pulled into the cache via `solo cache chart pull`.
    */
   private async resolveCachedChartPath(
@@ -61,7 +62,8 @@ export class ChartManager {
     version: string,
     repoName: string,
   ): Promise<string | undefined> {
-    if (!version) {
+    // A wrong local chart path must fail in helm instead of silently installing the cached published chart.
+    if (!version || ChartManager.isLocalChartPath(repoName)) {
       return undefined;
     }
 
@@ -79,6 +81,11 @@ export class ChartManager {
     const archivePath: string = this.cacheCatalogStore.resolvePath(target, CacheArtifactEnum.HELM_CHART);
 
     return (await this.cacheHealthInspector.exists(archivePath)) ? archivePath : undefined;
+  }
+
+  /** A chart reference with a path separator and no URL scheme (oci://, https://) is a local path. */
+  private static isLocalChartPath(repoName: string): boolean {
+    return !/^[a-z][\d+.a-z-]*:\/\//i.test(repoName) && /[/\\]/.test(repoName);
   }
 
   /**
@@ -193,6 +200,7 @@ export class ChartManager {
           .atomic(atomic)
           .waitFor(waitFor)
           .valueArguments(chartValues.toArguments())
+          .environmentVariables(chartValues.toEnvironment())
           .dependencyUpdate(dependencyUpdate)
           .skipCrds(skipCrds);
 
@@ -223,6 +231,12 @@ export class ChartManager {
     }
 
     return true;
+  }
+
+  /** The major version of the Helm CLI in use; Helm 3 and Helm 4 take different kinds of post-renderers. */
+  public async getHelmMajorVersion(): Promise<number> {
+    const version: SemanticVersion<string> = await this.helm.version();
+    return version.major;
   }
 
   public async isChartInstalled(
@@ -314,6 +328,7 @@ export class ChartManager {
         .namespace(namespaceName.name)
         .kubeContext(kubeContext)
         .valueArguments(chartValues.toArguments())
+        .environmentVariables(chartValues.toEnvironment())
         .dependencyUpdate(dependencyUpdate);
 
       // A local chart tarball is self-describing; `helm upgrade` rejects `--version` for a local chart.

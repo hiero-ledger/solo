@@ -11,6 +11,7 @@ import {CacheManifestImage} from '../../../src/integration/cache/models/impl/cac
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type GitHubRequestOptions} from '../../../src/core/git-hub-request-options.js';
 import {getSoloVersion} from '../../../version.js';
+import {Architecture} from '../../../src/business/utils/architecture.js';
 
 const MARKER_FILE_NAME: string = 'image-cache-warm-up.json';
 const COMMAND_ARGV: string[] = ['node', 'solo', 'deployment', 'config', 'list'];
@@ -22,7 +23,16 @@ interface FakeLogger {
 }
 
 function image(name: string, size?: number): CacheManifestImage {
-  return new CacheManifestImage(name, `${name}.tar`, `${name}.tar.sha256`, 'a'.repeat(64), 'tar-url', 'hash-url', size);
+  return new CacheManifestImage(
+    name,
+    Architecture.getLinuxPlatform(),
+    `${name}.tar`,
+    `${name}.tar.sha256`,
+    'a'.repeat(64),
+    'tar-url',
+    'hash-url',
+    size,
+  );
 }
 
 describe('ImageCacheWarmUp', (): void => {
@@ -150,6 +160,16 @@ describe('ImageCacheWarmUp', (): void => {
     expect(writtenOutcome()).to.equal('unavailable');
   });
 
+  it('records a manifest with no images for this platform as unavailable', async (): Promise<void> => {
+    fetchImagesStub.resolves([]);
+
+    await offer();
+
+    expect(confirm.called).to.be.false;
+    expect(logger.showUser.called).to.be.false;
+    expect(writtenOutcome()).to.equal('unavailable');
+  });
+
   it('does not re-check an unavailable manifest for the same version', async (): Promise<void> => {
     markerContent = JSON.stringify({outcome: 'unavailable', soloVersion: getSoloVersion()});
 
@@ -167,10 +187,11 @@ describe('ImageCacheWarmUp', (): void => {
     expect(confirm.calledOnce).to.be.true;
   });
 
-  it('fetches the manifest with a timeout and closes the connection', async (): Promise<void> => {
+  it('fetches the manifest for this platform with a timeout and closes the connection', async (): Promise<void> => {
     await offer();
 
-    const options: GitHubRequestOptions = fetchImagesStub.firstCall.args[1] as GitHubRequestOptions;
+    expect(fetchImagesStub.firstCall.args[0]).to.equal(Architecture.getLinuxPlatform());
+    const options: GitHubRequestOptions = fetchImagesStub.firstCall.args[2] as GitHubRequestOptions;
     expect(options.timeout.toMillis()).to.equal(5000);
     expect(options.closeConnection).to.be.true;
   });
