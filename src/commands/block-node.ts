@@ -1423,6 +1423,10 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeUpgradeConfigClass;
 
+            if (!config.blockNodeChartDirectory) {
+              config.blockNodeChartDirectory = constants.getEnvironmentVariable('SOLO_BLOCK_NODE_CHART_DIR');
+            }
+
             context_.config = config;
 
             config.namespace = await this.getNamespace(task);
