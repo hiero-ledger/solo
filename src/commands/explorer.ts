@@ -826,6 +826,10 @@ export class ExplorerCommand extends BaseCommand {
               [],
             ) as ExplorerDeployConfigClass;
 
+            if (!config.explorerChartDirectory) {
+              config.explorerChartDirectory = constants.getEnvironmentVariable('SOLO_EXPLORER_CHART_DIR');
+            }
+
             // In concurrent one-shot execution, configManager may have stale data due to
             // interleaved updates from other sub-commands. Override with argv values directly.
             if (this.oneShotState.isActive() && argv[flags.explorerVersion.name]) {
