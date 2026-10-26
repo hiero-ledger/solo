@@ -245,6 +245,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
     await this.populateFromConfigMap(configMap, remoteConfig);
 
+    // record default component versions up front so they are not left as 0.0.0 until each component is deployed
+    this.initializeComponentVersions(argv, remoteConfig);
+
     await this.persist();
   }
 
