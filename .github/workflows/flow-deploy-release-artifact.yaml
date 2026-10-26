@@ -577,8 +577,8 @@ jobs:
     with:
       version: ${{ needs.prepare-release.outputs.version }}
 
-  # Temporary, not for merging: signs in as the image cache CDN service account and reports, read-only,
-  # which buckets it can see and what it may do in them. Uploads nothing and gates nothing.
+  # Temporary, not for merging: signs in as the image cache CDN service account and reports, read-only, what it
+  # may do in the CDN bucket and which objects the bucket holds. Uploads nothing and gates nothing.
   probe-cdn-access:
     name: Probe CDN Access
     runs-on: hiero-solo-linux-medium
@@ -587,9 +587,7 @@ jobs:
       contents: read
       id-token: write # Workload Identity Federation sign-in to Google Cloud
     env:
-      CDN_PROJECT: 'solo-cdn-production'
-      # Guessed bucket names, probed alongside whatever the bucket listing returns.
-      CANDIDATE_BUCKETS: 'cdn.solo.hashgraph.io solo-cdn-production'
+      CDN_BUCKET: 'solo-cdn-production'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -610,51 +608,40 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         timeout-minutes: 5
 
-      - name: Report Reachable Buckets
+      - name: List CDN Bucket Objects
         timeout-minutes: 5
         run: |
-          # Every probe is read-only and reports its own failure, so one denial does not hide the rest.
-          set -uo pipefail
-          token="$(gcloud auth print-access-token)"
+          # Read-only. GitHub runs this with `bash -e`; turn it off so one failed check does not hide the next.
+          set +e -uo pipefail
+          token="$(gcloud auth print-access-token)" || exit 1
           # Not a registered secret, so the runner would not hide it if a command ever echoed it.
           echo "::add-mask::${token}"
           permissions=(storage.buckets.get storage.buckets.update storage.buckets.delete
             storage.objects.list storage.objects.get storage.objects.create storage.objects.update
             storage.objects.delete)
+          query="$(printf 'permissions=%s&' "${permissions[@]}")"
 
           echo "::group::Active account"
           gcloud auth list
           echo "::endgroup::"
 
-          echo "::group::Project permissions on ${CDN_PROJECT}"
-          curl -sS -X POST -H "Authorization: Bearer ${token}" -H 'Content-Type: application/json' \
-            -d '{"permissions":["storage.buckets.list","storage.buckets.create","storage.buckets.delete"]}' \
-            "https://cloudresourcemanager.googleapis.com/v1/projects/${CDN_PROJECT}:testIamPermissions"
+          echo "::group::Granted permissions on gs://${CDN_BUCKET}"
+          curl -sS -H "Authorization: Bearer ${token}" \
+            "https://storage.googleapis.com/storage/v1/b/${CDN_BUCKET}/iam/testPermissions?${query%&}"
           echo
           echo "::endgroup::"
 
-          echo "::group::Buckets in ${CDN_PROJECT}"
-          if listed="$(gcloud storage buckets list --project="${CDN_PROJECT}" --format='value(name)' 2>&1)"; then
-            echo "${listed:-<none>}"
-          else
-            echo "::warning::cannot list buckets: ${listed}"
-            listed=''
-          fi
+          echo "::group::Objects in gs://${CDN_BUCKET} (first 200)"
+          # Listed to a file first: piping straight into head can fail the listing once head stops reading.
+          listing="${RUNNER_TEMP}/cdn-objects.txt"
+          gcloud storage ls --long "gs://${CDN_BUCKET}/**" > "${listing}" 2>&1
+          listing_status=$?
+          head -200 "${listing}"
+          echo "(listing exit status ${listing_status}, $(wc -l < "${listing}") lines in total)"
           echo "::endgroup::"
 
-          query="$(printf 'permissions=%s&' "${permissions[@]}")"
-          mapfile -t buckets < <({ printf '%s\n' "${listed}"; tr ' ' '\n' <<< "${CANDIDATE_BUCKETS}"; } \
-            | grep -v '^$' | sort -u)
-          for bucket in "${buckets[@]}"; do
-            echo "::group::gs://${bucket}"
-            echo "Granted permissions:"
-            curl -sS -H "Authorization: Bearer ${token}" \
-              "https://storage.googleapis.com/storage/v1/b/${bucket}/iam/testPermissions?${query%&}"
-            echo
-            echo "First objects:"
-            gcloud storage ls "gs://${bucket}" 2>&1 | head -20
-            echo "::endgroup::"
-          done
+          # Fail the step when the listing failed, so the job result says whether the bucket is readable.
+          exit "${listing_status}"
 
   # Attaches the Linux SEA binaries, install.sh and SHA256SUMS to the GitHub Release.
   publish-linux-installer:
