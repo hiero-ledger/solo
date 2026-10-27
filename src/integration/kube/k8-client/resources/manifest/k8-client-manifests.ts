@@ -11,7 +11,7 @@ export class K8ClientManifests implements Manifests {
   private static readonly PATCH_MAX_ATTEMPTS: number = 5;
   private static readonly PATCH_RETRY_DELAY: Duration = Duration.ofSeconds(2);
   private static readonly TRANSIENT_CONNECTION_ERROR: RegExp =
-    /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|socket disconnected|socket hang up/i;
+    /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|socket disconnected|socket hang up|HTTP-Code: (403|404|503)\b/i;
 
   public constructor(private readonly k8sObjectApi: KubernetesObjectApi) {}
 

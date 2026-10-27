@@ -200,7 +200,7 @@ jobs:
                 description: 'kind API server dropped the connection during deploy',
                 stepPrefixes: ['one-shot single deploy'],
                 required:
-                  /Failed to fetch resource metadata for[\s\S]{0,200}(socket disconnected before secure TLS|ECONNRESET|ECONNREFUSED)/,
+                  /Failed to fetch resource metadata for[\s\S]{0,200}(socket disconnected before secure TLS|ECONNRESET|ECONNREFUSED|HTTP-Code: (403|503)\b)/,
                 forbidden: /error TS\d{4}/,
               },
               {

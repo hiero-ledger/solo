@@ -18,6 +18,19 @@ describe('K8ClientManifests.patchObject', (): void => {
     expect(patch.callCount).to.equal(2);
   });
 
+  it('retries while a restarted API server answers 503', async (): Promise<void> => {
+    const patch: sinon.SinonStub = sinon.stub();
+    patch.onFirstCall().rejects(new Error('HTTP-Code: 503 Message: Unknown API Status Code!'));
+    patch.onSecondCall().resolves({});
+    const manifests: K8ClientManifests = new K8ClientManifests({patch} as unknown as ConstructorParameters<
+      typeof K8ClientManifests
+    >[0]);
+
+    await manifests.patchObject({kind: 'ServiceMonitor'});
+
+    expect(patch.callCount).to.equal(2);
+  });
+
   it('does not retry non-transient errors', async (): Promise<void> => {
     const patch: sinon.SinonStub = sinon.stub().rejects(new Error('Forbidden'));
     const manifests: K8ClientManifests = new K8ClientManifests({patch} as unknown as ConstructorParameters<

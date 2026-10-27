@@ -269,7 +269,7 @@ jobs:
             (sudo dmesg 2>/dev/null | grep -i -E 'out of memory|oom-kill|killed process' | tail -n 20) || true
             echo "=== memory ==="
             free -m || true
-          } > "${out}" 2>&1 || true
+          } 2>&1 | tee "${out}" || true
 
       - name: One-Shot Single Destroy
         if: always()
