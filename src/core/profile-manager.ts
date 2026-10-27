@@ -191,6 +191,7 @@ export class ProfileManager {
 
     await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
     await this.updateApplicationPropertiesWithChainId(applicationPropertiesPath, resolvedStagingOptions.chainId);
+    await this.updateApplicationPropertiesWithGenesisPublicKey(applicationPropertiesPath);
 
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const sourceFilePath: string = this.configManager.getFlagFile(flag);
@@ -238,6 +239,7 @@ export class ProfileManager {
           );
           await this.updateApplicationPropertiesForBlockNode(destinationPath);
           await this.updateApplicationPropertiesWithChainId(destinationPath, resolvedStagingOptions.chainId);
+          await this.updateApplicationPropertiesWithGenesisPublicKey(destinationPath);
         }
       } else {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
@@ -598,14 +600,6 @@ export class ProfileManager {
     );
     Helpers.updateBlockStreamPropertiesForMode(lines, streamMode);
 
-    // streamMode=BOTH sends both native blocks (BLOCK_HEADER) and Wrapped Record Blocks
-    // (ROUND_HEADER) to the block node.  The block node silently drops ROUND_HEADER items
-    // because they fail its hasBlockHeader() check, creating gaps that permanently stall the
-    // mirror importer on NOT_AVAILABLE.  Set this here so the CN pod reads it at first startup;
-    // the post-start ConfigMap update in createAndCopyBlockNodeJsonFileForConsensusNode is too
-    // late because the JVM has already cached its configuration by then.
-    Helpers.ensureWrappedRecordBlocksDisabled(lines, streamMode);
-
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
@@ -621,6 +615,23 @@ export class ProfileManager {
         lines[lines.indexOf(line)] = `contracts.chainId=${chainId}`;
       }
     }
+
+    await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
+  }
+
+  /**
+   * Configure the consensus node's genesis public key (raw ed25519 key as hex) so that system accounts and files are
+   * created with the key matching the genesis private key Solo stores for the network.
+   */
+  private async updateApplicationPropertiesWithGenesisPublicKey(applicationPropertiesPath: string): Promise<void> {
+    const fileText: string = await readFile(applicationPropertiesPath, 'utf8');
+    const lines: string[] = fileText.split('\n');
+
+    Helpers.upsertApplicationProperty(
+      lines,
+      'bootstrap.genesisPublicKey',
+      Buffer.from(constants.GENESIS_PUBLIC_KEY.toBytesRaw()).toString('hex'),
+    );
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
@@ -677,7 +688,7 @@ export class ProfileManager {
       }
 
       if (
-        this.remoteConfig.configuration.state.wrapsEnabled &&
+        Helpers.shouldProvisionWraps(this.remoteConfig.configuration.state.wrapsEnabled, releaseTag) &&
         !ProfileManager.hasApplicationProperty(lines, 'tss.wrapsEnabled')
       ) {
         Helpers.upsertApplicationProperty(lines, 'tss.wrapsEnabled', 'true');
