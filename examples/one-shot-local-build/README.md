@@ -149,7 +149,7 @@ relayNode:
   --relay-chart-dir: "/path/to/hiero-json-rpc-relay/charts"
 
 explorerNode:
-  --explorer-chart-dir: "/path/to/hiero-mirror-node-explorer/charts"
+  --explorer-chart-dir: "/path/to/hiero-mirror-node-explorer/_frontend/chart"
 ```
 
 ## Customization

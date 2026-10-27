@@ -753,7 +753,7 @@ export class Flags {
     constName: 'explorerChartDirectory',
     name: 'explorer-chart-dir',
     definition: {
-      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/charts)',
+      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/_frontend/chart)',
       defaultValue: '',
       type: 'string',
     },

@@ -126,7 +126,7 @@ function migrateJsonRpcRelays(state: MigrationCandidate): void {
 }
 
 function migrateState(plainObject: MigrationCandidate): void {
-  const state: MigrationCandidate = {ledgerPhase: LedgerPhase.UNINITIALIZED};
+  const state: MigrationCandidate = {};
   migrateConsensusNodes(plainObject, state);
   migrateHaProxies(state);
   migrateEnvoyProxies(state);
@@ -134,6 +134,7 @@ function migrateState(plainObject: MigrationCandidate): void {
   migrateExplorers(state);
   migrateJsonRpcRelays(state);
   plainObject.state = state;
+  plainObject.ledger = {phase: LedgerPhase.UNINITIALIZED, realm: 0, shard: 0};
 }
 
 function migrate(plainObject: MigrationCandidate): void {
@@ -167,7 +168,7 @@ function expectRemoteConfigClass(rc: RemoteConfigSchema): void {
   expect(rc.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
   expect(rc.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
   expect(rc.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.STARTED);
-  expect(rc.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
+  expect(rc.ledger.phase).to.be.equal(LedgerPhase.UNINITIALIZED);
 }
 
 function expectRemoteConfigPlain(object: MigrationCandidate): void {
@@ -196,7 +197,11 @@ function expectRemoteConfigPlain(object: MigrationCandidate): void {
   expect(firstConsensusNode.namespace).to.be.equal('solo-alpha-prod');
   expect(firstConsensusNode.cluster).to.be.equal('gke-alpha-prod-us-central1');
   expect(firstConsensusNode.phase).to.be.equal(DeploymentPhase.STARTED);
-  expect(state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
+  expect(state).to.not.have.property('ledgerPhase');
+  const ledger: MigrationCandidate = object.ledger as MigrationCandidate;
+  expect(ledger.phase).to.be.equal(LedgerPhase.UNINITIALIZED);
+  expect(ledger.realm).to.be.equal(0);
+  expect(ledger.shard).to.be.equal(0);
 }
 
 describe('RemoteConfig', (): void => {

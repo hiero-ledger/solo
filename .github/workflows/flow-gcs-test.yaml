@@ -70,7 +70,7 @@ jobs:
 
       - name: Harden Runner
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -126,7 +126,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 24
-          cache: npm
 
       - name: Configure npm registry
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
