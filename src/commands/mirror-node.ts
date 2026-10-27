@@ -2594,26 +2594,7 @@ export class MirrorNodeCommand extends BaseCommand {
           },
           skip: (context_): boolean => !this.hasOtherMirrorNodesInDestroy(context_.config),
         },
-        {
-          title: 'Destroy shared resources',
-          skip: (context_): boolean => this.hasOtherMirrorNodesInDestroy(context_.config),
-          task: async (context_): Promise<void> => {
-            await this.sharedResourceManager.uninstallChart(context_.config.namespace, context_.config.clusterContext);
-
-            // Delete PVCs left behind by the shared resources chart (Postgres data volume)
-            const pvcs: string[] = await this.k8Factory
-              .getK8(context_.config.clusterContext)
-              .pvcs()
-              .list(context_.config.namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
-
-            for (const pvc of pvcs) {
-              await this.k8Factory
-                .getK8(context_.config.clusterContext)
-                .pvcs()
-                .delete(PvcReference.of(context_.config.namespace, PvcName.of(pvc)));
-            }
-          },
-        },
+        this.destroySharedResourcesTask(),
         this.disableSharedResourceComponents(),
         {
           title: 'Uninstall mirror ingress controller',
@@ -2846,6 +2827,29 @@ export class MirrorNodeCommand extends BaseCommand {
         this.remoteConfig.configuration.components.removeComponent(context_.config.id, ComponentTypes.MirrorNode);
 
         await this.remoteConfig.persist();
+      },
+    };
+  }
+
+  /** Uninstalls the shared resources chart and deletes its PVCs, then waits for its pods to go so a redeploy starts clean. */
+  private destroySharedResourcesTask(): SoloListrTask<MirrorNodeDestroyContext> {
+    return {
+      title: 'Destroy shared resources',
+      skip: (context_): boolean => this.hasOtherMirrorNodesInDestroy(context_.config),
+      task: async (context_): Promise<void> => {
+        const k8: K8 = this.k8Factory.getK8(context_.config.clusterContext);
+        const sharedResourcesLabels: string[] = ['app.kubernetes.io/instance=solo-shared-resources'];
+
+        await this.sharedResourceManager.uninstallChart(context_.config.namespace, context_.config.clusterContext);
+
+        // Delete PVCs left behind by the shared resources chart (Postgres data volume)
+        const pvcs: string[] = await k8.pvcs().list(context_.config.namespace, sharedResourcesLabels);
+        for (const pvc of pvcs) {
+          await k8.pvcs().delete(PvcReference.of(context_.config.namespace, PvcName.of(pvc)));
+        }
+
+        // helm uninstall does not wait for the pods, so a redeploy could otherwise find the old Postgres pod still terminating
+        await k8.pods().waitForPodsToTerminate(context_.config.namespace, sharedResourcesLabels);
       },
     };
   }
