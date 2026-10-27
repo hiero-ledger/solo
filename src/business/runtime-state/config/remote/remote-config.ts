@@ -7,6 +7,7 @@ import {type ComponentsDataWrapperApi} from '../../../../core/config/remote/api/
 import {type RemoteConfigMetadataSchema} from '../../../../data/schema/model/remote/remote-config-metadata-schema.js';
 import {type ApplicationVersionsSchema} from '../../../../data/schema/model/common/application-versions-schema.js';
 import {type ClusterSchema} from '../../../../data/schema/model/common/cluster-schema.js';
+import {type LedgerSchema} from '../../../../data/schema/model/remote/ledger-schema.js';
 import {type DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
 import {type DeploymentHistorySchema} from '../../../../data/schema/model/remote/deployment-history-schema.js';
 
@@ -16,6 +17,7 @@ export class RemoteConfig implements Facade<RemoteConfigSchema> {
   private readonly _metadata: Readonly<RemoteConfigMetadataSchema>;
   private readonly _versions: ApplicationVersionsSchema;
   private readonly _clusters: Readonly<ClusterSchema>[];
+  private readonly _ledger: LedgerSchema;
   private readonly _state: Readonly<DeploymentStateSchema>;
   private readonly _history: Readonly<DeploymentHistorySchema>;
 
@@ -25,6 +27,7 @@ export class RemoteConfig implements Facade<RemoteConfigSchema> {
     this._metadata = encapsulatedObject.metadata;
     this._versions = encapsulatedObject.versions;
     this._clusters = encapsulatedObject.clusters;
+    this._ledger = encapsulatedObject.ledger;
     this._state = encapsulatedObject.state;
   }
 
@@ -46,6 +49,10 @@ export class RemoteConfig implements Facade<RemoteConfigSchema> {
 
   public get clusters(): ReadonlyArray<Readonly<ClusterSchema>> {
     return this._clusters;
+  }
+
+  public get ledger(): LedgerSchema {
+    return this._ledger;
   }
 
   public get state(): DeploymentStateSchema {

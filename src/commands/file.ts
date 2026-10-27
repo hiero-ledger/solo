@@ -6,17 +6,12 @@ import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Flags as flags} from './flags.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
+import {GenesisKeyResolver} from '../core/genesis-key-resolver.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {
-  FileCreateTransaction,
-  FileUpdateTransaction,
-  FileAppendTransaction,
-  FileContentsQuery,
-  FileInfoQuery,
-  FileId,
-  Status,
-  PrivateKey,
-} from '@hiero-ledger/sdk';
+import {FileId, PrivateKey} from '@hiero-ledger/sdk';
+import {type HederaClient} from '../integration/hedera/hedera-client.js';
+import {type HederaFileInfo} from '../integration/hedera/hedera-file-info.js';
+import {type HederaFileTransactionResult} from '../integration/hedera/hedera-file-transaction-result.js';
 import {type ArgvStruct} from '../types/aliases.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -176,8 +171,8 @@ export class FileCommand extends BaseCommand {
     // Use genesis key for system file operations if requested
     if (useGenesisKeyForSystemFile) {
       this.logger.showUser(chalk.cyan('Using genesis key for system file operations'));
-      this.logger.showUser(chalk.gray('  Genesis key can be customized via GENESIS_KEY environment variable'));
-      return PrivateKey.fromString(constants.GENESIS_KEY);
+      this.logger.showUser(chalk.gray('  Genesis key is read from the network genesis-key secret'));
+      return GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
     }
 
     // Get treasury account keys
@@ -187,17 +182,16 @@ export class FileCommand extends BaseCommand {
 
   /**
    * Helper method to verify uploaded file content
-   * @param client - The Hiero client
+   * @param client - The Hedera client
    * @param fileId - The file ID to verify
    * @param expectedContent - The expected file content
    */
-  private async verifyFileUpload(client: any, fileId: string, expectedContent: Uint8Array): Promise<void> {
+  private async verifyFileUpload(client: HederaClient, fileId: string, expectedContent: Uint8Array): Promise<void> {
     const fileIdObject: FileId = FileId.fromString(fileId);
 
     this.logger.showUser(chalk.cyan('Querying file contents to verify upload...'));
 
-    const fileContentsQuery: FileContentsQuery = new FileContentsQuery().setFileId(fileIdObject);
-    const retrievedContents: Uint8Array = await fileContentsQuery.execute(client);
+    const retrievedContents: Uint8Array = await client.getFileContents(fileIdObject);
 
     const uploadedSize: number = retrievedContents.length;
     const expectedSize: number = expectedContent.length;
@@ -224,8 +218,8 @@ Possible reasons:
 3. The network may be using a different genesis key than expected
 
 Troubleshooting:
-• Verify the correct genesis key using: echo $GENESIS_KEY
-• Set custom genesis key: export GENESIS_KEY=<your-genesis-key>
+• Verify the stored genesis key: kubectl get secret genesis-key -n <namespace>
+• The key is stored at 'network deploy' from the GENESIS_KEY environment variable (or the default)
 • Check if the file requires special permissions beyond genesis key
 • Consider using FileUpdateTransaction with additional authorization in custom code`;
       }
@@ -246,14 +240,14 @@ Troubleshooting:
   /**
    * Helper method to append remaining file chunks after initial create/update
    * @param task - The Listr task wrapper for updating progress
-   * @param client - The Hiero client
+   * @param client - The Hedera client
    * @param fileId - The file ID to append to
    * @param fileContent - The complete file content
    * @param treasuryPrivateKey - The private key to sign transactions
    */
   private async appendFileChunks(
     task: any,
-    client: any,
+    client: HederaClient,
     fileId: string,
     fileContent: Uint8Array,
     treasuryPrivateKey: PrivateKey,
@@ -280,18 +274,14 @@ Troubleshooting:
         ),
       );
 
-      const fileAppendTx: FileAppendTransaction = new FileAppendTransaction()
-        .setFileId(fileIdObject)
-        .setContents(chunk)
-        .setMaxTransactionFee(100)
-        .freezeWith(client);
+      const appendResult: HederaFileTransactionResult = await client.appendFile(
+        fileIdObject,
+        chunk,
+        treasuryPrivateKey,
+      );
 
-      const signedAppendTx: FileAppendTransaction = await fileAppendTx.sign(treasuryPrivateKey);
-      const appendResponse: any = await signedAppendTx.execute(client);
-      const appendReceipt: any = await appendResponse.getReceipt(client);
-
-      if (appendReceipt.status !== Status.Success) {
-        throw new SoloErrors.component.hederaFileAppendFailed(chunkIndex, appendReceipt.status.toString());
+      if (!appendResult.isSuccess) {
+        throw new SoloErrors.component.hederaFileAppendFailed(chunkIndex, appendResult.status);
       }
 
       offset += FileCommand.MAX_CHUNK_SIZE;
@@ -349,53 +339,52 @@ Troubleshooting:
           title: 'Check if file exists',
           skip: () => isCreate, // Skip for create operation
           task: async context_ => {
-            const client: any = this.accountManager._nodeClient!;
+            const client: HederaClient = this.accountManager.hederaClient!;
 
+            let fileInfo: HederaFileInfo | undefined;
             try {
-              const fileIdObject: FileId = FileId.fromString(context_.config.fileId);
-              const fileInfoQuery: FileInfoQuery = new FileInfoQuery().setFileId(fileIdObject);
-              const fileInfo: any = await fileInfoQuery.execute(client);
-
-              context_.fileExists = true;
-              this.logger.showUser(chalk.green(`File ${context_.config.fileId} exists. Proceeding with update.`));
-              this.logger.showUser(chalk.gray(`  Current size: ${fileInfo.size.toString()} bytes`));
-              const keysCount: number = fileInfo.keys ? fileInfo.keys.toArray().length : 0;
-              this.logger.showUser(chalk.gray(`  Keys: ${keysCount}`));
-
-              // Check if file is a system file (no keys = immutable)
-              if (keysCount === 0) {
-                if (context_.isSystemFile) {
-                  this.logger.showUser(
-                    chalk.cyan(
-                      `ℹ️  File ${context_.config.fileId} is a system file (no keys). Automatically using genesis key for update.`,
-                    ),
-                  );
-                } else {
-                  this.logger.showUser(
-                    chalk.yellow(
-                      `⚠️  Warning: File ${context_.config.fileId} has no keys but is not in system file range (0.0.101-0.0.200).`,
-                    ),
-                  );
-                  this.logger.showUser(
-                    chalk.yellow(
-                      '    Update may fail. Set GENESIS_KEY environment variable if this file requires genesis key authorization.',
-                    ),
-                  );
-                }
-              }
+              fileInfo = await client.getFileInfo(FileId.fromString(context_.config.fileId));
             } catch (error: any) {
-              const error_ =
-                error.status === Status.FileDeleted || error.status === Status.InvalidFileId
-                  ? new SoloErrors.validation.invalidFileIdFormat(context_.config.fileId)
-                  : new SoloErrors.component.hederaFileCreationFailed(error.message);
-              throw error_;
+              throw new SoloErrors.component.hederaFileCreationFailed(error.message);
+            }
+
+            if (!fileInfo) {
+              throw new SoloErrors.validation.invalidFileIdFormat(context_.config.fileId);
+            }
+
+            context_.fileExists = true;
+            this.logger.showUser(chalk.green(`File ${context_.config.fileId} exists. Proceeding with update.`));
+            this.logger.showUser(chalk.gray(`  Current size: ${fileInfo.size} bytes`));
+            const keysCount: number = fileInfo.keyCount;
+            this.logger.showUser(chalk.gray(`  Keys: ${keysCount}`));
+
+            // Check if file is a system file (no keys = immutable)
+            if (keysCount === 0) {
+              if (context_.isSystemFile) {
+                this.logger.showUser(
+                  chalk.cyan(
+                    `ℹ️  File ${context_.config.fileId} is a system file (no keys). Automatically using genesis key for update.`,
+                  ),
+                );
+              } else {
+                this.logger.showUser(
+                  chalk.yellow(
+                    `⚠️  Warning: File ${context_.config.fileId} has no keys but is not in system file range (0.0.101-0.0.200).`,
+                  ),
+                );
+                this.logger.showUser(
+                  chalk.yellow(
+                    '    Update may fail. Verify the network genesis-key secret if this file requires genesis key authorization.',
+                  ),
+                );
+              }
             }
           },
         },
         {
           title: isCreate ? 'Create file on Hiero network' : 'Update file on Hiero network',
           task: async (context_, task): Promise<SoloListr<Context>> => {
-            const client: any = this.accountManager._nodeClient!;
+            const client: HederaClient = this.accountManager.hederaClient!;
             const subTasks: SoloListrTask<Context>[] = [
               {
                 title: isCreate ? 'Create new file' : 'Update existing file',
@@ -405,40 +394,30 @@ Troubleshooting:
 
                   if (isCreate) {
                     // Create new file
-                    const fileCreateTx: FileCreateTransaction = new FileCreateTransaction()
-                      .setKeys([context__.treasuryPrivateKey.publicKey])
-                      .setContents(initialContent)
-                      .setMaxTransactionFee(100)
-                      .freezeWith(client);
+                    const createResult: HederaFileTransactionResult = await client.createFile(
+                      initialContent,
+                      context__.treasuryPrivateKey,
+                    );
 
-                    const signedTx: FileCreateTransaction = await fileCreateTx.sign(context__.treasuryPrivateKey);
-                    const txResponse: any = await signedTx.execute(client);
-                    const receipt: any = await txResponse.getReceipt(client);
-
-                    if (receipt.status !== Status.Success) {
-                      throw new SoloErrors.component.hederaFileCreationFailed(receipt.status.toString());
+                    if (!createResult.isSuccess) {
+                      throw new SoloErrors.component.hederaFileCreationFailed(createResult.status);
                     }
 
-                    const createdFileId: FileId | null = receipt.fileId;
-                    context__.createdFileId = createdFileId?.toString();
+                    context__.createdFileId = createResult.fileId?.toString();
                     context__.config.fileId = context__.createdFileId!; // Update config with actual file ID
 
                     this.logger.showUser(chalk.green(`✓ File created with ID: ${context__.createdFileId}`));
                   } else {
                     // Update existing file
                     const fileIdObject: FileId = FileId.fromString(context__.config.fileId);
-                    const fileUpdateTx: FileUpdateTransaction = new FileUpdateTransaction()
-                      .setFileId(fileIdObject)
-                      .setContents(initialContent)
-                      .setMaxTransactionFee(100)
-                      .freezeWith(client);
+                    const updateResult: HederaFileTransactionResult = await client.updateFile(
+                      fileIdObject,
+                      initialContent,
+                      context__.treasuryPrivateKey,
+                    );
 
-                    const signedUpdateTx: FileUpdateTransaction = await fileUpdateTx.sign(context__.treasuryPrivateKey);
-                    const updateResponse: any = await signedUpdateTx.execute(client);
-                    const updateReceipt: any = await updateResponse.getReceipt(client);
-
-                    if (updateReceipt.status !== Status.Success) {
-                      throw new SoloErrors.component.hederaFileUpdateFailed(updateReceipt.status.toString());
+                    if (!updateResult.isSuccess) {
+                      throw new SoloErrors.component.hederaFileUpdateFailed(updateResult.status);
                     }
 
                     this.logger.showUser(chalk.green('✓ File updated successfully'));
@@ -483,7 +462,7 @@ Troubleshooting:
         {
           title: 'Verify uploaded file',
           task: async context_ => {
-            const client = this.accountManager._nodeClient!;
+            const client: HederaClient = this.accountManager.hederaClient!;
             await this.verifyFileUpload(client, context_.config.fileId, context_.fileContent);
           },
         },
