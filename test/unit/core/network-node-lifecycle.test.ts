@@ -87,6 +87,8 @@ describe('NetworkNodeLifecycle', (): void => {
   it('should dump the threads of the JVM it finds through /proc with a bounded jcmd', (): void => {
     const command: string = NetworkNodeLifecycle.buildThreadDumpCommand();
     expect(command).to.contain('/proc/[0-9]*');
+    // a process that exits during the scan must not leave a "No such file or directory" line in the output
+    expect(command).to.contain('2>/dev/null < "$p/cmdline"');
     expect(command).to.contain('com.hedera.node.app.ServicesMain');
     expect(command).to.contain('timeout 30 jcmd "$jvm_pid" Thread.print');
     expect(command).to.not.contain('ps -ef');
