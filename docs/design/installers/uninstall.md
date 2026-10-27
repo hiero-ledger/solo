@@ -96,7 +96,7 @@ The install-script binary (`~/.solo/bin/solo`) and `sea-resources/` always live 
   `solo config ops restore-clusters` adds `metallb`. Solo adds all but `metallb` with `--force-update`, so it
   overwrites a user repository with the same name. Helm keeps the repository indexes and downloaded charts in its own
   cache.
-- `solo config ops backup` writes `./solo-backup` in the current folder.
+- `solo config ops backup` writes a backup to `--output-dir`, by default `./solo-backup` in the current folder.
 
 ### 4.3 Container resources and processes
 
@@ -107,6 +107,8 @@ The install-script binary (`~/.solo/bin/solo`) and `sea-resources/` always live 
 - Persistent port-forward workers: detached processes with `persist-port-forward` in their command line. A SEA binary
   runs them from `solo` itself. They have no PID files, and they stop once their context, namespace or cluster is
   gone, but only while they can still run Solo's `kubectl` from `bin/`.
+- Detached `kubectl port-forward` processes without a worker: `AccountManager` and the rapid-fire commands start them
+  and stop them when they finish, so an interrupted command can leave them running.
 - Not created by Solo, and left alone: images in the host's Docker or Podman store, including `kindest/node`.
 
 ## 5. Ownership Record
@@ -135,6 +137,7 @@ resources:
 - Reusing a cluster or machine that already exists adds nothing. Solo removes the entry when it deletes the resource.
 - The file is separate from `local-config.yaml`, so no local-config schema migration is needed. It has these two
   types only; a new type is added when Solo starts creating something new outside `SOLO_HOME`.
+- Only a run with the same `SOLO_HOME` finds the record (§10).
 - The record ships before `solo uninstall`, because clusters created before it have no entry.
 
 Installs from before the record:
@@ -149,7 +152,8 @@ Installs from before the record:
 
 | Item | Default | Notes |
 |------|---------|-------|
-| Persistent port-forward workers | stop | All of them, first. A worker can't restart `kubectl` once `bin/` is gone, and on Windows a SEA worker is `solo.exe` itself, which would block its removal. Matched by `persist-port-forward` in the command line, the way `stopPortForward` finds them. |
+| Persistent port-forward workers | stop | All of them, first, matched by `persist-port-forward` in the command line. A worker can't restart `kubectl` once `bin/` is gone, and on Windows a SEA worker is `solo.exe` itself, which would block its removal. |
+| `kubectl port-forward` processes from `bin/` | stop | Right after the workers: every `kubectl port-forward` whose executable is Solo's `kubectl` in `bin/`, such as one an interrupted command left (§4.3). On Windows it would block the removal of `bin\`. |
 | Recorded kind clusters | delete | Also when deployments still run on them: after confirmation in an interactive run, without asking in `--quiet-mode`. `kind delete cluster` with the provider and privileges that created the cluster, which also removes the context kind wrote. |
 | Recorded podman machine | delete | After the clusters that run in it. A stopped machine is started first, so kind can delete those clusters. Before `bin/`, which holds its podman and helpers. |
 | Unrecorded `solo-cluster` and `podman-machine-default` | ask | §5. `--quiet-mode` leaves them. |
@@ -159,6 +163,7 @@ Installs from before the record:
 | Program and `PATH` lines | delete | Per channel (§7), unless `--keep-binary`. |
 | Helm repositories | leave | The report lists the ones still present with Solo's URL, and the `helm repo remove` command for them. Solo doesn't record which repositories it added, and it may have overwritten a user's repository with the same name. The same in `--quiet-mode`. |
 | `kind-kind` entries in the user's kubeconfig | leave | Rootful Linux podman path. After deleting that cluster, the report lists the `kind-kind` entries still in the user's kubeconfig, with the `kubectl config` commands to remove them. Uninstall never edits the user's kubeconfig. |
+| Backups from `solo config ops backup` | never | They hold the user's data, and Solo doesn't record where it wrote them (§4.2), so the report can't list them either. |
 | Everything else | never | The user's clusters, contexts and podman machines, remote clusters, container images, the `kind` container network, helm's cache, and host tools (§3). |
 
 `--keep-config` keeps `local-config.yaml`, `solo-config.yaml` and the `one-shot-<deployment>/` folders of deployments
@@ -178,8 +183,8 @@ leftover entries.
 | Install script, Windows (#6196) | `%USERPROFILE%\.solo\bin\solo.exe`, and MSYS2 in `%USERPROFILE%\.solo\msys2\` | `solo uninstall` | `solo uninstall` deletes `msys2\`; after the command exits, a detached helper deletes `solo.exe` and removes the user `PATH` entry (§7.1) |
 | npm | npm global prefix | `solo uninstall` | The user: Solo removes the data, then prints `npm uninstall -g @hiero-ledger/solo` |
 | Homebrew (deprecated) | Cellar | `solo uninstall` | The user: Solo removes the data, then prints `brew uninstall solo` |
-| NSIS installer (deferred, #5723) | The same folders as the Windows script | Settings > Apps runs `Uninstall.exe` | `Uninstall.exe` runs `solo.exe uninstall --quiet-mode --keep-binary` (plus `--keep-config` if the user chooses to keep their configuration), then removes the program folder, the `PATH` entry and its registry key |
-| deb/rpm packages (deferred, Linux §8) | `/usr/bin/solo` | `preremove` prints a notice | The package manager. `preremove` runs as root and can't clean the user's data (Linux §7.2), so the notice asks to run `solo uninstall --keep-binary` first |
+| NSIS installer (deferred, #5723) | The same folders as the Windows script | Settings > Apps runs `Uninstall.exe` | `Uninstall.exe` runs `solo.exe uninstall --quiet-mode --keep-binary` (plus `--keep-config` if the user chooses to keep their configuration). When that succeeds, it removes the program folder, the `PATH` entry and its registry key. On a non-zero exit it shows the report and asks before it removes the program; a silent uninstall (`/S`) stops and keeps it |
+| deb/rpm packages (deferred, Linux §8) | `/usr/bin/solo` | `preremove` prints a notice | The package manager. `preremove` runs as root and can't clean the user's data (Linux §7.2), so the notice asks to run `solo uninstall --keep-binary` first and to remove the package only after it reports success |
 
 - Uninstall detects the channel the same way `solo update` does (#6104 §6.1): `isSea()`, the real path of
   `process.execPath`, Homebrew's Cellar path, and NSIS's `Uninstall.exe` next to `solo.exe`. Run by hand on an NSIS
@@ -193,7 +198,9 @@ leftover entries.
 - After the program, uninstall removes `~/.solo/bin` and `~/.solo` if they are empty.
 - If `PATH` still finds another `solo`, for example an npm install next to a script install, the report names it and
   how to remove it, as the install script already warns.
-- `--keep-binary` leaves the program's folder (`bin/`, and `msys2\` on Windows) to the package uninstaller.
+- `--keep-binary` leaves the program to the package uninstaller, and keeps its folder only when that folder is in
+  `~/.solo` (`bin\` and `msys2\` with NSIS). A deb/rpm package puts the program in `/usr/bin` and never touches
+  `~/.solo/bin`, which then holds only helm, kind, kubectl and podman, so uninstall deletes it as in any other run.
 
 ### 7.1 Windows: removing the running `solo.exe`
 
@@ -220,7 +227,7 @@ solo uninstall [--quiet-mode] [--keep-config] [--keep-binary] [--force]
 |------|--------|
 | `--quiet-mode` | No prompts. Deletes recorded clusters even when deployments run on them, leaves unrecorded resources and overridden folders, and continues past unreachable resources. Package uninstallers use it. |
 | `--keep-config` | Keeps the configuration listed in §6. |
-| `--keep-binary` | Leaves the program files to the package uninstaller (§7). |
+| `--keep-binary` | Leaves the program, and its folder when that is in `~/.solo`, to the package uninstaller (§7). |
 | `--force` | Interactive runs only: continue when a recorded resource can't be reached. It has no effect with `--quiet-mode`, which already continues. |
 
 There is no `--keep-clusters` flag.
@@ -232,7 +239,7 @@ There is no `--keep-clusters` flag.
    still runs deployments, each unrecorded resource and each overridden folder (default no), then confirm the whole
    plan (default no). Deployments on clusters that stay keep running, and Solo forgets them unless `--keep-config` is
    set; the plan suggests destroying them first.
-3. **Stop** the persistent port-forward workers.
+3. **Stop** the persistent port-forward workers, then the `kubectl port-forward` processes that run from `bin/` (§6).
 4. **Delete** the clusters, then the podman machine. Each record entry is removed as soon as its resource is gone.
 5. **Delete files**: `SOLO_HOME` (or the confirmed overridden folders), except the program files and what
    `--keep-config` keeps, then `~/.solo/sea-resources/`.
@@ -247,15 +254,17 @@ There is no `--keep-clusters` flag.
   an interactive run stops before deleting anything and asks the user to start it and retry. `--force` continues.
   `--quiet-mode` always continues.
 - Continuing leaves that resource with its record entry, and keeps `bin/` and the program, so starting the runtime and
-  running `solo uninstall` again finishes the job. The report says so and exits non-zero.
-- On the rootful Linux podman path, deleting the cluster needs `sudo`, as creating it did. If `sudo` can't run, the
-  cluster counts as unreachable.
+  running `solo uninstall` again finishes the job. The report says so and exits non-zero; §7 says how package
+  uninstallers handle that exit code.
+- On the rootful Linux podman path, checking and deleting the cluster need `sudo`, as creating it did. `--quiet-mode`
+  uses `sudo -n`, which fails at once when it would need a password, instead of waiting for one nobody types. If
+  `sudo` can't run, the cluster counts as unreachable.
 
 ## 9. Related Work
 
 - [#6273](https://github.com/hiero-ledger/solo/issues/6273) and
-  [#6276](https://github.com/hiero-ledger/solo/issues/6276): the install script, and `npm install -g` once PR #6277
-  merges, download images only on request. `solo one-shot single deploy` still caches them unless
+  [#6276](https://github.com/hiero-ledger/solo/issues/6276): the install script and `npm install -g` (PR #6277)
+  download images only on request. `solo one-shot single deploy` still caches them unless
   `ENABLE_IMAGE_CACHE=false`. Either way the archives land in `$SOLO_HOME/cache/images/`, which uninstall removes
   with `SOLO_HOME`.
 - [#6094](https://github.com/hiero-ledger/solo/issues/6094): the first-run warm-up marker lives in `SOLO_HOME` (§4.1),
@@ -273,6 +282,9 @@ There is no `--keep-clusters` flag.
 - **Clusters from before the record** are only offered by name in an interactive run, and `--quiet-mode` leaves them.
   A package uninstaller can therefore leave a `solo-cluster` behind on machines that ran Solo before the record
   shipped.
+- **The record is per `SOLO_HOME`.** Clusters created with `SOLO_HOME=/data/solo` look unrecorded to a plain
+  `solo uninstall`: only `solo-cluster` is offered, in an interactive run, and `--quiet-mode` leaves them all. Run
+  `solo uninstall` with the `SOLO_HOME` that created them.
 - **Leftover commands need the tool on `PATH`.** The `helm`, `kind`, `podman` and `kubectl` commands in the report
   can't use Solo's copies, which go with `bin/`. The report says so when the tool is missing.
 - **`--quiet-mode` deletes recorded clusters with their deployments.** A package uninstaller that runs it should say so
@@ -294,7 +306,7 @@ There is no `--keep-clusters` flag.
 4. Docs: replace the manual removal steps in solo-docs (Linux Install Script and Cleanup pages) with `solo uninstall`.
 5. Installers: the macOS branch of `install.sh` (#5724) writes the same marked `PATH` block, and `install.ps1`
    (#6196) installs into the folders in §7, so `solo uninstall` finds both. The NSIS uninstaller (#5723) runs
-   `solo.exe uninstall --quiet-mode --keep-binary`.
+   `solo.exe uninstall --quiet-mode --keep-binary` and checks its exit code before it removes the program (§7).
 
 ## 12. References
 
@@ -308,4 +320,4 @@ There is no `--keep-clusters` flag.
 
 ---
 
-_Last updated: 2026-10-26 (review answers folded in; replaces the draft outline)_
+_Last updated: 2026-10-27 (second review round folded in)_
