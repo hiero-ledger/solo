@@ -13,7 +13,7 @@ env:
 
 vars:
   DEPLOYMENT: "hardhat-backup-restore"
-  NODE_ALIASES: "node1"
+  NODE_ALIASES: "node1,node2"
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
   ZIP_PASSWORD: "xxxx"
   ZIP_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
@@ -35,7 +35,7 @@ tasks:
   # ==================== Deploy ====================
 
   deploy:
-    desc: Deploy a complete Hiero network using one-shot single deploy
+    desc: Deploy a complete Hiero network using one-shot multi deploy (two consensus nodes)
     cmds:
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -44,7 +44,7 @@ tasks:
             echo "Skipping npm install - using development version"
           fi
       - cmd: rm -rf {{ .BACKUP_DIR }}
-      - cmd: $SOLO_COMMAND one-shot single deploy --deployment {{ .DEPLOYMENT }} --quiet-mode
+      - cmd: $SOLO_COMMAND one-shot multi deploy --deployment {{ .DEPLOYMENT }} --num-consensus-nodes 2 --quiet-mode
 
   # ==================== Hardhat ====================
 
@@ -134,5 +134,5 @@ tasks:
   destroy:
     desc: Destroy the Solo network and remove the backup
     cmds:
-      - cmd: $SOLO_COMMAND one-shot single destroy --deployment {{ .DEPLOYMENT }} || true
+      - cmd: $SOLO_COMMAND one-shot multi destroy --deployment {{ .DEPLOYMENT }} || true
       - cmd: rm -rf {{ .BACKUP_DIR }} {{ .HARDHAT_DIR }}/.deployed-address

@@ -6,7 +6,7 @@ intended as guidance for using backup/restore in a test harness.
 
 ## What It Does
 
-* Deploys a network with `solo one-shot single deploy`
+* Deploys a network with `solo one-shot multi deploy` (two consensus nodes)
 * Deploys a `SimpleStorage` contract with `hardhat` and stores a value (`pre-backup-test`)
 * Freezes the network and creates a backup with `solo config ops backup` (`backup`)
 * Deletes all Kind clusters and the local Solo configuration (`reset`)
