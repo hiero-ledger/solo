@@ -46,6 +46,7 @@ import {LocalConfigRuntimeState} from '../local/local-config-runtime-state.js';
 import {RemoteConfigMetadataSchema} from '../../../../data/schema/model/remote/remote-config-metadata-schema.js';
 import {ApplicationVersionsSchema} from '../../../../data/schema/model/common/application-versions-schema.js';
 import {ClusterSchema} from '../../../../data/schema/model/common/cluster-schema.js';
+import {LedgerSchema} from '../../../../data/schema/model/remote/ledger-schema.js';
 import {DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
 import {DeploymentHistorySchema} from '../../../../data/schema/model/remote/deployment-history-schema.js';
 import {RemoteConfigSchemaDefinition} from '../../../../data/schema/migration/impl/remote/remote-config-schema-definition.js';
@@ -238,8 +239,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsSchema(nodeAliases.length + 1), consensusNodeStates),
+      new DeploymentStateSchema(new ComponentIdsSchema(nodeAliases.length + 1), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
+      new LedgerSchema(
+        ledgerPhase,
+        Number(this.localConfig.configuration.realmForDeployment(deploymentName)),
+        Number(this.localConfig.configuration.shardForDeployment(deploymentName)),
+      ),
     );
 
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
