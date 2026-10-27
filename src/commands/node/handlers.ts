@@ -1405,7 +1405,7 @@ export class NodeCommandHandlers extends CommandHandler {
         }
 
         if (ledgerPhase) {
-          this.remoteConfig.configuration.state.ledgerPhase = ledgerPhase;
+          this.remoteConfig.configuration.ledger.phase = ledgerPhase;
         }
 
         await this.remoteConfig.persist();
