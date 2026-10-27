@@ -142,10 +142,17 @@ jobs:
                 // in-cluster DNS failure logged elsewhere - a pod that cannot resolve a Kubernetes
                 // service name, say - is not matched. `no such host` (NXDOMAIN) is deliberately not
                 // matched alongside it: unlike a resolver fault, a persistently missing record
-                // could reflect a real misconfiguration rather than a transient glitch.
-                stepPrefixes: [...setupStepPrefixes, 'one-shot single deploy', 'run example test', 'run e2e tests'],
+                // could reflect a real misconfiguration rather than a transient glitch. Only `helm repo
+                // add` failing to reach a fixed chart repository URL is matched; MAX_RUN_ATTEMPTS bounds it.
+                stepPrefixes: [
+                  ...setupStepPrefixes,
+                  'one-shot single deploy',
+                  'run example test',
+                  'run e2e tests',
+                  'run gcs test script',
+                ],
                 required:
-                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)|(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)[^\n]*(?:fetch|download|install|request)|npm (?:ERR!|error) code (?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)[\s\S]{0,500}npm (?:ERR!|error) network\b|failed to do request:[^\n]*dial tcp:?[^\n]*(i\/o timeout|server misbehaving)/i,
+                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)|(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)[^\n]*(?:fetch|download|install|request)|npm (?:ERR!|error) code (?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)[\s\S]{0,500}npm (?:ERR!|error) network\b|failed to do request:[^\n]*dial tcp:?[^\n]*(i\/o timeout|server misbehaving)|is not a valid chart repository or cannot be reached: Get "[^"\n]*": dial tcp: lookup [^\n]*: no such host/i,
                 forbidden: /error TS\d{4}/,
               },
               {
