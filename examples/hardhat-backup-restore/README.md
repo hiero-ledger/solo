@@ -46,6 +46,8 @@ download `example-hardhat-backup-restore.zip` from the
 * Freeze the network before `config ops backup` so the saved state is consistent.
 * Back up once after seeding the ledger with the contracts and accounts your tests need, then run
   `reset` + `restore` before each test run to start from the same known state.
+* The mirror node database is not part of this backup, so the relay is added by the `restart` task once the
+  restored network has produced records. Starting it earlier fails its startup operator-balance check.
 * The backup is a plain directory (plus an optional encrypted zip), so it can be cached between CI runs.
 * `--deployment` is required on `backup` and `restore-config` in this example; the deployment name is fixed to
   `hardhat-backup-restore`.

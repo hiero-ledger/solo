@@ -1,8 +1,7 @@
 # Options file for `config ops restore-network`.
 # ${VAR} references are substituted from the process environment at runtime
 # (see the env: block in the Taskfile restore-network task).
-# Mirrors the components that the `deploy` task creates, so the JSON-RPC relay
-# that hardhat connects to is recreated.
+# Mirrors the components that the `deploy` task creates, except the relay (see below).
 consensus:
   - --deployment
   - ${DEPLOYMENT}
@@ -25,10 +24,8 @@ explorer:
   - ${DEPLOYMENT}
   - --quiet-mode
   - --dev
-relay:
-  - --deployment
-  - ${DEPLOYMENT}
-  - --node-aliases
-  - ${NODE_ALIASES}
-  - --quiet-mode
-  - --dev
+# An empty list skips the relay in restore-network. The mirror database is not part of this
+# backup, so the relay's startup operator-balance check would get a 404 from an empty mirror
+# node and never become ready; consensus is not running yet at this stage, so the mirror cannot
+# fill. The Taskfile `restart` task adds the relay once the restored network is producing records.
+relay: []

@@ -139,7 +139,7 @@ tasks:
             --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_FILE }}
 
   restore-network:
-    desc: Deploy consensus, block node, mirror node, explorer and relay from the backup
+    desc: Deploy consensus, block node, mirror node and explorer from the backup
     env:
       DEPLOYMENT: "{{ .DEPLOYMENT }}"
       NODE_ALIASES: "{{ .NODE_ALIASES }}"
@@ -160,13 +160,27 @@ tasks:
             --input-dir {{ .BACKUP_DIR }}
 
   restart:
-    desc: Start the consensus node from the restored state and refresh port-forwards
+    desc: Start the consensus nodes from the restored state, then add the relay once the mirror node has data
     cmds:
       # --skip-grpc-web-endpoint / --resume-from-freeze: see examples/multicluster-backup-restore.
       - cmd: |
           $TIMEOUT_COMMAND 300s $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} \
             --state-file {{ .BACKUP_DIR }} --skip-grpc-web-endpoint --resume-from-freeze
       - cmd: $SOLO_COMMAND deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
+      # The mirror database was not backed up, so wait for the importer to ingest records from the
+      # restored network before starting the relay that hardhat connects to.
+      - cmd: |
+          for attempt in $(seq 1 60); do
+            if curl -sf "http://localhost:38081/api/v1/transactions?limit=1" | grep -q '"transaction_id"'; then
+              echo "Mirror node has ingested records from the restored network"
+              exit 0
+            fi
+            echo "  attempt ${attempt}/60: waiting for mirror node ingest..."
+            sleep 10
+          done
+          echo "Mirror node did not ingest any records after restore"
+          exit 1
+      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
 
   # ==================== Cleanup ====================
 
