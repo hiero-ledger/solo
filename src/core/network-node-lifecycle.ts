@@ -27,6 +27,7 @@ export class NetworkNodeLifecycle {
   private static readonly CONSENSUS_SERVICE_PATH: string = '/run/service/consensus';
   private static readonly SERVICE_STOP_TIMEOUT_MILLISECONDS: number = 60_000;
   private static readonly JVM_STOP_ATTEMPTS: number = 60;
+  private static readonly THREAD_DUMP_TIMEOUT_SECONDS: number = 30;
   // matches only the java process, not shells whose command line merely contains the main class name; Browser is the
   // main class Solo selects with JAVA_MAIN_CLASS when --app is not the default HederaNode.jar
   private static readonly JVM_PIDS_FUNCTION: string = String.raw`jvm_pids() { for p in /proc/[0-9]*; do tr '\0' ' ' < "$p/cmdline" 2>/dev/null | grep -qE '^java .*(com.hedera.node.app.ServicesMain|com.swirlds.platform.Browser)' && basename "$p"; done; }`;
@@ -136,6 +137,19 @@ export class NetworkNodeLifecycle {
       // Keep Solo orchestration-only: hard-stop and escalation logic must stay in
       // solo-container's /command/network-node-lifecycle helper.
       `"${helperPath}" stop-and-disable-autostart`,
+    ].join('\n');
+  }
+
+  /**
+   * Command that prints a thread dump of the consensus node JVM. Both images ship a full JDK, so jcmd is available; the
+   * timeout keeps an unresponsive JVM from hanging the caller.
+   */
+  public static buildThreadDumpCommand(): string {
+    return [
+      NetworkNodeLifecycle.JVM_PIDS_FUNCTION,
+      'jvm_pid="$(jvm_pids | head -n 1)"',
+      'if [ -z "$jvm_pid" ]; then echo "the consensus node JVM is not running"; exit 0; fi',
+      `timeout ${NetworkNodeLifecycle.THREAD_DUMP_TIMEOUT_SECONDS} jcmd "$jvm_pid" Thread.print`,
     ].join('\n');
   }
 

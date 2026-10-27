@@ -896,26 +896,33 @@ export class NodeCommandTasks {
   }
 
   /**
-   * Best-effort: print the tail of the node's platform log and its key directory so a node that never reaches the
-   * expected status can be diagnosed from the CI log alone.
+   * Best-effort: print the node's key directory, the tails of its platform and application logs, and a thread dump of
+   * its JVM so a node that never reaches the expected status can be diagnosed from the CI log alone.
    */
   private async showNodeNotReadyDiagnostics(
     podReference: PodReference,
     nodeAlias: NodeAlias,
     context?: string,
   ): Promise<void> {
+    const outputDirectory: string = `${constants.HEDERA_HAPI_PATH}/output`;
+    const sections: Record<string, string> = {
+      'data/keys': `ls -la ${constants.HEDERA_HAPI_PATH}/data/keys`,
+      'swirlds.log errors and warnings': `grep -hE 'ERROR|WARN|Exception' ${outputDirectory}/swirlds.log | tail -n 60`,
+      'swirlds.log': `tail -n 60 ${outputDirectory}/swirlds.log`,
+      'hgcaa.log': `tail -n 60 ${outputDirectory}/hgcaa.log`,
+      'JVM thread dump': NetworkNodeLifecycle.buildThreadDumpCommand(),
+    };
+    // each section runs in its own subshell, so a failing command does not hide the output of the others
+    const script: string = Object.entries(sections)
+      .map(([title, command]: [string, string]): string => `echo '--- ${title} ---'\n(\n${command}\n) 2>&1`)
+      .join('\n');
+
     try {
       const output: string = await this.k8Factory
         .getK8(context)
         .containers()
         .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-        .execContainer([
-          'bash',
-          '-c',
-          `ls -la ${constants.HEDERA_HAPI_PATH}/data/keys; ` +
-            `grep -hE 'ERROR|WARN|Exception' ${constants.HEDERA_HAPI_PATH}/output/swirlds.log | tail -n 60; ` +
-            `tail -n 60 ${constants.HEDERA_HAPI_PATH}/output/swirlds.log`,
-        ]);
+        .execContainer(['bash', '-c', `${script}\ntrue`]);
       this.logger.showUser(`Diagnostics for node '${nodeAlias}' that is not ready:\n${output}`);
     } catch {
       // best-effort diagnostic only: the node-not-ready error below is what the caller needs to see

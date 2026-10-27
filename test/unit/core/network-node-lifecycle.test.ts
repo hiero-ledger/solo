@@ -84,6 +84,14 @@ describe('NetworkNodeLifecycle', (): void => {
     expect(stop).to.contain('com.swirlds.platform.Browser');
   });
 
+  it('should dump the threads of the JVM it finds through /proc with a bounded jcmd', (): void => {
+    const command: string = NetworkNodeLifecycle.buildThreadDumpCommand();
+    expect(command).to.contain('/proc/[0-9]*');
+    expect(command).to.contain('com.hedera.node.app.ServicesMain');
+    expect(command).to.contain('timeout 30 jcmd "$jvm_pid" Thread.print');
+    expect(command).to.not.contain('ps -ef');
+  });
+
   it('should only change ownership when running as root', (): void => {
     expect(NetworkNodeLifecycle.buildChangeOwnerCommand('/a/saved')).to.equal(
       'if [ "$(id -u)" = "0" ]; then chown -R hedera:hedera /a/saved; fi',
