@@ -312,6 +312,14 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     await this.persist();
   }
 
+  /** Records the running Solo version as the one that last touched the remote config. */
+  private updateCliVersion(): void {
+    const currentVersion: SemanticVersion<string> = new SemanticVersion<string>(getSoloVersion());
+    if (!this.getComponentVersion(ComponentTypes.Cli).equals(currentVersion)) {
+      this.updateComponentVersion(ComponentTypes.Cli, currentVersion);
+    }
+  }
+
   public addCommandToHistory(command: string): void {
     this.source.modelData.history.commands.push(command);
     this.source.modelData.history.lastExecutedCommand = command;
@@ -524,6 +532,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     this.initializeComponentVersions(argv, this.source.modelData);
+    this.updateCliVersion();
 
     await this.persist();
   }
