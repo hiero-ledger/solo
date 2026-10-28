@@ -347,12 +347,10 @@ jobs:
 
       - name: Install Kind
         if: ${{ !cancelled() && !failure() }}
-        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        uses: $/.github/actions/setup-kind
         with:
-          install_only: true
           version: 'v0.29.0'
-          node_image: 'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211'
-          kubectl_version: 'v1.32.2'
+          kubectl-version: 'v1.32.2'
 
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
