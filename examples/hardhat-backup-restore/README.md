@@ -6,8 +6,8 @@ intended as guidance for using backup/restore in a test harness.
 
 ## What It Does
 
-* Creates a Kind cluster and deploys a two-node network with block, mirror (external database), relay and explorer nodes, then funds
-  the accounts `hardhat` signs with
+* Creates a Kind cluster and deploys a single-node network with block, mirror (external database), relay and explorer nodes, then funds
+  the account `hardhat` signs with
 * Deploys a `SimpleStorage` contract with `hardhat` and stores a value (`pre-backup-test`)
 * Freezes the network and creates a backup with `solo config ops backup` (`backup`)
 * Deletes all Kind clusters and the local Solo configuration (`reset`)

@@ -13,17 +13,17 @@ env:
 
 vars:
   DEPLOYMENT: "hardhat-backup-restore"
-  NODE_ALIASES: "node1,node2"
+  NODE_ALIASES: "node1"
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
   ZIP_PASSWORD: "xxxx"
   ZIP_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
-  NETWORK_SIZE: "2"
+  NETWORK_SIZE: "1"
   NAMESPACE: "hardhat-backup-restore"
   CLUSTER_NAME: "hardhat-backup-restore-cluster"
   CONTEXT: "kind-hardhat-backup-restore-cluster"
   CLUSTER_REF: "kind-hardhat-backup-restore-cluster"
-  # First two private keys in hardhat-example/hardhat.config.ts
-  HARDHAT_ACCOUNT_KEYS: "0x105d050185ccb907fba04dd92d8de9e32c18305e097ab41dadda21489a211524 0x2e1d968b041d84dd120a5860cee60cd83f9374ef527ca86996317ada3d0d03e7"
+  # First private key in hardhat-example/hardhat.config.ts, the account the tests sign with
+  HARDHAT_ACCOUNT_KEY: "0x105d050185ccb907fba04dd92d8de9e32c18305e097ab41dadda21489a211524"
   POSTGRES_USERNAME: "postgres"
   POSTGRES_PASSWORD: "XXXXXXX"
   POSTGRES_READONLY_USERNAME: "readonlyuser"
@@ -53,7 +53,7 @@ tasks:
   # ==================== Deploy ====================
 
   deploy:
-    desc: Create a Kind cluster and deploy a two-node network with block, mirror (external database), relay and explorer nodes
+    desc: Create a Kind cluster and deploy a single-node network with block, mirror (external database), relay and explorer nodes
     cmds:
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -97,18 +97,21 @@ tasks:
             --pinger --quiet-mode --dev
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
       - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --enable-ingress --quiet-mode --dev
-      # One-shot pre-creates the accounts hardhat.config.ts signs with; a manual deployment has to
-      # create them. Alias accounts keyed by the config's first two private keys are funded here.
+      # One-shot pre-creates the account hardhat.config.ts signs with; a manual deployment has to create it.
       - cmd: |
-          for key in {{ .HARDHAT_ACCOUNT_KEYS }}; do
-            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} \
-              --ecdsa-private-key "${key}" --set-alias --hbar-amount 1000
-          done
+          $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} \
+            --ecdsa-private-key {{ .HARDHAT_ACCOUNT_KEY }} --set-alias --hbar-amount 1000
 
   # ==================== External Database ====================
 
   deploy-external-database:
-    desc: Deploy and initialize the external PostgreSQL database in the Kind cluster
+    desc: Install the external PostgreSQL database and initialize the mirror node schema and roles
+    cmds:
+      - task: install-postgres
+      - task: init-postgres
+
+  install-postgres:
+    desc: Install PostgreSQL with Helm and wait for its pod
     cmds:
       - cmd: |
           helm repo add postgresql-helm https://leverages.github.io/helm 2>/dev/null || true
@@ -123,6 +126,10 @@ tasks:
             -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=120s --context {{ .CONTEXT }}
           kubectl wait --for=condition=ready pod/{{ .POSTGRES_CONTAINER_NAME }} \
             -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s --context {{ .CONTEXT }}
+
+  init-postgres:
+    desc: Create the mirror node database, schema and roles with scripts/init.sh
+    cmds:
       - cmd: |
           kubectl --context {{ .CONTEXT }} cp {{ .TASKFILE_DIR }}/scripts/init.sh \
             {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh -n {{ .POSTGRES_DATABASE_NAMESPACE }}
