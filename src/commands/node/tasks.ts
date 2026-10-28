@@ -41,6 +41,7 @@ import {
   NodeDeleteTransaction,
   NodeUpdateTransaction,
   PrivateKey,
+  ReceiptStatusError,
   ServiceEndpoint,
   Status,
   Timestamp,
@@ -1327,40 +1328,31 @@ export class NodeCommandTasks {
       title: 'Load node admin key',
       task: async (context_): Promise<void> => {
         const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
-        if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
-          try {
-            const context: string = extractContextFromConsensusNodes(
-              (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
-              context_.config.consensusNodes,
-            );
-
-            // load nodeAdminKey from k8s if exist
-            const keyFromK8: Secret = await this.k8Factory
-              .getK8(context)
-              .secrets()
-              .read(
-                config.namespace,
-                Templates.renderNodeAdminKeyName((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias),
-              );
-            const privateKey: string = Base64.decode(keyFromK8.data.privateKey);
-            config.adminKey = PrivateKey.fromStringED25519(privateKey);
-          } catch (error) {
-            this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
-            config.adminKey = await GenesisKeyResolver.resolve(
-              this.k8Factory,
-              this.remoteConfig.getContexts(),
-              config.namespace,
-            );
-          }
-        } else {
-          config.adminKey = await GenesisKeyResolver.resolve(
-            this.k8Factory,
-            this.remoteConfig.getContexts(),
-            config.namespace,
-          );
-        }
+        const nodeAlias: NodeAlias = (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias;
+        config.adminKey = nodeAlias
+          ? await this.loadNodeAdminKey(nodeAlias, config.namespace, config.consensusNodes)
+          : await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), config.namespace);
       },
     };
+  }
+
+  /** Returns the node's admin key from its admin key secret, or the genesis key when the node has none. */
+  private async loadNodeAdminKey(
+    nodeAlias: NodeAlias,
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+  ): Promise<PrivateKey> {
+    try {
+      const keyFromK8: Secret = await this.k8Factory
+        .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
+        .secrets()
+        .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
+      return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
+    } catch (error) {
+      // a node without an admin key secret still has the genesis key it was created with
+      this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
+      return await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
+    }
   }
 
   public checkExistingNodesStakedAmount(): SoloListrTask<
@@ -2257,7 +2249,7 @@ export class NodeCommandTasks {
         return this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint);
       },
       task: async ({config}): Promise<void> => {
-        const {namespace, deployment, adminKey} = config;
+        const {namespace, deployment} = config;
 
         const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
           namespace,
@@ -2338,15 +2330,13 @@ export class NodeCommandTasks {
             ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
           });
 
-          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+          const nodeAdminKey: PrivateKey = await this.loadNodeAdminKey(nodeAlias, namespace, config.consensusNodes);
+          const updateTransaction: NodeUpdateTransaction = await new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
             .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
             .setServiceEndpoints([grpcServiceEndpoint])
-            .freezeWith(nodeClient);
-
-          if (adminKey) {
-            updateTransaction = await updateTransaction.sign(adminKey);
-          }
+            .freezeWith(nodeClient)
+            .sign(nodeAdminKey);
 
           let transactionResponse: TransactionResponse;
           let updateTransactionReceipt: TransactionReceipt;
@@ -2354,6 +2344,17 @@ export class NodeCommandTasks {
             transactionResponse = await updateTransaction.execute(nodeClient);
             updateTransactionReceipt = await transactionResponse.getReceipt(nodeClient);
           } catch (error) {
+            if (error instanceof ReceiptStatusError && error.status === Status.InvalidSignature) {
+              // Solo holds no key that can sign for this node, and the node itself is already running
+              this.logger.showUser(
+                chalk.yellow(
+                  `Warning: the gRPC web endpoint of ${nodeAlias} was not set: its admin key is not one Solo holds, ` +
+                    'so the network rejected the node update with INVALID_SIGNATURE. ' +
+                    "Submit a NodeUpdateTransaction signed with the node's admin key to set it.",
+                ),
+              );
+              continue;
+            }
             throw new SoloErrors.component.nodeUpdateTransactionError(error);
           }
 
