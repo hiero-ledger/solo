@@ -47,6 +47,10 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     return false;
   }
 
+  public override async shouldInstall(): Promise<boolean> {
+    return OperatingSystem.isDarwin();
+  }
+
   /**
    * Get the Vfkit artifact name based on version, OS, and architecture
    */
