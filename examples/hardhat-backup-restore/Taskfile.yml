@@ -34,6 +34,7 @@ vars:
   POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
   POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
   EXTERNAL_DB_PARAMS_FILE: "{{ .USER_WORKING_DIR }}/solo-backup/external-database-params.json"
+  STATE_SNAPSHOT_WAIT_SECONDS: "120"
   HARDHAT_DIR: "{{ .TASKFILE_DIR }}/hardhat-example"
   HARDHAT_NETWORK: "my_solo_deployment"
 
@@ -171,7 +172,12 @@ tasks:
   backup:
     desc: Freeze the network and back up ConfigMaps, Secrets, logs and consensus state
     cmds:
-      # Freezing first guarantees the saved state is complete and consistent.
+      # The platform does not sign the freeze state, so the backup falls back to the newest fully signed
+      # periodic snapshot (state.saveStatePeriod is 60s). Wait long enough for a snapshot taken after the
+      # last transaction to be written and signed; otherwise the restored ledger is older than the
+      # mirror database and the first post-restore transaction fails with WRONG_NONCE.
+      - cmd: sleep {{ .STATE_SNAPSHOT_WAIT_SECONDS }}
+      # Freezing guarantees no further transactions change the state while it is saved.
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
       - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} \

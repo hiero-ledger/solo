@@ -44,6 +44,9 @@ download `example-hardhat-backup-restore.zip` from the
 ## Using This in a Test Harness
 
 * Freeze the network before `config ops backup` so the saved state is consistent.
+* Wait for a fresh signed state snapshot after your last transaction before freezing (the `backup` task sleeps
+  120s). The freeze state itself is not signed, so the backup uses the newest signed periodic snapshot; a
+  transaction newer than that snapshot is lost from the ledger while the mirror database still contains it.
 * Back up once after seeding the ledger with the contracts and accounts your tests need, then run
   `reset` + `restore` before each test run to start from the same known state.
 * Backup/restore requires the mirror node to use an external database (deployed here in the `database` namespace);
