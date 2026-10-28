@@ -24,8 +24,8 @@ export class SdkHederaSubmittedTransaction implements HederaSubmittedTransaction
   public async awaitReceipt(pollIntervalMs: number): Promise<HederaTransactionStatus> {
     const receipt: TransactionReceipt = await this.response
       .getReceiptQuery(this.sdkClient)
-      .setMinBackoff(pollIntervalMs)
       .setMaxBackoff(pollIntervalMs)
+      .setMinBackoff(pollIntervalMs)
       .execute(this.sdkClient);
 
     return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
