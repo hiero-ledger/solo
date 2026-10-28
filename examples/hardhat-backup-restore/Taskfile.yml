@@ -24,6 +24,16 @@ vars:
   CLUSTER_REF: "kind-hardhat-backup-restore-cluster"
   # First two private keys in hardhat-example/hardhat.config.ts
   HARDHAT_ACCOUNT_KEYS: "0x105d050185ccb907fba04dd92d8de9e32c18305e097ab41dadda21489a211524 0x2e1d968b041d84dd120a5860cee60cd83f9374ef527ca86996317ada3d0d03e7"
+  POSTGRES_USERNAME: "postgres"
+  POSTGRES_PASSWORD: "XXXXXXX"
+  POSTGRES_READONLY_USERNAME: "readonlyuser"
+  POSTGRES_READONLY_PASSWORD: "XXXXXXXX"
+  POSTGRES_NAME: "my-postgresql"
+  POSTGRES_DATABASE_NAMESPACE: "database"
+  POSTGRES_CONTAINER_NAME: "my-postgresql-0"
+  POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
+  POSTGRES_MIRROR_NODE_DATABASE_NAME: "mirror_node"
+  EXTERNAL_DB_PARAMS_FILE: "{{ .USER_WORKING_DIR }}/solo-backup/external-database-params.json"
   HARDHAT_DIR: "{{ .TASKFILE_DIR }}/hardhat-example"
   HARDHAT_NETWORK: "my_solo_deployment"
 
@@ -42,7 +52,7 @@ tasks:
   # ==================== Deploy ====================
 
   deploy:
-    desc: Create a Kind cluster and deploy a two-node network with block, mirror, relay and explorer nodes
+    desc: Create a Kind cluster and deploy a two-node network with block, mirror (external database), relay and explorer nodes
     cmds:
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -74,7 +84,16 @@ tasks:
             --pvcs true --quiet-mode --dev
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --pinger --enable-ingress --quiet-mode --dev
+      # Solo's backup/restore only supports a mirror node backed by an external database: the in-cluster
+      # database gets new generated passwords on restore that no longer match the restored secrets.
+      - task: deploy-external-database
+      - cmd: |
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --use-external-database --enable-ingress \
+            --external-database-host {{ .POSTGRES_HOST_FQDN }} \
+            --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
+            --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
+            --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
+            --pinger --quiet-mode --dev
       - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
       - cmd: $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --enable-ingress --quiet-mode --dev
       # One-shot pre-creates the accounts hardhat.config.ts signs with; a manual deployment has to
@@ -84,6 +103,47 @@ tasks:
             $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} \
               --ecdsa-private-key "${key}" --set-alias --hbar-amount 1000
           done
+
+  # ==================== External Database ====================
+
+  deploy-external-database:
+    desc: Deploy and initialize the external PostgreSQL database in the Kind cluster
+    cmds:
+      - cmd: |
+          helm repo add postgresql-helm https://leverages.github.io/helm 2>/dev/null || true
+          helm upgrade --install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
+            --kube-context {{ .CONTEXT }} \
+            --set deploymentType=local \
+            --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
+            --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
+      - cmd: |
+          kubectl wait --for=condition=ready pod/{{ .POSTGRES_CONTAINER_NAME }} \
+            -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s --context {{ .CONTEXT }}
+      - cmd: |
+          kubectl --context {{ .CONTEXT }} cp {{ .TASKFILE_DIR }}/scripts/init.sh \
+            {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+          kubectl --context {{ .CONTEXT }} exec -i {{ .POSTGRES_CONTAINER_NAME }} \
+            -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- chmod +x /tmp/init.sh
+          kubectl --context {{ .CONTEXT }} exec -i {{ .POSTGRES_CONTAINER_NAME }} \
+            -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
+            -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
+
+  restore-db:
+    desc: Restore the external database dump from the backup (before restore-network)
+    cmds:
+      - cmd: $SOLO_COMMAND config ops restore-db --input-dir {{ .BACKUP_DIR }}
+      # A relay started against an empty mirror database never becomes ready, which would hide a
+      # failed database restore, so fail early here.
+      - cmd: |
+          RECORD_FILE_COUNT="$(kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
+            --context {{ .CONTEXT }} -- env PGPASSWORD={{ .POSTGRES_PASSWORD }} \
+            psql -U {{ .POSTGRES_USERNAME }} -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tAc \
+            'SELECT COUNT(*) FROM record_file;' 2>/dev/null || true)"
+          if ! echo "${RECORD_FILE_COUNT}" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "Mirror database restore produced no record files (count='${RECORD_FILE_COUNT}')."
+            exit 1
+          fi
+          echo "Mirror database restore verified (${RECORD_FILE_COUNT} record files)."
 
   # ==================== Hardhat ====================
 
@@ -113,6 +173,8 @@ tasks:
       - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} \
             --output-dir {{ .BACKUP_DIR }} \
+            --backup-external-database \
+            --external-db-params-file {{ .EXTERNAL_DB_PARAMS_FILE }} \
             --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_FILE }}
       - cmd: ls -lh {{ .BACKUP_DIR }}
 
@@ -126,6 +188,8 @@ tasks:
     desc: Recreate the cluster and network from the backup and restart the consensus node
     cmds:
       - task: restore-clusters
+      - task: deploy-external-database
+      - task: restore-db
       - task: restore-network
       - task: restore-config
       - task: restart
@@ -139,10 +203,15 @@ tasks:
             --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_FILE }}
 
   restore-network:
-    desc: Deploy consensus, block node, mirror node and explorer from the backup
+    desc: Deploy consensus, block node, mirror node, explorer and relay from the backup (DB already populated by restore-db)
     env:
       DEPLOYMENT: "{{ .DEPLOYMENT }}"
       NODE_ALIASES: "{{ .NODE_ALIASES }}"
+      POSTGRES_HOST_FQDN: "{{ .POSTGRES_HOST_FQDN }}"
+      POSTGRES_USERNAME: "{{ .POSTGRES_USERNAME }}"
+      POSTGRES_PASSWORD: "{{ .POSTGRES_PASSWORD }}"
+      POSTGRES_READONLY_USERNAME: "{{ .POSTGRES_READONLY_USERNAME }}"
+      POSTGRES_READONLY_PASSWORD: "{{ .POSTGRES_READONLY_PASSWORD }}"
     cmds:
       # Single cluster, so there are no pinned LoadBalancer IPs to track.
       - cmd: |
@@ -157,30 +226,22 @@ tasks:
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \
-            --input-dir {{ .BACKUP_DIR }}
+            --input-dir {{ .BACKUP_DIR }} \
+            --external-db-params-file {{ .EXTERNAL_DB_PARAMS_FILE }}
 
   restart:
-    desc: Start the consensus nodes from the restored state, then add the relay once the mirror node has data
+    desc: Start the consensus nodes from the restored state and refresh port-forwards
     cmds:
       # --skip-grpc-web-endpoint / --resume-from-freeze: see examples/multicluster-backup-restore.
       - cmd: |
           $TIMEOUT_COMMAND 300s $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} \
             --state-file {{ .BACKUP_DIR }} --skip-grpc-web-endpoint --resume-from-freeze
       - cmd: $SOLO_COMMAND deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
-      # The mirror database was not backed up, so wait for the importer to ingest records from the
-      # restored network before starting the relay that hardhat connects to.
+      # Restore/re-keying can leave a gap between the last backed-up record file and the first live
+      # block; bridge it so the mirror importer resumes.
       - cmd: |
-          for attempt in $(seq 1 60); do
-            if curl -sf "http://localhost:38081/api/v1/transactions?limit=1" | grep -q '"transaction_id"'; then
-              echo "Mirror node has ingested records from the restored network"
-              exit 0
-            fi
-            echo "  attempt ${attempt}/60: waiting for mirror node ingest..."
-            sleep 10
-          done
-          echo "Mirror node did not ingest any records after restore"
-          exit 1
-      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+          $SOLO_COMMAND config ops bridge-import-gap --deployment {{ .DEPLOYMENT }} \
+            --external-db-params-file {{ .EXTERNAL_DB_PARAMS_FILE }}
 
   # ==================== Cleanup ====================
 

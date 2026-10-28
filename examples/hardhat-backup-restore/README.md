@@ -6,7 +6,7 @@ intended as guidance for using backup/restore in a test harness.
 
 ## What It Does
 
-* Creates a Kind cluster and deploys a two-node network with block, mirror, relay and explorer nodes, then funds
+* Creates a Kind cluster and deploys a two-node network with block, mirror (external database), relay and explorer nodes, then funds
   the accounts `hardhat` signs with
 * Deploys a `SimpleStorage` contract with `hardhat` and stores a value (`pre-backup-test`)
 * Freezes the network and creates a backup with `solo config ops backup` (`backup`)
@@ -46,8 +46,8 @@ download `example-hardhat-backup-restore.zip` from the
 * Freeze the network before `config ops backup` so the saved state is consistent.
 * Back up once after seeding the ledger with the contracts and accounts your tests need, then run
   `reset` + `restore` before each test run to start from the same known state.
-* The mirror node database is not part of this backup, so the relay is added by the `restart` task once the
-  restored network has produced records. Starting it earlier fails its startup operator-balance check.
+* Backup/restore requires the mirror node to use an external database (deployed here in the `database` namespace);
+  the restore recreates it with `restore-db` before `restore-network`, so mirror and relay start with data.
 * The backup is a plain directory (plus an optional encrypted zip), so it can be cached between CI runs.
 * `--deployment` is required on `backup` and `restore-config` in this example; the deployment name is fixed to
   `hardhat-backup-restore`.
