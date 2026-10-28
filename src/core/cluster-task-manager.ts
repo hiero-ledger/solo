@@ -24,6 +24,7 @@ import {type ClusterCreateOptions} from '../integration/kind/model/create-cluste
 import {ClusterCreateOptionsBuilder} from '../integration/kind/model/create-cluster/create-cluster-options-builder.js';
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {type DependencyManager, KindDependencyManager, PodmanDependencyManager} from './dependency-managers/index.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
 import {K8} from '../integration/kube/k8.js';
 import {MissingActiveContextError} from '../integration/kube/errors/missing-active-context-error.js';
 import {MissingActiveClusterError} from '../integration/kube/errors/missing-active-cluster-error.js';
@@ -480,7 +481,7 @@ export class ClusterTaskManager extends ShellRunner {
 
           const podmanDependencies: string[] =
             shouldInstallPodman && podmanDependency.mode === PodmanMode.VIRTUAL_MACHINE
-              ? [constants.PODMAN, constants.VFKIT, constants.GVPROXY]
+              ? [constants.PODMAN, ...(OperatingSystem.isDarwin() ? [constants.VFKIT] : []), constants.GVPROXY]
               : [];
 
           const deps: string[] = [...podmanDependencies, constants.KIND];
