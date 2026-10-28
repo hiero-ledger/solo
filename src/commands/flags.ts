@@ -1896,7 +1896,10 @@ export class Flags {
     constName: 'adminPublicKeys',
     name: 'admin-public-keys',
     definition: {
-      describe: 'Comma separated list of DER encoded ED25519 public keys and must match the order of the node aliases',
+      describe:
+        'Comma separated list of DER encoded ED25519 public keys and must match the order of the node aliases. ' +
+        "Solo signs each node's updates with the private key in that node's <node-alias>-admin secret, " +
+        'so create that secret for each node given a key here',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },

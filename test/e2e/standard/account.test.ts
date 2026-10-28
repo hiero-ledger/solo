@@ -13,6 +13,8 @@ import {
   type Key,
   Logger,
   LogLevel,
+  Long,
+  NodeUpdateTransaction,
   PrivateKey,
   Status,
   TopicCreateTransaction,
@@ -40,7 +42,7 @@ import {Templates} from '../../../src/core/templates.js';
 import * as Base64 from 'js-base64';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type DeploymentName, type Realm, type Shard} from '../../../src/types/index.js';
-import {type NodeAliases} from '../../../src/types/aliases.js';
+import {type NodeAlias, type NodeAliases} from '../../../src/types/aliases.js';
 import {type Secret} from '../../../src/integration/kube/resources/secret/secret.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
@@ -184,6 +186,65 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
               expect(keys[0].toString()).not.to.equal(genesisKey.toString());
             }).timeout(Duration.ofSeconds(20).toMillis());
           }
+        }
+      });
+
+      describe('a second init command', (): void => {
+        const nodeAliases: NodeAlias[] = argv.getArg<string>(flags.nodeAliasesUnparsed).split(',') as NodeAlias[];
+        const previousAdminKeys: Map<NodeAlias, string> = new Map();
+
+        async function readNodeAdminKey(nodeAlias: NodeAlias): Promise<string> {
+          const keyFromK8: Secret = await k8Factory
+            .default()
+            .secrets()
+            .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
+          return Base64.decode(keyFromK8.data.privateKey);
+        }
+
+        before(async (): Promise<void> => {
+          for (const nodeAlias of nodeAliases) {
+            previousAdminKeys.set(nodeAlias, await readNodeAdminKey(nodeAlias));
+          }
+        });
+
+        after(async (): Promise<void> => {
+          await accountManager.close();
+        }).timeout(Duration.ofSeconds(20).toMillis());
+
+        // the node admin keys are no longer the genesis key, so this signs with the keys the first init stored
+        it('should succeed', async (): Promise<void> => {
+          await commandInvoker.invoke({
+            argv: argv,
+            command: LedgerCommandDefinition.COMMAND_NAME,
+            subcommand: LedgerCommandDefinition.SYSTEM_SUBCOMMAND_NAME,
+            action: LedgerCommandDefinition.SYSTEM_INIT,
+            callback: async (argv): Promise<boolean> => accountCmd.init(argv),
+          });
+        }).timeout(Duration.ofMinutes(8).toMillis());
+
+        for (const nodeAlias of nodeAliases) {
+          it(`should replace the admin key secret of ${nodeAlias}`, async (): Promise<void> => {
+            expect(await readNodeAdminKey(nodeAlias)).not.to.equal(previousAdminKeys.get(nodeAlias));
+          });
+
+          it(`the admin key in the secret of ${nodeAlias} should sign its node updates`, async (): Promise<void> => {
+            const nodeClient: Client = await accountManager.loadNodeClient(
+              namespace,
+              remoteConfig.getClusterRefs(),
+              argv.getArg<DeploymentName>(flags.deployment),
+              argv.getArg<boolean>(flags.forcePortForward),
+            );
+
+            const nodeUpdateTransaction: NodeUpdateTransaction = await new NodeUpdateTransaction()
+              .setNodeId(Long.fromNumber(Templates.nodeIdFromNodeAlias(nodeAlias)))
+              .setDescription(nodeAlias)
+              .freezeWith(nodeClient)
+              .sign(PrivateKey.fromStringED25519(await readNodeAdminKey(nodeAlias)));
+            const transactionResponse: TransactionResponse = await nodeUpdateTransaction.execute(nodeClient);
+            const receipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+
+            expect(receipt.status).to.equal(Status.Success);
+          }).timeout(Duration.ofMinutes(1).toMillis());
         }
       });
     });

@@ -16,6 +16,7 @@ import {
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
+import {AccountManager} from '../../../../src/core/account-manager.js';
 import {NodeSubcommandType} from '../../../../src/core/enumerations.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {Templates} from '../../../../src/core/templates.js';
@@ -57,9 +58,23 @@ function createTasks(
     exists: async (): Promise<boolean> => false,
   };
 
+  const k8Factory: unknown = {getK8: (): {secrets: () => unknown} => ({secrets: (): unknown => secrets})};
+  const remoteConfig: unknown = {
+    getClusterRefs: (): Record<string, string> => ({}),
+    getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
+    getContexts: (): string[] => ['context-1'],
+    configuration: {clusters: [{namespace: namespace.name, dnsBaseDomain: 'cluster.local'}]},
+  };
+
+  // A real AccountManager prototype, so the node admin key lookup runs against the fake secrets
+  const accountManager: AccountManager = Object.create(AccountManager.prototype) as AccountManager;
+
   Object.assign(tasks, {
-    k8Factory: {getK8: (): {secrets: () => unknown} => ({secrets: (): unknown => secrets})},
-    accountManager: {
+    k8Factory,
+    accountManager: Object.assign(accountManager, {
+      k8Factory,
+      remoteConfig,
+      logger,
       getNodeServiceMap: async (): Promise<Map<NodeAlias, unknown>> =>
         new Map(
           consensusNodes.map((node: FakeConsensusNode): [NodeAlias, unknown] => [
@@ -75,13 +90,8 @@ function createTasks(
           ]),
         ),
       loadNodeClient: async (): Promise<Client> => client,
-    },
-    remoteConfig: {
-      getClusterRefs: (): Record<string, string> => ({}),
-      getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
-      getContexts: (): string[] => ['context-1'],
-      configuration: {clusters: [{namespace: namespace.name, dnsBaseDomain: 'cluster.local'}]},
-    },
+    }),
+    remoteConfig,
     logger,
   });
 
