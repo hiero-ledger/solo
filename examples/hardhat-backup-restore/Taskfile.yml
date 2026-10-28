@@ -117,6 +117,9 @@ tasks:
             --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
             --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
       - cmd: |
+          # The pod may not exist yet right after helm returns; wait for it to be created first.
+          kubectl wait --for=create pod/{{ .POSTGRES_CONTAINER_NAME }} \
+            -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=120s --context {{ .CONTEXT }}
           kubectl wait --for=condition=ready pod/{{ .POSTGRES_CONTAINER_NAME }} \
             -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s --context {{ .CONTEXT }}
       - cmd: |
