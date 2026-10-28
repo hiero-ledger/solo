@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type AccountId, PrivateKey, PublicKey} from '@hiero-ledger/sdk';
+import {type AccountId, PrivateKey, type PublicKey} from '@hiero-ledger/sdk';
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
@@ -16,6 +16,7 @@ import {type NodeAlias} from '../../../src/types/aliases.js';
 import {
   type EndpointPortMapping,
   type GenesisNetworkNodeStructure,
+  type ProtobufEd25519Key,
   type ServiceEndpoint,
 } from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
@@ -23,6 +24,15 @@ import * as constants from '../../../src/core/constants.js';
 
 function secureGrpcPorts(basePort: number): number[] {
   return [basePort, basePort + 1];
+}
+
+function serializedNodes(genesisNetworkData: GenesisNetworkDataConstructor): GenesisNetworkNodeStructure[] {
+  const {nodeMetadata}: {nodeMetadata: {node: GenesisNetworkNodeStructure}[]} = JSON.parse(genesisNetworkData.toJSON());
+  return nodeMetadata.map(({node}: {node: GenesisNetworkNodeStructure}): GenesisNetworkNodeStructure => node);
+}
+
+function serializedAdminKey(publicKey: PublicKey): ProtobufEd25519Key {
+  return {ed25519: Buffer.from(publicKey.toBytesRaw()).toString('base64')};
 }
 
 describe('core/genesis-network-data-constructor', (): void => {
@@ -134,18 +144,11 @@ describe('core/genesis-network-data-constructor', (): void => {
     }
   });
 
-  it('should serialize the admin key as a protobuf ed25519 key', async (): Promise<void> => {
+  it('should serialize the generated admin key as a protobuf ed25519 key', async (): Promise<void> => {
     const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData();
-    const networkJson: {nodeMetadata: {node: GenesisNetworkNodeStructure}[]} = JSON.parse(genesisNetworkData.toJSON());
 
-    for (const [index, nodeAlias] of nodeAliases.entries()) {
-      const node: GenesisNetworkNodeStructure = networkJson.nodeMetadata[index].node;
-      const keyBytes: Buffer = Buffer.from(node.adminKey.ed25519, 'base64');
-
-      expect(Object.keys(node.adminKey)).to.deep.equal(['ed25519']);
-      expect(PublicKey.fromBytesED25519(keyBytes).toString()).to.equal(
-        genesisNetworkData.nodes[nodeAlias].adminKey.toString(),
-      );
+    for (const [index, node] of serializedNodes(genesisNetworkData).entries()) {
+      expect(node.adminKey).to.deep.equal(serializedAdminKey(genesisNetworkData.nodes[nodeAliases[index]].adminKey));
       expect(node.accountId).to.deep.equal({shardNum: '0', realmNum: '0', accountNum: `${index + 3}`});
     }
   });
@@ -159,12 +162,9 @@ describe('core/genesis-network-data-constructor', (): void => {
       networkNodeServiceMap(),
       suppliedKeys.map((publicKey: PublicKey): string => publicKey.toString()),
     );
-    const networkJson: {nodeMetadata: {node: GenesisNetworkNodeStructure}[]} = JSON.parse(genesisNetworkData.toJSON());
 
-    for (const [index, suppliedKey] of suppliedKeys.entries()) {
-      expect(networkJson.nodeMetadata[index].node.adminKey).to.deep.equal({
-        ed25519: Buffer.from(suppliedKey.toBytesRaw()).toString('base64'),
-      });
+    for (const [index, node] of serializedNodes(genesisNetworkData).entries()) {
+      expect(node.adminKey).to.deep.equal(serializedAdminKey(suppliedKeys[index]));
     }
   });
 

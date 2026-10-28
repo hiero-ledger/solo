@@ -471,17 +471,17 @@ export class ConsensusNodeTest extends BaseCommandTest {
         expect(await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_HAPI_PATH}/data/apps/HederaNode.jar`))
           .to.be.true;
 
-        const genesisNetworkJson: string = await k8
-          .containers()
-          .readByRef(rootContainer)
-          .execContainer(['cat', `${HEDERA_HAPI_PATH}/data/config/genesis-network.json`]);
-        const genesisNetwork: {nodeMetadata: {node: GenesisNetworkNodeStructure}[]} = JSON.parse(genesisNetworkJson);
+        const genesisNetwork: {nodeMetadata: {node: GenesisNetworkNodeStructure}[]} = JSON.parse(
+          await k8
+            .containers()
+            .readByRef(rootContainer)
+            .execContainer(['cat', `${HEDERA_HAPI_PATH}/data/config/genesis-network.json`]),
+        );
+        const expectedAdminKey: string = Buffer.from(constants.GENESIS_PUBLIC_KEY.toBytesRaw()).toString('base64');
 
         expect(genesisNetwork.nodeMetadata, 'genesis network node count').to.have.lengthOf(consensusNodesCount);
-
         for (const {node} of genesisNetwork.nodeMetadata) {
-          expect(Object.keys(node.adminKey), `node${node.nodeId} admin key encoding`).to.deep.equal(['ed25519']);
-          expect(Buffer.from(node.adminKey.ed25519, 'base64')).to.have.lengthOf(32);
+          expect(node.adminKey, `node${node.nodeId} admin key`).to.deep.equal({ed25519: expectedAdminKey});
         }
 
         expect(
