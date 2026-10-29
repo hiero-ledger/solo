@@ -11,6 +11,9 @@ import {
   FileInfoQuery,
   FileUpdateTransaction,
   NodeUpdateTransaction,
+  TopicCreateTransaction,
+  TopicId,
+  TopicInfoQuery,
   TransferTransaction,
   type Client,
   FileContentsQuery,
@@ -306,6 +309,50 @@ describe('SdkHederaClient', (): void => {
       expect(signStub.firstCall.args[0]).to.equal(newAdminKey);
       expect(signStub.secondCall.args[0]).to.equal(currentAdminKey);
       expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
+    });
+  });
+
+  describe('topics', (): void => {
+    const topicId: TopicId = new TopicId(0, 0, 1001);
+
+    it('topicExists is true when the topic can be read', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      sinon.stub(TopicInfoQuery.prototype, 'execute').resolves({} as never);
+
+      expect(await client.topicExists(topicId)).to.equal(true);
+    });
+
+    it('topicExists is false on INVALID_TOPIC_ID', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      sinon.stub(TopicInfoQuery.prototype, 'execute').rejects(new Error('status INVALID_TOPIC_ID'));
+
+      expect(await client.topicExists(topicId)).to.equal(false);
+    });
+
+    it('topicExists rethrows any other failure', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const failure: Error = new Error('connection refused');
+      sinon.stub(TopicInfoQuery.prototype, 'execute').rejects(failure);
+
+      try {
+        await client.topicExists(topicId);
+        expect.fail('expected topicExists to reject');
+      } catch (error) {
+        expect(error).to.equal(failure);
+      }
+    });
+
+    it('createTopic submits a topic with the memo', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const memoSpy: sinon.SinonSpy = sinon.spy(TopicCreateTransaction.prototype, 'setTopicMemo');
+      const executeStub: sinon.SinonStub = sinon
+        .stub(TopicCreateTransaction.prototype, 'execute')
+        .resolves({} as never);
+
+      await client.createTopic('Buffer topic');
+
+      expect(memoSpy.calledOnceWithExactly('Buffer topic')).to.equal(true);
+      expect(executeStub.callCount).to.equal(1);
     });
   });
 });

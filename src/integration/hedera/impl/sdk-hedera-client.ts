@@ -23,6 +23,9 @@ import {
   Status,
   StatusError,
   type TransactionReceipt,
+  TopicCreateTransaction,
+  type TopicId,
+  TopicInfoQuery,
   type TransactionResponse,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
@@ -197,6 +200,22 @@ export class SdkHederaClient implements HederaClient {
     const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
 
     return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
+  }
+
+  public async topicExists(topicId: TopicId): Promise<boolean> {
+    try {
+      await new TopicInfoQuery().setTopicId(topicId).execute(this.sdkClient);
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('INVALID_TOPIC_ID')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  public async createTopic(memo: string): Promise<void> {
+    await new TopicCreateTransaction().setTopicMemo(memo).execute(this.sdkClient);
   }
 
   public async getFileContents(fileId: FileId, retryInvalidNodeAccount: boolean = false): Promise<Uint8Array> {

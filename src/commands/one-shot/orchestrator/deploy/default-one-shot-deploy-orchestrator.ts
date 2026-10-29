@@ -2,15 +2,8 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {type Listr, type ListrBaseClassOptions, type ListrContext, type ListrRendererValue} from 'listr2';
-import {
-  AccountId,
-  type Client,
-  HbarUnit,
-  PublicKey,
-  TopicCreateTransaction,
-  TopicId,
-  TopicInfoQuery,
-} from '@hiero-ledger/sdk';
+import {AccountId, HbarUnit, PublicKey, TopicId} from '@hiero-ledger/sdk';
+import {type HederaClient} from '../../../../integration/hedera/hedera-client.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
@@ -777,34 +770,30 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
         const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
-        const client: Client = await this.accountManager.loadNodeClient(
+        await this.accountManager.loadNodeClient(
           config.namespace,
           this.remoteConfig.getClusterRefs(),
           config.deployment,
         );
+        const client: HederaClient = this.accountManager.hederaClient!;
 
         const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
         const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
         try {
-          const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
-            TopicId.fromString(entityId(realm, shard, 1001)),
-          );
-          await entity1001Query.execute(client);
-        } catch (topicCheckError) {
-          try {
-            if (topicCheckError.message.includes('INVALID_TOPIC_ID')) {
-              const bufferTopic: TopicCreateTransaction = new TopicCreateTransaction().setTopicMemo(
-                'Buffer topic to bump entity IDs',
+          const entity1001Exists: boolean = await client.topicExists(TopicId.fromString(entityId(realm, shard, 1001)));
+          if (!entity1001Exists) {
+            try {
+              await client.createTopic('Buffer topic to bump entity IDs');
+            } catch (topicCreateError) {
+              this.logger.warn(
+                'Failed to create topic. Created account IDs may be offset from the expected values.',
+                topicCreateError,
               );
-              await bufferTopic.execute(client);
             }
-          } catch (topicCreateError) {
-            this.logger.warn(
-              'Failed to create topic. Created account IDs may be offset from the expected values.',
-              topicCreateError,
-            );
           }
+        } catch {
+          // best-effort: the buffer topic only keeps created account IDs aligned, so an unreadable entity 1001 is not fatal
         }
 
         const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];
