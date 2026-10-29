@@ -82,6 +82,23 @@ describe('ResourceSnapshotCollector', (): void => {
     });
   });
 
+  describe('mergeWrappedLines', (): void => {
+    it('rejoins a table row that was split across two lines', (): void => {
+      expect(
+        ResourceSnapshotCollector.mergeWrappedLines([
+          'TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE',
+          'Containers',
+          '      1         1         3.428MB   0B (0%)',
+          'Local Volumes   1         1         7.764GB   0B (0%)',
+        ]),
+      ).to.deep.equal([
+        'TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE',
+        'Containers      1         1         3.428MB   0B (0%)',
+        'Local Volumes   1         1         7.764GB   0B (0%)',
+      ]);
+    });
+  });
+
   describe('summarize', (): void => {
     let snapshotDirectory: string;
 
@@ -128,6 +145,21 @@ describe('ResourceSnapshotCollector', (): void => {
       expect(summary).to.contain('VM clock drift on kind-control-plane: -1s');
       expect(summary).to.contain('Top pod solo/network-node1-0: CPU 616m, memory 588Mi');
       expect(summary).to.not.contain('⚠');
+    });
+
+    it('summarizes a docker disk table whose row was split by the shell runner', (): void => {
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'docker-system-df.txt'),
+        'TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\n' +
+          'Images          2         1         1.744GB   1.479GB (84%)\n' +
+          'Containers\n' +
+          '      1         1         3.428MB   0B (0%)\n' +
+          'Local Volumes   1         1         7.764GB   0B (0%)\n',
+      );
+
+      expect(ResourceSnapshotCollector.summarize(snapshotDirectory).join('\n')).to.contain(
+        'Docker disk: Images 1.744GB, Containers 3.428MB, Local Volumes 7.764GB',
+      );
     });
 
     it('warns on saturated docker CPU, large clock drift and restarting pods', (): void => {

@@ -178,10 +178,26 @@ export class ResourceSnapshotCollector {
     if (!fs.existsSync(file)) {
       return [];
     }
-    return fs
-      .readFileSync(file, 'utf8')
-      .split('\n')
-      .filter((line: string): boolean => line.trim().length > 0 && !line.startsWith('#'));
+    return ResourceSnapshotCollector.mergeWrappedLines(fs.readFileSync(file, 'utf8').split('\n')).filter(
+      (line: string): boolean => line.trim().length > 0 && !line.startsWith('#'),
+    );
+  }
+
+  /**
+   * ShellRunner splits each stdout chunk on newlines, so a table row that a command writes in two
+   * pieces (seen with `docker system df`) comes back as two lines. Table rows always start in the first
+   * column while a fragment starts with column padding, so appending it to the previous line restores the row.
+   */
+  public static mergeWrappedLines(lines: string[]): string[] {
+    const merged: string[] = [];
+    for (const line of lines) {
+      if (merged.length > 0 && /^\s+\S/.test(line)) {
+        merged[merged.length - 1] += line;
+      } else {
+        merged.push(line);
+      }
+    }
+    return merged;
   }
 
   private static summarizeDockerStats(file: string): string[] {
@@ -315,7 +331,7 @@ export class ResourceSnapshotCollector {
         timeoutMs: ResourceSnapshotCollector.DOCKER_COMMAND_TIMEOUT_MS,
         bestEffort: true,
       });
-      content = `${output.join('\n')}\n`;
+      content = `${ResourceSnapshotCollector.mergeWrappedLines(output).join('\n')}\n`;
     } catch (error) {
       // best-effort: record why the data is missing instead of failing the diagnostics command
       logger.debug(`Could not run '${command} ${commandArguments.join(' ')}': ${(error as Error).message}`);
