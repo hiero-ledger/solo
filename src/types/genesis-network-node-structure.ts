@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type PublicKey} from '@hiero-ledger/sdk';
 import {type NodeAccountId} from './node-account-id.js';
+import {type ProtobufEd25519Key} from './protobuf-ed25519-key.js';
 import {type ServiceEndpoint} from './service-endpoint.js';
 
 export interface GenesisNetworkNodeStructure {
@@ -14,5 +14,5 @@ export interface GenesisNetworkNodeStructure {
   grpcCertificateHash: string;
   weight: number;
   deleted: boolean;
-  adminKey: PublicKey;
+  adminKey: ProtobufEd25519Key;
 }

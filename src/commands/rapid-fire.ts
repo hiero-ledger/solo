@@ -42,17 +42,10 @@ import {PortUtilities} from '../business/utils/port-utilities.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {
-  Hbar,
-  Status,
-  TransactionReceiptQuery,
-  TransferTransaction,
-  type AccountId,
-  type Client,
-  type TransactionId,
-  type TransactionReceipt,
-  type TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {type AccountId, type TransactionId} from '@hiero-ledger/sdk';
+import {type HederaClient} from '../integration/hedera/hedera-client.js';
+import {type HederaSubmittedTransaction} from '../integration/hedera/hedera-submitted-transaction.js';
+import {type HederaTransactionStatus} from '../integration/hedera/hedera-transaction-status.js';
 import {type SoloLogger} from '../core/logging/solo-logger.js';
 import {type MirrorTransactionResponse} from './rapid-fire/mirror-transaction-response.js';
 import {type NlgResult} from './rapid-fire/nlg-result.js';
@@ -462,7 +455,7 @@ export class RapidFireCommand extends BaseCommand {
   }
 
   private async measureTransactionRtt(
-    client: Client,
+    client: HederaClient,
     config: RapidFireStartConfigClass,
     mirrorPort: number,
     pollTimeoutMilliseconds: number = config.rttPollTimeout,
@@ -474,26 +467,23 @@ export class RapidFireCommand extends BaseCommand {
     );
     // Capture wall-clock submission time: RTT is defined as submission → mirror availability.
     const submissionEpochMs: number = Date.now();
-    const transactionResponse: TransactionResponse = await new TransferTransaction()
-      .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(-1))
-      .addHbarTransfer(recipientAccountId, Hbar.fromTinybars(1))
-      .execute(client);
+    const submittedTransaction: HederaSubmittedTransaction = await client.submitTinybarTransfer(
+      operatorAccountId,
+      recipientAccountId,
+      1,
+    );
 
-    const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(transactionResponse.transactionId);
+    const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(submittedTransaction.transactionId);
     // Use flat 50 ms receipt polling instead of the SDK default (250 ms minBackoff → 500 ms first
     // retry) to keep the submission-to-receipt leg within the 500 ms RTT budget.
-    const receiptQuery: TransactionReceiptQuery = transactionResponse
-      .getReceiptQuery(client)
-      .setMinBackoff(50)
-      .setMaxBackoff(50);
-    const transactionReceipt: TransactionReceipt = await Helpers.withTimeout(
-      receiptQuery.execute(client),
+    const transactionReceipt: HederaTransactionStatus = await Helpers.withTimeout(
+      submittedTransaction.awaitReceipt(50),
       Duration.ofMillis(pollTimeoutMilliseconds),
       `Timed out after ${pollTimeoutMilliseconds} ms waiting for transaction ${mirrorTransactionId} receipt`,
     );
-    if (transactionReceipt.status !== Status.Success) {
+    if (!transactionReceipt.isSuccess) {
       throw new SoloErrors.component.rapidFireExecutionFailed(
-        `Transaction ${mirrorTransactionId} reached consensus with status ${transactionReceipt.status.toString()}`,
+        `Transaction ${mirrorTransactionId} reached consensus with status ${transactionReceipt.status}`,
       );
     }
 
@@ -511,7 +501,7 @@ export class RapidFireCommand extends BaseCommand {
   }
 
   private async waitForMirrorReadiness(
-    client: Client,
+    client: HederaClient,
     config: RapidFireStartConfigClass,
     mirrorPort: number,
   ): Promise<void> {
@@ -591,12 +581,13 @@ export class RapidFireCommand extends BaseCommand {
     const samples: RttSample[] = [];
 
     try {
-      const client: Client = await this.accountManager.loadNodeClient(
+      await this.accountManager.loadNodeClient(
         config.namespace,
         this.remoteConfig.getClusterRefs(),
         config.deployment,
         true,
       );
+      const client: HederaClient = this.accountManager.hederaClient!;
       await this.waitForMirrorReadiness(client, config, port);
 
       for (let index: number = 0; index < config.rttSampleCount; index++) {

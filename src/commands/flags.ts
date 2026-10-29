@@ -377,6 +377,23 @@ export class Flags {
     },
   };
 
+  public static readonly deployGrafanaAlloy: CommandFlag = {
+    constName: 'deployGrafanaAlloy',
+    name: 'grafana-alloy',
+    definition: {
+      describe: 'Deploy Grafana Alloy and Loki to collect and store pod logs',
+      defaultValue: false,
+      type: 'boolean',
+      promptText: 'Would you like to deploy Grafana Alloy? ',
+    },
+    prompt: async function promptDeployGrafanaAlloy(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.prompt('toggle', task, input, Flags.deployGrafanaAlloy);
+    },
+  };
+
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -753,7 +770,7 @@ export class Flags {
     constName: 'explorerChartDirectory',
     name: 'explorer-chart-dir',
     definition: {
-      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/charts)',
+      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/_frontend/chart)',
       defaultValue: '',
       type: 'string',
     },
@@ -2941,6 +2958,7 @@ export class Flags {
     Flags.deployCertManager,
     Flags.deployCertManagerCrds,
     Flags.deployJsonRpcRelay,
+    Flags.deployGrafanaAlloy,
     Flags.deployMinio,
     Flags.deployMetricsServer,
     Flags.deployPrometheusStack,
