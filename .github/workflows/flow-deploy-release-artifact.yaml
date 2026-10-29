@@ -585,7 +585,7 @@ jobs:
       contents: read
       id-token: write # Workload Identity Federation sign-in to Google Cloud
     env:
-      CDN_BUCKET: 'solo-cdn-production'
+      CDN_BUCKET: 'solo-cache-cdn-public'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1

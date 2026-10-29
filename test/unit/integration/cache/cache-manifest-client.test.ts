@@ -98,7 +98,7 @@ describe('CacheManifestClient', (): void => {
 
   describe('getCdnBaseUrl', (): void => {
     it('defaults to the Solo CDN', (): void => {
-      expect(CacheManifestClient.getCdnBaseUrl()).to.equal('https://cdn.solo.hashgraph.io');
+      expect(CacheManifestClient.getCdnBaseUrl()).to.equal(CacheManifestClient.DEFAULT_CDN_BASE_URL);
     });
 
     it('honours the override environment variable and trims trailing slashes', (): void => {
@@ -124,10 +124,10 @@ describe('CacheManifestClient', (): void => {
       expect(images[0].hashFile).to.equal('docker.io__library__busybox__1.36.1__linux__amd64.tar.sha256');
       expect(images[0].sha256).to.equal(HASH);
       expect(images[0].tarUrl).to.equal(
-        'https://cdn.solo.hashgraph.io/docker.io__library__busybox__1.36.1__linux__amd64.tar',
+        `${CacheManifestClient.DEFAULT_CDN_BASE_URL}/docker.io__library__busybox__1.36.1__linux__amd64.tar`,
       );
       expect(images[0].hashUrl).to.equal(
-        'https://cdn.solo.hashgraph.io/docker.io__library__busybox__1.36.1__linux__amd64.tar.sha256',
+        `${CacheManifestClient.DEFAULT_CDN_BASE_URL}/docker.io__library__busybox__1.36.1__linux__amd64.tar.sha256`,
       );
       expect(images[1].sha256).to.equal(OTHER_HASH);
       expect(images[0].size).to.be.undefined;

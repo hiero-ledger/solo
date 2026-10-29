@@ -122,8 +122,8 @@ extension convention can change without a CLI release.
 The CDN is flat, with no version or registry directories:
 
 ```text
-https://cdn.solo.hashgraph.io/<tarFile>
-https://cdn.solo.hashgraph.io/<hashFile>
+https://cdn.solo.hiero.org/<tarFile>
+https://cdn.solo.hiero.org/<hashFile>
 ```
 
 `SOLO_CACHE_CDN_BASE_URL` overrides the base URL for staging and testing.
