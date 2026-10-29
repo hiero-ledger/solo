@@ -7,18 +7,28 @@ import {
   AccountInfoQuery,
   AccountUpdateTransaction,
   type Client,
+  FileAppendTransaction,
   FileContentsQuery,
+  FileCreateTransaction,
   type FileId,
+  type FileInfo,
+  FileInfoQuery,
+  FileUpdateTransaction,
   Hbar,
   HbarUnit,
   PrecheckStatusError,
   type PrivateKey,
   Status,
+  StatusError,
   type TransactionReceipt,
   type TransactionResponse,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
 import {type HederaClient} from '../hedera-client.js';
+import {type HederaFileInfo} from '../hedera-file-info.js';
+import {type HederaFileTransactionResult} from '../hedera-file-transaction-result.js';
+import {type HederaSubmittedTransaction} from '../hedera-submitted-transaction.js';
+import {SdkHederaSubmittedTransaction} from './sdk-hedera-submitted-transaction.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {sleep} from '../../../core/helpers.js';
 import {Duration} from '../../../core/time/duration.js';
@@ -29,6 +39,7 @@ export class SdkHederaClient implements HederaClient {
   private static readonly ACCOUNT_CREATE_RETRY_DELAY_MS: number = 250;
   private static readonly FILE_CONTENTS_MAX_ATTEMPTS: number = 5;
   private static readonly FILE_CONTENTS_RETRY_DELAY_MS: number = 5000;
+  private static readonly FILE_TRANSACTION_MAX_FEE_HBAR: number = 100;
 
   public constructor(
     public readonly sdkClient: Client,
@@ -154,6 +165,19 @@ export class SdkHederaClient implements HederaClient {
     return receipt.status === Status.Success;
   }
 
+  public async submitTinybarTransfer(
+    fromAccountId: AccountId,
+    toAccountId: AccountId,
+    tinybars: number,
+  ): Promise<HederaSubmittedTransaction> {
+    const response: TransactionResponse = await new TransferTransaction()
+      .addHbarTransfer(fromAccountId, Hbar.fromTinybars(-tinybars))
+      .addHbarTransfer(toAccountId, Hbar.fromTinybars(tinybars))
+      .execute(this.sdkClient);
+
+    return new SdkHederaSubmittedTransaction(response, this.sdkClient);
+  }
+
   public async getFileContents(fileId: FileId, retryInvalidNodeAccount: boolean = false): Promise<Uint8Array> {
     const maxAttempts: number = retryInvalidNodeAccount ? SdkHederaClient.FILE_CONTENTS_MAX_ATTEMPTS : 1;
     const retryDelayMs: number = SdkHederaClient.FILE_CONTENTS_RETRY_DELAY_MS;
@@ -181,5 +205,71 @@ export class SdkHederaClient implements HederaClient {
     }
 
     throw lastError!;
+  }
+
+  public async getFileInfo(fileId: FileId): Promise<HederaFileInfo | undefined> {
+    try {
+      const fileInfo: FileInfo = await new FileInfoQuery().setFileId(fileId).execute(this.sdkClient);
+      return {size: fileInfo.size.toNumber(), keyCount: fileInfo.keys ? fileInfo.keys.toArray().length : 0};
+    } catch (error) {
+      if (
+        error instanceof StatusError &&
+        (error.status === Status.FileDeleted || error.status === Status.InvalidFileId)
+      ) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  public async createFile(contents: Uint8Array, privateKey: PrivateKey): Promise<HederaFileTransactionResult> {
+    const transaction: FileCreateTransaction = new FileCreateTransaction()
+      .setKeys([privateKey.publicKey])
+      .setContents(contents)
+      .setMaxTransactionFee(SdkHederaClient.FILE_TRANSACTION_MAX_FEE_HBAR)
+      .freezeWith(this.sdkClient);
+
+    return await this.executeFileTransaction(await transaction.sign(privateKey));
+  }
+
+  public async updateFile(
+    fileId: FileId,
+    contents: Uint8Array,
+    privateKey: PrivateKey,
+  ): Promise<HederaFileTransactionResult> {
+    const transaction: FileUpdateTransaction = new FileUpdateTransaction()
+      .setFileId(fileId)
+      .setContents(contents)
+      .setMaxTransactionFee(SdkHederaClient.FILE_TRANSACTION_MAX_FEE_HBAR)
+      .freezeWith(this.sdkClient);
+
+    return await this.executeFileTransaction(await transaction.sign(privateKey));
+  }
+
+  public async appendFile(
+    fileId: FileId,
+    contents: Uint8Array,
+    privateKey: PrivateKey,
+  ): Promise<HederaFileTransactionResult> {
+    const transaction: FileAppendTransaction = new FileAppendTransaction()
+      .setFileId(fileId)
+      .setContents(contents)
+      .setMaxTransactionFee(SdkHederaClient.FILE_TRANSACTION_MAX_FEE_HBAR)
+      .freezeWith(this.sdkClient);
+
+    return await this.executeFileTransaction(await transaction.sign(privateKey));
+  }
+
+  private async executeFileTransaction(
+    transaction: FileCreateTransaction | FileUpdateTransaction | FileAppendTransaction,
+  ): Promise<HederaFileTransactionResult> {
+    const response: TransactionResponse = await transaction.execute(this.sdkClient);
+    const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
+
+    return {
+      isSuccess: receipt.status === Status.Success,
+      status: receipt.status.toString(),
+      fileId: receipt.fileId ?? undefined,
+    };
   }
 }

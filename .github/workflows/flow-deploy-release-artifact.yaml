@@ -44,7 +44,7 @@ jobs:
       need-hl-release: ${{ steps.set-outputs.outputs.need-hl-release }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -155,7 +155,7 @@ jobs:
       hl-package-name: ${{ steps.set-hl-package-name.outputs.hl-package-name }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -201,7 +201,7 @@ jobs:
       need-hl-publish: ${{ steps.verify-hl-package.outputs.need-hl-publish }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -478,7 +478,7 @@ jobs:
     if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -589,7 +589,7 @@ jobs:
       - build-sea
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -612,12 +612,14 @@ jobs:
           # The SEA artifacts also hold build intermediates (.blob, .cjs, .json); publish only the binaries.
           [[ -f sea-artifacts/solo-linux-x64 ]] || { echo "::error::the solo-linux-x64 SEA binary was not built"; exit 1; }
           binaries=(solo-linux-x64)
-          # A failed arm64 leg must not block the x64 assets; install.sh then points arm64 users to npm.
-          if [[ -f sea-artifacts/solo-linux-arm64 ]]; then
-            binaries+=(solo-linux-arm64)
-          else
-            echo "::warning::the solo-linux-arm64 SEA binary was not built; publishing solo-linux-x64 only"
-          fi
+          # A failed arm64 or musl leg must not block the x64 assets; install.sh then points those users to npm.
+          for binary in solo-linux-arm64 solo-linux-x64-musl solo-linux-arm64-musl; do
+            if [[ -f "sea-artifacts/${binary}" ]]; then
+              binaries+=("${binary}")
+            else
+              echo "::warning::the ${binary} SEA binary was not built; publishing without it"
+            fi
+          done
           mkdir -p release-assets
           for binary in "${binaries[@]}"; do
             cp "sea-artifacts/${binary}" release-assets/
@@ -649,7 +651,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 

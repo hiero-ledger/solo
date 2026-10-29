@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type AccountId, type AccountInfo, type Client, type FileId, type PrivateKey} from '@hiero-ledger/sdk';
+import {type HederaFileInfo} from './hedera-file-info.js';
+import {type HederaFileTransactionResult} from './hedera-file-transaction-result.js';
+import {type HederaSubmittedTransaction} from './hedera-submitted-transaction.js';
 
 /**
  * A client for a Hedera network. Everything that talks to the Hedera SDK (transactions, queries, receipts, precheck
@@ -79,10 +82,52 @@ export interface HederaClient {
   ): Promise<boolean>;
 
   /**
+   * Submits a transfer of tinybars between two accounts without waiting for its receipt
+   * @param fromAccountId - the account the tinybars are taken from
+   * @param toAccountId - the account the tinybars are put into
+   * @param tinybars - the amount in tinybars
+   */
+  submitTinybarTransfer(
+    fromAccountId: AccountId,
+    toAccountId: AccountId,
+    tinybars: number,
+  ): Promise<HederaSubmittedTransaction>;
+
+  /**
    * Reads the contents of a file
    * @param fileId - the file
    * @param retryInvalidNodeAccount - retry while a node answers INVALID_NODE_ACCOUNT, which the SDK does not retry for
    * queries and which happens while the state of a freshly started node is still initializing
    */
   getFileContents(fileId: FileId, retryInvalidNodeAccount?: boolean): Promise<Uint8Array>;
+
+  /**
+   * Reads the size and key count of a file
+   * @param fileId - the file
+   * @returns the file info, or undefined when the file is deleted or the id is not a file
+   */
+  getFileInfo(fileId: FileId): Promise<HederaFileInfo | undefined>;
+
+  /**
+   * Creates a file that only the given key can modify
+   * @param contents - the initial contents
+   * @param privateKey - the key of the file, which also signs the transaction
+   */
+  createFile(contents: Uint8Array, privateKey: PrivateKey): Promise<HederaFileTransactionResult>;
+
+  /**
+   * Replaces the contents of a file
+   * @param fileId - the file
+   * @param contents - the new contents
+   * @param privateKey - the key that signs the transaction
+   */
+  updateFile(fileId: FileId, contents: Uint8Array, privateKey: PrivateKey): Promise<HederaFileTransactionResult>;
+
+  /**
+   * Appends to the contents of a file
+   * @param fileId - the file
+   * @param contents - the chunk to append
+   * @param privateKey - the key that signs the transaction
+   */
+  appendFile(fileId: FileId, contents: Uint8Array, privateKey: PrivateKey): Promise<HederaFileTransactionResult>;
 }
