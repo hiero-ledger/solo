@@ -53,12 +53,12 @@ permissions:
 
 jobs:
   build-sea:
-    name: "SEA / ${{ matrix.os }} (${{ matrix.arch }})"
+    name: "SEA / ${{ matrix.os }} (${{ matrix.arch }}${{ matrix.libc == 'musl' && ', musl' || '' }})"
     # Keep each platform matrix leg in its own concurrency group. This workflow is also called by
     # Nightly Extended Tests; a workflow-level group makes all of the caller's matrix legs share
     # one slot and causes GitHub to cancel the waiting legs before they start.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}
+      group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.libc || 'native' }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
@@ -71,6 +71,15 @@ jobs:
           - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
+          # musl (Alpine) binaries, built in an Alpine container by sea/build-musl.ts
+          - os: hiero-solo-linux-medium
+            platform: linux
+            arch: x64
+            libc: musl
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            libc: musl
           # Apple Silicon (arm64) runner
           - os: macos-latest
             platform: darwin
@@ -105,22 +114,33 @@ jobs:
           package-manager-cache: false
 
       - name: Install Task
+        if: ${{ matrix.libc != 'musl' }}
         uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set Version
-        if: ${{ inputs.version != '' }}
+        if: ${{ matrix.libc != 'musl' && inputs.version != '' }}
         env:
           VERSION: ${{ inputs.version }}
         run: npm version "${VERSION}" --no-git-tag-version --allow-same-version
 
       # Installs dependencies (npm ci on CI) and compiles before building the binary.
       - name: Build SEA Binary
+        if: ${{ matrix.libc != 'musl' }}
         run: task sea:build
 
+      # Installs dependencies, compiles, builds and smoke tests in Alpine, with the pinned musl Node.js
+      # of the major version set up above.
+      - name: Build musl SEA Binary
+        if: ${{ matrix.libc == 'musl' }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node sea/build-musl.ts "${VERSION}"
+
       - name: Smoke Test — solo --help / --version
+        if: ${{ matrix.libc != 'musl' }}
         # Verify the binary starts, resolves its embedded resources, exits cleanly, and reports
         # the version actually embedded at build time.
         shell: bash
@@ -151,7 +171,7 @@ jobs:
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: solo-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.sha }}
+          name: solo-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.libc == 'musl' && '-musl' || '' }}-${{ github.sha }}
           path: sea/dist/solo-${{ matrix.platform }}-*
           if-no-files-found: error
           retention-days: 7
