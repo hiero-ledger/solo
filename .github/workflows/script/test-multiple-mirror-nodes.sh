@@ -18,7 +18,7 @@
 #      and verify the shared resources are removed
 #
 # Requirements:
-#   - curl, jq, kind, kubectl, helm, base64, solo (npm run solo-test)
+#   - curl, jq, kind, kubectl, base64, solo (npm run solo-test); helm is installed by solo into ~/.solo/bin
 #
 # Usage:
 #   bash test-multiple-mirror-nodes.sh
@@ -31,6 +31,9 @@ if [[ -z "${_MULTIPLE_MIRROR_NODES_TEST_WRAPPED:-}" && "${BASH_SOURCE[0]}" == "$
   export _MULTIPLE_MIRROR_NODES_TEST_WRAPPED=1
   exec timeout --kill-after=10 "$SCRIPT_TIMEOUT_SECONDS" "$0" "$@"
 fi
+
+# solo installs helm into ~/.solo/bin; make it available to the helm calls in this script
+export PATH="${HOME}/.solo/bin:${PATH}"
 
 # ── configuration ──────────────────────────────────────────────────────────────
 SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-multi-mirror-test}"
@@ -66,7 +69,8 @@ fail() {
 
 check_deps() {
   local missing=()
-  for cmd in curl jq kind kubectl helm base64; do
+  # helm is not preinstalled on the runner; solo downloads it into ~/.solo/bin on first use
+  for cmd in curl jq kind kubectl base64; do
     command -v "$cmd" &>/dev/null || missing+=("$cmd")
   done
   if (( ${#missing[@]} > 0 )); then
@@ -195,7 +199,8 @@ fetch_transactions() {
   local url="http://localhost:${port}/api/v1/transactions?limit=100&order=desc&timestamp=lte:${upto}"
   while [[ -n "$url" && $pages -gt 0 ]]; do
     page=$(curl -sf --max-time 20 "$url") || fail "could not fetch $url"
-    out=$(jq -c -n --argjson a "$out" --argjson b "$page" '$a + $b.transactions')
+    # pass the JSON as files, not --argjson: the collected pages outgrow the 128 KiB Linux allows for one argument
+    out=$(jq -c -s '.[0] + .[1].transactions' <(echo "$out") <(echo "$page"))
     next=$(jq -r '.links.next // empty' <<<"$page")
     url=""
     [[ -n "$next" ]] && url="http://localhost:${port}${next}"
@@ -231,8 +236,8 @@ compare_user_transactions() {
   block_node=$(jq -c '[.[] | select(.name != "HINTSPARTIALSIGNATURE")]' <<<"$block_node")
 
   local high low
-  high=$(jq -rn --argjson a "$bucket" --argjson b "$block_node" '[$a[0].consensus_timestamp, $b[0].consensus_timestamp] | min')
-  low=$(jq -rn --argjson a "$bucket" --argjson b "$block_node" '[$a[-1].consensus_timestamp, $b[-1].consensus_timestamp] | max')
+  high=$(jq -rs '[.[0][0].consensus_timestamp, .[1][0].consensus_timestamp] | min' <(echo "$bucket") <(echo "$block_node"))
+  low=$(jq -rs '[.[0][-1].consensus_timestamp, .[1][-1].consensus_timestamp] | max' <(echo "$bucket") <(echo "$block_node"))
 
   local keys='[.[] | select(.consensus_timestamp >= $low and .consensus_timestamp <= $high)
     | "\(.consensus_timestamp)|\(.name)|\(.result)|\(.transaction_hash)"] | sort | .[]'

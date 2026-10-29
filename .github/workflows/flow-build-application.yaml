@@ -56,7 +56,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -126,7 +126,6 @@ jobs:
       runner: ${{ matrix.e2e-test-type.runner }}
       kind-install: ${{ matrix.e2e-test-type.kind-install }}
       kind-version: ${{ matrix.e2e-test-type.kind-version }}
-      kind-node-image: ${{ matrix.e2e-test-type.kind-node-image }}
       kubectl-install: ${{ matrix.e2e-test-type.kubectl-install }}
       kubectl-version: ${{ matrix.e2e-test-type.kubectl-version }}
       helm-install: ${{ matrix.e2e-test-type.helm-install }}

@@ -27,6 +27,8 @@ import {type ContainerEngineClient} from '../../../../src/integration/container-
 import {ClusterNodeResumeOutcome} from '../../../../src/integration/container-engine/cluster-node-resume-outcome.js';
 import {Helpers} from '../../../../src/core/helpers.js';
 import {type Context} from '../../../../src/types/index.js';
+import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
+import {getSoloVersion} from '../../../../version.js';
 
 const namespace: NamespaceName = NamespaceName.of('solo');
 const remoteConfigMap: ConfigMap = {name: 'solo-remote-config'} as unknown as ConfigMap;
@@ -350,6 +352,24 @@ describe('RemoteConfigRuntimeState', (): void => {
         SoloErrors.deployment.clusterRefNotFound,
         'Cluster ref cluster-1 not found in local config',
       );
+    });
+  });
+
+  describe('updateCliVersion', (): void => {
+    function runUpdateCliVersion(recordedVersion: string): SemanticVersion<string> {
+      const runtimeState: RemoteConfigRuntimeState = buildRuntimeState(read, resumeStoppedClusterNode);
+      const versions: {cli: SemanticVersion<string>} = {cli: new SemanticVersion<string>(recordedVersion)};
+      sandbox.stub(runtimeState, 'configuration').get((): unknown => ({versions}));
+      (runtimeState as unknown as {updateCliVersion: () => void}).updateCliVersion();
+      return versions.cli;
+    }
+
+    it('should record the running Solo version when the stored one is older', (): void => {
+      expect(runUpdateCliVersion('0.0.1').toString()).to.equal(getSoloVersion());
+    });
+
+    it('should leave the stored version untouched when it already matches', (): void => {
+      expect(runUpdateCliVersion(getSoloVersion()).toString()).to.equal(getSoloVersion());
     });
   });
 });
