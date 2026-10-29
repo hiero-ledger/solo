@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import fs from 'node:fs';
+import chalk from 'chalk';
 import * as constants from '../../core/constants.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {ShellRunner} from '../../core/shell-runner.js';
@@ -29,6 +30,10 @@ export class ResourceSnapshotCollector {
   private static readonly KIND_CLUSTER_LABEL: string = 'io.x-k8s.kind.cluster';
   private static readonly TOP_CPU_POD_DESCRIBE_COUNT: number = 3;
   private static readonly MAX_DESCRIBED_PODS: number = 10;
+  private static readonly SUMMARY_TOP_POD_COUNT: number = 3;
+  private static readonly DOCKER_CPU_WARNING_PERCENT: number = 100;
+  private static readonly DOCKER_MEMORY_WARNING_PERCENT: number = 80;
+  private static readonly CLOCK_DRIFT_WARNING_SECONDS: number = 5;
 
   /**
    * Builds a Listr task that writes the resource snapshot into `<outputDirectory>/resource-snapshot`.
@@ -139,6 +144,99 @@ export class ResourceSnapshotCollector {
     // compare against the midpoint of the host clock around the exec to cancel out the call latency
     const hostSeconds: number = (hostBeforeMilliseconds + hostAfterMilliseconds) / 2 / 1000;
     return Math.round(vmSeconds - hostSeconds);
+  }
+
+  /**
+   * Builds a short terminal summary (Docker CPU/memory/disk, VM clock drift and the top CPU pods) from a
+   * previously written snapshot directory. Returns an empty list when there is no snapshot to summarize.
+   */
+  public static summarize(snapshotDirectory: string): string[] {
+    if (!fs.existsSync(snapshotDirectory)) {
+      return [];
+    }
+
+    const lines: string[] = [
+      ...ResourceSnapshotCollector.summarizeDockerStats(PathEx.join(snapshotDirectory, 'docker-stats.txt')),
+      ...ResourceSnapshotCollector.summarizeDockerDisk(PathEx.join(snapshotDirectory, 'docker-system-df.txt')),
+      ...ResourceSnapshotCollector.summarizeClockDrift(PathEx.join(snapshotDirectory, 'docker-vm-clock-drift.txt')),
+    ];
+
+    const usageFiles: string[] = fs
+      .readdirSync(snapshotDirectory)
+      .filter((name: string): boolean => name.startsWith('pod-resource-usage-') && name.endsWith('.txt'));
+    for (const usageFile of usageFiles) {
+      lines.push(...ResourceSnapshotCollector.summarizePodUsage(PathEx.join(snapshotDirectory, usageFile)));
+    }
+
+    if (lines.length === 0) {
+      return [];
+    }
+    return ['Resource usage snapshot:', ...lines.map((line: string): string => `  ${line}`)];
+  }
+
+  private static readLines(file: string): string[] {
+    if (!fs.existsSync(file)) {
+      return [];
+    }
+    return fs
+      .readFileSync(file, 'utf8')
+      .split('\n')
+      .filter((line: string): boolean => line.trim().length > 0 && !line.startsWith('#'));
+  }
+
+  private static summarizeDockerStats(file: string): string[] {
+    // columns: NAME, CPU %, MEM USAGE / LIMIT, MEM %, NET I/O, BLOCK I/O, PIDS (header first)
+    return ResourceSnapshotCollector.readLines(file)
+      .slice(1)
+      .map((line: string): string => {
+        const [name, cpu, memory, memoryPercent]: string[] = line.split(/\s{2,}/);
+        const text: string = `Docker ${name}: CPU ${cpu}, memory ${memory} (${memoryPercent})`;
+        const exceeded: boolean =
+          Number.parseFloat(cpu) >= ResourceSnapshotCollector.DOCKER_CPU_WARNING_PERCENT ||
+          Number.parseFloat(memoryPercent) >= ResourceSnapshotCollector.DOCKER_MEMORY_WARNING_PERCENT;
+        return exceeded ? chalk.yellow(`⚠ ${text}`) : text;
+      });
+  }
+
+  private static summarizeDockerDisk(file: string): string[] {
+    // columns: TYPE, TOTAL, ACTIVE, SIZE, RECLAIMABLE (header first)
+    const sizes: string[] = ResourceSnapshotCollector.readLines(file)
+      .slice(1)
+      .map((line: string): string => {
+        const columns: string[] = line.split(/\s{2,}/);
+        return `${columns[0]} ${columns[3]}`;
+      });
+    return sizes.length > 0 ? [`Docker disk: ${sizes.join(', ')}`] : [];
+  }
+
+  private static summarizeClockDrift(file: string): string[] {
+    return ResourceSnapshotCollector.readLines(file).map((line: string): string => {
+      const [name, drift]: string[] = line.split('\t');
+      const seconds: number = Number.parseInt(drift?.split('=', 2)[1] ?? '', 10);
+      if (Number.isNaN(seconds)) {
+        return `VM clock drift on ${name}: unknown`;
+      }
+      const text: string = `VM clock drift on ${name}: ${seconds}s`;
+      return Math.abs(seconds) >= ResourceSnapshotCollector.CLOCK_DRIFT_WARNING_SECONDS
+        ? chalk.yellow(`⚠ ${text}`)
+        : text;
+    });
+  }
+
+  private static summarizePodUsage(file: string): string[] {
+    // columns: CONTEXT, NAMESPACE, POD, PHASE, CPU(m), MEMORY(Mi), RESTARTS, NOTES (header first, CPU-sorted)
+    const rows: string[][] = ResourceSnapshotCollector.readLines(file)
+      .slice(1)
+      .map((line: string): string[] => line.split('\t'));
+    const lines: string[] = rows
+      .slice(0, ResourceSnapshotCollector.SUMMARY_TOP_POD_COUNT)
+      .map((row: string[]): string => `Top pod ${row[1]}/${row[2]}: CPU ${row[4]}m, memory ${row[5]}Mi`);
+
+    const restarting: number = rows.filter((row: string[]): boolean => Number.parseInt(row[6], 10) > 0).length;
+    if (restarting > 0) {
+      lines.push(chalk.yellow(`⚠ ${restarting} pod(s) restarted, see ${file}`));
+    }
+    return lines;
   }
 
   private static async collectDockerHost(logger: SoloLogger, snapshotDirectory: string): Promise<void> {
@@ -281,7 +379,7 @@ export class ResourceSnapshotCollector {
       if (status.waitingReason) {
         stateNotes.push(`${status.name}: waiting ${status.waitingReason}`);
       }
-      if (status.terminatedReason) {
+      if (status.terminatedReason && !ResourceSnapshotCollector.isCleanCompletion(status)) {
         stateNotes.push(`${status.name}: ${status.terminatedReason} (exit ${status.terminatedExitCode ?? '?'})`);
       }
     }
@@ -300,6 +398,13 @@ export class ResourceSnapshotCollector {
       ),
       stateNotes,
     };
+  }
+
+  /**
+   * A container that exited normally (for example a finished init container) is not evidence of a problem.
+   */
+  private static isCleanCompletion(status: ContainerStatus): boolean {
+    return status.terminatedReason === 'Completed' && (status.terminatedExitCode ?? 0) === 0;
   }
 
   /**

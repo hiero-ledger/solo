@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import * as constants from '../../core/constants.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {ResourceSnapshotCollector} from './resource-snapshot-collector.js';
 import {type DiagnosticsFinding, type DiagnosticsFindingCategory} from './diagnostics-finding.js';
 
 const {green, yellow} = chalk;
@@ -315,6 +316,15 @@ export class DiagnosticsAnalyzer {
 
     if (!fs.existsSync(hieroOutputDirectory)) {
       fs.mkdirSync(hieroOutputDirectory, {recursive: true});
+    }
+
+    // the snapshot is written next to (not inside) the hiero component logs, see ResourceSnapshotCollector.collect
+    const snapshotDirectory: string = PathEx.join(
+      customOutputDirectory ? path.resolve(customOutputDirectory) : constants.SOLO_LOGS_DIR,
+      ResourceSnapshotCollector.DIRECTORY_NAME,
+    );
+    for (const summaryLine of ResourceSnapshotCollector.summarize(snapshotDirectory)) {
+      this.logger.showUser(summaryLine);
     }
 
     const reportPath: string = PathEx.join(hieroOutputDirectory, 'diagnostics-analysis.txt');

@@ -82,6 +82,78 @@ describe('ResourceSnapshotCollector', (): void => {
     });
   });
 
+  describe('summarize', (): void => {
+    let snapshotDirectory: string;
+
+    beforeEach((): void => {
+      snapshotDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-resource-summary-'));
+    });
+
+    afterEach((): void => {
+      fs.rmSync(snapshotDirectory, {recursive: true, force: true});
+    });
+
+    it('returns nothing when there is no snapshot directory', (): void => {
+      expect(ResourceSnapshotCollector.summarize(path.join(snapshotDirectory, 'missing'))).to.deep.equal([]);
+    });
+
+    it('summarizes docker CPU/memory/disk, clock drift and the top CPU pods', (): void => {
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'docker-stats.txt'),
+        'NAME      CPU %     MEM USAGE / LIMIT    MEM %     NET I/O           BLOCK I/O         PIDS\n' +
+          'kind-control-plane   93.90%    2.94GiB / 125.5GiB   2.34%     1.71GB / 58.5MB   8.19kB / 15.8GB   1259\n',
+      );
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'docker-system-df.txt'),
+        'TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\n' +
+          'Images          1         1         1.484GB   1.484GB (100%)\n' +
+          'Local Volumes   1         1         6.588GB   0B (0%)\n',
+      );
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'docker-vm-clock-drift.txt'),
+        'kind-control-plane\tvm-clock-minus-host-seconds=-1\n',
+      );
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'pod-resource-usage-kind-solo.txt'),
+        'CONTEXT\tNAMESPACE\tPOD\tPHASE\tCPU(m)\tMEMORY(Mi)\tRESTARTS\tCONTAINER STATE NOTES\n' +
+          'kind-solo\tsolo\tnetwork-node1-0\tRunning\t616\t588\t0\t-\n' +
+          'kind-solo\tsolo\trelay-1\tRunning\t178\t82\t0\t-\n',
+      );
+
+      const summary: string = ResourceSnapshotCollector.summarize(snapshotDirectory).join('\n');
+
+      expect(summary).to.contain('Resource usage snapshot:');
+      expect(summary).to.contain('Docker kind-control-plane: CPU 93.90%, memory 2.94GiB / 125.5GiB (2.34%)');
+      expect(summary).to.contain('Docker disk: Images 1.484GB, Local Volumes 6.588GB');
+      expect(summary).to.contain('VM clock drift on kind-control-plane: -1s');
+      expect(summary).to.contain('Top pod solo/network-node1-0: CPU 616m, memory 588Mi');
+      expect(summary).to.not.contain('⚠');
+    });
+
+    it('warns on saturated docker CPU, large clock drift and restarting pods', (): void => {
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'docker-stats.txt'),
+        'NAME      CPU %     MEM USAGE / LIMIT    MEM %     NET I/O           BLOCK I/O         PIDS\n' +
+          'kind-control-plane   550.00%    2GiB / 4GiB   50.00%     1GB / 1GB   1GB / 1GB   100\n',
+      );
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'docker-vm-clock-drift.txt'),
+        'kind-control-plane\tvm-clock-minus-host-seconds=600\n',
+      );
+      fs.writeFileSync(
+        path.join(snapshotDirectory, 'pod-resource-usage-kind-solo.txt'),
+        'CONTEXT\tNAMESPACE\tPOD\tPHASE\tCPU(m)\tMEMORY(Mi)\tRESTARTS\tCONTAINER STATE NOTES\n' +
+          'kind-solo\tsolo\tcrashy\tRunning\t900\t10\t4\tc: OOMKilled (exit 137)\n',
+      );
+
+      const summary: string = ResourceSnapshotCollector.summarize(snapshotDirectory).join('\n');
+
+      expect(summary).to.contain('⚠ Docker kind-control-plane: CPU 550.00%');
+      expect(summary).to.contain('⚠ VM clock drift on kind-control-plane: 600s');
+      expect(summary).to.contain('⚠ 1 pod(s) restarted');
+    });
+  });
+
   describe('collect', (): void => {
     let temporaryDirectory: string;
     let runStub: SinonStub;
@@ -128,6 +200,7 @@ describe('ResourceSnapshotCollector', (): void => {
           phase: 'Running',
           allContainerStatuses: [
             {name: 'root-container', restartCount: 3, terminatedReason: 'OOMKilled', terminatedExitCode: 137},
+            {name: 'init-hedera', restartCount: 0, terminatedReason: 'Completed', terminatedExitCode: 0},
           ],
         }),
         readDescribe: sinon.stub().resolves('describe-yaml'),
@@ -148,6 +221,7 @@ describe('ResourceSnapshotCollector', (): void => {
       const usage: string = fs.readFileSync(path.join(snapshotDirectory, 'pod-resource-usage-kind-solo.txt'), 'utf8');
       expect(usage).to.contain('4000');
       expect(usage).to.contain('OOMKilled (exit 137)');
+      expect(usage).to.not.contain('init-hedera');
       expect(
         fs.readFileSync(path.join(snapshotDirectory, 'pod-describe', 'kind-solo', 'solo_hot.yaml'), 'utf8'),
       ).to.equal('describe-yaml');
