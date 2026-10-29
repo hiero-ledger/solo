@@ -39,7 +39,7 @@ jobs:
       STEP_TIMEOUT_MINUTES: '5'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -68,7 +68,7 @@ jobs:
           sudo apt-get install -y wget
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # pinned to v5.2.0
         with:
           version: 'v1.27.3'
         id: install
@@ -79,14 +79,10 @@ jobs:
           version: "v3.12.3" # helm version
 
       - name: Setup Kind
-        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        uses: $/.github/actions/setup-kind
         with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
           version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
+          kubectl-version: v1.31.4
 
       - name: Restore Solo Bin Cache
         id: solo-bin-cache
@@ -142,7 +138,7 @@ jobs:
       STEP_TIMEOUT_MINUTES: '5'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 

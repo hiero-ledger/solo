@@ -1,0 +1,97 @@
+##
+# Copyright (C) 2026 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: 'Setup Kind'
+description: 'Install kind, and optionally kubectl, retrying a download that fails or returns an HTTP error.'
+
+inputs:
+  version:
+    description: 'Kind version to install, for example v0.29.0.'
+    required: true
+  kubectl-version:
+    description: 'Kubectl version to install alongside kind, for example v1.32.2. Skipped when empty.'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Kind
+      shell: bash
+      env:
+        KIND_VERSION: ${{ inputs.version }}
+        KUBECTL_VERSION: ${{ inputs.kubectl-version }}
+      # The only GITHUB_PATH write is this action's own directory under RUNNER_TEMP, never an input.
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+
+        case "$(uname -m)" in
+          x86_64) arch='amd64' ;;
+          aarch64 | arm64) arch='arm64' ;;
+          *) echo "::error::Unsupported architecture: $(uname -m)"; exit 1 ;;
+        esac
+
+        bin_dir="${RUNNER_TEMP}/setup-kind/bin"
+        mkdir -p "${bin_dir}"
+
+        # Prints the HTTP status; --fail turns an error page into a curl error instead of saving it as the file.
+        fetch() {
+          curl --fail --location --silent --show-error --connect-timeout 20 --max-time 120 \
+            --write-out '%{http_code}' --output "$2" "$1"
+        }
+
+        checksum_matches() {
+          local actual
+          actual="$(sha256sum "$1")" && [[ "${actual%% *}" == "$(head -c 64 "$1.sha256")" ]]
+        }
+
+        # Each attempt starts a fresh curl, so a retry does not reuse the connection that just failed.
+        install_tool() {
+          local tool="$1" version="$2" url="$3" checksum_url="$4" target="${bin_dir}/$1"
+          local attempts=6 attempt delay=5 status
+          for ((attempt = 1; attempt <= attempts; attempt++)); do
+            if status="$(fetch "${url}" "${target}")" && status="$(fetch "${checksum_url}" "${target}.sha256")"; then
+              if checksum_matches "${target}"; then
+                rm "${target}.sha256"
+                chmod +x "${target}"
+                return 0
+              fi
+              echo "${tool} ${version} does not match its published checksum"
+            elif [[ "${status}" == 404 ]]; then
+              echo "::error::${tool} ${version} was not found (HTTP 404)"
+              return 1
+            fi
+            if ((attempt < attempts)); then
+              echo "Attempt ${attempt} of ${attempts} to install ${tool} ${version} failed, retrying in ${delay} seconds"
+              sleep "${delay}"
+              delay=$((delay * 2))
+            fi
+          done
+          echo "::error::Could not install ${tool} ${version} after ${attempts} attempts"
+          return 1
+        }
+
+        kind_url="https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-${arch}"
+        install_tool kind "${KIND_VERSION}" "${kind_url}" "${kind_url}.sha256sum"
+        "${bin_dir}/kind" version
+
+        if [[ -n "${KUBECTL_VERSION}" ]]; then
+          kubectl_url="https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl"
+          install_tool kubectl "${KUBECTL_VERSION}" "${kubectl_url}" "${kubectl_url}.sha256"
+          "${bin_dir}/kubectl" version --client=true
+        fi
+
+        echo "${bin_dir}" >> "${GITHUB_PATH}"

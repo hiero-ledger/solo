@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type AccountId, type PublicKey} from '@hiero-ledger/sdk';
-import {
-  type GenesisNetworkNodeStructure,
-  type NodeAccountId,
-  type ServiceEndpoint,
-  type ToObject,
-} from '../../types/index.js';
+import {type GenesisNetworkNodeStructure, type ServiceEndpoint, type ToObject} from '../../types/index.js';
 import {GenesisNetworkDataWrapper} from './genesis-network-data-wrapper.js';
 import {Address} from '../../business/address/address.js';
 
@@ -40,25 +35,14 @@ export class GenesisNetworkNodeDataWrapper
     });
   }
 
-  public toObject(): {
-    accountId: NodeAccountId;
-    adminKey: PublicKey;
-    deleted: boolean;
-    description: string;
-    gossipCaCertificate: string;
-    gossipEndpoint: ServiceEndpoint[];
-    grpcCertificateHash: string;
-    nodeId: number;
-    serviceEndpoint: ServiceEndpoint[];
-    weight: number;
-  } {
+  public toObject(): GenesisNetworkNodeStructure {
     return {
       nodeId: this.nodeId,
       accountId: {
-        realmNum: `${this.accountId.realm}`,
         shardNum: `${this.accountId.shard}`,
+        realmNum: `${this.accountId.realm}`,
         accountNum: `${this.accountId.num}`,
-      } as unknown as NodeAccountId,
+      },
       description: this.description,
       gossipEndpoint: this.gossipEndpoint,
       serviceEndpoint: this.serviceEndpoint,
@@ -66,8 +50,7 @@ export class GenesisNetworkNodeDataWrapper
       grpcCertificateHash: this.grpcCertificateHash,
       weight: this.weight,
       deleted: this.deleted,
-      adminKey: this.adminKey,
+      adminKey: {ed25519: Buffer.from(this.adminKey.toBytesRaw()).toString('base64')},
     };
   }
 }
-//

@@ -84,7 +84,7 @@ jobs:
             runner: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -99,7 +99,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 24
-          cache: npm
 
       - name: Install Task
         uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
@@ -245,6 +244,32 @@ jobs:
           cd "${SOLO_RUN_DIR}"
           export PATH=~/.solo/bin:${PATH}
           ${SOLO_COMMAND} deployment diagnostics logs -q --dev || true
+
+      - name: Collect Kind API Server State on Failure
+        if: ${{ failure() }}
+        timeout-minutes: 5
+        run: |
+          # Records why the kind API server may have restarted (issue #6310); best-effort only.
+          out=~/.solo/logs/kind-apiserver-state.txt
+          mkdir -p ~/.solo/logs
+          {
+            for node in $(docker ps -a --filter "label=io.x-k8s.kind.cluster" --format '{{.Names}}'); do
+              echo "=== docker inspect ${node} (state) ==="
+              docker inspect --format '{{json .State}} restarts={{.RestartCount}}' "${node}"
+              echo "=== ${node}: kube-apiserver containers ==="
+              docker exec "${node}" crictl ps -a --name kube-apiserver 2>&1 || true
+              echo "=== ${node}: kube-apiserver previous logs (tail) ==="
+              docker exec "${node}" sh -c 'f=$(crictl ps -a --name kube-apiserver -q | head -n 2 | tail -n 1); crictl logs --tail 100 "$f"' 2>&1 || true
+            done
+            echo "=== kube-system pods ==="
+            kubectl -n kube-system get pods -o wide 2>&1 || true
+            echo "=== kube-apiserver pod description ==="
+            kubectl -n kube-system describe pod -l component=kube-apiserver 2>&1 || true
+            echo "=== kernel OOM kills ==="
+            (sudo dmesg 2>/dev/null | grep -i -E 'out of memory|oom-kill|killed process' | tail -n 20) || true
+            echo "=== memory ==="
+            free -m || true
+          } 2>&1 | tee "${out}" || true
 
       - name: One-Shot Single Destroy
         if: always()

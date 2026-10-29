@@ -940,7 +940,7 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Reset ledger phase to uninitialized',
           task: async (): Promise<void> => {
-            this.remoteConfig.configuration.state.ledgerPhase = LedgerPhase.UNINITIALIZED;
+            this.remoteConfig.configuration.ledger.phase = LedgerPhase.UNINITIALIZED;
             await this.remoteConfig.persist();
           },
         },

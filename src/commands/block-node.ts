@@ -880,7 +880,7 @@ export class BlockNodeCommand extends BaseCommand {
       task: (_, task): SoloListr<BlockNodeDeployContext> => {
         const subTasks: SoloListrTask<BlockNodeDeployContext>[] = [this.updateConsensusNodesInRemoteConfig()];
 
-        if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
+        if (this.remoteConfig.configuration.ledger.phase !== LedgerPhase.UNINITIALIZED) {
           subTasks.push(this.updateConsensusNodesPostGenesis());
         }
 
@@ -919,7 +919,7 @@ export class BlockNodeCommand extends BaseCommand {
           this.updateConsensusNodesInRemoteConfigForExternalBlockNode(),
         ];
 
-        if (this.remoteConfig.configuration.state.ledgerPhase !== LedgerPhase.UNINITIALIZED) {
+        if (this.remoteConfig.configuration.ledger.phase !== LedgerPhase.UNINITIALIZED) {
           subTasks.push(this.updateConsensusNodesPostGenesisForExternal());
         }
 
@@ -957,6 +957,10 @@ export class BlockNodeCommand extends BaseCommand {
               BlockNodeCommand.ADD_CONFIGS_NAME,
               allFlags,
             ) as BlockNodeDeployConfigClass;
+
+            if (!config.blockNodeChartDirectory) {
+              config.blockNodeChartDirectory = constants.getEnvironmentVariable('SOLO_BLOCK_NODE_CHART_DIR');
+            }
 
             context_.config = config;
 
@@ -1419,6 +1423,10 @@ export class BlockNodeCommand extends BaseCommand {
               allFlags,
             ) as BlockNodeUpgradeConfigClass;
 
+            if (!config.blockNodeChartDirectory) {
+              config.blockNodeChartDirectory = constants.getEnvironmentVariable('SOLO_BLOCK_NODE_CHART_DIR');
+            }
+
             context_.config = config;
 
             config.namespace = await this.getNamespace(task);
@@ -1796,7 +1804,7 @@ export class BlockNodeCommand extends BaseCommand {
   private rebuildBlockNodesJsonForConsensusNodes(): SoloListrTask<AnyListrContext> {
     return {
       title: "Rebuild 'block.nodes.json' for consensus nodes",
-      skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
+      skip: (): boolean => this.remoteConfig.configuration.ledger.phase === LedgerPhase.UNINITIALIZED,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
           await createAndCopyBlockNodeJsonFileForConsensusNode(

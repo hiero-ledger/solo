@@ -8,6 +8,7 @@ import {
   type ClusterReferenceName,
   type ClusterReferences,
   type DeploymentName,
+  type GenesisNetworkNodeStructure,
   type SoloListrTaskWrapper,
 } from '../../../../src/types/index.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
@@ -470,12 +471,18 @@ export class ConsensusNodeTest extends BaseCommandTest {
         expect(await k8.containers().readByRef(rootContainer).hasFile(`${HEDERA_HAPI_PATH}/data/apps/HederaNode.jar`))
           .to.be.true;
 
-        expect(
+        const genesisNetwork: {nodeMetadata: {node: GenesisNetworkNodeStructure}[]} = JSON.parse(
           await k8
             .containers()
             .readByRef(rootContainer)
-            .hasFile(`${HEDERA_HAPI_PATH}/data/config/genesis-network.json`),
-        ).to.be.true;
+            .execContainer(['cat', `${HEDERA_HAPI_PATH}/data/config/genesis-network.json`]),
+        );
+        const expectedAdminKey: string = Buffer.from(constants.GENESIS_PUBLIC_KEY.toBytesRaw()).toString('base64');
+
+        expect(genesisNetwork.nodeMetadata, 'genesis network node count').to.have.lengthOf(consensusNodesCount);
+        for (const {node} of genesisNetwork.nodeMetadata) {
+          expect(node.adminKey, `node${node.nodeId} admin key`).to.deep.equal({ed25519: expectedAdminKey});
+        }
 
         expect(
           await k8

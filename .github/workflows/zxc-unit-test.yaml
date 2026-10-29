@@ -58,7 +58,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -77,7 +77,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}
-          cache: npm
 
       - name: Configure npm registry
         run: echo "registry=https://registry.npmjs.org/" > .npmrc
@@ -96,15 +95,11 @@ jobs:
           version: "v3.12.3" # helm version
 
       - name: Setup Kind
-        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        uses: $/.github/actions/setup-kind
         if: ${{ runner.os == 'linux' }}
         with:
-          install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
           version: v0.26.0
-          kubectl_version: v1.31.4
-          verbosity: 3
-          wait: 120s
+          kubectl-version: v1.31.4
 
       - name: Run Helm Client Unit Tests
         if: ${{ runner.os == 'linux' }}
