@@ -304,6 +304,7 @@ import {PvcMountVerificationFailedSoloError} from './classes/system/pvc-mount-ve
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
 import {PvcBindTimeoutSoloError} from './classes/system/pvc-bind-timeout-solo-error.js';
+import {PvcPodsStrandedSoloError} from './classes/system/pvc-pods-stranded-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
 import {IngressClassListFailedSoloError} from './classes/system/ingress-class-list-failed-solo-error.js';
 import {MultipleItemsFoundSoloError} from './classes/system/multiple-items-found-solo-error.js';
@@ -884,6 +885,7 @@ export class SoloErrors {
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
     readonly pvcBindTimeout: typeof PvcBindTimeoutSoloError;
+    readonly pvcPodsStranded: typeof PvcPodsStrandedSoloError;
     readonly pvcMountVerificationFailed: typeof PvcMountVerificationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
     readonly ingressClassListFailed: typeof IngressClassListFailedSoloError;
@@ -979,6 +981,7 @@ export class SoloErrors {
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
     pvcBindTimeout: PvcBindTimeoutSoloError,
+    pvcPodsStranded: PvcPodsStrandedSoloError,
     pvcMountVerificationFailed: PvcMountVerificationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
     ingressClassListFailed: IngressClassListFailedSoloError,

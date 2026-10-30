@@ -335,6 +335,7 @@ export const PVC_PHASE_BOUND: string = 'Bound';
 
 /** Label the solo-deployment chart applies to every consensus node volume claim template. */
 export const SOLO_NODE_PVC_LABEL_SELECTOR: string = 'solo.hedera.com/type=node-pvc';
+export const SOLO_NODE_POD_LABEL_SELECTOR: string = 'solo.hedera.com/type=network-node';
 
 export const POD_CONDITION_INITIALIZED: string = 'Initialized';
 export const POD_CONDITION_READY: string = 'Ready';

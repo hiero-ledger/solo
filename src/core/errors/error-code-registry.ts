@@ -332,6 +332,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   POD_LOGS_CRD_INVALID: 'SOLO-5090',
   BLOCK_NODE_BLOCKS_UNAVAILABLE: 'SOLO-5091',
   PVC_BIND_TIMEOUT: 'SOLO-5092',
+  PVC_PODS_STRANDED: 'SOLO-5093',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

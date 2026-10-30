@@ -5,6 +5,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
 import {SoloErrors} from '../core/errors/solo-errors.js';
+import {PvcStrandedPodTracker} from '../core/pvc-stranded-pod-tracker.js';
 import {type PvcMountVerifier} from '../core/pvc-mount-verifier.js';
 import {type PvcMountFinding} from '../core/pvc-mount-finding.js';
 import {UserBreak} from '../core/errors/user-break.js';
@@ -106,6 +107,12 @@ export class NetworkCommand extends BaseCommand {
 
   /** How often, in poll attempts, bind progress is mirrored into the log for non-TTY runs such as CI. */
   private static readonly PVC_BIND_LOG_INTERVAL_ATTEMPTS: number = 15;
+
+  /** How many poll attempts a pod must stay unscheduled with a volume node affinity conflict to be treated as stranded. */
+  private static readonly PVC_STRANDED_POD_ATTEMPTS: number = 120;
+
+  /** How many times the volumes of one stranded pod are re-provisioned before the deploy fails. */
+  private static readonly PVC_STRANDED_POD_MAX_RECOVERIES: number = 3;
 
   private profileValuesFile?: Record<ClusterReferenceName, string>;
 
@@ -246,7 +253,12 @@ export class NetworkCommand extends BaseCommand {
     namespace: NamespaceName,
     task: SoloListrTaskWrapper<NetworkDeployContext>,
   ): Promise<void> {
-    const pvcs: Pvcs = this.k8Factory.getK8(context).pvcs();
+    const k8: K8 = this.k8Factory.getK8(context);
+    const pvcs: Pvcs = k8.pvcs();
+    const strandedPods: PvcStrandedPodTracker = new PvcStrandedPodTracker(
+      NetworkCommand.PVC_STRANDED_POD_ATTEMPTS,
+      NetworkCommand.PVC_STRANDED_POD_MAX_RECOVERIES,
+    );
     const baseTitle: string = task.title;
     let claims: PvcDetail[] = [];
     let unbound: PvcDetail[] = [];
@@ -286,6 +298,8 @@ export class NetworkCommand extends BaseCommand {
         return;
       }
 
+      await this.recoverStrandedPods(k8, namespace, claims, strandedPods, attempt);
+
       await sleep(Duration.ofMillis(constants.PVC_BOUND_DELAY));
     }
 
@@ -307,6 +321,44 @@ export class NetworkCommand extends BaseCommand {
         : unboundNames;
 
     throw new SoloErrors.system.pvcBindTimeout(claims.length - unbound.length, claims.length, reportedNames);
+  }
+
+  /**
+   * A node pod whose volumes are pinned to nodes it cannot use will never schedule, so waiting longer cannot bind its
+   * claims. The pod has not started, so its claims hold no data: delete the pod and its claims and let the StatefulSet
+   * recreate them for the scheduler to place again. Fails fast once the same pod has been recovered too many times.
+   */
+  private async recoverStrandedPods(
+    k8: K8,
+    namespace: NamespaceName,
+    claims: PvcDetail[],
+    tracker: PvcStrandedPodTracker,
+    attempt: number,
+  ): Promise<void> {
+    const pods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_NODE_POD_LABEL_SELECTOR]);
+    const stranded: Pod[] = tracker.observe(pods, attempt);
+
+    for (const pod of stranded) {
+      const podName: string = pod.podReference.name.toString();
+      if (!tracker.recordRecovery(podName)) {
+        throw new SoloErrors.system.pvcPodsStranded(
+          stranded.map((strandedPod: Pod): string => strandedPod.podReference.name.toString()),
+          tracker.maxRecoveryAttempts,
+          pod.conditions?.find((condition): boolean => condition.type === 'PodScheduled')?.message ?? '<none>',
+        );
+      }
+
+      this.logger.warn(
+        `Pod ${podName} is unschedulable because its volumes are pinned to unusable nodes; ` +
+          `re-provisioning its volume claims [namespace: ${namespace.name}]`,
+      );
+      await k8.pods().delete(pod.podReference);
+      for (const claim of claims) {
+        if (claim.pvcReference.name.toString().endsWith(`-${podName}`)) {
+          await k8.pvcs().delete(claim.pvcReference);
+        }
+      }
+    }
   }
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {
