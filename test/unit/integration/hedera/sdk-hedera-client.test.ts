@@ -10,6 +10,7 @@ import {
   FileCreateTransaction,
   FileInfoQuery,
   FileUpdateTransaction,
+  NodeUpdateTransaction,
   TransferTransaction,
   type Client,
   FileContentsQuery,
@@ -285,6 +286,26 @@ describe('SdkHederaClient', (): void => {
       expect(receiptQuery.setMinBackoff.calledOnceWithExactly(50)).to.equal(true);
       expect(receiptQuery.setMaxBackoff.calledOnceWithExactly(50)).to.equal(true);
       expect(status).to.deep.equal({isSuccess: false, status: 'INVALID_SIGNATURE'});
+    });
+  });
+
+  describe('updateNodeAdminKey', (): void => {
+    it('signs with the new and the current admin key and reports the receipt status', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const newAdminKey: PrivateKey = PrivateKey.generateED25519();
+      const currentAdminKey: PrivateKey = PrivateKey.generateED25519();
+      sinon.stub(NodeUpdateTransaction.prototype, 'freezeWith').returnsThis();
+      const signStub: sinon.SinonStub = sinon.stub(NodeUpdateTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(NodeUpdateTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().resolves({status: Status.Success}),
+      } as never);
+
+      const status: HederaTransactionStatus = await client.updateNodeAdminKey(2, newAdminKey, currentAdminKey);
+
+      expect(signStub.callCount).to.equal(2);
+      expect(signStub.firstCall.args[0]).to.equal(newAdminKey);
+      expect(signStub.secondCall.args[0]).to.equal(currentAdminKey);
+      expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
     });
   });
 });
