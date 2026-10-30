@@ -316,6 +316,7 @@ import {PostgresPodNotFoundSoloError} from './classes/system/postgres-pod-not-fo
 import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files-failed-solo-error.js';
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
 import {CacheManifestDownloadFailedSoloError} from './classes/system/cache-manifest-download-failed-solo-error.js';
+import {CacheManifestUnpublishedSoloError} from './classes/system/cache-manifest-unpublished-solo-error.js';
 import {CacheManifestInvalidSoloError} from './classes/system/cache-manifest-invalid-solo-error.js';
 import {CacheArchiveHashMismatchSoloError} from './classes/system/cache-archive-hash-mismatch-solo-error.js';
 import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
@@ -898,6 +899,7 @@ export class SoloErrors {
     readonly initSystemFilesFailed: typeof InitSystemFilesFailedSoloError;
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
     readonly cacheManifestDownloadFailed: typeof CacheManifestDownloadFailedSoloError;
+    readonly cacheManifestUnpublished: typeof CacheManifestUnpublishedSoloError;
     readonly cacheManifestInvalid: typeof CacheManifestInvalidSoloError;
     readonly cacheArchiveHashMismatch: typeof CacheArchiveHashMismatchSoloError;
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
@@ -992,6 +994,7 @@ export class SoloErrors {
     initSystemFilesFailed: InitSystemFilesFailedSoloError,
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
     cacheManifestDownloadFailed: CacheManifestDownloadFailedSoloError,
+    cacheManifestUnpublished: CacheManifestUnpublishedSoloError,
     cacheManifestInvalid: CacheManifestInvalidSoloError,
     cacheArchiveHashMismatch: CacheArchiveHashMismatchSoloError,
     podTerminationTimeout: PodTerminationTimeoutSoloError,
