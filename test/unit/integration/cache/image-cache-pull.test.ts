@@ -26,6 +26,8 @@ import {PathEx} from '../../../../src/business/utils/path-ex.js';
 
 const IMAGE_REFERENCE: string = 'docker.io/library/busybox:1.36.1';
 const TAR_FILE: string = 'docker.io__library__busybox__1.36.1.tar';
+const TAR_URL: string = `${CacheManifestClient.DEFAULT_CDN_BASE_URL}/${TAR_FILE}`;
+const HASH_URL: string = `${TAR_URL}.sha256`;
 const ARCHIVE_CONTENTS: string = 'a pretend image archive';
 const ARCHIVE_HASH: string = createHash('sha256').update(ARCHIVE_CONTENTS).digest('hex');
 
@@ -51,8 +53,8 @@ function manifestImage(sha256: string = ARCHIVE_HASH, size?: number): CacheManif
     TAR_FILE,
     `${TAR_FILE}.sha256`,
     sha256,
-    `https://cdn.solo.hashgraph.io/${TAR_FILE}`,
-    `https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`,
+    TAR_URL,
+    HASH_URL,
     size,
   );
 }
@@ -153,8 +155,8 @@ describe('ImageCacheHandler pull', (): void => {
   it('downloads the archive and its hash file, then verifies both', async (): Promise<void> => {
     sinon.stub(CacheManifestClient, 'fetchImages').resolves([manifestImage()]);
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: `${ARCHIVE_HASH}  ${TAR_FILE}\n`,
+      [TAR_URL]: ARCHIVE_CONTENTS,
+      [HASH_URL]: `${ARCHIVE_HASH}  ${TAR_FILE}\n`,
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
@@ -215,8 +217,8 @@ describe('ImageCacheHandler pull', (): void => {
   it('deletes a downloaded archive that does not match its expected hash', async (): Promise<void> => {
     sinon.stub(CacheManifestClient, 'fetchImages').resolves([manifestImage()]);
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: 'corrupted in transit',
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+      [TAR_URL]: 'corrupted in transit',
+      [HASH_URL]: ARCHIVE_HASH,
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
@@ -232,8 +234,8 @@ describe('ImageCacheHandler pull', (): void => {
       .stub(CacheManifestClient, 'fetchImages')
       .resolves([manifestImage(ARCHIVE_HASH, Buffer.byteLength(ARCHIVE_CONTENTS))]);
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+      [TAR_URL]: ARCHIVE_CONTENTS,
+      [HASH_URL]: ARCHIVE_HASH,
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
@@ -247,8 +249,8 @@ describe('ImageCacheHandler pull', (): void => {
       .stub(CacheManifestClient, 'fetchImages')
       .resolves([manifestImage(ARCHIVE_HASH, Buffer.byteLength(ARCHIVE_CONTENTS) + 1)]);
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+      [TAR_URL]: ARCHIVE_CONTENTS,
+      [HASH_URL]: ARCHIVE_HASH,
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
@@ -262,14 +264,14 @@ describe('ImageCacheHandler pull', (): void => {
   it('does not download the archive when the manifest and the published hash disagree', async (): Promise<void> => {
     sinon.stub(CacheManifestClient, 'fetchImages').resolves([manifestImage()]);
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: 'c'.repeat(64),
+      [TAR_URL]: ARCHIVE_CONTENTS,
+      [HASH_URL]: 'c'.repeat(64),
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
 
     expect(fetchFile).to.have.been.calledOnce;
-    expect(fetchFile.firstCall.args[0]).to.equal(`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`);
+    expect(fetchFile.firstCall.args[0]).to.equal(HASH_URL);
     expect(await exists(archivePath)).to.equal(false);
     expect(await exists(hashPath)).to.equal(false);
     expect(context.config.results).to.have.lengthOf(0);
@@ -344,8 +346,8 @@ describe('ImageCacheHandler pull', (): void => {
     await fs.writeFile(archivePath, 'an archive exported from a local container engine');
     sinon.stub(CacheManifestClient, 'fetchImages').resolves([manifestImage()]);
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+      [TAR_URL]: ARCHIVE_CONTENTS,
+      [HASH_URL]: ARCHIVE_HASH,
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
@@ -366,8 +368,8 @@ describe('ImageCacheHandler pull', (): void => {
     await fs.writeFile(archivePath, 'an archive exported from a local container engine');
     sinon.stub(CacheManifestClient, 'fetchImages').resolves([manifestImage()]);
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+      [TAR_URL]: ARCHIVE_CONTENTS,
+      [HASH_URL]: ARCHIVE_HASH,
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile), true);
@@ -407,8 +409,8 @@ describe('ImageCacheHandler pull', (): void => {
       await realRm(path, options);
     });
     const fetchFile: SinonStub = stubDownloader({
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
-      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+      [TAR_URL]: ARCHIVE_CONTENTS,
+      [HASH_URL]: ARCHIVE_HASH,
     });
 
     const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));

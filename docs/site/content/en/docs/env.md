@@ -12,6 +12,18 @@
 * **Default:** unset (the published chart is used). The `--block-node-chart-dir` flag takes precedence when provided.
 * **Used in:** `src/commands/block-node.ts` (deploy, upgrade).
 
+## SOLO\_CACHE\_CDN\_BASE\_URL
+
+* **Description:** Base URL that `solo cache image pull` downloads image archives and their `.sha256` hash files from, for a staging or test copy of the image cache CDN. Archives are fetched from `<base>/<file name>`; trailing slashes are ignored.
+* **Default:** `https://cdn.solo.hiero.org`.
+* **Used in:** `src/integration/cache/impl/cache-manifest-client.ts`.
+
+## SOLO\_CACHE\_MANIFEST\_URL
+
+* **Description:** Full URL of the image cache manifest (`cache-manifest.json`), for a manifest that is not published as a release asset (staging, testing).
+* **Default:** unset (the manifest is downloaded from the GitHub release of the running Solo version, `https://github.com/hiero-ledger/solo/releases/download/v<version>/cache-manifest.json`).
+* **Used in:** `src/integration/cache/impl/cache-manifest-client.ts`.
+
 ## SOLO\_EXPLORER\_CHART\_DIR
 
 * **Description:** The explorer chart directory itself (the one holding `Chart.yaml`), for testing a chart that has not been published, e.g. `/path/to/hiero-mirror-node-explorer/_frontend/chart`.

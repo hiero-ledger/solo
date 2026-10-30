@@ -15,7 +15,8 @@
 ##
 
 name: 'Image Cache: Capture Cluster Images'
-# Lists the images a clean one-shot deploy runs and exports each one as an image cache archive.
+# Lists the images a clean one-shot deploy runs, exports each one as an image cache archive and, when asked to,
+# publishes the archives to the image cache CDN.
 
 on:
   workflow_call:
@@ -25,9 +26,30 @@ on:
         type: string
         required: false
         default: ''
+      upload-to-cdn:
+        description: 'Upload the archives and their hash files to the image cache CDN bucket'
+        type: boolean
+        required: false
+        default: false
+      cdn-bucket:
+        description: 'Cloud Storage bucket the image cache CDN serves (default: the production bucket)'
+        type: string
+        required: false
+        default: 'solo-cache-cdn-public'
   # Run manually against a branch (gh workflow run flow-image-cache-cluster-images.yaml --ref <branch>) to test
   # changes; it is too slow to run on every pull request push.
   workflow_dispatch:
+    inputs:
+      upload-to-cdn:
+        description: 'Upload the archives and their hash files to the image cache CDN bucket'
+        type: boolean
+        required: false
+        default: false
+      cdn-bucket:
+        description: 'Cloud Storage bucket the image cache CDN serves (default: the production bucket)'
+        type: string
+        required: false
+        default: 'solo-cache-cdn-public'
 
 defaults:
   run:
@@ -50,7 +72,10 @@ jobs:
   capture-cluster-images:
     name: Capture Cluster Images
     runs-on: hiero-solo-linux-large
-    timeout-minutes: 90
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation sign-in to the image cache CDN bucket
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
@@ -191,6 +216,28 @@ jobs:
             image-cache/image-cache-images.json
             image-cache/*.sha256
           if-no-files-found: error
+
+      - name: Authenticate to Google Cloud
+        if: ${{ inputs.upload-to-cdn }}
+        uses: step-security/google-github-auth@775fc4c80760272ef389c9f9f8d98de7db0c170d # v3.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          workload_identity_provider: 'projects/1074309218154/locations/global/workloadIdentityPools/solo-cdn-pool/providers/gh-provider'
+          service_account: 'solo-cdn-read-write-access@solo-cdn-production.iam.gserviceaccount.com'
+          # The audience the CDN provider is configured to accept, instead of the provider URL the action defaults to.
+          audience: 'api://AzureADTokenExchange'
+
+      - name: Setup Google Cloud SDK
+        if: ${{ inputs.upload-to-cdn }}
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Upload Image Cache Archives to CDN
+        if: ${{ inputs.upload-to-cdn }}
+        timeout-minutes: 30
+        env:
+          CDN_BUCKET: ${{ inputs.cdn-bucket }}
+        run: .github/workflows/script/image_cache_upload.sh image-cache "${CDN_BUCKET}"
 
       - name: Upload Logs
         if: always()

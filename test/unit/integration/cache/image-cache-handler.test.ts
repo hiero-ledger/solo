@@ -44,8 +44,8 @@ function manifestImage(sha256: string = ARCHIVE_HASH): CacheManifestImage {
     TAR_FILE,
     `${TAR_FILE}.sha256`,
     sha256,
-    `https://cdn.solo.hashgraph.io/${TAR_FILE}`,
-    `https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`,
+    `${CacheManifestClient.DEFAULT_CDN_BASE_URL}/${TAR_FILE}`,
+    `${CacheManifestClient.DEFAULT_CDN_BASE_URL}/${TAR_FILE}.sha256`,
   );
 }
 
