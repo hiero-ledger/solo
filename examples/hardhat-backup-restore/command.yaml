@@ -1,0 +1,46 @@
+# Options file for `config ops restore-network`.
+# ${VAR} references are substituted from the process environment at runtime
+# (see the env: block in the Taskfile restore-network task).
+# Mirrors the components that the `deploy` task creates. The external database is populated by
+# `restore-db` first, so mirror and relay start against restored data.
+consensus:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --quiet-mode
+  - --dev
+  - --pvcs
+block:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --quiet-mode
+  - --dev
+mirror:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --use-external-database
+  - --enable-ingress
+  - --external-database-host
+  - ${POSTGRES_HOST_FQDN}
+  - --external-database-owner-username
+  - ${POSTGRES_USERNAME}
+  - --external-database-owner-password
+  - ${POSTGRES_PASSWORD}
+  - --external-database-read-username
+  - ${POSTGRES_READONLY_USERNAME}
+  - --external-database-read-password
+  - ${POSTGRES_READONLY_PASSWORD}
+  - --pinger
+  - --quiet-mode
+  - --dev
+explorer:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --quiet-mode
+  - --dev
+relay:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --node-aliases
+  - ${NODE_ALIASES}
+  - --quiet-mode
+  - --dev

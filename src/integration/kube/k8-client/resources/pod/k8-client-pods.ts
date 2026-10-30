@@ -7,6 +7,7 @@ import {
   Metrics,
   type PodMetricsList,
   V1Container,
+  type V1EnvVar,
   V1ExecAction,
   V1ObjectMeta,
   V1Pod,
@@ -49,6 +50,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * or the container process has repeatedly crashed and will never restart cleanly on its own).
    */
   private static readonly FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
+    'ErrImageNeverPull',
     'ImagePullBackOff',
     'ErrImagePull',
     'InvalidImageName',
@@ -595,7 +597,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         }
 
         if (++attempts < maxAttempts) {
-          setTimeout((): Promise<void> => check(resolve, reject), delay);
+          setTimeout((): void => {
+            void check(resolve, reject);
+          }, delay);
         } else if (lastObservedPod) {
           const volumeMountDiagnostic: string | undefined = await this.buildVolumeMountDiagnostic(
             namespace,
@@ -619,7 +623,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         }
       };
 
-      check(resolve, reject);
+      void check(resolve, reject);
     });
   }
 
@@ -681,6 +685,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     containerImage: string,
     containerCommand: string[],
     startupProbeCommand: string[],
+    environment: Record<string, string> = {},
   ): Promise<Pod> {
     const v1Metadata: V1ObjectMeta = new V1ObjectMeta();
     v1Metadata.name = podReference.name.toString();
@@ -698,6 +703,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     v1Container.image = containerImage;
     v1Container.command = containerCommand;
     v1Container.startupProbe = v1Probe;
+    v1Container.env = Object.entries(environment).map(([name, value]): V1EnvVar => ({name, value}));
 
     const v1Spec: V1PodSpec = new V1PodSpec();
     v1Spec.containers = [v1Container];

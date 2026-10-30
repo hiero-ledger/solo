@@ -107,6 +107,17 @@ export const HEDERA_CHAIN_ID: string = getEnvironmentVariable('SOLO_CHAIN_ID') |
 export const HEDERA_HGCAPP_DIR: string = '/opt/hgcapp';
 export const HEDERA_SERVICES_PATH: string = `${HEDERA_HGCAPP_DIR}/services-hedera`;
 export const HEDERA_HAPI_PATH: string = `${HEDERA_SERVICES_PATH}/HapiApp2.0`;
+
+// How Solo starts/stops the consensus node process inside the root container:
+//  - 'solo-container' (default): the solo-containers debian-s6-java25 image and its /command/network-node-lifecycle helper
+//  - 'consensus-node-image': opt-in; the hiero-consensus-node deterministic image and its single s6 'consensus' service
+export const NETWORK_NODE_LIFECYCLE_MODE: string =
+  getEnvironmentVariable('NETWORK_NODE_LIFECYCLE_MODE') || 'solo-container';
+
+// Public release location of the hiero-consensus-node deterministic image, used as the root container image
+// when NETWORK_NODE_LIFECYCLE_MODE is 'consensus-node-image'. Tags are the release version without a 'v' prefix.
+export const CONSENSUS_NODE_IMAGE_REGISTRY: string = 'gcr.io';
+export const CONSENSUS_NODE_IMAGE_REPOSITORY: string = 'hedera-registry/consensus-node';
 export const HEDERA_DATA_APPS_DIR: string = 'data/apps';
 export const HEDERA_DATA_LIB_DIR: string = 'data/lib';
 export const HEDERA_USER_HOME_DIR: string = '/home/hedera';
@@ -172,6 +183,19 @@ export const SOLO_SERVICE_MONITOR_NAME: string = 'solo-service-monitor';
 
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 
+// Helm repository that publishes both the Grafana Alloy and Loki charts.
+export const GRAFANA_CHART_URL: string =
+  getEnvironmentVariable('GRAFANA_CHART_URL') ?? 'https://grafana.github.io/helm-charts';
+export const GRAFANA_CHART_REPO: string = 'grafana';
+
+export const GRAFANA_ALLOY_CHART: string = 'alloy';
+export const GRAFANA_ALLOY_RELEASE_NAME: string = 'grafana-alloy';
+
+export const LOKI_CHART: string = 'loki';
+// The Loki release name yields the `loki` Service that the Alloy and Grafana datasource values reference.
+export const LOKI_RELEASE_NAME: string = 'loki';
+export const LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME: string = 'loki-grafana-datasource';
+
 export const MINIO_OPERATOR_CHART_URL: string =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
 export const MINIO_OPERATOR_CHART: string = 'operator';
@@ -196,6 +220,19 @@ export const RUSTFS_CHART: string = 'rustfs';
 export const RUSTFS_RELEASE_NAME: string = 'rustfs';
 export const RUSTFS_SECRET_NAME: string = 'rustfs-credentials';
 export const RUSTFS_SERVICE_ENDPOINT: string = `${RUSTFS_RELEASE_NAME}-svc:9000`;
+
+export const PROMETHEUS_OPERATOR_CRDS: string[] = [
+  'alertmanagerconfigs.monitoring.coreos.com',
+  'alertmanagers.monitoring.coreos.com',
+  'podmonitors.monitoring.coreos.com',
+  'probes.monitoring.coreos.com',
+  'prometheusagents.monitoring.coreos.com',
+  'prometheuses.monitoring.coreos.com',
+  'prometheusrules.monitoring.coreos.com',
+  'scrapeconfigs.monitoring.coreos.com',
+  'servicemonitors.monitoring.coreos.com',
+  'thanosrulers.monitoring.coreos.com',
+];
 
 export const METRICS_SERVER_CHART_URL: string =
   getEnvironmentVariable('METRICS_SERVER_CHART_URL') ?? 'https://kubernetes-sigs.github.io/metrics-server/';
@@ -276,7 +313,8 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(METRICS_SERVER_RELEASE_NAME, METRICS_SERVER_CHART_URL)
-  .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
+  .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL)
+  .set(GRAFANA_CHART_REPO, GRAFANA_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME: string = 'mirror-ingress-class';
 export const MIRROR_INGRESS_CONTROLLER: string = 'mirror-ingress-controller';
@@ -323,6 +361,10 @@ export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DI
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
 export const RUSTFS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rustfs-values.yaml');
+export const MIRROR_NODE_DEBUG_VALUES_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-node-debug-values.yaml',
+);
 export const PROMETHEUS_STACK_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'prometheus-stack-values.yaml',
@@ -369,6 +411,7 @@ export const ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE: string = PathEx.joinW
 // extraPortMappings map it to ingress-controller NodePort 30003 inside the cluster. Must match the
 // hostPort in resources/templates/small-memory/kind-config.yaml.
 export const ONE_SHOT_MIRROR_REST_HOST_PORT: number = 38_081;
+export const ONE_SHOT_MIRROR_REST_NODE_PORT: number = 30_003;
 // One-shot only: fixed NodePorts for the explorer, JSON RPC relay, and consensus node gRPC
 // (node1 HAProxy) services created by the one-shot deploy orchestrator, plus the host ports the
 // Kind extraPortMappings publish them on. Each host port matches the legacy kubectl port-forward
@@ -382,21 +425,23 @@ export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
 export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const BLOCK_NODE_SOLO_DEV_FILE: string = BLOCK_NODE_VALUES_FILE;
-export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
-  RESOURCES_DIR,
-  'block-node-messaging-workaround.yaml',
-);
+export const GRAFANA_ALLOY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'grafana-alloy-values.yaml');
+export const LOKI_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'loki-values.yaml');
 export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-postgres-truncate.sql',
 );
+// psql client used to run SQL against an external mirror node database from inside the cluster.
+// Override for air-gapped or private registries.
+export const MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE: string =
+  getEnvironmentVariable('MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE') ||
+  'docker.io/bitnamilegacy/postgresql-repmgr:17.6.0-debian-12-r2';
 export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
-export const ONE_SHOT_BLOCK_NODE_PERF: string = getEnvironmentVariable('ONE_SHOT_BLOCK_NODE_PERF') || 'false';
 export const ONE_SHOT_DEPLOYMENT_NAME: string = 'one-shot';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
@@ -641,6 +686,15 @@ export const MIRROR_NODE_CHART_UPGRADE_RETRY_DELAY_SECS: number =
 export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NETWORK_DESTROY_WAIT_TIMEOUT') || 120;
 
 export const DEFAULT_LOCAL_CONFIG_FILE: string = 'local-config.yaml';
+
+/**
+ * Operator-editable Solo configuration file, read from {@link SOLO_HOME_DIR}.
+ *
+ * Deliberately not `solo.yaml`: that name was used by older Solo versions for a `flags:` map and
+ * is still actively deleted by external tooling (the `solo:config:remove` task in
+ * hiero-consensus-node's CITR Taskfile), which would silently wipe an operator's settings.
+ */
+export const DEFAULT_SOLO_CONFIG_FILE: string = 'solo-config.yaml';
 export const NODE_OVERRIDE_FILE: string = 'node-overrides.yaml';
 export const GENESIS_NETWORK_FILE: string = 'genesis-network.json';
 /** Same contents as {@link GENESIS_NETWORK_FILE}; replaces the roster carried by a restored state. */
@@ -655,8 +709,10 @@ export const IGNORED_NODE_ACCOUNT_ID: string = '0.0.0';
 export const UPLOADER_SECRET_NAME: string = 'uploader-mirror-secrets';
 export const MINIO_SECRET_NAME: string = 'minio-secrets';
 export const BACKUP_SECRET_NAME: string = 'backup-uploader-secrets';
+export const MIRROR_NODE_SECRETS_BACKUP_NAME: string = 'mirror-node-secrets-backup';
 export const MIRROR_INGRESS_TLS_SECRET_NAME: string = 'ca-secret-mirror-node';
 export const EXPLORER_INGRESS_TLS_SECRET_NAME: string = 'ca-secret-hiero-explorer';
+export const NODE_TLS_KEYS_SECRET_NAME: string = 'network-node-hapi-app-secrets';
 
 export const BLOCK_STREAM_STREAM_MODE: string = getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') || 'BOTH';
 export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE') || 'FILE_AND_GRPC';
@@ -666,6 +722,8 @@ export const RELAY_IMAGE_NAME: string = 'hiero-json-rpc-relay';
 export const EXPLORER_IMAGE_NAME: string = 'hiero-explorer';
 export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER: string = 'SOLO_ENABLE_OVERWRITE=true';
+export const SIMPLE_FEES_SCHEDULES_JSON: string = 'simpleFeesSchedules.json';
+export const THROTTLES_JSON: string = 'throttles.json';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
 export const NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME: string = 'network-node-data-config-cm';
 export const enum StorageType {

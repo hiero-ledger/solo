@@ -83,11 +83,6 @@ on:
         type: string
         required: false
         default: "0.29.0"
-      kind-node-image:
-        description: "Kind Node Image:"
-        type: string
-        required: false
-        default: "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211"
       kubectl-install:
         description: "Install Kubectl:"
         type: boolean
@@ -185,11 +180,6 @@ on:
         type: string
         required: false
         default: "0.29.0"
-      kind-node-image:
-        description: "Kind Node Image:"
-        type: string
-        required: false
-        default: "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211"
       kubectl-install:
         description: "Install Kubectl:"
         type: boolean
@@ -246,7 +236,7 @@ jobs:
     runs-on: ${{ inputs.runner || 'hiero-solo-linux-large' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -281,7 +271,7 @@ jobs:
             sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: ${{ inputs.node-version }}
@@ -304,7 +294,7 @@ jobs:
 
       - name: Install Kubectl
         if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true && !cancelled() && !failure() }}
-        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # pinned to v5.2.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v${{ inputs.kubectl-version }}'
@@ -312,15 +302,11 @@ jobs:
 
       - name: Setup Kind
         if: ${{ inputs.install-dependencies == true && inputs.kind-install == true && !cancelled() && !failure() }}
-        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        uses: $/.github/actions/setup-kind
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          install_only: true
-          node_image: '${{ inputs.kind-node-image }}'
           version: 'v${{ inputs.kind-version }}'
-          kubectl_version: 'v${{ inputs.kubectl-version }}'
-          verbosity: 3
-          wait: 120s
+          kubectl-version: 'v${{ inputs.kubectl-version }}'
 
       - name: Setup Helm
         if: ${{ inputs.install-dependencies == true && inputs.helm-install == true && !cancelled() && !failure() }}
@@ -414,7 +400,7 @@ jobs:
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
@@ -422,10 +408,10 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          cache-read-only: false
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Create Diagnostic Script
         if: ${{ !cancelled() && !failure() }}
@@ -704,7 +690,7 @@ jobs:
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-${{ inputs.test-script }}.log
@@ -713,7 +699,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload E2E Test Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
           steps.npm-deps.conclusion == 'success' && !cancelled() && !failure() }}
@@ -725,7 +711,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish E2E Coverage Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: >-
           ${{ github.event_name != 'workflow_dispatch' && inputs.test-script != 'test-e2e-external-database' &&
           !cancelled() && !failure() }}

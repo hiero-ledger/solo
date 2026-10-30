@@ -3,7 +3,7 @@
 import sinon, {type SinonSandbox, type SinonStub, type SinonStubbedInstance} from 'sinon';
 import {before, beforeEach, describe} from 'mocha';
 import {expect} from 'chai';
-import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../e2e/test-utility.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import * as constants from '../../../src/core/constants.js';
@@ -26,10 +26,12 @@ import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import {type ClusterReferenceResetContext} from '../../../src/commands/cluster/config-interfaces/cluster-reference-reset-context.js';
 import {type SoloListrTaskWrapper, type SoloListrTask} from '../../../src/types/index.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {type ConfigMaps} from '../../../src/integration/kube/resources/config-map/config-maps.js';
 import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {type ReleaseItem} from '../../../src/integration/helm/model/release/release-item.js';
 import {type ClusterChecks} from '../../../src/core/cluster-checks.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {MinioInstallFailedSoloError} from '../../../src/core/errors/classes/deployment/minio-install-failed-solo-error.js';
 import {MINIO_OPERATOR_VERSION} from '../../../version.js';
 
 type BaseCommandOptions = {
@@ -103,7 +105,7 @@ describe('ClusterCommand unit tests', (): void => {
       sandbox.stub(options.chartManager, 'install').returns(true);
 
       // Simple mock for installPodMonitorRole to avoid cluster connection
-      sandbox.stub(ClusterCommandTasks.prototype, 'installPodMonitorRole' as any).returns({
+      sandbox.stub(ClusterCommandTasks.prototype, 'installPodMonitorRole').returns({
         title: 'Install pod-monitor-role ClusterRole',
         task: async (): Promise<void> => {},
       });
@@ -159,6 +161,71 @@ describe('ClusterCommand unit tests', (): void => {
       ]);
 
       argv.setArg(flags.deployPrometheusStack, false);
+    });
+
+    it('Installs Loki, Grafana Alloy, and the Grafana datasource when --grafana-alloy and --prometheus-stack are set', async (): Promise<void> => {
+      argv.setArg(flags.deployGrafanaAlloy, true);
+      argv.setArg(flags.deployPrometheusStack, true);
+      const configMapsStub: {createOrReplace: sinon.SinonStub} = {createOrReplace: sandbox.stub().resolves(true)};
+      sandbox.stub(K8Client.prototype, 'configMaps').returns(configMapsStub as unknown as ConfigMaps);
+
+      const clusterCommandHandlers: ClusterCommandHandlers = container.resolve(ClusterCommandHandlers);
+      await clusterCommandHandlers.setup(argv.build());
+
+      const lokiInstallArguments: unknown[] = options.chartManager.install.args.find(
+        (installArguments: unknown[]): boolean => installArguments[1] === constants.LOKI_RELEASE_NAME,
+      );
+      expect(lokiInstallArguments, 'expected a Loki chart install').to.not.equal(undefined);
+      expect(lokiInstallArguments[2]).to.equal(constants.LOKI_CHART);
+      expect(lokiInstallArguments[3]).to.equal(constants.GRAFANA_CHART_REPO);
+      expect(lokiInstallArguments[4]).to.equal(version.LOKI_VERSION);
+
+      const alloyInstallArguments: unknown[] = options.chartManager.install.args.find(
+        (installArguments: unknown[]): boolean => installArguments[1] === constants.GRAFANA_ALLOY_RELEASE_NAME,
+      );
+      expect(alloyInstallArguments, 'expected a Grafana Alloy chart install').to.not.equal(undefined);
+      expect(alloyInstallArguments[2]).to.equal(constants.GRAFANA_ALLOY_CHART);
+      expect(alloyInstallArguments[3]).to.equal(constants.GRAFANA_CHART_REPO);
+      expect(alloyInstallArguments[4]).to.equal(version.GRAFANA_ALLOY_VERSION);
+
+      expect(configMapsStub.createOrReplace.calledOnce).to.equal(true);
+      expect(configMapsStub.createOrReplace.args[0][1]).to.equal(constants.LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME);
+      expect(configMapsStub.createOrReplace.args[0][2]).to.deep.equal({grafana_datasource: '1'});
+
+      argv.setArg(flags.deployGrafanaAlloy, false);
+      argv.setArg(flags.deployPrometheusStack, false);
+    });
+
+    it('Creates the Grafana datasource when --grafana-alloy is set and the Prometheus stack is already installed', async (): Promise<void> => {
+      argv.setArg(flags.deployGrafanaAlloy, true);
+      options.chartManager.isChartInstalled.withArgs(sinon.match.any, constants.PROMETHEUS_RELEASE_NAME).resolves(true);
+      const configMapsStub: {createOrReplace: sinon.SinonStub} = {createOrReplace: sandbox.stub().resolves(true)};
+      sandbox.stub(K8Client.prototype, 'configMaps').returns(configMapsStub as unknown as ConfigMaps);
+
+      const clusterCommandHandlers: ClusterCommandHandlers = container.resolve(ClusterCommandHandlers);
+      await clusterCommandHandlers.setup(argv.build());
+
+      expect(configMapsStub.createOrReplace.calledOnce).to.equal(true);
+      expect(configMapsStub.createOrReplace.args[0][1]).to.equal(constants.LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME);
+
+      argv.setArg(flags.deployGrafanaAlloy, false);
+    });
+
+    it('Skips the Grafana datasource when --grafana-alloy is set without the Prometheus stack', async (): Promise<void> => {
+      argv.setArg(flags.deployGrafanaAlloy, true);
+      const configMapsStub: {createOrReplace: sinon.SinonStub} = {createOrReplace: sandbox.stub().resolves(true)};
+      sandbox.stub(K8Client.prototype, 'configMaps').returns(configMapsStub as unknown as ConfigMaps);
+
+      const clusterCommandHandlers: ClusterCommandHandlers = container.resolve(ClusterCommandHandlers);
+      await clusterCommandHandlers.setup(argv.build());
+
+      const isLokiInstalled: boolean = options.chartManager.install.args.some(
+        (installArguments: unknown[]): boolean => installArguments[1] === constants.LOKI_RELEASE_NAME,
+      );
+      expect(isLokiInstalled, 'expected Loki to install without the Prometheus stack').to.equal(true);
+      expect(configMapsStub.createOrReplace.called).to.equal(false);
+
+      argv.setArg(flags.deployGrafanaAlloy, false);
     });
   });
 
@@ -240,7 +307,7 @@ describe('ClusterCommand unit tests', (): void => {
     let tasks: ClusterCommandTasks;
     let chartManager: SinonStubbedInstance<ChartManager>;
     let clusterChecks: SinonStubbedInstance<ClusterChecks>;
-    let crdsStub: {readLabels: SinonStub};
+    let crdsStub: {readLabels: SinonStub; delete: SinonStub};
 
     afterEach((): void => {
       sandbox.restore();
@@ -249,7 +316,7 @@ describe('ClusterCommand unit tests', (): void => {
     beforeEach((): void => {
       const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
       // Undefined labels is how the client reports an absent CRD.
-      crdsStub = {readLabels: sandbox.stub().resolves()};
+      crdsStub = {readLabels: sandbox.stub().resolves(), delete: sandbox.stub().resolves()};
       sandbox
         .stub(k8Factory, 'getK8')
         .returns({crds: (): typeof crdsStub => crdsStub} as unknown as ReturnType<K8Factory['getK8']>);
@@ -260,6 +327,9 @@ describe('ClusterCommand unit tests', (): void => {
       sandbox.stub(resolvedChartManager, 'install').resolves(true);
       sandbox.stub(resolvedChartManager, 'uninstall').resolves(true);
       sandbox.stub(resolvedChartManager, 'getInstalledRelease').resolves();
+      // No other release running the minio-operator chart by default, so the "no release found" path in
+      // the tests below falls through to the orphaned-CRD cleanup rather than the ownership-gap skip.
+      sandbox.stub(resolvedChartManager, 'getInstalledReleases').resolves([]);
       chartManager = resolvedChartManager as SinonStubbedInstance<ChartManager>;
 
       const resolvedClusterChecks: ClusterChecks = container.resolve(InjectTokens.ClusterChecks);
@@ -310,6 +380,36 @@ describe('ClusterCommand unit tests', (): void => {
       expect(chartManager.install.args[0][0]).to.equal(configuredNamespace);
     });
 
+    it('uninstalls the partial release and throws the install failure when the install fails', async (): Promise<void> => {
+      const installError: Error = new Error('helm install failed');
+      const uninstallError: Error = new Error('helm uninstall failed');
+      chartManager.install.rejects(installError);
+      chartManager.uninstall.rejects(uninstallError);
+      const showUserError: SinonStub = sandbox.stub(
+        container.resolve<SoloLogger>(InjectTokens.SoloLogger),
+        'showUserError',
+      );
+
+      let thrown: SoloError | undefined;
+      try {
+        await tasks.installMinioOperatorChart(configuredNamespace, 'test-context');
+      } catch (error) {
+        thrown = error as SoloError;
+      }
+
+      expect(thrown).to.be.instanceOf(MinioInstallFailedSoloError);
+      expect(thrown.cause).to.equal(installError);
+      expect(
+        chartManager.uninstall.calledOnceWith(
+          configuredNamespace,
+          constants.MINIO_OPERATOR_RELEASE_NAME,
+          'test-context',
+        ),
+      ).to.be.true;
+      // A failed cleanup is reported but must not replace the install failure.
+      expect(showUserError.calledOnceWith(uninstallError)).to.be.true;
+    });
+
     async function runUninstall(): Promise<void> {
       const task: SoloListrTask<ClusterReferenceResetContext> = tasks.uninstallMinioOperator();
       await task.task(
@@ -335,6 +435,38 @@ describe('ClusterCommand unit tests', (): void => {
       expect(chartManager.getInstalledRelease.args[0][0]).to.be.undefined;
       expect(chartManager.uninstall.args[0][0].name).to.equal(installedNamespace);
       expect(chartManager.uninstall.args[0][1]).to.equal(constants.MINIO_OPERATOR_RELEASE_NAME);
+    });
+
+    // Helm never deletes CRDs on uninstall (SOLO-3035): without this, the CRDs this exact release owned
+    // outlive it and the next `cluster-ref config setup` refuses to proceed.
+    it('deletes the CRDs it owns after a successful uninstall', async (): Promise<void> => {
+      chartManager.getInstalledRelease.resolves({
+        name: constants.MINIO_OPERATOR_RELEASE_NAME,
+        namespace: configuredNamespace.name,
+        chart: soloChart,
+      } as unknown as ReleaseItem);
+
+      await runUninstall();
+
+      expect(crdsStub.delete.callCount).to.equal(constants.MINIO_OPERATOR_CRDS.length);
+      for (const crdName of constants.MINIO_OPERATOR_CRDS) {
+        expect(crdsStub.delete.calledWith(crdName)).to.be.true;
+      }
+    });
+
+    // A CRD is cluster-wide, so one failing to delete must not fail a reset that otherwise succeeded; it
+    // surfaces as SOLO-3035, with its remediation, the next time setup runs.
+    it('does not fail the reset when a CRD fails to delete', async (): Promise<void> => {
+      chartManager.getInstalledRelease.resolves({
+        name: constants.MINIO_OPERATOR_RELEASE_NAME,
+        namespace: configuredNamespace.name,
+        chart: soloChart,
+      } as unknown as ReleaseItem);
+      crdsStub.delete.rejects(new Error('the API server is unavailable'));
+
+      await runUninstall();
+
+      expect(chartManager.uninstall.calledOnce).to.be.true;
     });
 
     it('uninstalls without consulting remote config when it is in the cluster-setup namespace', async (): Promise<void> => {
@@ -363,6 +495,7 @@ describe('ClusterCommand unit tests', (): void => {
       await runUninstall();
 
       expect(chartManager.uninstall.notCalled).to.be.true;
+      expect(crdsStub.delete.notCalled).to.be.true;
     });
 
     it('leaves a release running a different chart alone', async (): Promise<void> => {
@@ -375,12 +508,42 @@ describe('ClusterCommand unit tests', (): void => {
       await runUninstall();
 
       expect(chartManager.uninstall.notCalled).to.be.true;
+      expect(crdsStub.delete.notCalled).to.be.true;
     });
 
     it('skips the uninstall when no release exists', async (): Promise<void> => {
       await runUninstall();
 
       expect(chartManager.uninstall.notCalled).to.be.true;
+    });
+
+    // No release anywhere owns these CRDs, so this is the orphaned state itself (SOLO-3035): without
+    // cleaning them up here too, they outlive every future reset since none will ever find a release to
+    // uninstall first.
+    it('deletes orphaned CRDs even when no release exists to uninstall', async (): Promise<void> => {
+      await runUninstall();
+
+      expect(crdsStub.delete.callCount).to.equal(constants.MINIO_OPERATOR_CRDS.length);
+      for (const crdName of constants.MINIO_OPERATOR_CRDS) {
+        expect(crdsStub.delete.calledWith(crdName)).to.be.true;
+      }
+    });
+
+    // A release named anything else that still runs the minio-operator chart owns these CRDs just as
+    // much as one named constants.MINIO_OPERATOR_RELEASE_NAME would. Concluding "orphaned" from a
+    // name-only miss would delete CRDs out from under that release's own Tenants cluster-wide.
+    it('leaves the CRDs alone when a differently-named release still runs the minio-operator chart', async (): Promise<void> => {
+      chartManager.getInstalledReleases.resolves([
+        {
+          name: 'my-own-minio',
+          namespace: 'someone-elses-namespace',
+          chart: soloChart,
+        } as unknown as ReleaseItem,
+      ]);
+
+      await runUninstall();
+
+      expect(crdsStub.delete.notCalled).to.be.true;
     });
   });
 });

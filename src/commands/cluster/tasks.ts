@@ -6,6 +6,7 @@ import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
+import {type SoloError} from '../../core/errors/solo-error.js';
 
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type Context, type SoloListr, type SoloListrTask} from '../../types/index.js';
@@ -36,11 +37,23 @@ import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remo
 import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
 import {K8} from '../../integration/kube/k8.js';
+import {type ConfigMaps} from '../../integration/kube/resources/config-map/config-maps.js';
 import {HelmChartValues} from '../../integration/helm/model/values.js';
 import {Flags} from '../flags.js';
 
 @injectable()
 export class ClusterCommandTasks {
+  // Grafana datasource provisioning payload pointing at the namespace-local Loki Service
+  // installed alongside it by `cluster-ref config setup --grafana-alloy`.
+  private static readonly LOKI_GRAFANA_DATASOURCE_CONTENT: string =
+    'apiVersion: 1\n' +
+    'datasources:\n' +
+    '  - name: Loki\n' +
+    '    type: loki\n' +
+    '    access: proxy\n' +
+    '    url: http://loki:3100\n' +
+    '    isDefault: false\n';
+
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig: LocalConfigRuntimeState,
@@ -100,26 +113,56 @@ export class ClusterCommandTasks {
       throw new SoloErrors.system.minioOperatorCrdsOrphaned([...existingCrds.keys()], context);
     }
 
+    await this.installChartWithRollback(
+      clusterSetupNamespace,
+      constants.MINIO_OPERATOR_RELEASE_NAME,
+      constants.MINIO_OPERATOR_CHART,
+      constants.MINIO_OPERATOR_CHART,
+      versions.MINIO_OPERATOR_VERSION,
+      new HelmChartValues().set('operator.replicaCount', 1),
+      context,
+      'MinIO Operator',
+      SoloErrors.deployment.minioInstallFailed,
+    );
+  }
+
+  /** Installs a chart; on failure, uninstalls the partial release and throws `installFailedError`. */
+  private async installChartWithRollback(
+    namespace: NamespaceName,
+    releaseName: string,
+    chartName: string,
+    repoName: string,
+    version: string,
+    values: HelmChartValues,
+    context: Context,
+    chartLabel: string,
+    installFailedError: new (cause: Error) => SoloError,
+    skipCrds: boolean = false,
+  ): Promise<void> {
     try {
       await this.chartManager.install(
-        clusterSetupNamespace,
-        constants.MINIO_OPERATOR_RELEASE_NAME,
-        constants.MINIO_OPERATOR_CHART,
-        constants.MINIO_OPERATOR_CHART,
-        versions.MINIO_OPERATOR_VERSION,
-        new HelmChartValues().set('operator.replicaCount', 1),
+        namespace,
+        releaseName,
+        chartName,
+        repoName,
+        version,
+        values,
         context,
+        false,
+        false,
+        false,
+        skipCrds,
       );
-
-      this.logger.showUserUnlessOneShot(`✅ MinIO Operator chart installed successfully on context ${context}`);
+      this.logger.showUserUnlessOneShot(`✅ ${chartLabel} chart installed successfully`);
     } catch (error) {
-      this.logger.debug('Error installing MinIO Operator chart', error);
+      this.logger.debug(`Error installing ${chartLabel} chart`, error);
       try {
-        await this.chartManager.uninstall(clusterSetupNamespace, constants.MINIO_OPERATOR_RELEASE_NAME, context);
+        await this.chartManager.uninstall(namespace, releaseName, context);
       } catch (uninstallError) {
+        // best-effort cleanup: the install failure thrown below is the error to report
         this.logger.showUserError(uninstallError);
       }
-      throw new SoloErrors.deployment.minioInstallFailed(error);
+      throw new installFailedError(error);
     }
   }
 
@@ -308,33 +351,132 @@ export class ClusterCommandTasks {
             `chart version ${versions.PROMETHEUS_STACK_VERSION}`,
           );
         } else {
-          try {
-            await this.chartManager.install(
-              clusterSetupNamespace,
-              constants.PROMETHEUS_RELEASE_NAME,
-              constants.PROMETHEUS_STACK_CHART,
-              constants.PROMETHEUS_STACK_CHART,
-              versions.PROMETHEUS_STACK_VERSION,
-              new HelmChartValues().file(constants.PROMETHEUS_STACK_VALUES_FILE),
+          // The chart's CRDs are cluster-scoped and may already be owned by another manager (e.g. ArgoCD
+          // or another Prometheus operator install). Helm applies crds/ with server-side apply, which
+          // fails on field-ownership conflicts, so leave existing CRDs alone rather than fight for them.
+          const existingCrds: Map<string, Record<string, string>> = await ClusterCrdProbe.probe(
+            this.k8Factory,
+            context_.config.context,
+            constants.PROMETHEUS_OPERATOR_CRDS,
+          );
+          const skipCrds: boolean = existingCrds.size > 0;
+          if (skipCrds) {
+            SharedClusterResourceReport.show(
+              this.logger,
+              'Prometheus Operator CRDs',
               context_.config.context,
+              `${existingCrds.size} of ${constants.PROMETHEUS_OPERATOR_CRDS.length} CRDs already present`,
+              `chart version ${versions.PROMETHEUS_STACK_VERSION} (installing with --skip-crds)`,
             );
-            this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart installed successfully');
-          } catch (error) {
-            this.logger.debug('Error installing Prometheus Stack chart', error);
-            try {
-              await this.chartManager.uninstall(
-                clusterSetupNamespace,
-                constants.PROMETHEUS_RELEASE_NAME,
-                context_.config.context,
-              );
-            } catch (uninstallError) {
-              this.logger.showUserError(uninstallError);
-            }
-            throw new SoloErrors.deployment.prometheusInstallFailed(error);
           }
+          await this.installChartWithRollback(
+            clusterSetupNamespace,
+            constants.PROMETHEUS_RELEASE_NAME,
+            constants.PROMETHEUS_STACK_CHART,
+            constants.PROMETHEUS_STACK_CHART,
+            versions.PROMETHEUS_STACK_VERSION,
+            new HelmChartValues().file(constants.PROMETHEUS_STACK_VALUES_FILE),
+            context_.config.context,
+            'Prometheus Stack',
+            SoloErrors.deployment.prometheusInstallFailed,
+            skipCrds,
+          );
         }
       },
       skip: (context_: ClusterReferenceSetupContext): boolean => !context_.config.deployPrometheusStack,
+    };
+  }
+
+  public installLoki(): SoloListrTask<ClusterReferenceSetupContext> {
+    return {
+      title: 'Install Loki chart',
+      task: async (context_): Promise<void> => {
+        const clusterSetupNamespace: NamespaceName = context_.config.clusterSetupNamespace;
+
+        const isLokiInstalled: boolean = await this.chartManager.isChartInstalled(
+          clusterSetupNamespace,
+          constants.LOKI_RELEASE_NAME,
+          context_.config.context,
+        );
+
+        if (isLokiInstalled) {
+          this.logger.showUserUnlessOneShot('⏭️  Loki chart already installed, skipping');
+        } else {
+          await this.installChartWithRollback(
+            clusterSetupNamespace,
+            constants.LOKI_RELEASE_NAME,
+            constants.LOKI_CHART,
+            constants.GRAFANA_CHART_REPO,
+            versions.LOKI_VERSION,
+            new HelmChartValues().file(constants.LOKI_VALUES_FILE),
+            context_.config.context,
+            'Loki',
+            SoloErrors.deployment.lokiInstallFailed,
+          );
+        }
+
+        // The label makes the Grafana sidecar from kube-prometheus-stack load Loki as a datasource,
+        // so the ConfigMap is only created when that stack is requested now or already installed.
+        const isPrometheusStackAvailable: boolean =
+          context_.config.deployPrometheusStack ||
+          (await this.chartManager.isChartInstalled(
+            clusterSetupNamespace,
+            constants.PROMETHEUS_RELEASE_NAME,
+            context_.config.context,
+          ));
+
+        if (!isPrometheusStackAvailable) {
+          this.logger.showUserUnlessOneShot(
+            '⏭️  Prometheus Stack not installed, skipping Loki Grafana datasource; ' +
+              `add ${Flags.getFormattedFlagKey(Flags.deployPrometheusStack)} to query logs in Grafana`,
+          );
+          return;
+        }
+
+        await this.k8Factory
+          .getK8(context_.config.context)
+          .configMaps()
+          .createOrReplace(
+            clusterSetupNamespace,
+            constants.LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME,
+            {grafana_datasource: '1'},
+            {'loki-datasource.yaml': ClusterCommandTasks.LOKI_GRAFANA_DATASOURCE_CONTENT},
+          );
+      },
+      skip: ({config: {deployGrafanaAlloy}}): boolean => !deployGrafanaAlloy,
+    };
+  }
+
+  public installGrafanaAlloy(): SoloListrTask<ClusterReferenceSetupContext> {
+    return {
+      title: 'Install Grafana Alloy chart',
+      task: async (context_): Promise<void> => {
+        const clusterSetupNamespace: NamespaceName = context_.config.clusterSetupNamespace;
+
+        const isGrafanaAlloyInstalled: boolean = await this.chartManager.isChartInstalled(
+          clusterSetupNamespace,
+          constants.GRAFANA_ALLOY_RELEASE_NAME,
+          context_.config.context,
+        );
+
+        if (isGrafanaAlloyInstalled) {
+          this.logger.showUserUnlessOneShot('⏭️  Grafana Alloy chart already installed, skipping');
+          return;
+        }
+
+        await this.installChartWithRollback(
+          clusterSetupNamespace,
+          constants.GRAFANA_ALLOY_RELEASE_NAME,
+          constants.GRAFANA_ALLOY_CHART,
+          constants.GRAFANA_CHART_REPO,
+          versions.GRAFANA_ALLOY_VERSION,
+          new HelmChartValues().file(constants.GRAFANA_ALLOY_VALUES_FILE),
+          context_.config.context,
+          'Grafana Alloy',
+          SoloErrors.deployment.grafanaAlloyInstallFailed,
+        );
+      },
+      skip: ({config: {deployGrafanaAlloy}}): boolean => !deployGrafanaAlloy,
     };
   }
 
@@ -359,30 +501,17 @@ export class ClusterCommandTasks {
           return;
         }
 
-        try {
-          await this.chartManager.install(
-            constants.METRICS_SERVER_NAMESPACE,
-            constants.METRICS_SERVER_RELEASE_NAME,
-            constants.METRICS_SERVER_CHART,
-            constants.METRICS_SERVER_CHART,
-            versions.METRICS_SERVER_VERSION,
-            new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
-            context,
-          );
-          this.logger.showUserUnlessOneShot('metrics-server chart installed successfully');
-        } catch (error) {
-          this.logger.debug('Error installing metrics-server chart', error);
-          try {
-            await this.chartManager.uninstall(
-              constants.METRICS_SERVER_NAMESPACE,
-              constants.METRICS_SERVER_RELEASE_NAME,
-              context,
-            );
-          } catch (uninstallError) {
-            this.logger.showUserError(uninstallError);
-          }
-          throw new SoloErrors.deployment.metricsServerInstallFailed(error);
-        }
+        await this.installChartWithRollback(
+          constants.METRICS_SERVER_NAMESPACE,
+          constants.METRICS_SERVER_RELEASE_NAME,
+          constants.METRICS_SERVER_CHART,
+          constants.METRICS_SERVER_CHART,
+          versions.METRICS_SERVER_VERSION,
+          new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
+          context,
+          'metrics-server',
+          SoloErrors.deployment.metricsServerInstallFailed,
+        );
       },
       skip: ({config: {deployMetricsServer}}): boolean => !deployMetricsServer,
     };
@@ -492,11 +621,15 @@ export class ClusterCommandTasks {
           subtasks.push(this.installPrometheusStack());
         }
 
+        if (context_.config.deployGrafanaAlloy) {
+          subtasks.push(this.installLoki(), this.installGrafanaAlloy());
+        }
+
         if (context_.config.deployMetricsServer) {
           subtasks.push(this.installMetricsServer());
         }
 
-        const result: SoloListr<ClusterReferenceSetupContext> = await task.newListr(subtasks, {concurrent: false});
+        const result: SoloListr<ClusterReferenceSetupContext> = task.newListr(subtasks, {concurrent: false});
 
         if (argv.debug) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
@@ -559,6 +692,24 @@ export class ClusterCommandTasks {
         );
 
         if (!release) {
+          // A release named anything else that still runs the minio-operator chart owns these CRDs just
+          // as much as one named constants.MINIO_OPERATOR_RELEASE_NAME would; deleting a CRD cascades to
+          // every custom resource of that type cluster-wide, so a name-only miss must not be read as
+          // "orphaned" while such a release exists.
+          if (await this.isMinioOperatorChartInstalledAnywhere(context)) {
+            this.logger.showUserUnlessOneShot(
+              `⏭️  Leaving MinIO Operator CRDs alone: a release running the ${constants.MINIO_OPERATOR_CHART} ` +
+                'chart exists under a different name',
+            );
+            return;
+          }
+
+          // No release anywhere runs the minio-operator chart, so this is precisely the orphaned state
+          // installMinioOperatorChart rejects as SOLO-3035: a prior install that never completed (or an
+          // earlier reset that ran before this cleanup existed) can leave them behind with no release left
+          // to trigger their removal. Clean them up here too, not only after uninstalling a found release,
+          // or they linger forever and every future setup keeps failing.
+          await this.deleteMinioOperatorCrds(context);
           this.logger.showUserUnlessOneShot('⏭️  MinIO Operator chart not installed, skipping');
           return;
         }
@@ -576,27 +727,98 @@ export class ClusterCommandTasks {
 
         await this.chartManager.uninstall(NamespaceName.of(release.namespace), release.name, context);
 
+        // Helm never deletes CRDs on uninstall, however solo installed them itself: getInstalledRelease
+        // and isSoloInstalledMinioOperator above already confirmed this exact release owned them. Without
+        // this, the next cluster-ref config setup finds them orphaned and refuses to proceed (SOLO-3035).
+        await this.deleteMinioOperatorCrds(context);
+
         this.logger.showUserUnlessOneShot('✅ MinIO Operator chart uninstalled successfully');
       },
     };
+  }
+
+  /**
+   * Whether any Helm release anywhere in the cluster runs the minio-operator chart, regardless of its
+   * release name. A name-based lookup alone would miss a user's own minio-operator install under a
+   * different release name and read its CRDs as orphaned.
+   */
+  private async isMinioOperatorChartInstalledAnywhere(context: Context): Promise<boolean> {
+    const releases: ReleaseItem[] = await this.chartManager.getInstalledReleases(undefined, context);
+    return releases.some((release: ReleaseItem): boolean =>
+      release.chart?.startsWith(`${constants.MINIO_OPERATOR_CHART}-`),
+    );
+  }
+
+  /**
+   * Deletes the MinIO Operator's cluster-scoped CRDs. Best-effort: a CRD is cluster-wide, so a failure to
+   * remove one must not fail the whole reset — it is reported as SOLO-3035 the next time setup runs, with
+   * the manual remediation, rather than blocking cleanup that otherwise succeeded.
+   */
+  private async deleteMinioOperatorCrds(context: Context): Promise<void> {
+    for (const crdName of constants.MINIO_OPERATOR_CRDS) {
+      try {
+        await this.k8Factory.getK8(context).crds().delete(crdName);
+      } catch (error) {
+        this.logger.showUserUnlessOneShot(
+          `⚠️  Failed to delete leftover MinIO Operator CRD '${crdName}': ${(error as Error).message}`,
+        );
+      }
+    }
+  }
+
+  /** Uninstalls a chart release when it is installed, otherwise reports that it was skipped. */
+  private async uninstallChartIfInstalled(
+    namespace: NamespaceName,
+    releaseName: string,
+    context: Context,
+    chartLabel: string,
+  ): Promise<void> {
+    if (await this.chartManager.isChartInstalled(namespace, releaseName, context)) {
+      await this.chartManager.uninstall(namespace, releaseName, context);
+      this.logger.showUserUnlessOneShot(`✅ ${chartLabel} chart uninstalled successfully`);
+    } else {
+      this.logger.showUserUnlessOneShot(`⏭️  ${chartLabel} chart not installed, skipping`);
+    }
   }
 
   public uninstallPrometheusStack(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const isPrometheusInstalled: boolean = await this.chartManager.isChartInstalled(
+        await this.uninstallChartIfInstalled(
           clusterSetupNamespace,
           constants.PROMETHEUS_RELEASE_NAME,
           context,
+          'Prometheus Stack',
         );
+      },
+    };
+  }
 
-        if (isPrometheusInstalled) {
-          await this.chartManager.uninstall(clusterSetupNamespace, constants.PROMETHEUS_RELEASE_NAME, context);
-          this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart uninstalled successfully');
-        } else {
-          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart not installed, skipping');
+  public uninstallGrafanaAlloy(): SoloListrTask<ClusterReferenceResetContext> {
+    return {
+      title: 'Uninstall Grafana Alloy chart',
+      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
+        await this.uninstallChartIfInstalled(
+          clusterSetupNamespace,
+          constants.GRAFANA_ALLOY_RELEASE_NAME,
+          context,
+          'Grafana Alloy',
+        );
+      },
+    };
+  }
+
+  public uninstallLoki(): SoloListrTask<ClusterReferenceResetContext> {
+    return {
+      title: 'Uninstall Loki chart',
+      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
+        const configMaps: ConfigMaps = this.k8Factory.getK8(context).configMaps();
+        if (await configMaps.exists(clusterSetupNamespace, constants.LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME)) {
+          await configMaps.delete(clusterSetupNamespace, constants.LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME);
         }
+
+        await this.uninstallChartIfInstalled(clusterSetupNamespace, constants.LOKI_RELEASE_NAME, context, 'Loki');
       },
     };
   }
@@ -605,22 +827,12 @@ export class ClusterCommandTasks {
     return {
       title: 'Uninstall metrics-server chart',
       task: async ({config: {context}}): Promise<void> => {
-        const isMetricsServerInstalled: boolean = await this.chartManager.isChartInstalled(
+        await this.uninstallChartIfInstalled(
           constants.METRICS_SERVER_NAMESPACE,
           constants.METRICS_SERVER_RELEASE_NAME,
           context,
+          'metrics-server',
         );
-
-        if (isMetricsServerInstalled) {
-          await this.chartManager.uninstall(
-            constants.METRICS_SERVER_NAMESPACE,
-            constants.METRICS_SERVER_RELEASE_NAME,
-            context,
-          );
-          this.logger.showUserUnlessOneShot('Metrics-server chart uninstalled successfully');
-        } else {
-          this.logger.showUserUnlessOneShot('Metrics-server chart not installed, skipping');
-        }
       },
     };
   }
@@ -652,6 +864,8 @@ export class ClusterCommandTasks {
         return task.newListr(
           [
             this.uninstallMetricsServer(),
+            this.uninstallGrafanaAlloy(),
+            this.uninstallLoki(),
             this.uninstallPrometheusStack(),
             this.uninstallMinioOperator(),
             this.uninstallPodMonitorRole(),

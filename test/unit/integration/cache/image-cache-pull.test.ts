@@ -41,16 +41,19 @@ const engine: ContainerEngineClient = {
   removeImage: async (): Promise<void> => undefined,
   listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
   resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
+  getLinuxPlatform: async (): Promise<string> => 'linux/amd64',
 };
 
-function manifestImage(sha256: string = ARCHIVE_HASH): CacheManifestImage {
+function manifestImage(sha256: string = ARCHIVE_HASH, size?: number): CacheManifestImage {
   return new CacheManifestImage(
     IMAGE_REFERENCE,
+    'linux/amd64',
     TAR_FILE,
     `${TAR_FILE}.sha256`,
     sha256,
     `https://cdn.solo.hashgraph.io/${TAR_FILE}`,
     `https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`,
+    size,
   );
 }
 
@@ -163,6 +166,26 @@ describe('ImageCacheHandler pull', (): void => {
     expect(await exists(hashPath)).to.equal(true);
   });
 
+  it("reads the manifest entries for the container engine's platform", async (): Promise<void> => {
+    const fetchImages: SinonStub = sinon.stub(CacheManifestClient, 'fetchImages').resolves([]);
+    const arm64Engine: ContainerEngineClient = {
+      ...engine,
+      getLinuxPlatform: async (): Promise<string> => 'linux/arm64',
+    };
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      arm64Engine,
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+      {fetchFile: stubDownloader({})} as unknown as PackageDownloader,
+    );
+
+    await runPull(handler);
+
+    expect(fetchImages).to.have.been.calledOnceWithExactly('linux/arm64');
+  });
+
   it('skips the download when a valid archive is already cached', async (): Promise<void> => {
     await fs.writeFile(archivePath, ARCHIVE_CONTENTS);
     await fs.writeFile(hashPath, ARCHIVE_HASH);
@@ -202,6 +225,38 @@ describe('ImageCacheHandler pull', (): void => {
     expect(await exists(hashPath)).to.equal(false);
     expect(context.config.results).to.have.lengthOf(0);
     expect(loggerStub.warn).to.have.been.called;
+  });
+
+  it('accepts a downloaded archive whose size matches the manifest', async (): Promise<void> => {
+    sinon
+      .stub(CacheManifestClient, 'fetchImages')
+      .resolves([manifestImage(ARCHIVE_HASH, Buffer.byteLength(ARCHIVE_CONTENTS))]);
+    const fetchFile: SinonStub = stubDownloader({
+      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
+      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+    });
+
+    const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
+
+    expect(context.config.results).to.have.lengthOf(1);
+    expect(await exists(archivePath)).to.equal(true);
+  });
+
+  it('deletes a downloaded archive whose size does not match the manifest', async (): Promise<void> => {
+    sinon
+      .stub(CacheManifestClient, 'fetchImages')
+      .resolves([manifestImage(ARCHIVE_HASH, Buffer.byteLength(ARCHIVE_CONTENTS) + 1)]);
+    const fetchFile: SinonStub = stubDownloader({
+      [`https://cdn.solo.hashgraph.io/${TAR_FILE}`]: ARCHIVE_CONTENTS,
+      [`https://cdn.solo.hashgraph.io/${TAR_FILE}.sha256`]: ARCHIVE_HASH,
+    });
+
+    const context: {config: {results: unknown[]}} = await runPull(createHandler(fetchFile));
+
+    expect(await exists(archivePath)).to.equal(false);
+    expect(await exists(hashPath)).to.equal(false);
+    expect(context.config.results).to.have.lengthOf(0);
+    expect(loggerStub.warn).to.have.been.calledWithMatch(/not the \d+ the manifest records/);
   });
 
   it('does not download the archive when the manifest and the published hash disagree', async (): Promise<void> => {

@@ -12,7 +12,6 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
-import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import * as yaml from 'yaml';
@@ -64,10 +63,14 @@ export class ClusterTaskManager extends ShellRunner {
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, ClusterTaskManager.name);
     this.podmanDependencyManager = patchInject(
       podmanDependencyManager,
-      InjectTokens.KindBuilder,
+      InjectTokens.PodmanDependencyManager,
       ClusterTaskManager.name,
     );
-    this.kindDependencyManager = patchInject(kindDependencyManager, InjectTokens.KindBuilder, ClusterTaskManager.name);
+    this.kindDependencyManager = patchInject(
+      kindDependencyManager,
+      InjectTokens.KindDependencyManager,
+      ClusterTaskManager.name,
+    );
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
       InjectTokens.PodmanInstallationDirectory,
@@ -179,6 +182,10 @@ export class ClusterTaskManager extends ShellRunner {
           );
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
           const kindConfigFilePath: string = this.getConfigFilePath(useSmallMemoryCluster);
+          // kind runs as root, so it gets the user's kubeconfig explicitly; the folder is created as the user first.
+          const kubeConfigPath: string = ClusterTaskManager.userKubeConfigPath();
+          const kubeConfigExisted: boolean = fs.existsSync(kubeConfigPath);
+          fs.mkdirSync(path.dirname(kubeConfigPath), {recursive: true});
           // Use `sudo env VAR=... PATH=... kind ...` instead of a shell env-var prefix so no shell is needed.
           await this.sudoRun(
             onSudoRequested,
@@ -198,6 +205,8 @@ export class ClusterTaskManager extends ShellRunner {
               constants.KIND_NODE_IMAGE,
               '--config',
               kindConfigFilePath,
+              '--kubeconfig',
+              kubeConfigPath,
             ],
             false,
             false,
@@ -208,85 +217,35 @@ export class ClusterTaskManager extends ShellRunner {
           // rendered small-memory config, which carries the one-shot extraPortMappings.
           this.oneShotHostPortsPublished = kindConfigFilePath !== constants.KIND_CLUSTER_CONFIG_FILE;
 
-          // Merge kubeconfig data from root user into normal user's kubeconfig
-          const user: string[] = await this.run('whoami');
-          const temporaryDirectory: string = getTemporaryDirectory();
-          const rootKubeConfigPath: string = `${temporaryDirectory}/kube-config-root`;
-
-          await this.sudoRun(
-            onSudoRequested,
-            onSudoGranted,
-            'cp',
-            ['/root/.kube/config', rootKubeConfigPath],
-            false,
-            false,
-            sudoEnvironment,
-          );
-          await this.sudoRun(
-            onSudoRequested,
-            onSudoGranted,
-            'chown',
-            [user.join('').trim(), rootKubeConfigPath],
-            false,
-            false,
-            sudoEnvironment,
-          );
-          await this.sudoRun(
-            onSudoRequested,
-            onSudoGranted,
-            'chmod',
-            ['755', rootKubeConfigPath],
-            false,
-            false,
-            sudoEnvironment,
-          );
-
-          const rootYamlData: string = fs.readFileSync(rootKubeConfigPath, 'utf8');
-          const rootConfig: Record<string, AnyObject> = yaml.parse(rootYamlData) as Record<string, AnyObject>;
-
-          let userConfig: Record<string, AnyObject>;
-          const clusterName: string = 'kind-kind';
-
-          try {
-            const userYamlData: string = fs.readFileSync(`/home/${user}/.kube/config`, 'utf8');
-            userConfig = yaml.parse(userYamlData) as Record<string, AnyObject>;
-
-            if (!userConfig.clusters) {
-              userConfig.clusters = [];
-            }
-            userConfig.clusters.push(rootConfig.clusters.find((c: AnyObject): boolean => c.name === clusterName));
-
-            if (!userConfig.contexts) {
-              userConfig.contexts = [];
-            }
-            userConfig.contexts.push(rootConfig.contexts.find((c: AnyObject): boolean => c.name === clusterName));
-
-            if (!userConfig.users) {
-              userConfig.users = [];
-            }
-            userConfig.users.push(rootConfig.users.find((c: AnyObject): boolean => c.name === clusterName));
-
-            userConfig['current-context'] = rootConfig['current-context'];
-          } catch (error) {
-            if (error.code === 'ENOENT') {
-              const kubeConfigDirectory: string = `/home/${user}/.kube/`;
-              if (!fs.existsSync(kubeConfigDirectory)) {
-                fs.mkdirSync(kubeConfigDirectory, {recursive: true});
-              }
-              userConfig = rootConfig;
-              userConfig.clusters = userConfig.clusters.filter((c: AnyObject): boolean => c.name === clusterName);
-              userConfig.contexts = userConfig.contexts.filter((c: AnyObject): boolean => c.name === clusterName);
-              userConfig.users = userConfig.users.filter((c: AnyObject): boolean => c.name === clusterName);
-            } else {
-              throw error;
-            }
+          // kind keeps the owner of a file it rewrites, but a file it creates belongs to root.
+          if (!kubeConfigExisted) {
+            const user: os.UserInfo<string> = os.userInfo();
+            await this.sudoRun(
+              onSudoRequested,
+              onSudoGranted,
+              'chown',
+              [`${user.uid}:${user.gid}`, kubeConfigPath],
+              false,
+              false,
+              sudoEnvironment,
+            );
           }
-
-          fs.writeFileSync(`/home/${user}/.kube/config`, yaml.stringify(userConfig), 'utf8');
-          fs.rmSync(`${temporaryDirectory}/kube-config-root`);
         },
       } as SoloListrTask<AnyObject>,
     ];
+  }
+
+  /** The kubeconfig kind merges into: the first existing `KUBECONFIG` entry, else the last one, else `~/.kube/config`. */
+  private static userKubeConfigPath(): string {
+    const kubeConfigPaths: string[] = (constants.getEnvironmentVariable('KUBECONFIG') ?? '')
+      .split(path.delimiter)
+      .filter((kubeConfigPath: string): boolean => kubeConfigPath !== '');
+    if (kubeConfigPaths.length === 0) {
+      return path.join(os.homedir(), '.kube', 'config');
+    }
+    return (
+      kubeConfigPaths.find((kubeConfigPath: string): boolean => fs.existsSync(kubeConfigPath)) ?? kubeConfigPaths.at(-1)
+    );
   }
 
   /**

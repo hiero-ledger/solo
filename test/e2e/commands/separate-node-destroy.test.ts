@@ -4,7 +4,7 @@ import {describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {accountCreationShouldSucceed, balanceQueryShouldSucceed, type BootstrapResponse} from '../../test-utility.js';
+import {accountCreationShouldSucceed, balanceQueryShouldSucceed, type BootstrapResponse} from '../test-utility.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
@@ -30,7 +30,7 @@ export function testSeparateNodeDelete(argv: Argv, bootstrapResp: BootstrapRespo
     opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
 
-  describe('Node delete via separated commands', async (): Promise<void> => {
+  describe('Node delete via separated commands', (): void => {
     it('should delete a node from the network successfully', async (): Promise<void> => {
       await main(
         NodeDestroyTest.soloNodeDeletePrepareArgv(argv.getArg<string>(flags.deployment), temporaryDirectory, nodeAlias),

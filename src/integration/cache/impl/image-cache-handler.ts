@@ -88,7 +88,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
     let manifestImages: ReadonlyMap<string, CacheManifestImage>;
     try {
-      manifestImages = await ImageCacheHandler.fetchManifestImages();
+      manifestImages = await this.fetchManifestImages();
     } catch (error) {
       const message: string = ImageCacheHandler.getErrorMessage(error);
       this.logger.error('Failed to read the image cache manifest:', error);
@@ -172,9 +172,14 @@ export class ImageCacheHandler implements CacheOperationHandler {
     };
   }
 
-  /** Fetches the manifest for the running Solo version, keyed by image reference. */
-  private static async fetchManifestImages(): Promise<ReadonlyMap<string, CacheManifestImage>> {
-    const images: readonly CacheManifestImage[] = await CacheManifestClient.fetchImages();
+  /**
+   * Fetches the manifest entries for the running Solo version and the container engine's platform, keyed by
+   * image reference. The engine's platform is the cluster's, so only archives the cluster can run are cached.
+   */
+  private async fetchManifestImages(): Promise<ReadonlyMap<string, CacheManifestImage>> {
+    const images: readonly CacheManifestImage[] = await CacheManifestClient.fetchImages(
+      await this.engine.getLinuxPlatform(),
+    );
 
     return new Map<string, CacheManifestImage>(
       images.map((image): [string, CacheManifestImage] => [image.image, image]),
@@ -211,7 +216,8 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
   /**
    * Downloads an archive and its published hash file, then accepts the archive only when the manifest hash,
-   * the published hash file and the archive's own SHA-256 all agree. Anything else discards the download.
+   * the published hash file and the archive's own SHA-256 all agree, and its size matches the manifest when
+   * the manifest records one. Anything else discards the download.
    */
   private async downloadArchive(
     reference: string,
@@ -243,6 +249,23 @@ export class ImageCacheHandler implements CacheOperationHandler {
       }
 
       await this.downloader.fetchFile(manifestImage.tarUrl, archivePath);
+
+      // Checked before hashing: a truncated download is reported as a size mismatch without reading the archive.
+      if (manifestImage.size !== undefined) {
+        const {size: downloadedSize}: {size: number} = await fs.stat(archivePath);
+
+        if (downloadedSize !== manifestImage.size) {
+          await this.discardArchive(archivePath);
+          task.title += ' - ' + chalk.red('downloaded archive size mismatch, discarded');
+          this.logger.warn(
+            `Downloaded archive for ${reference} is ${downloadedSize} bytes, not the ${manifestImage.size} the manifest records, and was deleted; the next \`solo cache image pull\` will download it again.`,
+          );
+          this.recordFailure(
+            `${reference}: downloaded archive is ${downloadedSize} bytes but the manifest records ${manifestImage.size}; the archive was deleted and will be downloaded on the next pull.`,
+          );
+          return false;
+        }
+      }
 
       const computed: string = await ImageCacheHandler.computeSha256(archivePath);
 
@@ -359,7 +382,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
    */
   private async resolveManifestImagesForLoad(): Promise<ReadonlyMap<string, CacheManifestImage>> {
     try {
-      return await ImageCacheHandler.fetchManifestImages();
+      return await this.fetchManifestImages();
     } catch (error) {
       this.logger.debug(
         'Unable to read the image cache manifest; cached archives will be loaded without re-validation: ' +

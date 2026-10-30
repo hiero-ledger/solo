@@ -46,6 +46,7 @@ import {LocalConfigRuntimeState} from '../local/local-config-runtime-state.js';
 import {RemoteConfigMetadataSchema} from '../../../../data/schema/model/remote/remote-config-metadata-schema.js';
 import {ApplicationVersionsSchema} from '../../../../data/schema/model/common/application-versions-schema.js';
 import {ClusterSchema} from '../../../../data/schema/model/common/cluster-schema.js';
+import {LedgerSchema} from '../../../../data/schema/model/remote/ledger-schema.js';
 import {DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
 import {DeploymentHistorySchema} from '../../../../data/schema/model/remote/deployment-history-schema.js';
 import {RemoteConfigSchemaDefinition} from '../../../../data/schema/migration/impl/remote/remote-config-schema-definition.js';
@@ -238,12 +239,20 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsSchema(nodeAliases.length + 1), consensusNodeStates),
+      new DeploymentStateSchema(new ComponentIdsSchema(nodeAliases.length + 1), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
+      new LedgerSchema(
+        ledgerPhase,
+        Number(this.localConfig.configuration.realmForDeployment(deploymentName)),
+        Number(this.localConfig.configuration.shardForDeployment(deploymentName)),
+      ),
     );
 
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
     await this.populateFromConfigMap(configMap, remoteConfig);
+
+    // record default component versions up front so they are not left as 0.0.0 until each component is deployed
+    this.initializeComponentVersions(argv, remoteConfig);
 
     await this.persist();
   }
@@ -301,6 +310,14 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     await this.persist();
+  }
+
+  /** Records the running Solo version as the one that last touched the remote config. */
+  private updateCliVersion(): void {
+    const currentVersion: SemanticVersion<string> = new SemanticVersion<string>(getSoloVersion());
+    if (!this.getComponentVersion(ComponentTypes.Cli).equals(currentVersion)) {
+      this.updateComponentVersion(ComponentTypes.Cli, currentVersion);
+    }
   }
 
   public addCommandToHistory(command: string): void {
@@ -515,6 +532,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     this.initializeComponentVersions(argv, this.source.modelData);
+    this.updateCliVersion();
 
     await this.persist();
   }
@@ -751,6 +769,28 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   public getNamespace(): NamespaceName {
     return NamespaceName.of(this.configuration.clusters?.at(0)?.namespace);
+  }
+
+  /**
+   * The kube context of the cluster that holds the deployment lease: the first cluster of the remote config, mapped to
+   * a context through the local config. The remote config is the same on all clusters, so every command and every user
+   * locks the same cluster. Not to be confused with getContextForFirstCluster(), which follows the local deployment's
+   * cluster order.
+   *
+   * @throws ClusterReferenceNotFoundError if the local config has no context for that cluster.
+   */
+  public getLeaseContext(): Context {
+    const clusterReference: ClusterReferenceName = this.configuration.clusters?.at(0)?.name;
+    const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString();
+    if (!context) {
+      // Falling back to --context or the current context would lock a different cluster than other users do.
+      throw new SoloErrors.deployment.clusterRefNotFound(
+        clusterReference,
+        flags.getFormattedFlagKey(flags.clusterRef),
+        flags.getFormattedFlagKey(flags.context),
+      );
+    }
+    return context;
   }
 
   public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
