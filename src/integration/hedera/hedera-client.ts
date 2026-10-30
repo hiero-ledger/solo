@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type AccountId, type AccountInfo, type Client, type FileId, type PrivateKey} from '@hiero-ledger/sdk';
+import {
+  type AccountId,
+  type AccountInfo,
+  type Client,
+  type FileId,
+  type PrivateKey,
+  type TopicId,
+} from '@hiero-ledger/sdk';
 import {type HederaFileInfo} from './hedera-file-info.js';
 import {type HederaFileTransactionResult} from './hedera-file-transaction-result.js';
 import {type HederaSubmittedTransaction} from './hedera-submitted-transaction.js';
@@ -105,6 +112,20 @@ export interface HederaClient {
     newAdminKey: PrivateKey,
     currentAdminKey: PrivateKey,
   ): Promise<HederaTransactionStatus>;
+
+  /**
+   * Checks whether a topic exists
+   * @param topicId - the topic
+   * @returns false when the network answers INVALID_TOPIC_ID
+   * @throws for any other failure
+   */
+  topicExists(topicId: TopicId): Promise<boolean>;
+
+  /**
+   * Creates a topic and returns once the network has accepted the transaction, without waiting for its receipt
+   * @param memo - the memo of the topic
+   */
+  createTopic(memo: string): Promise<void>;
 
   /**
    * Reads the contents of a file
