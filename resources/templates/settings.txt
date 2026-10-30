@@ -1,2 +1,4 @@
 state.mainClassNameOverride,                   com.hedera.services.ServicesMain
 state.saveStatePeriod, 60
+# async periodic snapshots can stall a freeze (hiero-consensus-node#27227); drop this once the pinned consensus node has the fix
+state.saveStateAsync, false
