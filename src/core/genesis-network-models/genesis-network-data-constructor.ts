@@ -47,11 +47,7 @@ export class GenesisNetworkDataConstructor implements ToJSON {
           try {
             adminPublicKey = PublicKey.fromStringED25519(adminPublicKeyMap.get(consensusNode.name));
           } catch (error: unknown) {
-            throw new SoloErrors.validation.invalidAdminPublicKey(
-              adminPublicKeyMap.get(consensusNode.name),
-              consensusNode.name as NodeAlias,
-              error,
-            );
+            throw new SoloErrors.validation.invalidAdminPublicKey(consensusNode.name as NodeAlias, error);
           }
         }
 
@@ -137,7 +133,7 @@ export class GenesisNetworkDataConstructor implements ToJSON {
         try {
           PublicKey.fromStringED25519(key);
         } catch (error: unknown) {
-          throw new SoloErrors.validation.invalidAdminPublicKey(key, nodeAlias, error);
+          throw new SoloErrors.validation.invalidAdminPublicKey(nodeAlias, error);
         }
 
         adminPublicKeyMap.set(nodeAlias, key);
