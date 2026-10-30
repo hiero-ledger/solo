@@ -156,6 +156,7 @@ import {MirrorNodeBlockNodeSourceUnavailableSoloError} from './classes/validatio
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
+import {RustfsInstallFailedSoloError} from './classes/deployment/rustfs-install-failed-solo-error.js';
 import {MinioOperatorCrdsOrphanedSoloError} from './classes/system/minio-operator-crds-orphaned-solo-error.js';
 import {PrometheusInstallFailedSoloError} from './classes/deployment/prometheus-install-failed-solo-error.js';
 import {GrafanaAlloyInstallFailedSoloError} from './classes/deployment/grafana-alloy-install-failed-solo-error.js';
@@ -384,6 +385,7 @@ export class SoloErrors {
     readonly clusterSetupFailed: typeof ClusterSetupFailedSoloError;
     readonly clusterResetFailed: typeof ClusterResetFailedSoloError;
     readonly minioInstallFailed: typeof MinioInstallFailedSoloError;
+    readonly rustfsInstallFailed: typeof RustfsInstallFailedSoloError;
     readonly prometheusInstallFailed: typeof PrometheusInstallFailedSoloError;
     readonly grafanaAlloyInstallFailed: typeof GrafanaAlloyInstallFailedSoloError;
     readonly lokiInstallFailed: typeof LokiInstallFailedSoloError;
@@ -418,6 +420,7 @@ export class SoloErrors {
     clusterSetupFailed: ClusterSetupFailedSoloError,
     clusterResetFailed: ClusterResetFailedSoloError,
     minioInstallFailed: MinioInstallFailedSoloError,
+    rustfsInstallFailed: RustfsInstallFailedSoloError,
     prometheusInstallFailed: PrometheusInstallFailedSoloError,
     grafanaAlloyInstallFailed: GrafanaAlloyInstallFailedSoloError,
     lokiInstallFailed: LokiInstallFailedSoloError,

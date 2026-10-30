@@ -215,6 +215,12 @@ export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
  */
 export const MINIO_OPERATOR_CRDS: string[] = ['tenants.minio.min.io', 'policybindings.sts.min.io'];
 
+export const RUSTFS_CHART_URL: string = 'https://charts.rustfs.com';
+export const RUSTFS_CHART: string = 'rustfs';
+export const RUSTFS_RELEASE_NAME: string = 'rustfs';
+export const RUSTFS_SECRET_NAME: string = 'rustfs-credentials';
+export const RUSTFS_SERVICE_ENDPOINT: string = `${RUSTFS_RELEASE_NAME}-svc:9000`;
+
 export const PROMETHEUS_OPERATOR_CRDS: string[] = [
   'alertmanagerconfigs.monitoring.coreos.com',
   'alertmanagers.monitoring.coreos.com',
@@ -354,6 +360,7 @@ export const POD_CONDITION_STATUS_TRUE: string = 'True';
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const RUSTFS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rustfs-values.yaml');
 export const MIRROR_NODE_DEBUG_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-node-debug-values.yaml',
@@ -724,6 +731,7 @@ export const enum StorageType {
   AWS_ONLY = 'aws_only',
   GCS_ONLY = 'gcs_only',
   AWS_AND_GCS = 'aws_and_gcs',
+  RUSTFS_ONLY = 'rustfs_only',
 }
 
 export const CERT_MANAGER_CRDS: string[] = [
