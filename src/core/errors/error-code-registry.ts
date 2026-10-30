@@ -239,6 +239,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   COMPONENT_UPGRADE_REQUIRES_REDEPLOY: 'SOLO-4090',
   INVALID_NETWORK_NODE_LIFECYCLE_MODE: 'SOLO-4091',
   MIRROR_NODE_BLOCK_NODE_SOURCE_UNAVAILABLE: 'SOLO-4092',
+  INVALID_ADMIN_PUBLIC_KEY: 'SOLO-4093',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',

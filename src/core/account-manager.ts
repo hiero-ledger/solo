@@ -22,7 +22,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, resolveGossipFqdnRestricted, sleep} from './helpers.js';
+import {entityId, extractContextFromConsensusNodes, resolveGossipFqdnRestricted, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -144,6 +144,30 @@ export class AccountManager {
       privateKey: genesisKey.toString(),
       publicKey: genesisKey.publicKey.toString(),
     };
+  }
+
+  /**
+   * Gets a consensus node's admin key from its admin key secret, or the genesis key when the node has none
+   * @param nodeAlias - the node whose admin key we want
+   * @param namespace - the namespace storing the secret
+   * @param consensusNodes - the deployment's consensus nodes, used to find the node's cluster context
+   */
+  public async getNodeAdminKey(
+    nodeAlias: NodeAlias,
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+  ): Promise<PrivateKey> {
+    try {
+      const keyFromK8: Secret = await this.k8Factory
+        .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
+        .secrets()
+        .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
+      return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
+    } catch (error) {
+      // a node without an admin key secret still has the genesis key it was created with
+      this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
+      return await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
+    }
   }
 
   /**

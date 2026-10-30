@@ -185,7 +185,6 @@ import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
-import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
@@ -1330,29 +1329,10 @@ export class NodeCommandTasks {
         const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
         const nodeAlias: NodeAlias = (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias;
         config.adminKey = nodeAlias
-          ? await this.loadNodeAdminKey(nodeAlias, config.namespace, config.consensusNodes)
+          ? await this.accountManager.getNodeAdminKey(nodeAlias, config.namespace, config.consensusNodes)
           : await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), config.namespace);
       },
     };
-  }
-
-  /** Returns the node's admin key from its admin key secret, or the genesis key when the node has none. */
-  private async loadNodeAdminKey(
-    nodeAlias: NodeAlias,
-    namespace: NamespaceName,
-    consensusNodes: ConsensusNode[],
-  ): Promise<PrivateKey> {
-    try {
-      const keyFromK8: Secret = await this.k8Factory
-        .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
-        .secrets()
-        .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
-      return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
-    } catch (error) {
-      // a node without an admin key secret still has the genesis key it was created with
-      this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
-      return await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
-    }
   }
 
   public checkExistingNodesStakedAmount(): SoloListrTask<
@@ -2330,7 +2310,11 @@ export class NodeCommandTasks {
             ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
           });
 
-          const nodeAdminKey: PrivateKey = await this.loadNodeAdminKey(nodeAlias, namespace, config.consensusNodes);
+          const nodeAdminKey: PrivateKey = await this.accountManager.getNodeAdminKey(
+            nodeAlias,
+            namespace,
+            config.consensusNodes,
+          );
           const updateTransaction: NodeUpdateTransaction = await new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
             .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)

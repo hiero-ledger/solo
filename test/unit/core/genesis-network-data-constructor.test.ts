@@ -21,6 +21,7 @@ import {
 } from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import * as constants from '../../../src/core/constants.js';
+import {InvalidAdminPublicKeySoloError} from '../../../src/core/errors/classes/validation/invalid-admin-public-key-solo-error.js';
 
 function secureGrpcPorts(basePort: number): number[] {
   return [basePort, basePort + 1];
@@ -252,5 +253,43 @@ describe('core/genesis-network-data-constructor', (): void => {
     } finally {
       generateEd25519Stub.restore();
     }
+  });
+
+  it('should use each supplied admin public key as that node admin key', async (): Promise<void> => {
+    const adminPublicKeys: string[] = [
+      PrivateKey.generateED25519().publicKey.toStringDer(),
+      PrivateKey.generateED25519().publicKey.toStringDer(),
+    ];
+    const createOrReplaceAccountKeySecret: SinonStub = sinon.stub().resolves();
+
+    const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
+      consensusNodes,
+      keyManager,
+      {...accountManager, createOrReplaceAccountKeySecret} as unknown as AccountManager,
+      networkNodeServiceMap(),
+      adminPublicKeys,
+    );
+
+    expect(
+      nodeAliases.map((nodeAlias: NodeAlias): string => genesisNetworkData.nodes[nodeAlias].adminKey.toStringDer()),
+    ).to.deep.equal(adminPublicKeys);
+    expect(createOrReplaceAccountKeySecret.called, 'no admin key should be generated').to.be.false;
+  });
+
+  it('should reject a supplied admin public key that is not ED25519, naming its node', async (): Promise<void> => {
+    const adminPublicKeys: string[] = [
+      PrivateKey.generateED25519().publicKey.toStringDer(),
+      PrivateKey.generateECDSA().publicKey.toStringDer(),
+    ];
+
+    await expect(
+      GenesisNetworkDataConstructor.initialize(
+        consensusNodes,
+        keyManager,
+        accountManager,
+        networkNodeServiceMap(),
+        adminPublicKeys,
+      ),
+    ).to.be.rejectedWith(InvalidAdminPublicKeySoloError, /node2/);
   });
 });

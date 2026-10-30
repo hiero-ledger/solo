@@ -8,8 +8,9 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
-import {entityId, parseNodeAliases, sleep} from '../core/helpers.js';
+import {entityId, extractContextFromConsensusNodes, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
+import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {
   AccountId,
   AccountInfo,
@@ -19,6 +20,8 @@ import {
   Long,
   NodeUpdateTransaction,
   PrivateKey,
+  ReceiptStatusError,
+  Status,
   TransactionReceipt,
   TransactionResponse,
 } from '@hiero-ledger/sdk';
@@ -37,7 +40,6 @@ import {
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Templates} from '../core/templates.js';
-import {GenesisKeyResolver} from '../core/genesis-key-resolver.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
@@ -423,14 +425,15 @@ export class AccountCommand extends BaseCommand {
                 {
                   title: 'Update node admin key',
                   task: async ({config}: Context): Promise<void> => {
-                    const adminKey: PrivateKey = await GenesisKeyResolver.resolve(
-                      this.k8Factory,
-                      this.remoteConfig.getContexts(),
-                      config.namespace,
-                    );
+                    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
                     for (const nodeAlias of config.nodeAliases) {
                       const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+                      const adminKey: PrivateKey = await this.accountManager.getNodeAdminKey(
+                        nodeAlias,
+                        config.namespace,
+                        consensusNodes,
+                      );
                       const nodeClient: Client = await this.accountManager.refreshNodeClient(
                         config.namespace,
                         this.remoteConfig.getClusterRefs(),
@@ -460,10 +463,11 @@ export class AccountCommand extends BaseCommand {
                           privateKey: Base64.encode(newPrivateKey.toString()),
                           publicKey: Base64.encode(newPrivateKey.publicKey.toString()),
                         };
+                        // replace, not create: the node may already have an admin key secret holding the key just replaced
                         await this.k8Factory
-                          .getK8(config.contextName)
+                          .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
                           .secrets()
-                          .create(
+                          .createOrReplace(
                             config.namespace,
                             Templates.renderNodeAdminKeyName(nodeAlias),
                             SecretType.OPAQUE,
@@ -471,6 +475,16 @@ export class AccountCommand extends BaseCommand {
                             {'solo.hedera.com/node-admin-key': 'true'},
                           );
                       } catch (error) {
+                        if (error instanceof ReceiptStatusError && error.status === Status.InvalidSignature) {
+                          // Solo holds no key that can sign for this node, so it keeps its current admin key
+                          this.logger.showUser(
+                            chalk.yellow(
+                              `Warning: the admin key of ${nodeAlias} was not updated: its admin key is not one Solo ` +
+                                'holds, so the network rejected the node update with INVALID_SIGNATURE.',
+                            ),
+                          );
+                          continue;
+                        }
                         throw new SoloErrors.component.nodeAccessConfigFailed(error);
                       }
                     }

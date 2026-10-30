@@ -4,7 +4,8 @@ import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {Templates} from '../../core/templates.js';
 import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
-import {checkNamespace, parseNodeAliases} from '../../core/helpers.js';
+import {checkNamespace, parseNodeAliases, splitFlagInput} from '../../core/helpers.js';
+import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import fs from 'node:fs';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import {Flags as flags} from '../flags.js';
@@ -753,6 +754,12 @@ export class NodeCommandConfigs {
     config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     config.consensusNodes = this.remoteConfig.getConsensusNodes();
     config.nodeAliases = parseNodeAliases(config.nodeAliasesUnparsed, config.consensusNodes, this.configManager);
+
+    // The genesis network is only written once setup has fetched the platform software; reject bad keys before that
+    const adminPublicKeys: string = this.configManager.getFlag<string>(flags.adminPublicKeys);
+    if (adminPublicKeys) {
+      GenesisNetworkDataConstructor.validateAdminPublicKeys(splitFlagInput(adminPublicKeys), config.consensusNodes);
+    }
 
     await this.initializeSetup(config, this.k8Factory);
 
