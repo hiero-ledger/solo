@@ -24,6 +24,9 @@ import {
   HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
+import {type HederaClient} from '../../integration/hedera/hedera-client.js';
+import {type HederaFileTransactionResult} from '../../integration/hedera/hedera-file-transaction-result.js';
+import {type HederaFreezeResult} from '../../integration/hedera/hedera-freeze-result.js';
 import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {
   AccountId,
@@ -31,11 +34,7 @@ import {
   AccountInfoQuery,
   AccountUpdateTransaction,
   type Client,
-  FileAppendTransaction,
   FileId,
-  FileUpdateTransaction,
-  FreezeTransaction,
-  FreezeType,
   Long,
   NodeCreateTransaction,
   NodeDeleteTransaction,
@@ -44,7 +43,6 @@ import {
   ReceiptStatusError,
   ServiceEndpoint,
   Status,
-  Timestamp,
   TransactionReceipt,
   TransactionResponse,
 } from '@hiero-ledger/sdk';
@@ -441,7 +439,7 @@ export class NodeCommandTasks {
 
   private async _uploadUpgradeZip(
     upgradeZipFile: string,
-    nodeClient: Client,
+    hederaClient: HederaClient,
     deploymentName: DeploymentName,
   ): Promise<string> {
     // get byte value of the zip file
@@ -459,16 +457,13 @@ export class NodeCommandTasks {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
           zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
         );
-        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | undefined = undefined;
-
-        fileTransaction =
-          start === 0
-            ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
-            : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
-        const resp: TransactionResponse = await fileTransaction.execute(nodeClient);
-        const receipt: TransactionReceipt = await resp.getReceipt(nodeClient);
+        const result: HederaFileTransactionResult = await hederaClient.writeFileChunk(
+          this.getFileUpgradeId(deploymentName),
+          zipBytesChunk,
+          start === 0 ? 'update' : 'append',
+        );
         this.logger.debug(
-          `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
+          `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txStatus = ${result.status}]`,
         );
 
         start += constants.UPGRADE_FILE_CHUNK_SIZE;
@@ -1251,7 +1246,11 @@ export class NodeCommandTasks {
             postUpgradeSystemFiles,
           );
         }
-        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
+        context_.upgradeZipHash = await this._uploadUpgradeZip(
+          context_.upgradeZipFile,
+          this.accountManager.hederaClientFor(config.nodeClient),
+          deployment,
+        );
       },
     };
   }
@@ -1383,14 +1382,15 @@ export class NodeCommandTasks {
       title: 'Send prepare upgrade transaction',
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
-        const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
+        const {freezeAdminPrivateKey, deployment} = context_.config;
+        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
         const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
         // query the balance
         let accountInfo: AccountInfo;
         try {
-          accountInfo = await new AccountInfoQuery().setAccountId(freezeAccountId).execute(nodeClient);
+          accountInfo = await nodeClient.getAccountInfo(freezeAccountId);
         } catch (error) {
           throw new SoloErrors.component.accountBalanceQueryFailed(freezeAccountId, error);
         }
@@ -1403,30 +1403,24 @@ export class NodeCommandTasks {
         // set operator of freeze transaction as freeze admin account
         nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-        let prepareUpgradeTransaction: TransactionResponse;
-        let prepareUpgradeReceipt: TransactionReceipt;
+        let prepareUpgradeResult: HederaFreezeResult;
         try {
-          prepareUpgradeTransaction = await new FreezeTransaction()
-            .setFreezeType(FreezeType.PrepareUpgrade)
-            .setFileId(this.getFileUpgradeId(deployment))
-            .setFileHash(upgradeZipHash)
-            .freezeWith(nodeClient)
-            .execute(nodeClient);
-          prepareUpgradeReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
+          prepareUpgradeResult = await nodeClient.freeze({
+            type: 'prepare-upgrade',
+            fileId: this.getFileUpgradeId(deployment),
+            fileHash: upgradeZipHash,
+          });
         } catch (error) {
           throw new SoloErrors.component.nodePrepareUpgradeTransactionError(error);
         }
 
         this.logger.debug(
-          `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
-          prepareUpgradeReceipt.status.toString(),
+          `sent prepare upgrade transaction [id: ${prepareUpgradeResult.transactionId}]`,
+          prepareUpgradeResult.status,
         );
 
-        if (prepareUpgradeReceipt.status !== Status.Success) {
-          throw new SoloErrors.component.nodeTransactionFailed(
-            'Prepare upgrade',
-            prepareUpgradeReceipt.status.toString(),
-          );
+        if (!prepareUpgradeResult.isSuccess) {
+          throw new SoloErrors.component.nodeTransactionFailed('Prepare upgrade', prepareUpgradeResult.status);
         }
       },
     };
@@ -1439,7 +1433,8 @@ export class NodeCommandTasks {
       title: 'Send freeze upgrade transaction',
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
-        const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
+        const {freezeAdminPrivateKey, deployment} = context_.config;
+        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
 
@@ -1451,7 +1446,7 @@ export class NodeCommandTasks {
         // query the balance
         let accountInfo: AccountInfo;
         try {
-          accountInfo = await new AccountInfoQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+          accountInfo = await nodeClient.getAccountInfo(freezeAdminAccountId);
         } catch (error) {
           throw new SoloErrors.component.accountBalanceQueryFailed(freezeAdminAccountId, error);
         }
@@ -1459,24 +1454,21 @@ export class NodeCommandTasks {
         this.logger.debug(`Freeze admin account balance: ${accountInfo.balance}`);
 
         nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-        let freezeUpgradeReceipt: TransactionReceipt;
-        let freezeUpgradeTx: TransactionResponse;
+        let freezeUpgradeResult: HederaFreezeResult;
         try {
-          freezeUpgradeTx = await new FreezeTransaction()
-            .setFreezeType(FreezeType.FreezeUpgrade)
-            .setStartTimestamp(Timestamp.fromDate(futureDate))
-            .setFileId(this.getFileUpgradeId(deployment))
-            .setFileHash(upgradeZipHash)
-            .freezeWith(nodeClient)
-            .execute(nodeClient);
-          freezeUpgradeReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
+          freezeUpgradeResult = await nodeClient.freeze({
+            type: 'freeze-upgrade',
+            startTime: futureDate,
+            fileId: this.getFileUpgradeId(deployment),
+            fileHash: upgradeZipHash,
+          });
         } catch (error) {
           throw new SoloErrors.component.nodeFreezeUpgradeTransactionError(error);
         }
 
         this.logger.debug(
-          `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
-          freezeUpgradeReceipt.status.toString(),
+          `Upgrade frozen with transaction id: ${freezeUpgradeResult.transactionId}`,
+          freezeUpgradeResult.status,
         );
       },
     };
@@ -1487,10 +1479,8 @@ export class NodeCommandTasks {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
-        const nodeClient: Client = await this.accountManager.loadNodeClient(
-          namespace,
-          this.remoteConfig.getClusterRefs(),
-          deployment,
+        const nodeClient: HederaClient = this.accountManager.hederaClientFor(
+          await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment),
         );
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
@@ -1500,23 +1490,14 @@ export class NodeCommandTasks {
 
         const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
         nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-        let freezeOnlyTransaction: TransactionResponse;
-        let freezeOnlyReceipt: TransactionReceipt;
+        let freezeOnlyResult: HederaFreezeResult;
         try {
-          freezeOnlyTransaction = await new FreezeTransaction()
-            .setFreezeType(FreezeType.FreezeOnly)
-            .setStartTimestamp(Timestamp.fromDate(futureDate))
-            .freezeWith(nodeClient)
-            .execute(nodeClient);
-          freezeOnlyReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
+          freezeOnlyResult = await nodeClient.freeze({type: 'freeze-only', startTime: futureDate});
         } catch (error) {
           throw new SoloErrors.component.nodeFreezeTransactionError(error);
         }
 
-        this.logger.debug(
-          `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
-          freezeOnlyReceipt.status.toString(),
-        );
+        this.logger.debug(`sent prepare transaction [id: ${freezeOnlyResult.transactionId}]`, freezeOnlyResult.status);
       },
     };
   }
