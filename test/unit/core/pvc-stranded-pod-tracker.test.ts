@@ -49,6 +49,16 @@ describe('PvcStrandedPodTracker', (): void => {
     expect(tracker.observe([unscheduledPod('network-node3-0', BINDING_MESSAGE)], 4)).to.have.lengthOf(0);
   });
 
+  it('counts a pod without a PodScheduled condition as unscheduled and reports the last scheduler message', (): void => {
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2);
+    const unplaced: Pod = {
+      podReference: PodReference.of(NamespaceName.of('solo'), PodName.of('network-node6-0')),
+    } as unknown as Pod;
+    tracker.observe([unplaced, unscheduledPod('network-node7-0', BINDING_MESSAGE), scheduledPod('network-node1-0')], 0);
+    expect(tracker.unscheduledPodNames).to.have.members(['network-node6-0', 'network-node7-0']);
+    expect(tracker.lastSchedulerMessage).to.equal(BINDING_MESSAGE);
+  });
+
   it('allows a bounded number of recoveries per pod', (): void => {
     const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(1, 2);
     expect(tracker.recordRecovery('network-node4-0')).to.equal(true);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type PodCondition} from '../integration/kube/resources/pod/pod-condition.js';
 
 /**
  * Detects pods whose volumes were provisioned on nodes the pods cannot run on. With a node-local StorageClass a pod's
@@ -19,6 +20,8 @@ export class PvcStrandedPodTracker {
   private readonly affinityConflicts: Set<string> = new Set();
 
   private readonly recoveries: Map<string, number> = new Map();
+
+  private lastMessage: string = '<none>';
 
   /**
    * @param thresholdAttempts - how many attempts a pod must stay unscheduled, with a volume conflict reported, to be
@@ -42,18 +45,24 @@ export class PvcStrandedPodTracker {
 
     for (const pod of pods) {
       const name: string = pod.podReference.name.toString();
-      const condition = pod.conditions?.find(
-        (candidate): boolean => candidate.type === PvcStrandedPodTracker.POD_SCHEDULED && candidate.status === 'False',
-      );
-      if (!condition) {
+      const scheduling: PodCondition[] =
+        pod.conditions?.filter(
+          (candidate: PodCondition): boolean => candidate.type === PvcStrandedPodTracker.POD_SCHEDULED,
+        ) ?? [];
+      if (scheduling.some((candidate: PodCondition): boolean => candidate.status === 'True')) {
         continue;
       }
+      // a pod without a PodScheduled condition has not been placed yet either
+      const condition: PodCondition | undefined = scheduling[0];
 
       unscheduledNow.add(name);
+      if (condition?.message) {
+        this.lastMessage = condition.message;
+      }
       if (!this.unscheduledSince.has(name)) {
         this.unscheduledSince.set(name, attempt);
       }
-      if (condition.message?.includes(PvcStrandedPodTracker.VOLUME_AFFINITY_MESSAGE)) {
+      if (condition?.message?.includes(PvcStrandedPodTracker.VOLUME_AFFINITY_MESSAGE)) {
         this.affinityConflicts.add(name);
       }
       if (this.affinityConflicts.has(name) && attempt - this.unscheduledSince.get(name) >= this.thresholdAttempts) {
@@ -82,6 +91,16 @@ export class PvcStrandedPodTracker {
     this.recoveries.set(podName, count);
     this.forget(podName);
     return true;
+  }
+
+  /** Names of the pods that were not yet scheduled at the last observation. */
+  public get unscheduledPodNames(): string[] {
+    return [...this.unscheduledSince.keys()];
+  }
+
+  /** The most recent scheduler message seen for an unscheduled pod. */
+  public get lastSchedulerMessage(): string {
+    return this.lastMessage;
   }
 
   public get maxRecoveryAttempts(): number {

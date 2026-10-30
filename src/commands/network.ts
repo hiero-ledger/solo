@@ -289,18 +289,33 @@ export class NetworkCommand extends BaseCommand {
         );
       }
 
+      // Bound claims are not enough with node-local volumes: a pod whose claims bound to nodes it cannot use never
+      // schedules, so scheduling is part of this wait and is where such pods are recovered.
+      const recovered: number = await this.recoverStrandedPods(k8, namespace, claims, strandedPods, attempt);
+
       // The claims are created by the chart, so an empty list means they have not appeared yet rather than that
       // there is nothing to wait for.
-      if (claims.length > 0 && unbound.length === 0) {
+      if (
+        claims.length > 0 &&
+        unbound.length === 0 &&
+        recovered === 0 &&
+        strandedPods.unscheduledPodNames.length === 0
+      ) {
         this.logger.info(
-          `All ${claims.length} consensus node volume claim(s) bound [namespace: ${namespace.name}, context: ${context}]`,
+          `All ${claims.length} consensus node volume claim(s) bound and their pods scheduled [namespace: ${namespace.name}, context: ${context}]`,
         );
         return;
       }
 
-      await this.recoverStrandedPods(k8, namespace, claims, strandedPods, attempt);
-
       await sleep(Duration.ofMillis(constants.PVC_BOUND_DELAY));
+    }
+
+    if (unbound.length === 0 && strandedPods.unscheduledPodNames.length > 0) {
+      throw new SoloErrors.system.pvcPodsStranded(
+        strandedPods.unscheduledPodNames,
+        strandedPods.maxRecoveryAttempts,
+        strandedPods.lastSchedulerMessage,
+      );
     }
 
     // Report the requested size with each outstanding claim: provisioning time commonly scales with it, so which
@@ -334,7 +349,7 @@ export class NetworkCommand extends BaseCommand {
     claims: PvcDetail[],
     tracker: PvcStrandedPodTracker,
     attempt: number,
-  ): Promise<void> {
+  ): Promise<number> {
     const pods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_NODE_POD_LABEL_SELECTOR]);
     const stranded: Pod[] = tracker.observe(pods, attempt);
 
@@ -344,12 +359,12 @@ export class NetworkCommand extends BaseCommand {
         throw new SoloErrors.system.pvcPodsStranded(
           stranded.map((strandedPod: Pod): string => strandedPod.podReference.name.toString()),
           tracker.maxRecoveryAttempts,
-          pod.conditions?.find((condition): boolean => condition.type === 'PodScheduled')?.message ?? '<none>',
+          tracker.lastSchedulerMessage,
         );
       }
 
       this.logger.warn(
-        `Pod ${podName} is unschedulable because its volumes are pinned to unusable nodes; ` +
+        `Pod ${podName} cannot be scheduled on the nodes its volumes are bound to; ` +
           `re-provisioning its volume claims [namespace: ${namespace.name}]`,
       );
       await k8.pods().delete(pod.podReference);
@@ -359,6 +374,8 @@ export class NetworkCommand extends BaseCommand {
         }
       }
     }
+
+    return stranded.length;
   }
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {

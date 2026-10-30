@@ -16,8 +16,8 @@ export class PvcPodsStrandedSoloError extends SoloError {
   public constructor(podNames: string[], recoveryAttempts: number, schedulerMessage: string) {
     super({
       message:
-        `Pods are unschedulable because their volumes are pinned to unusable nodes: ${podNames.join(', ')} ` +
-        `(still stranded after ${recoveryAttempts} claim re-provisioning attempt(s)). Scheduler: ${schedulerMessage}`,
+        `Pods are still unschedulable after their volume claims were provisioned: ${podNames.join(', ')} ` +
+        `(up to ${recoveryAttempts} claim re-provisioning attempt(s) per pod). Scheduler: ${schedulerMessage}`,
       code: ErrorCodeRegistry.PVC_PODS_STRANDED,
       troubleshootingSteps:
         'Check why the pod cannot be scheduled: kubectl describe pod <name> -n <namespace>\n' +
