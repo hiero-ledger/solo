@@ -2413,10 +2413,20 @@ export class NodeCommandTasks {
       namespace,
     );
     const genesisPublicKey: string = genesisKey.publicKey.toString();
-    let adminPublicKeys: string[] = [];
-    adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
-      ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
-      : (Array.from({length: consensusNodes.length}, (): string => genesisPublicKey) as string[]);
+
+    let adminPublicKeys: string[];
+    const adminPublicKeysFlag: Optional<string> = this.configManager.getFlag(flags.adminPublicKeys);
+    if (adminPublicKeysFlag === undefined) {
+      adminPublicKeys = Array.from({length: consensusNodes.length}, (): string => genesisPublicKey);
+    } else {
+      const parsed: string[] = splitFlagInput(adminPublicKeysFlag);
+      if (parsed.length === 0) {
+        throw new SoloErrors.validation.invalidAdminPublicKey(consensusNodes[0]?.name);
+      }
+
+      adminPublicKeys = parsed;
+    }
+
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,

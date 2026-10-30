@@ -21,6 +21,7 @@ import {
 } from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import * as constants from '../../../src/core/constants.js';
+import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
 
 function secureGrpcPorts(basePort: number): number[] {
   return [basePort, basePort + 1];
@@ -252,5 +253,97 @@ describe('core/genesis-network-data-constructor', (): void => {
     } finally {
       generateEd25519Stub.restore();
     }
+  });
+
+  it('should throw InvalidAdminPublicKeySoloError and not create secrets when a malformed admin key is supplied', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    await expect(
+      GenesisNetworkDataConstructor.initialize(
+        consensusNodes,
+        keyManager,
+        testAccountManager,
+        networkNodeServiceMap(),
+        ['invalid-public-key', 'another-invalid-key'],
+      ),
+    ).to.be.rejectedWith(SoloErrors.validation.invalidAdminPublicKey);
+
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
+  });
+
+  it('should throw InvalidAdminPublicKeySoloError and not create secrets when an ECDSA admin key is supplied', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    const ecdsaKey: string = PrivateKey.generateECDSA().publicKey.toString();
+    const validEdKey: string = PrivateKey.generateED25519().publicKey.toString();
+
+    await expect(
+      GenesisNetworkDataConstructor.initialize(
+        consensusNodes,
+        keyManager,
+        testAccountManager,
+        networkNodeServiceMap(),
+        [ecdsaKey, validEdKey],
+      ),
+    ).to.be.rejectedWith(SoloErrors.validation.invalidAdminPublicKey);
+
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
+  });
+
+  it('should fail before generating any secrets when one of multiple node keys is invalid', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    const validKey: PrivateKey = PrivateKey.generateED25519();
+
+    await expect(
+      GenesisNetworkDataConstructor.initialize(
+        consensusNodes,
+        keyManager,
+        testAccountManager,
+        networkNodeServiceMap(),
+        [validKey.publicKey.toString(), 'invalid-key-for-node2'],
+      ),
+    ).to.be.rejectedWith(SoloErrors.validation.invalidAdminPublicKey);
+
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
+  });
+
+  it('should use valid ED25519 admin keys and not generate fallback secrets', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    const validKey1: PrivateKey = PrivateKey.generateED25519();
+    const validKey2: PrivateKey = PrivateKey.generateED25519();
+
+    const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
+      consensusNodes,
+      keyManager,
+      testAccountManager,
+      networkNodeServiceMap(),
+      [validKey1.publicKey.toString(), validKey2.publicKey.toString()],
+    );
+
+    expect(genesisNetworkData.nodes['node1'].adminKey.toString()).to.equal(validKey1.publicKey.toString());
+    expect(genesisNetworkData.nodes['node2'].adminKey.toString()).to.equal(validKey2.publicKey.toString());
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
   });
 });
