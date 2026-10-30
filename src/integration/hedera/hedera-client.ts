@@ -3,6 +3,8 @@
 import {type AccountId, type AccountInfo, type Client, type FileId, type PrivateKey} from '@hiero-ledger/sdk';
 import {type HederaFileInfo} from './hedera-file-info.js';
 import {type HederaFileTransactionResult} from './hedera-file-transaction-result.js';
+import {type HederaSubmittedTransaction} from './hedera-submitted-transaction.js';
+import {type HederaTransactionStatus} from './hedera-transaction-status.js';
 
 /**
  * A client for a Hedera network. Everything that talks to the Hedera SDK (transactions, queries, receipts, precheck
@@ -79,6 +81,30 @@ export interface HederaClient {
     toAccountId: AccountId | string,
     hbarAmount: number,
   ): Promise<boolean>;
+
+  /**
+   * Submits a transfer of tinybars between two accounts without waiting for its receipt
+   * @param fromAccountId - the account the tinybars are taken from
+   * @param toAccountId - the account the tinybars are put into
+   * @param tinybars - the amount in tinybars
+   */
+  submitTinybarTransfer(
+    fromAccountId: AccountId,
+    toAccountId: AccountId,
+    tinybars: number,
+  ): Promise<HederaSubmittedTransaction>;
+
+  /**
+   * Replaces the admin key of a consensus node, signing with both the new and the current admin key
+   * @param nodeId - the id of the node
+   * @param newAdminKey - the new admin key
+   * @param currentAdminKey - the admin key the node currently has
+   */
+  updateNodeAdminKey(
+    nodeId: number,
+    newAdminKey: PrivateKey,
+    currentAdminKey: PrivateKey,
+  ): Promise<HederaTransactionStatus>;
 
   /**
    * Reads the contents of a file

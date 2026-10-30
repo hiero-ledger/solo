@@ -5,11 +5,13 @@ import {afterEach, describe, it} from 'mocha';
 import sinon from 'sinon';
 import {
   AccountCreateTransaction,
-  type AccountId,
+  AccountId,
   FileAppendTransaction,
   FileCreateTransaction,
   FileInfoQuery,
   FileUpdateTransaction,
+  NodeUpdateTransaction,
+  TransferTransaction,
   type Client,
   FileContentsQuery,
   FileId,
@@ -21,6 +23,8 @@ import {
 } from '@hiero-ledger/sdk';
 import {SdkHederaClient} from '../../../../src/integration/hedera/impl/sdk-hedera-client.js';
 import {type HederaFileTransactionResult} from '../../../../src/integration/hedera/hedera-file-transaction-result.js';
+import {type HederaSubmittedTransaction} from '../../../../src/integration/hedera/hedera-submitted-transaction.js';
+import {type HederaTransactionStatus} from '../../../../src/integration/hedera/hedera-transaction-status.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 function makePrecheckStatusError(status: Status): PrecheckStatusError {
@@ -232,6 +236,76 @@ describe('SdkHederaClient', (): void => {
       );
 
       expect(result.isSuccess).to.equal(true);
+    });
+  });
+
+  describe('submitTinybarTransfer', (): void => {
+    it('submits a balanced transfer and exposes the transaction id', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const transactionId: string = '0.0.2@1700000000.000000001';
+      const getReceiptQuery: sinon.SinonStub = sinon.stub();
+      const executeStub: sinon.SinonStub = sinon
+        .stub(TransferTransaction.prototype, 'execute')
+        .resolves({transactionId, getReceiptQuery} as never);
+      const addTransferSpy: sinon.SinonSpy = sinon.spy(TransferTransaction.prototype, 'addHbarTransfer');
+
+      const submitted: HederaSubmittedTransaction = await client.submitTinybarTransfer(
+        AccountId.fromString('0.0.2'),
+        AccountId.fromString('0.0.3'),
+        1,
+      );
+
+      expect(executeStub.callCount).to.equal(1);
+      expect(addTransferSpy.callCount).to.equal(2);
+      expect(addTransferSpy.firstCall.args[1].toTinybars().toNumber()).to.equal(-1);
+      expect(addTransferSpy.secondCall.args[1].toTinybars().toNumber()).to.equal(1);
+      expect(submitted.transactionId).to.equal(transactionId);
+    });
+
+    it('polls the receipt at a fixed interval and maps the status', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const receiptQuery: {setMinBackoff: sinon.SinonStub; setMaxBackoff: sinon.SinonStub; execute: sinon.SinonStub} = {
+        setMinBackoff: sinon.stub(),
+        setMaxBackoff: sinon.stub(),
+        execute: sinon.stub().resolves({status: Status.InvalidSignature}),
+      };
+      receiptQuery.setMinBackoff.returns(receiptQuery);
+      receiptQuery.setMaxBackoff.returns(receiptQuery);
+      sinon.stub(TransferTransaction.prototype, 'execute').resolves({
+        transactionId: '0.0.2@1700000000.000000001',
+        getReceiptQuery: sinon.stub().returns(receiptQuery),
+      } as never);
+
+      const submitted: HederaSubmittedTransaction = await client.submitTinybarTransfer(
+        AccountId.fromString('0.0.2'),
+        AccountId.fromString('0.0.3'),
+        1,
+      );
+      const status: HederaTransactionStatus = await submitted.awaitReceipt(50);
+
+      expect(receiptQuery.setMinBackoff.calledOnceWithExactly(50)).to.equal(true);
+      expect(receiptQuery.setMaxBackoff.calledOnceWithExactly(50)).to.equal(true);
+      expect(status).to.deep.equal({isSuccess: false, status: 'INVALID_SIGNATURE'});
+    });
+  });
+
+  describe('updateNodeAdminKey', (): void => {
+    it('signs with the new and the current admin key and reports the receipt status', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const newAdminKey: PrivateKey = PrivateKey.generateED25519();
+      const currentAdminKey: PrivateKey = PrivateKey.generateED25519();
+      sinon.stub(NodeUpdateTransaction.prototype, 'freezeWith').returnsThis();
+      const signStub: sinon.SinonStub = sinon.stub(NodeUpdateTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(NodeUpdateTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().resolves({status: Status.Success}),
+      } as never);
+
+      const status: HederaTransactionStatus = await client.updateNodeAdminKey(2, newAdminKey, currentAdminKey);
+
+      expect(signStub.callCount).to.equal(2);
+      expect(signStub.firstCall.args[0]).to.equal(newAdminKey);
+      expect(signStub.secondCall.args[0]).to.equal(currentAdminKey);
+      expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
     });
   });
 });

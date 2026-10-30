@@ -16,6 +16,8 @@ import {
   FileUpdateTransaction,
   Hbar,
   HbarUnit,
+  Long,
+  NodeUpdateTransaction,
   PrecheckStatusError,
   type PrivateKey,
   Status,
@@ -27,6 +29,9 @@ import {
 import {type HederaClient} from '../hedera-client.js';
 import {type HederaFileInfo} from '../hedera-file-info.js';
 import {type HederaFileTransactionResult} from '../hedera-file-transaction-result.js';
+import {type HederaSubmittedTransaction} from '../hedera-submitted-transaction.js';
+import {type HederaTransactionStatus} from '../hedera-transaction-status.js';
+import {SdkHederaSubmittedTransaction} from './sdk-hedera-submitted-transaction.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {sleep} from '../../../core/helpers.js';
 import {Duration} from '../../../core/time/duration.js';
@@ -161,6 +166,37 @@ export class SdkHederaClient implements HederaClient {
     );
 
     return receipt.status === Status.Success;
+  }
+
+  public async submitTinybarTransfer(
+    fromAccountId: AccountId,
+    toAccountId: AccountId,
+    tinybars: number,
+  ): Promise<HederaSubmittedTransaction> {
+    const response: TransactionResponse = await new TransferTransaction()
+      .addHbarTransfer(fromAccountId, Hbar.fromTinybars(-tinybars))
+      .addHbarTransfer(toAccountId, Hbar.fromTinybars(tinybars))
+      .execute(this.sdkClient);
+
+    return new SdkHederaSubmittedTransaction(response, this.sdkClient);
+  }
+
+  public async updateNodeAdminKey(
+    nodeId: number,
+    newAdminKey: PrivateKey,
+    currentAdminKey: PrivateKey,
+  ): Promise<HederaTransactionStatus> {
+    let transaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+      .setNodeId(new Long(nodeId))
+      .setAdminKey(newAdminKey.publicKey)
+      .freezeWith(this.sdkClient);
+    transaction = await transaction.sign(newAdminKey);
+    transaction = await transaction.sign(currentAdminKey);
+
+    const response: TransactionResponse = await transaction.execute(this.sdkClient);
+    const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
+
+    return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
   }
 
   public async getFileContents(fileId: FileId, retryInvalidNodeAccount: boolean = false): Promise<Uint8Array> {
