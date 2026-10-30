@@ -826,8 +826,9 @@ export class ExplorerCommand extends BaseCommand {
               [],
             ) as ExplorerDeployConfigClass;
 
-            // SOLO_EXPLORER-HELM-CHART_DIRECTORY applies when the chart directory flag is not provided
-            config.explorerChartDirectory ||= this.soloConfig.explorerHelmChart.directory;
+            if (!config.explorerChartDirectory) {
+              config.explorerChartDirectory = constants.getEnvironmentVariable('SOLO_EXPLORER_CHART_DIR');
+            }
 
             // In concurrent one-shot execution, configManager may have stale data due to
             // interleaved updates from other sub-commands. Override with argv values directly.
@@ -947,8 +948,9 @@ export class ExplorerCommand extends BaseCommand {
               [],
             ) as ExplorerUpgradeConfigClass;
 
-            // SOLO_EXPLORER-HELM-CHART_DIRECTORY applies when the chart directory flag is not provided
-            config.explorerChartDirectory ||= this.soloConfig.explorerHelmChart.directory;
+            if (!config.explorerChartDirectory) {
+              config.explorerChartDirectory = constants.getEnvironmentVariable('SOLO_EXPLORER_CHART_DIR');
+            }
 
             context_.config = config;
 

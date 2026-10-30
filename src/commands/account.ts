@@ -10,18 +10,8 @@ import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
 import {entityId, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {
-  AccountId,
-  AccountInfo,
-  Client,
-  Hbar,
-  HbarUnit,
-  Long,
-  NodeUpdateTransaction,
-  PrivateKey,
-  TransactionReceipt,
-  TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {AccountId, AccountInfo, Hbar, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
+import {type HederaTransactionStatus} from '../integration/hedera/hedera-transaction-status.js';
 import {type ArgvStruct, type NodeAliases, NodeId} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -431,7 +421,7 @@ export class AccountCommand extends BaseCommand {
 
                     for (const nodeAlias of config.nodeAliases) {
                       const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-                      const nodeClient: Client = await this.accountManager.refreshNodeClient(
+                      await this.accountManager.refreshNodeClient(
                         config.namespace,
                         this.remoteConfig.getClusterRefs(),
                         config.deployment,
@@ -440,20 +430,12 @@ export class AccountCommand extends BaseCommand {
                       );
 
                       try {
-                        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(
-                          new Long(nodeId),
-                        );
-
                         const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
 
-                        nodeUpdateTx = nodeUpdateTx.setAdminKey(newPrivateKey.publicKey);
-                        nodeUpdateTx = nodeUpdateTx.freezeWith(nodeClient);
-                        nodeUpdateTx = await nodeUpdateTx.sign(newPrivateKey);
-                        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(adminKey);
-                        const txResp: TransactionResponse = await signedTx.execute(nodeClient);
-                        const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(nodeClient);
+                        const nodeUpdateStatus: HederaTransactionStatus =
+                          await this.accountManager.hederaClient!.updateNodeAdminKey(nodeId, newPrivateKey, adminKey);
 
-                        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()} for node ${nodeAlias}`);
+                        this.logger.debug(`NodeUpdate status ${nodeUpdateStatus.status} for node ${nodeAlias}`);
 
                         // save new key in k8s secret
                         const data: {privateKey: string; publicKey: string} = {
@@ -940,7 +922,7 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Reset ledger phase to uninitialized',
           task: async (): Promise<void> => {
-            this.remoteConfig.configuration.state.ledgerPhase = LedgerPhase.UNINITIALIZED;
+            this.remoteConfig.configuration.ledger.phase = LedgerPhase.UNINITIALIZED;
             await this.remoteConfig.persist();
           },
         },
