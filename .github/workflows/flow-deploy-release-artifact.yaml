@@ -575,8 +575,8 @@ jobs:
     with:
       version: ${{ needs.prepare-release.outputs.version }}
 
-  # Temporary, not for merging: signs in as the image cache CDN service account and reports, read-only, what it
-  # may do in the CDN bucket and which objects the bucket holds. Uploads nothing and gates nothing.
+  # Temporary, not for merging: signs in as the image cache CDN service account, reports what it may do in the CDN
+  # bucket and which objects the bucket holds, then tests creating and deleting an object. Gates nothing.
   probe-cdn-access:
     name: Probe CDN Access
     runs-on: hiero-solo-linux-medium
@@ -586,6 +586,7 @@ jobs:
       id-token: write # Workload Identity Federation sign-in to Google Cloud
     env:
       CDN_BUCKET: 'solo-cache-cdn-public'
+      CDN_BASE_URL: 'https://cdn.solo.hiero.org'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
@@ -640,6 +641,46 @@ jobs:
 
           # Fail the step when the listing failed, so the job result says whether the bucket is readable.
           exit "${listing_status}"
+
+      - name: Test Object Create and Delete
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          test_object="solo-cdn-probe-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
+          test_file="${RUNNER_TEMP}/${test_object}"
+          printf 'Solo CDN write test from run %s\n' "${GITHUB_RUN_ID}" > "${test_file}"
+
+          echo "::group::1. Create gs://${CDN_BUCKET}/${test_object}"
+          gcloud storage cp "${test_file}" "gs://${CDN_BUCKET}/${test_object}"
+          echo "::endgroup::"
+
+          # Removes the test object even when a later check fails; a no-op once step 3 has deleted it.
+          trap 'gcloud storage rm --quiet "gs://${CDN_BUCKET}/${test_object}" > /dev/null 2>&1 || true' EXIT
+
+          echo "::group::2. Read it back through ${CDN_BASE_URL}"
+          served="$(curl -fsS --retry 3 "${CDN_BASE_URL}/${test_object}")"
+          if [[ "${served}" != "$(cat "${test_file}")" ]]; then
+            echo "::error::${CDN_BASE_URL}/${test_object} served different content: ${served}"
+            exit 1
+          fi
+          echo "The CDN served the uploaded content."
+          echo "::endgroup::"
+
+          echo "::group::3. Delete gs://${CDN_BUCKET}/${test_object}"
+          gcloud storage rm "gs://${CDN_BUCKET}/${test_object}"
+          echo "::endgroup::"
+
+          echo "::group::4. Delete gs://${CDN_BUCKET}/java-logo-1.png"
+          if gcloud storage objects describe "gs://${CDN_BUCKET}/java-logo-1.png" > /dev/null 2>&1; then
+            gcloud storage rm "gs://${CDN_BUCKET}/java-logo-1.png"
+          else
+            echo "Already deleted."
+          fi
+          echo "::endgroup::"
+
+          echo "::group::5. Objects left in gs://${CDN_BUCKET}"
+          gcloud storage ls --long "gs://${CDN_BUCKET}/**" 2>&1 || echo "(no objects)"
+          echo "::endgroup::"
 
   # Attaches the Linux SEA binaries, install.sh and SHA256SUMS to the GitHub Release.
   publish-linux-installer:
