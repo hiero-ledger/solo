@@ -28,11 +28,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable-snyk-scan:
-        description: "Snyk Scan Enabled"
-        type: boolean
-        required: false
-        default: false
   push:
     branches:
       - main
@@ -56,7 +51,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -86,6 +81,8 @@ jobs:
     uses: $/.github/workflows/zxc-code-style.yaml
     with:
       custom-job-label: Standard
+    secrets:
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
   unit-tests:
     name: Unit Tests
@@ -124,7 +121,6 @@ jobs:
       runner: ${{ matrix.e2e-test-type.runner }}
       kind-install: ${{ matrix.e2e-test-type.kind-install }}
       kind-version: ${{ matrix.e2e-test-type.kind-version }}
-      kind-node-image: ${{ matrix.e2e-test-type.kind-node-image }}
       kubectl-install: ${{ matrix.e2e-test-type.kubectl-install }}
       kubectl-version: ${{ matrix.e2e-test-type.kubectl-version }}
       helm-install: ${{ matrix.e2e-test-type.helm-install }}
@@ -147,11 +143,9 @@ jobs:
       github.event.inputs.enable-e2e-tests == 'true') && !failure() && !cancelled() }}
     with:
       custom-job-label: Source Code
-      #enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
       enable-codecov-analysis: true
       enable-codacy-coverage: true
       enable-e2e-coverage-report: ${{ github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true' }}
     secrets:
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}

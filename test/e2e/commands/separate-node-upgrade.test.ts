@@ -4,7 +4,7 @@ import {describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {type BootstrapResponse, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
+import {type BootstrapResponse, getTemporaryDirectory, HEDERA_PLATFORM_VERSION_TAG} from '../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {HEDERA_HAPI_PATH, ROOT_CONTAINER} from '../../../src/core/constants.js';
 import fs from 'node:fs';
@@ -29,7 +29,7 @@ export function testSeparateNodeUpgrade(argv: Argv, bootstrapResp: BootstrapResp
     opts: {k8Factory, logger},
   } = bootstrapResp;
 
-  describe('Node upgrade', async (): Promise<void> => {
+  describe('Node upgrade', (): void => {
     it('should succeed with separate upgrade command', async (): Promise<void> => {
       // Create file version.txt at tmp directory
       const temporaryDirectory: string = getTemporaryDirectory();

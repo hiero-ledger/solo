@@ -27,6 +27,8 @@ import {type ContainerEngineClient} from '../../../../src/integration/container-
 import {ClusterNodeResumeOutcome} from '../../../../src/integration/container-engine/cluster-node-resume-outcome.js';
 import {Helpers} from '../../../../src/core/helpers.js';
 import {type Context} from '../../../../src/types/index.js';
+import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
+import {getSoloVersion} from '../../../../version.js';
 
 const namespace: NamespaceName = NamespaceName.of('solo');
 const remoteConfigMap: ConfigMap = {name: 'solo-remote-config'} as unknown as ConfigMap;
@@ -69,6 +71,30 @@ async function readFailure(runtimeState: RemoteConfigRuntimeState, context: Cont
     (): Error => undefined,
     (error: Error): Error => error,
   );
+}
+
+/** Builds a loaded runtime state of a two-cluster deployment over the given local cluster ref mappings. */
+function buildLeaseRuntimeState(
+  sandbox: SinonSandbox,
+  clusterReferences: Map<string, string>,
+): RemoteConfigRuntimeState {
+  const runtimeState: RemoteConfigRuntimeState = new RemoteConfigRuntimeState(
+    {} as unknown as K8Factory,
+    {} as unknown as SoloLogger,
+    {configuration: {clusterRefs: clusterReferences}} as unknown as LocalConfigRuntimeState,
+    {} as unknown as ConfigManager,
+    {} as unknown as RemoteConfigValidatorApi,
+    {} as unknown as ObjectMapper,
+    {} as unknown as ContainerEngineClient,
+  );
+  // a deployment spanning two clusters; the remote config is the same on both clusters
+  sandbox.stub(runtimeState, 'configuration').get((): unknown => ({
+    clusters: [
+      {name: 'cluster-1', namespace: 'solo-ns'},
+      {name: 'cluster-2', namespace: 'solo-ns'},
+    ],
+  }));
+  return runtimeState;
 }
 
 describe('RemoteConfigRuntimeState', (): void => {
@@ -301,5 +327,49 @@ describe('RemoteConfigRuntimeState', (): void => {
     // The initial read, then one read per resume attempt, sleeping between the attempts but not before the first.
     expect(read.callCount).to.equal(31);
     expect(sleep.callCount).to.equal(29);
+  });
+
+  describe('getLeaseContext', (): void => {
+    it('should return the context of the first cluster of the remote config', (): void => {
+      const runtimeState: RemoteConfigRuntimeState = buildLeaseRuntimeState(
+        sandbox,
+        new Map<string, string>([
+          ['cluster-2', 'context-2'],
+          ['cluster-1', 'context-1'],
+        ]),
+      );
+
+      expect(runtimeState.getLeaseContext()).to.equal('context-1');
+    });
+
+    it('should throw ClusterReferenceNotFoundError when the local config has no context for the first cluster', (): void => {
+      const runtimeState: RemoteConfigRuntimeState = buildLeaseRuntimeState(
+        sandbox,
+        new Map<string, string>([['cluster-2', 'context-2']]),
+      );
+
+      expect((): string => runtimeState.getLeaseContext()).to.throw(
+        SoloErrors.deployment.clusterRefNotFound,
+        'Cluster ref cluster-1 not found in local config',
+      );
+    });
+  });
+
+  describe('updateCliVersion', (): void => {
+    function runUpdateCliVersion(recordedVersion: string): SemanticVersion<string> {
+      const runtimeState: RemoteConfigRuntimeState = buildRuntimeState(read, resumeStoppedClusterNode);
+      const versions: {cli: SemanticVersion<string>} = {cli: new SemanticVersion<string>(recordedVersion)};
+      sandbox.stub(runtimeState, 'configuration').get((): unknown => ({versions}));
+      (runtimeState as unknown as {updateCliVersion: () => void}).updateCliVersion();
+      return versions.cli;
+    }
+
+    it('should record the running Solo version when the stored one is older', (): void => {
+      expect(runUpdateCliVersion('0.0.1').toString()).to.equal(getSoloVersion());
+    });
+
+    it('should leave the stored version untouched when it already matches', (): void => {
+      expect(runUpdateCliVersion(getSoloVersion()).toString()).to.equal(getSoloVersion());
+    });
   });
 });

@@ -23,6 +23,7 @@ import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {TEST_UPGRADE_FROM_VERSION} from '../../../version-test.js';
+import {NetworkNodeLifecycle} from '../../../src/core/network-node-lifecycle.js';
 
 const testName: string = 'node-upgrade-test';
 
@@ -90,9 +91,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         // ConsensusNodeTest.upgrade(options);
 
-        ConsensusNodeTest.upgradeConfigs(options);
+        // a version upgrade needs a new image tag rolled through the upgrade flow, which the consensus node image
+        // mode does not support yet
+        if (!NetworkNodeLifecycle.isConsensusNodeImage()) {
+          ConsensusNodeTest.upgradeConfigs(options);
+        }
 
-        describe('Write log metrics', async (): Promise<void> => {
+        describe('Write log metrics', (): void => {
           it('Should write log metrics', async (): Promise<void> => {
             await new MetricsServerImpl().logMetrics(
               testName,

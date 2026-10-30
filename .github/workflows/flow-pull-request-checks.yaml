@@ -22,7 +22,7 @@ on:
         description: "Consensus Node Version:"
         type: string
         required: false
-        default: "v0.76.4"
+        default: "v0.78.1"
       skip-unit-and-coverage:
         description: "Skip Unit Tests and Coverage"
         type: boolean
@@ -53,7 +53,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
           # allow internal Podman/Kind HTTPS calls between pods/services on the runner (no internet egress)
@@ -86,6 +86,8 @@ jobs:
     uses: $/.github/workflows/zxc-code-style.yaml
     with:
       custom-job-label: Standard
+    secrets:
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
   check-production-overrides:
     name: Production Overrides
@@ -132,7 +134,6 @@ jobs:
       runner: ${{ matrix.e2e-test-type.runner }}
       kind-install: ${{ matrix.e2e-test-type.kind-install }}
       kind-version: ${{ matrix.e2e-test-type.kind-version }}
-      kind-node-image: ${{ matrix.e2e-test-type.kind-node-image }}
       kubectl-install: ${{ matrix.e2e-test-type.kubectl-install }}
       kubectl-version: ${{ matrix.e2e-test-type.kubectl-version }}
       helm-install: ${{ matrix.e2e-test-type.helm-install }}

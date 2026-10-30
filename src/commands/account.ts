@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {MirrorNodeResourceNames} from '../core/mirror-node-resource-names.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import chalk from 'chalk';
 import * as fs from 'node:fs';
@@ -9,18 +10,8 @@ import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
 import {entityId, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
-import {
-  AccountId,
-  AccountInfo,
-  Client,
-  Hbar,
-  HbarUnit,
-  Long,
-  NodeUpdateTransaction,
-  PrivateKey,
-  TransactionReceipt,
-  TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {AccountId, AccountInfo, Hbar, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
+import {type HederaTransactionStatus} from '../integration/hedera/hedera-transaction-status.js';
 import {type ArgvStruct, type NodeAliases, NodeId} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -36,6 +27,7 @@ import {
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Templates} from '../core/templates.js';
+import {GenesisKeyResolver} from '../core/genesis-key-resolver.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
 import {inject, injectable} from 'tsyringe-neo';
@@ -421,11 +413,15 @@ export class AccountCommand extends BaseCommand {
                 {
                   title: 'Update node admin key',
                   task: async ({config}: Context): Promise<void> => {
-                    const adminKey: PrivateKey = PrivateKey.fromStringED25519(constants.GENESIS_KEY);
+                    const adminKey: PrivateKey = await GenesisKeyResolver.resolve(
+                      this.k8Factory,
+                      this.remoteConfig.getContexts(),
+                      config.namespace,
+                    );
 
                     for (const nodeAlias of config.nodeAliases) {
                       const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-                      const nodeClient: Client = await this.accountManager.refreshNodeClient(
+                      await this.accountManager.refreshNodeClient(
                         config.namespace,
                         this.remoteConfig.getClusterRefs(),
                         config.deployment,
@@ -434,20 +430,12 @@ export class AccountCommand extends BaseCommand {
                       );
 
                       try {
-                        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(
-                          new Long(nodeId),
-                        );
-
                         const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
 
-                        nodeUpdateTx = nodeUpdateTx.setAdminKey(newPrivateKey.publicKey);
-                        nodeUpdateTx = nodeUpdateTx.freezeWith(nodeClient);
-                        nodeUpdateTx = await nodeUpdateTx.sign(newPrivateKey);
-                        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(adminKey);
-                        const txResp: TransactionResponse = await signedTx.execute(nodeClient);
-                        const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(nodeClient);
+                        const nodeUpdateStatus: HederaTransactionStatus =
+                          await this.accountManager.hederaClient!.updateNodeAdminKey(nodeId, newPrivateKey, adminKey);
 
-                        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()} for node ${nodeAlias}`);
+                        this.logger.debug(`NodeUpdate status ${nodeUpdateStatus.status} for node ${nodeAlias}`);
 
                         // save new key in k8s secret
                         const data: {privateKey: string; publicKey: string} = {
@@ -703,7 +691,14 @@ export class AccountCommand extends BaseCommand {
                 ContainerName.of('postgresql'),
               );
 
-              const mirrorPasswordsSecret: Secret = await k8.secrets().read(namespace, 'mirror-passwords');
+              const mirrorNodeNames: MirrorNodeResourceNames = await MirrorNodeResourceNames.resolveExisting(
+                k8,
+                namespace,
+                mirrorNode.metadata.id,
+              );
+              const mirrorPasswordsSecret: Secret = await k8
+                .secrets()
+                .read(namespace, mirrorNodeNames.passwordsSecretName);
               const ownerKey: string | undefined = Object.keys(mirrorPasswordsSecret.data).find(
                 (key: string): boolean => key.endsWith('_MIRROR_IMPORTER_DB_OWNER'),
               );
@@ -927,7 +922,7 @@ export class AccountCommand extends BaseCommand {
         {
           title: 'Reset ledger phase to uninitialized',
           task: async (): Promise<void> => {
-            this.remoteConfig.configuration.state.ledgerPhase = LedgerPhase.UNINITIALIZED;
+            this.remoteConfig.configuration.ledger.phase = LedgerPhase.UNINITIALIZED;
             await this.remoteConfig.persist();
           },
         },

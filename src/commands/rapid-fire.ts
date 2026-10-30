@@ -42,17 +42,10 @@ import {PortUtilities} from '../business/utils/port-utilities.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {
-  Hbar,
-  Status,
-  TransactionReceiptQuery,
-  TransferTransaction,
-  type AccountId,
-  type Client,
-  type TransactionId,
-  type TransactionReceipt,
-  type TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {type AccountId, type TransactionId} from '@hiero-ledger/sdk';
+import {type HederaClient} from '../integration/hedera/hedera-client.js';
+import {type HederaSubmittedTransaction} from '../integration/hedera/hedera-submitted-transaction.js';
+import {type HederaTransactionStatus} from '../integration/hedera/hedera-transaction-status.js';
 import {type SoloLogger} from '../core/logging/solo-logger.js';
 import {type MirrorTransactionResponse} from './rapid-fire/mirror-transaction-response.js';
 import {type NlgResult} from './rapid-fire/nlg-result.js';
@@ -76,6 +69,7 @@ interface RapidFireStartConfigClass {
   packageName: string;
   maxTps: number;
   maxRtt: number;
+  minTps: number;
   mirrorNamespace?: string;
   rttSampleCount: number;
   rttSampleInterval: number;
@@ -151,6 +145,7 @@ export class RapidFireCommand extends BaseCommand {
       flags.packageName,
       flags.maxTps,
       flags.maxRtt,
+      flags.minTps,
       flags.mirrorNamespace,
     ],
   };
@@ -420,6 +415,13 @@ export class RapidFireCommand extends BaseCommand {
 
     // Forward directly to the mirror REST pod rather than through the HAProxy ingress.
     // This eliminates the ingress hop and makes the port-forward more reliable in CI.
+    //
+    // NOTE: Every request made through this port-forward, skipping the proxy, will be served by the
+    // mirror node rest service only, and never by the rest-java or the web3 services.
+    // If those services are needed with this command, forward to that pod instead or proxy through the
+    // mirror ingress controller (Templates.renderMirrorNodeIngressControllerUrl), which owns the path
+    // routing. You can find the actual mappings in this repo ./resources/hiero-explorer-values.yaml or
+    // in the Mirror Node's repo: (https://github.com/hiero-ledger/hiero-mirror-node/blob/0859d58ff02cffc9526669e974596c532a382f04/docker-compose.yml#L184)
     const restPods: Pod[] = await this.k8Factory
       .getK8(config.context)
       .pods()
@@ -453,7 +455,7 @@ export class RapidFireCommand extends BaseCommand {
   }
 
   private async measureTransactionRtt(
-    client: Client,
+    client: HederaClient,
     config: RapidFireStartConfigClass,
     mirrorPort: number,
     pollTimeoutMilliseconds: number = config.rttPollTimeout,
@@ -465,26 +467,23 @@ export class RapidFireCommand extends BaseCommand {
     );
     // Capture wall-clock submission time: RTT is defined as submission → mirror availability.
     const submissionEpochMs: number = Date.now();
-    const transactionResponse: TransactionResponse = await new TransferTransaction()
-      .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(-1))
-      .addHbarTransfer(recipientAccountId, Hbar.fromTinybars(1))
-      .execute(client);
+    const submittedTransaction: HederaSubmittedTransaction = await client.submitTinybarTransfer(
+      operatorAccountId,
+      recipientAccountId,
+      1,
+    );
 
-    const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(transactionResponse.transactionId);
+    const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(submittedTransaction.transactionId);
     // Use flat 50 ms receipt polling instead of the SDK default (250 ms minBackoff → 500 ms first
     // retry) to keep the submission-to-receipt leg within the 500 ms RTT budget.
-    const receiptQuery: TransactionReceiptQuery = transactionResponse
-      .getReceiptQuery(client)
-      .setMinBackoff(50)
-      .setMaxBackoff(50);
-    const transactionReceipt: TransactionReceipt = await Helpers.withTimeout(
-      receiptQuery.execute(client),
+    const transactionReceipt: HederaTransactionStatus = await Helpers.withTimeout(
+      submittedTransaction.awaitReceipt(50),
       Duration.ofMillis(pollTimeoutMilliseconds),
       `Timed out after ${pollTimeoutMilliseconds} ms waiting for transaction ${mirrorTransactionId} receipt`,
     );
-    if (transactionReceipt.status !== Status.Success) {
+    if (!transactionReceipt.isSuccess) {
       throw new SoloErrors.component.rapidFireExecutionFailed(
-        `Transaction ${mirrorTransactionId} reached consensus with status ${transactionReceipt.status.toString()}`,
+        `Transaction ${mirrorTransactionId} reached consensus with status ${transactionReceipt.status}`,
       );
     }
 
@@ -502,7 +501,7 @@ export class RapidFireCommand extends BaseCommand {
   }
 
   private async waitForMirrorReadiness(
-    client: Client,
+    client: HederaClient,
     config: RapidFireStartConfigClass,
     mirrorPort: number,
   ): Promise<void> {
@@ -582,12 +581,13 @@ export class RapidFireCommand extends BaseCommand {
     const samples: RttSample[] = [];
 
     try {
-      const client: Client = await this.accountManager.loadNodeClient(
+      await this.accountManager.loadNodeClient(
         config.namespace,
         this.remoteConfig.getClusterRefs(),
         config.deployment,
         true,
       );
+      const client: HederaClient = this.accountManager.hederaClient!;
       await this.waitForMirrorReadiness(client, config, port);
 
       for (let index: number = 0; index < config.rttSampleCount; index++) {
@@ -698,8 +698,9 @@ export class RapidFireCommand extends BaseCommand {
             stdoutText + stderrText,
             testClass,
             performanceTest,
+            context_.config.minTps,
           );
-          if (rttProbePromise) {
+          if (rttProbePromise !== undefined) {
             await rttProbePromise;
           }
 
@@ -755,7 +756,12 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly NLG_FINISHED_PATTERN: RegExp =
     /Finished\s+([\w.]+):.*?(\d+)\s+(?:\w+\s+)+in\s+(\d+)\s+sec,\s+TPS:\s+(\d+)/;
 
-  private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
+  private static analyzeNlgOutput(
+    output: string,
+    testClass: string,
+    performanceTest: string,
+    minTps: number,
+  ): NlgResult {
     const lines: string[] = output.split('\n');
     let lastMatch: RegExpMatchArray | undefined;
     const longevityMatches: RegExpMatchArray[] = [];
@@ -767,12 +773,12 @@ export class RapidFireCommand extends BaseCommand {
 
       // LongevityLoadTest reports "Finished" lines for internal sub-tests
       // (e.g. HeliSwapLoadTest/HCSLoadTest) rather than LongevityLoadTest itself.
-      if (match && performanceTest === NLGTestClass.LongevityLoadTest) {
+      if (match && performanceTest === (NLGTestClass.LongevityLoadTest as string)) {
         longevityMatches.push(match);
       }
     }
 
-    if (!lastMatch && performanceTest === NLGTestClass.LongevityLoadTest && longevityMatches.length > 0) {
+    if (!lastMatch && performanceTest === (NLGTestClass.LongevityLoadTest as string) && longevityMatches.length > 0) {
       // Prefer the sub-test result that processed the most transactions.
       let selectedMatch: RegExpMatchArray = longevityMatches[0];
       for (const match of longevityMatches) {
@@ -810,6 +816,20 @@ export class RapidFireCommand extends BaseCommand {
         transactionCount,
         durationSeconds,
         tps,
+        rttMilliseconds,
+        hint: RapidFireCommand.classifyFailure(output),
+      };
+    }
+
+    if (minTps > 0 && tps < minTps) {
+      return {
+        status: NlgResultStatus.BELOW_MIN_TPS,
+        testClass,
+        performanceTest,
+        transactionCount,
+        durationSeconds,
+        tps,
+        minTps,
         rttMilliseconds,
         hint: RapidFireCommand.classifyFailure(output),
       };
@@ -919,6 +939,13 @@ export class RapidFireCommand extends BaseCommand {
       case NlgResultStatus.NO_RESULT: {
         lines.push(
           `${result.testClass} produced no "Finished <test>: ... TPS: N" result line. The NLG process exited or hung without reporting a benchmark result.`,
+        );
+        break;
+      }
+      case NlgResultStatus.BELOW_MIN_TPS: {
+        lines.push(
+          `${result.testClass} achieved TPS ${result.tps}, below the configured minimum of ${result.minTps} ` +
+            `(${result.transactionCount} transactions in ${result.durationSeconds} sec).`,
         );
         break;
       }
