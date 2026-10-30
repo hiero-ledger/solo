@@ -72,7 +72,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: read # the cancellation poller reads the current workflow run
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -82,6 +81,9 @@ env:
 jobs:
   performance-test:
     name: Performance Test
+    permissions:
+      contents: read
+      actions: read # the cancellation poller reads the current workflow run
     if: >-
       ${{ (github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
       startsWith(github.event.pull_request.title, 'trunk-merge')) && !cancelled() && !failure() }}
@@ -89,7 +91,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
