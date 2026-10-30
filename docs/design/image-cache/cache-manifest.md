@@ -180,6 +180,39 @@ Produced by `.github/workflows/script/image_cache_export.sh` (A3,
 - The tar is packed reproducibly (sorted entries, zero timestamps and owners, fixed modes), so the
   same image always produces the same hash (§5).
 
-## 9. Out of Scope
+## 9. Publishing the Manifest
 
-- How CI uploads to the CDN and publishes the manifest: A4 and A5.
+The release workflow's "Publish Image Cache Manifest" job (A5,
+[#5747](https://github.com/hiero-ledger/solo/issues/5747)) builds the manifest with
+`.github/workflows/script/image_cache_manifest.sh` from the index A3 exports, once the GitHub
+release exists:
+
+- The index is checked against every rule in §2.3 and §4, so a manifest the CLI would reject is
+  never published.
+- On a real release, every `tarFile` must be served from the CDN with the recorded `size`, and
+  every `hashFile` must hold the recorded `sha256`; otherwise no manifest is published. A dry run
+  skips this check, because it uploads nothing to the CDN.
+- The manifest is kept as the `cache-manifest` workflow artifact and, on a real release, attached
+  to the release as `cache-manifest.json` (§2.1). The upload replaces an existing asset, so a
+  corrected manifest can be published again by rerunning the job.
+
+## 10. Uploading the Archives
+
+On a real release, the image cache workflow uploads every archive and hash file to the CDN bucket
+(`solo-cache-cdn-public`) with `.github/workflows/script/image_cache_upload.sh` (A4,
+[#5746](https://github.com/hiero-ledger/solo/issues/5746)), before the manifest job runs. Each file,
+archive first and then its hash file, is handled in one of three ways:
+
+| On the CDN                    | Action                                                |
+| ----------------------------- | ----------------------------------------------------- |
+| Absent                        | Uploaded.                                             |
+| Present with the same content | Skipped: an image unchanged since an earlier release. |
+| Present with other content    | Reported, and the release fails once all are checked. |
+
+Content is compared by the MD5 Cloud Storage records for each object, so nothing is downloaded, and
+every upload only succeeds if the object does not exist yet, so a published file is never replaced
+(§5), not even by a concurrent run.
+
+The service account signs in through Workload Identity Federation. A dry run uploads nothing. The
+workflow's `upload-to-cdn` and `cdn-bucket` inputs allow a manual run to upload to a staging
+bucket, and the CLI's `SOLO_CACHE_CDN_BASE_URL` points downloads at it.

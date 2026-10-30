@@ -571,116 +571,72 @@ jobs:
     if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
     needs:
       - prepare-release
+    permissions:
+      contents: read
+      id-token: write # the called workflow signs in to the image cache CDN bucket to upload the archives
     uses: $/.github/workflows/flow-image-cache-cluster-images.yaml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
+      # A dry run publishes nothing, so only a real release uploads to the CDN.
+      upload-to-cdn: ${{ inputs.dry-run-enabled != true }}
 
-  # Temporary, not for merging: signs in as the image cache CDN service account, reports what it may do in the CDN
-  # bucket and which objects the bucket holds, then tests creating and deleting an object. Gates nothing.
-  probe-cdn-access:
-    name: Probe CDN Access
+  # Attaches cache-manifest.json, the image cache archives the CLI may download for this release, to the GitHub
+  # Release once every archive it lists is confirmed on the CDN.
+  publish-image-cache-manifest:
+    name: Publish Image Cache Manifest
     runs-on: hiero-solo-linux-medium
-    timeout-minutes: 10
     permissions:
-      contents: read
-      id-token: write # Workload Identity Federation sign-in to Google Cloud
-    env:
-      CDN_BUCKET: 'solo-cache-cdn-public'
-      CDN_BASE_URL: 'https://cdn.solo.hiero.org'
+      contents: read # the release upload authenticates with GH_ACCESS_TOKEN, not GITHUB_TOKEN
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && needs.create-github-release.result == 'success' && needs.capture-image-cache-cluster-images.result == 'success' }}
+    needs:
+      - prepare-release
+      - create-github-release
+      - capture-image-cache-cluster-images
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
-      - name: Authenticate to Google Cloud
-        id: google-auth
-        uses: step-security/google-github-auth@775fc4c80760272ef389c9f9f8d98de7db0c170d # v3.0.2
-        timeout-minutes: 5
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          workload_identity_provider: 'projects/1074309218154/locations/global/workloadIdentityPools/solo-cdn-pool/providers/gh-provider'
-          service_account: 'solo-cdn-read-write-access@solo-cdn-production.iam.gserviceaccount.com'
-          # The audience the CDN provider is configured to accept, instead of the provider URL the action defaults to.
-          audience: 'api://AzureADTokenExchange'
+          persist-credentials: false
+          sparse-checkout: .github/workflows/script
 
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-        timeout-minutes: 5
+      - name: Install jq
+        uses: step-security/install-jq-action@01c80bba4b4dfda4f9f5df20aa272d43e93a9fb1 # v4.0.1
 
-      - name: List CDN Bucket Objects
-        timeout-minutes: 5
+      - name: Download Image Cache Index
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-cache-index
+          path: image-cache
+
+      - name: Build Image Cache Manifest
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+          # A dry run uploads nothing to the CDN, so only a real release is checked against it.
+          IMAGE_CACHE_CDN_BASE_URL: ${{ inputs.dry-run-enabled != true && 'https://cdn.solo.hiero.org' || '' }}
         run: |
-          # Read-only. GitHub runs this with `bash -e`; turn it off so one failed check does not hide the next.
-          set +e -uo pipefail
-          token="$(gcloud auth print-access-token)" || exit 1
-          # Not a registered secret, so the runner would not hide it if a command ever echoed it.
-          echo "::add-mask::${token}"
-          permissions=(storage.buckets.get storage.buckets.update storage.buckets.delete
-            storage.objects.list storage.objects.get storage.objects.create storage.objects.update
-            storage.objects.delete)
-          query="$(printf 'permissions=%s&' "${permissions[@]}")"
+          .github/workflows/script/image_cache_manifest.sh \
+            image-cache/image-cache-images.json "${RELEASE_VERSION}" cache-manifest.json
 
-          echo "::group::Active account"
-          gcloud auth list
-          echo "::endgroup::"
+      - name: Upload Image Cache Manifest Artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cache-manifest
+          path: cache-manifest.json
+          if-no-files-found: error
 
-          echo "::group::Granted permissions on gs://${CDN_BUCKET}"
-          curl -sS -H "Authorization: Bearer ${token}" \
-            "https://storage.googleapis.com/storage/v1/b/${CDN_BUCKET}/iam/testPermissions?${query%&}"
-          echo
-          echo "::endgroup::"
-
-          echo "::group::Objects in gs://${CDN_BUCKET} (first 200)"
-          # Listed to a file first: piping straight into head can fail the listing once head stops reading.
-          listing="${RUNNER_TEMP}/cdn-objects.txt"
-          gcloud storage ls --long "gs://${CDN_BUCKET}/**" > "${listing}" 2>&1
-          listing_status=$?
-          head -200 "${listing}"
-          echo "(listing exit status ${listing_status}, $(wc -l < "${listing}") lines in total)"
-          echo "::endgroup::"
-
-          # Fail the step when the listing failed, so the job result says whether the bucket is readable.
-          exit "${listing_status}"
-
-      - name: Test Object Create and Delete
-        timeout-minutes: 5
+      - name: Upload Image Cache Manifest to Release
+        if: ${{ inputs.dry-run-enabled != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -euo pipefail
-          test_object="solo-cdn-probe-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
-          test_file="${RUNNER_TEMP}/${test_object}"
-          printf 'Solo CDN write test from run %s\n' "${GITHUB_RUN_ID}" > "${test_file}"
-
-          echo "::group::1. Create gs://${CDN_BUCKET}/${test_object}"
-          gcloud storage cp "${test_file}" "gs://${CDN_BUCKET}/${test_object}"
-          echo "::endgroup::"
-
-          # Removes the test object even when a later check fails; a no-op once step 3 has deleted it.
-          trap 'gcloud storage rm --quiet "gs://${CDN_BUCKET}/${test_object}" > /dev/null 2>&1 || true' EXIT
-
-          echo "::group::2. Read it back through ${CDN_BASE_URL}"
-          served="$(curl -fsS --retry 3 "${CDN_BASE_URL}/${test_object}")"
-          if [[ "${served}" != "$(cat "${test_file}")" ]]; then
-            echo "::error::${CDN_BASE_URL}/${test_object} served different content: ${served}"
-            exit 1
-          fi
-          echo "The CDN served the uploaded content."
-          echo "::endgroup::"
-
-          echo "::group::3. Delete gs://${CDN_BUCKET}/${test_object}"
-          gcloud storage rm "gs://${CDN_BUCKET}/${test_object}"
-          echo "::endgroup::"
-
-          echo "::group::4. Delete gs://${CDN_BUCKET}/java-logo-1.png"
-          if gcloud storage objects describe "gs://${CDN_BUCKET}/java-logo-1.png" > /dev/null 2>&1; then
-            gcloud storage rm "gs://${CDN_BUCKET}/java-logo-1.png"
-          else
-            echo "Already deleted."
-          fi
-          echo "::endgroup::"
-
-          echo "::group::5. Objects left in gs://${CDN_BUCKET}"
-          gcloud storage ls --long "gs://${CDN_BUCKET}/**" 2>&1 || echo "(no objects)"
-          echo "::endgroup::"
+          gh release upload --clobber "v${RELEASE_VERSION}" cache-manifest.json --repo "${GITHUB_REPOSITORY}"
 
   # Attaches the Linux SEA binaries, install.sh and SHA256SUMS to the GitHub Release.
   publish-linux-installer:
