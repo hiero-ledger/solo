@@ -41,7 +41,6 @@ import {
   NodeDeleteTransaction,
   NodeUpdateTransaction,
   PrivateKey,
-  PublicKey,
   ReceiptStatusError,
   ServiceEndpoint,
   Status,
@@ -2401,32 +2400,6 @@ export class NodeCommandTasks {
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
   ): Promise<string> {
-    const adminPublicKeysFlag: Optional<string> = this.configManager.getFlag(flags.adminPublicKeys);
-    let adminPublicKeys: string[];
-    if (adminPublicKeysFlag === undefined) {
-      adminPublicKeys = [];
-    } else {
-      const parsed: string[] = splitFlagInput(adminPublicKeysFlag);
-      if (parsed.length === 0) {
-        throw new SoloErrors.validation.invalidAdminPublicKey(consensusNodes[0]?.name);
-      }
-
-      if (parsed.length !== consensusNodes.length) {
-        throw new SoloErrors.validation.adminKeysCountMismatch(parsed.length, consensusNodes.length);
-      }
-
-      for (const [index, key] of parsed.entries()) {
-        const nodeAlias: NodeAlias = consensusNodes[index]?.name;
-        try {
-          PublicKey.fromStringED25519(key);
-        } catch (error: unknown) {
-          throw new SoloErrors.validation.invalidAdminPublicKey(nodeAlias, error);
-        }
-      }
-
-      adminPublicKeys = parsed;
-    }
-
     const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap: Map<NodeAlias, NetworkNodeServices> = await this.accountManager.getNodeServiceMap(
       namespace,
@@ -2441,8 +2414,17 @@ export class NodeCommandTasks {
     );
     const genesisPublicKey: string = genesisKey.publicKey.toString();
 
+    let adminPublicKeys: string[];
+    const adminPublicKeysFlag: Optional<string> = this.configManager.getFlag(flags.adminPublicKeys);
     if (adminPublicKeysFlag === undefined) {
       adminPublicKeys = Array.from({length: consensusNodes.length}, (): string => genesisPublicKey);
+    } else {
+      const parsed: string[] = splitFlagInput(adminPublicKeysFlag);
+      if (parsed.length === 0) {
+        throw new SoloErrors.validation.invalidAdminPublicKey(consensusNodes[0]?.name);
+      }
+
+      adminPublicKeys = parsed;
     }
 
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
