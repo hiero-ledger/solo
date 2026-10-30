@@ -2,7 +2,7 @@
 
 import {
   AccountCreateTransaction,
-  type AccountId,
+  AccountId,
   type AccountInfo,
   AccountInfoQuery,
   AccountUpdateTransaction,
@@ -63,6 +63,16 @@ export class SdkHederaClient implements HederaClient {
 
   public async ping(accountId: AccountId): Promise<void> {
     await this.sdkClient.ping(accountId);
+  }
+
+  public async checkHealth(): Promise<void> {
+    const nodeAccountIds: AccountId[] = Object.values(this.sdkClient.network).map(
+      (accountId: string | AccountId): AccountId => AccountId.fromString(accountId.toString()),
+    );
+    await new AccountInfoQuery()
+      .setAccountId(new AccountId(this.sdkClient.shard, this.sdkClient.realm, 2))
+      .setNodeAccountIds(nodeAccountIds)
+      .getCost(this.sdkClient);
   }
 
   public close(): void {
