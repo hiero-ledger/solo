@@ -10,6 +10,8 @@ import {
   FileCreateTransaction,
   FileInfoQuery,
   FileUpdateTransaction,
+  FreezeTransaction,
+  FreezeType,
   NodeUpdateTransaction,
   TopicCreateTransaction,
   TopicId,
@@ -28,6 +30,7 @@ import {SdkHederaClient} from '../../../../src/integration/hedera/impl/sdk-heder
 import {type HederaFileTransactionResult} from '../../../../src/integration/hedera/hedera-file-transaction-result.js';
 import {type HederaSubmittedTransaction} from '../../../../src/integration/hedera/hedera-submitted-transaction.js';
 import {type HederaTransactionStatus} from '../../../../src/integration/hedera/hedera-transaction-status.js';
+import {type HederaFreezeResult} from '../../../../src/integration/hedera/hedera-freeze-result.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 function makePrecheckStatusError(status: Status): PrecheckStatusError {
@@ -353,6 +356,84 @@ describe('SdkHederaClient', (): void => {
 
       expect(memoSpy.calledOnceWithExactly('Buffer topic')).to.equal(true);
       expect(executeStub.callCount).to.equal(1);
+    });
+  });
+
+  describe('writeFileChunk', (): void => {
+    const fileId: FileId = new FileId(0, 0, 150);
+    const contents: Uint8Array = new Uint8Array([1, 2, 3]);
+
+    it('updates the file in update mode, signed by the operator only', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const freezeStub: sinon.SinonStub = sinon.stub(FileUpdateTransaction.prototype, 'freezeWith');
+      const executeStub: sinon.SinonStub = sinon
+        .stub(FileUpdateTransaction.prototype, 'execute')
+        .resolves({getReceipt: sinon.stub().resolves({status: Status.Success})} as never);
+      const appendStub: sinon.SinonStub = sinon.stub(FileAppendTransaction.prototype, 'execute');
+
+      const result: HederaFileTransactionResult = await client.writeFileChunk(fileId, contents, 'update');
+
+      expect(result).to.deep.equal({isSuccess: true, status: 'SUCCESS', fileId: undefined});
+      expect(executeStub.callCount).to.equal(1);
+      expect(appendStub.callCount).to.equal(0);
+      expect(freezeStub.callCount).to.equal(0);
+    });
+
+    it('appends to the file in append mode', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const executeStub: sinon.SinonStub = sinon
+        .stub(FileAppendTransaction.prototype, 'execute')
+        .resolves({getReceipt: sinon.stub().resolves({status: Status.Success})} as never);
+
+      const result: HederaFileTransactionResult = await client.writeFileChunk(fileId, contents, 'append');
+
+      expect(result.isSuccess).to.equal(true);
+      expect(executeStub.callCount).to.equal(1);
+    });
+  });
+
+  describe('freeze', (): void => {
+    function stubFreeze(status: Status): sinon.SinonSpy {
+      const freezeTypeSpy: sinon.SinonSpy = sinon.spy(FreezeTransaction.prototype, 'setFreezeType');
+      sinon.stub(FreezeTransaction.prototype, 'freezeWith').returnsThis();
+      sinon.stub(FreezeTransaction.prototype, 'execute').resolves({
+        transactionId: '0.0.58@1700000000.000000001',
+        getReceipt: sinon.stub().resolves({status}),
+      } as never);
+      return freezeTypeSpy;
+    }
+
+    it('maps each freeze kind to the SDK freeze type', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const freezeTypeSpy: sinon.SinonSpy = stubFreeze(Status.Success);
+
+      await client.freeze({type: 'prepare-upgrade', fileId: new FileId(0, 0, 150), fileHash: 'abcd'});
+      await client.freeze({
+        type: 'freeze-upgrade',
+        startTime: new Date(),
+        fileId: new FileId(0, 0, 150),
+        fileHash: 'abcd',
+      });
+      await client.freeze({type: 'freeze-only', startTime: new Date()});
+
+      expect(freezeTypeSpy.args.map((arguments_: unknown[]): unknown => arguments_[0])).to.deep.equal([
+        FreezeType.PrepareUpgrade,
+        FreezeType.FreezeUpgrade,
+        FreezeType.FreezeOnly,
+      ]);
+    });
+
+    it('returns the transaction id and the receipt status', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      stubFreeze(Status.InvalidSignature);
+
+      const result: HederaFreezeResult = await client.freeze({type: 'freeze-only', startTime: new Date()});
+
+      expect(result).to.deep.equal({
+        isSuccess: false,
+        status: 'INVALID_SIGNATURE',
+        transactionId: '0.0.58@1700000000.000000001',
+      });
     });
   });
 });
