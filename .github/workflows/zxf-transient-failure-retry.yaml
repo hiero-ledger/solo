@@ -82,7 +82,7 @@ jobs:
       checks: read # reads the job annotation that records a lost runner, since such a job has no log
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -142,10 +142,17 @@ jobs:
                 // in-cluster DNS failure logged elsewhere - a pod that cannot resolve a Kubernetes
                 // service name, say - is not matched. `no such host` (NXDOMAIN) is deliberately not
                 // matched alongside it: unlike a resolver fault, a persistently missing record
-                // could reflect a real misconfiguration rather than a transient glitch.
-                stepPrefixes: [...setupStepPrefixes, 'one-shot single deploy', 'run example test', 'run e2e tests'],
+                // could reflect a real misconfiguration rather than a transient glitch. Only `helm repo
+                // add` failing to reach a fixed chart repository URL is matched; MAX_RUN_ATTEMPTS bounds it.
+                stepPrefixes: [
+                  ...setupStepPrefixes,
+                  'one-shot single deploy',
+                  'run example test',
+                  'run e2e tests',
+                  'run gcs test script',
+                ],
                 required:
-                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)|(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)[^\n]*(?:fetch|download|install|request)|npm (?:ERR!|error) code (?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)[\s\S]{0,500}npm (?:ERR!|error) network\b|failed to do request:[^\n]*dial tcp:?[^\n]*(i\/o timeout|server misbehaving)/i,
+                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)|(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)[^\n]*(?:fetch|download|install|request)|npm (?:ERR!|error) code (?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)[\s\S]{0,500}npm (?:ERR!|error) network\b|failed to do request:[^\n]*dial tcp:?[^\n]*(i\/o timeout|server misbehaving)|is not a valid chart repository or cannot be reached: Get "[^"\n]*": dial tcp: lookup [^\n]*: no such host/i,
                 forbidden: /error TS\d{4}/,
               },
               {
@@ -155,8 +162,17 @@ jobs:
                 // published module and stays excluded above.
                 description: 'downloaded tool failed its checksum',
                 stepPrefixes: setupStepPrefixes,
-                required: /sha256sum: WARNING: \d+ computed checksums? did NOT match/,
+                // helm/kind-action saves an HTTP error page as the checksum file once curl stops retrying.
+                required:
+                  /sha256sum: WARNING: \d+ computed checksums? did NOT match|Installing (?:kind|kubectl)\.\.\.[\s\S]{0,300}?no properly formatted (?:SHA256 )?checksum lines found/,
                 forbidden: /SECURITY ERROR/,
+              },
+              {
+                // The setup-kind action prints this only once every attempt has failed; a 404 stops it earlier.
+                description: 'kind or kubectl download kept failing',
+                stepPrefixes: setupStepPrefixes,
+                required: /Could not install (?:kind|kubectl) \S+ after \d+ attempts/,
+                forbidden: /error TS\d{4}/,
               },
               {
                 // Uploading logs and coverage goes through GitHub's artifact service, so a name
@@ -190,6 +206,18 @@ jobs:
                 stepPrefixes: ['set up job'],
                 required: /Action '[^']*' download has timed out|Failed to download archive '[^']*' after \d+ attempts/,
                 forbidden: /Unable to resolve action|error TS\d{4}/,
+              },
+              {
+                // The kind API server restarts shortly after the Prometheus Operator CRDs are
+                // installed (issue #6310), dropping the connection mid-request. Solo retries
+                // such a request itself; this covers the case where the API server stays down
+                // past those attempts. Only the discovery request of a deploy is matched, so a
+                // refusal logged by an unrelated step is left alone.
+                description: 'kind API server dropped the connection during deploy',
+                stepPrefixes: ['one-shot single deploy'],
+                required:
+                  /Failed to fetch resource metadata for[\s\S]{0,200}(socket disconnected before secure TLS|ECONNRESET|ECONNREFUSED|HTTP-Code: (403|503)\b)/,
+                forbidden: /error TS\d{4}/,
               },
               {
                 description: 'kind could not bind a host port held by a leaked cluster',

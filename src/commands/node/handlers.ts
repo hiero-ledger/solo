@@ -43,6 +43,7 @@ import {getSoloVersion} from '../../../version.js';
 import {type ClusterReachability} from '../util/cluster-reachability.js';
 import {DiagnosticsCollector} from '../util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
+import {ResourceSnapshotCollector} from '../util/resource-snapshot-collector.js';
 import {findDeploymentsFromRemoteConfig} from '../util/remote-config-helper.js';
 import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
 import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
@@ -369,7 +370,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.waitForTss(),
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
-      this.tasks.loadAdminKey(),
       this.tasks.setGrpcWebEndpoint('newNodeAliases', NodeSubcommandType.ADD),
       this.tasks.finalize(),
       this.tasks.removeCachedKeys(),
@@ -925,6 +925,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.getHelmChartValues(outputDirectory, scopeToSelectedDeployment),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
         this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
+        ResourceSnapshotCollector.collect(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.reportActivePortForwards(),
       ],
@@ -1041,6 +1042,13 @@ export class NodeCommandHandlers extends CommandHandler {
         ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory, scopeToSelectedDeployment)]),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
         this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
+        ResourceSnapshotCollector.collect(
+          this.k8Factory,
+          this.logger,
+          outputDirectory,
+          scopeToSelectedDeployment,
+          !excludeSensitiveData,
+        ),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
@@ -1405,7 +1413,7 @@ export class NodeCommandHandlers extends CommandHandler {
         }
 
         if (ledgerPhase) {
-          this.remoteConfig.configuration.state.ledgerPhase = ledgerPhase;
+          this.remoteConfig.configuration.ledger.phase = ledgerPhase;
         }
 
         await this.remoteConfig.persist();
