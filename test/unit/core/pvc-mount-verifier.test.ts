@@ -121,6 +121,17 @@ describe('PvcMountVerifier', (): void => {
     expect(findings).to.be.empty;
   });
 
+  it('gives up on a probe that never returns instead of stalling', async (): Promise<void> => {
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']});
+    execContainerStub.returns(new Promise((): void => {}));
+
+    const pending: Promise<PvcMountFinding[]> = verifier.verify(NAMESPACE, 'context-1', ['app=network-node']);
+    await clock.tickAsync(61_000);
+
+    expect(await pending).to.be.empty;
+    clock.restore();
+  });
+
   it('does not report a mount whose probe output is unusable', async (): Promise<void> => {
     execContainerStub.resolves('df: /opt/hgcapp: No such file or directory\n');
 
