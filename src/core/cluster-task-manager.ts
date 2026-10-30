@@ -24,7 +24,7 @@ import {type ClusterCreateOptions} from '../integration/kind/model/create-cluste
 import {ClusterCreateOptionsBuilder} from '../integration/kind/model/create-cluster/create-cluster-options-builder.js';
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {type DependencyManager, KindDependencyManager, PodmanDependencyManager} from './dependency-managers/index.js';
-import {OperatingSystem} from '../business/utils/operating-system.js';
+import {type VfkitDependencyManager} from './dependency-managers/vfkit-dependency-manager.js';
 import {K8} from '../integration/kube/k8.js';
 import {MissingActiveContextError} from '../integration/kube/errors/missing-active-context-error.js';
 import {MissingActiveClusterError} from '../integration/kube/errors/missing-active-cluster-error.js';
@@ -478,10 +478,14 @@ export class ClusterTaskManager extends ShellRunner {
           void _context;
           const podmanDependency: PodmanDependencyManager = this.podmanDependencyManager;
           const shouldInstallPodman: boolean = await podmanDependency.shouldInstall();
+          const vfkitDependency: VfkitDependencyManager = (await this.depManager.getDependency(
+            constants.VFKIT,
+          )) as VfkitDependencyManager;
+          const shouldInstallVfkit: boolean = await vfkitDependency.shouldInstall();
 
           const podmanDependencies: string[] =
             shouldInstallPodman && podmanDependency.mode === PodmanMode.VIRTUAL_MACHINE
-              ? [constants.PODMAN, ...(OperatingSystem.isDarwin() ? [constants.VFKIT] : []), constants.GVPROXY]
+              ? [constants.PODMAN, ...(shouldInstallVfkit ? [constants.VFKIT] : []), constants.GVPROXY]
               : [];
 
           const deps: string[] = [...podmanDependencies, constants.KIND];

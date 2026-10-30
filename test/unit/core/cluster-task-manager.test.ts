@@ -76,12 +76,13 @@ async function getInstallKindDependencies(
 ): Promise<string[]> {
   sinon.stub(OperatingSystem, 'isDarwin').returns(isDarwin);
   const taskCheckDependencies: SinonStub = sinon.stub().returns([]);
+  const getDependency: SinonStub = sinon.stub().resolves(container.resolve(InjectTokens.VfkitDependencyManager));
   const manager: ClusterTaskManager = createClusterTaskManager(
     {
       shouldInstall: sinon.stub().resolves(shouldInstallPodman),
       mode: podmanMode,
     },
-    {taskCheckDependencies},
+    {getDependency, taskCheckDependencies},
   );
 
   const tasks: SoloListrTask<AnyObject>[] = manager.setupLocalClusterTasks();

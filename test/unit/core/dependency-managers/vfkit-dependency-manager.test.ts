@@ -28,12 +28,7 @@ describe('VfkitDependencyManager', (): void => {
       expect(await vfkitDependencyManager.shouldInstall()).to.be.true;
     });
 
-    it('should return false on Windows (win32)', async (): Promise<void> => {
-      sinon.stub(OperatingSystem, 'isDarwin').returns(false);
-      expect(await vfkitDependencyManager.shouldInstall()).to.be.false;
-    });
-
-    it('should return false on Linux', async (): Promise<void> => {
+    it('should return false on non-macOS platforms', async (): Promise<void> => {
       sinon.stub(OperatingSystem, 'isDarwin').returns(false);
       expect(await vfkitDependencyManager.shouldInstall()).to.be.false;
     });
