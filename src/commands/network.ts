@@ -5,6 +5,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
 import {SoloErrors} from '../core/errors/solo-errors.js';
+import {PvcStrandedPodTracker} from '../core/pvc-stranded-pod-tracker.js';
 import {type PvcMountVerifier} from '../core/pvc-mount-verifier.js';
 import {type PvcMountFinding} from '../core/pvc-mount-finding.js';
 import {UserBreak} from '../core/errors/user-break.js';
@@ -26,6 +27,7 @@ import {
   showVersionBanner,
   sleep,
 } from '../core/helpers.js';
+import {type StorageClassHelper} from '../core/storage-class-helper.js';
 import {helmValuesHelper} from '../core/helm-values-helper.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {type PerNodeIdentity} from '../types/helm-values.js';
@@ -74,6 +76,9 @@ import {ComponentCompatibility} from '../business/compatibility/component-compat
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {type PvcDetail} from '../integration/kube/resources/pvc/pvc-detail.js';
+import {KubernetesQuantity} from '../business/utils/kubernetes-quantity.js';
+import {type Pvcs} from '../integration/kube/resources/pvc/pvcs.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
@@ -97,6 +102,18 @@ interface NetworkDeployContext {
 
 @injectable()
 export class NetworkCommand extends BaseCommand {
+  /** Caps how many outstanding claim names are listed when the bind wait times out. */
+  private static readonly MAX_REPORTED_UNBOUND_PVCS: number = 5;
+
+  /** How often, in poll attempts, bind progress is mirrored into the log for non-TTY runs such as CI. */
+  private static readonly PVC_BIND_LOG_INTERVAL_ATTEMPTS: number = 15;
+
+  /** How many poll attempts a pod must stay unscheduled with a volume node affinity conflict to be treated as stranded. */
+  private static readonly PVC_STRANDED_POD_ATTEMPTS: number = 120;
+
+  /** How many times the volumes of one stranded pod are re-provisioned before the deploy fails. */
+  private static readonly PVC_STRANDED_POD_MAX_RECOVERIES: number = 3;
+
   private profileValuesFile?: Record<ClusterReferenceName, string>;
 
   public constructor(
@@ -107,6 +124,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.StorageClassHelper) private readonly storageClassHelper: StorageClassHelper,
     @inject(InjectTokens.PvcMountVerifier) private readonly pvcMountVerifier: PvcMountVerifier,
   ) {
     super();
@@ -117,6 +135,7 @@ export class NetworkCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.storageClassHelper = patchInject(storageClassHelper, InjectTokens.StorageClassHelper, this.constructor.name);
     this.pvcMountVerifier = patchInject(pvcMountVerifier, InjectTokens.PvcMountVerifier, this.constructor.name);
   }
 
@@ -145,6 +164,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.pvcStorageClass,
       flags.verifyPersistentVolumeClaimMounts,
       flags.quiet,
       // Keep the legacy flag visible in help as deprecated while canonical parsing
@@ -195,6 +215,168 @@ export class NetworkCommand extends BaseCommand {
       flags.force,
     ],
   };
+
+  /**
+   * Waits until every consensus node volume claim is bound. Provisioners bind claims serially and each consensus node
+   * declares a full set of them, so on a sizable network this runs for a while before any node pod can be scheduled.
+   * Reporting the bind count makes that phase visible instead of it looking like the pods are stuck.
+   */
+  private waitForNetworkPvcs(): SoloListrTask<NetworkDeployContext> {
+    return {
+      title: 'Check node persistent volume claims are bound',
+      skip: (context_): boolean => !context_.config.persistentVolumeClaims,
+      task: (context_, task): SoloListr<NetworkDeployContext> => {
+        const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
+        const config: NetworkDeployConfigClass = context_.config;
+
+        for (const context of config.contexts) {
+          subTasks.push({
+            title: `Check volume claims in cluster: ${chalk.yellow(context)}`,
+            task: async (_, subTask): Promise<void> => {
+              await this.waitForBoundPvcs(context, config.namespace, subTask);
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {
+          concurrent: true,
+          rendererOptions: {
+            collapseSubtasks: false,
+          },
+        });
+      },
+    };
+  }
+
+  private async waitForBoundPvcs(
+    context: string,
+    namespace: NamespaceName,
+    task: SoloListrTaskWrapper<NetworkDeployContext>,
+  ): Promise<void> {
+    const k8: K8 = this.k8Factory.getK8(context);
+    const pvcs: Pvcs = k8.pvcs();
+    const strandedPods: PvcStrandedPodTracker = new PvcStrandedPodTracker(
+      NetworkCommand.PVC_STRANDED_POD_ATTEMPTS,
+      NetworkCommand.PVC_STRANDED_POD_MAX_RECOVERIES,
+    );
+    const baseTitle: string = task.title;
+    let claims: PvcDetail[] = [];
+    let unbound: PvcDetail[] = [];
+    let reportedTotal: number = 0;
+
+    for (let attempt: number = 0; attempt < constants.PVC_BOUND_MAX_ATTEMPTS; attempt++) {
+      claims = await pvcs.readAll(namespace, [constants.SOLO_NODE_PVC_LABEL_SELECTOR]);
+      unbound = claims.filter((claim: PvcDetail): boolean => claim.phase !== constants.PVC_PHASE_BOUND);
+      const bound: number = claims.length - unbound.length;
+
+      task.title = `${baseTitle} [${bound}/${claims.length} bound]`;
+
+      // Announce the scale once the claims exist: provisioners bind them serially, so the total is what determines
+      // how long this phase runs.
+      if (claims.length > 0 && reportedTotal !== claims.length) {
+        reportedTotal = claims.length;
+        this.logger.info(
+          `Waiting for ${claims.length} consensus node volume claim(s) to bind [namespace: ${namespace.name}, context: ${context}]`,
+        );
+      }
+
+      // The listr title only exists on a TTY, so mirror progress into the log that CI collects. Logged at info so it
+      // is present without --debug, and only periodically so a long bind does not flood the log.
+      if (attempt % NetworkCommand.PVC_BIND_LOG_INTERVAL_ATTEMPTS === 0) {
+        this.logger.info(
+          `[attempt: ${attempt}/${constants.PVC_BOUND_MAX_ATTEMPTS}] ${bound}/${claims.length} volume claim(s) bound ` +
+            `[namespace: ${namespace.name}, context: ${context}]`,
+        );
+      }
+
+      // Bound claims are not enough with node-local volumes: a pod whose claims bound to nodes it cannot use never
+      // schedules, so scheduling is part of this wait and is where such pods are recovered.
+      const recovered: number = await this.recoverStrandedPods(k8, namespace, claims, strandedPods, attempt);
+
+      // The claims are created by the chart, so an empty list means they have not appeared yet rather than that
+      // there is nothing to wait for.
+      if (
+        claims.length > 0 &&
+        unbound.length === 0 &&
+        recovered === 0 &&
+        strandedPods.unscheduledPodNames.length === 0
+      ) {
+        this.logger.info(
+          `All ${claims.length} consensus node volume claim(s) bound and their pods scheduled [namespace: ${namespace.name}, context: ${context}]`,
+        );
+        return;
+      }
+
+      await sleep(Duration.ofMillis(constants.PVC_BOUND_DELAY));
+    }
+
+    if (unbound.length === 0 && strandedPods.unscheduledPodNames.length > 0) {
+      throw new SoloErrors.system.pvcPodsStranded(
+        strandedPods.unscheduledPodNames,
+        strandedPods.maxRecoveryAttempts,
+        strandedPods.lastSchedulerMessage,
+      );
+    }
+
+    // Report the requested size with each outstanding claim: provisioning time commonly scales with it, so which
+    // sizes are lagging is the first thing worth knowing when this times out.
+    const unboundNames: string[] = unbound.map((claim: PvcDetail): string => {
+      const size: string =
+        claim.requestedStorageBytes === undefined
+          ? '<unknown size>'
+          : KubernetesQuantity.format(claim.requestedStorageBytes);
+      return `${claim.pvcReference.name.toString()} (${size})`;
+    });
+    const reportedNames: string[] =
+      unboundNames.length > NetworkCommand.MAX_REPORTED_UNBOUND_PVCS
+        ? [
+            ...unboundNames.slice(0, NetworkCommand.MAX_REPORTED_UNBOUND_PVCS),
+            `and ${unboundNames.length - NetworkCommand.MAX_REPORTED_UNBOUND_PVCS} more`,
+          ]
+        : unboundNames;
+
+    throw new SoloErrors.system.pvcBindTimeout(claims.length - unbound.length, claims.length, reportedNames);
+  }
+
+  /**
+   * A node pod whose volumes are pinned to nodes it cannot use will never schedule, so waiting longer cannot bind its
+   * claims. The pod has not started, so its claims hold no data: delete the pod and its claims and let the StatefulSet
+   * recreate them for the scheduler to place again. Fails fast once the same pod has been recovered too many times.
+   */
+  private async recoverStrandedPods(
+    k8: K8,
+    namespace: NamespaceName,
+    claims: PvcDetail[],
+    tracker: PvcStrandedPodTracker,
+    attempt: number,
+  ): Promise<number> {
+    const pods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_NODE_POD_LABEL_SELECTOR]);
+    const stranded: Pod[] = tracker.observe(pods, attempt);
+
+    for (const pod of stranded) {
+      const podName: string = pod.podReference.name.toString();
+      if (!tracker.recordRecovery(podName)) {
+        throw new SoloErrors.system.pvcPodsStranded(
+          stranded.map((strandedPod: Pod): string => strandedPod.podReference.name.toString()),
+          tracker.maxRecoveryAttempts,
+          tracker.lastSchedulerMessage,
+        );
+      }
+
+      this.logger.warn(
+        `Pod ${podName} cannot be scheduled on the nodes its volumes are bound to; ` +
+          `re-provisioning its volume claims [namespace: ${namespace.name}]`,
+      );
+      await k8.pods().delete(pod.podReference);
+      for (const claim of claims) {
+        if (claim.pvcReference.name.toString().endsWith(`-${podName}`)) {
+          await k8.pvcs().delete(claim.pvcReference);
+        }
+      }
+    }
+
+    return stranded.length;
+  }
 
   private waitForNetworkPods(): SoloListrTask<NetworkDeployContext> {
     return {
@@ -449,16 +631,16 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
-   * Prepare values args string for each cluster-ref
-   * @param config
-   */
-  /**
    * Prepare Helm chart values for each cluster-ref
    * @param config
    */
   private async prepareHelmChartValuesMap(
     config: NetworkDeployConfigClass,
   ): Promise<Record<ClusterReferenceName, HelmChartValues>> {
+    config.resolvedPvcStorageClass = config.persistentVolumeClaims
+      ? await this.resolveStorageClass(config.clusterRefs, config.pvcStorageClass)
+      : {};
+
     const clusterChartValues: Record<ClusterReferenceName, HelmChartValues> = this.prepareHelmChartValues(config);
 
     // prepare values files for each cluster
@@ -785,6 +967,13 @@ export class NetworkCommand extends BaseCommand {
         // Turn on the chart's own pre-start capacity guard alongside solo's post-deploy check, so
         // an undersized volume stops the node before it writes state rather than after.
         .set('defaults.volumeClaims.capacityCheck.enabled', config.verifyPersistentVolumeClaimMounts);
+
+      const resolvedStorageClass: string = config.resolvedPvcStorageClass[clusterReference];
+      if (resolvedStorageClass) {
+        chartValuesMap[clusterReference]
+          .set('defaults.volumeClaims.storageClassName', resolvedStorageClass)
+          .set('minio-server.tenant.pools[0].storageClassName', resolvedStorageClass);
+      }
     }
 
     config.singleUseServiceMonitor = 'false';
@@ -1030,6 +1219,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.pvcStorageClass,
       flags.verifyPersistentVolumeClaimMounts,
       flags.settingTxt,
       flags.grpcTlsCertificatePath,
@@ -1735,6 +1925,18 @@ export class NetworkCommand extends BaseCommand {
     );
   }
 
+  /** Resolve the PVC StorageClass to use for each cluster-ref, since each cluster may resolve differently. */
+  private async resolveStorageClass(
+    clusterReferences: ClusterReferences,
+    userSuppliedClass: string,
+  ): Promise<Record<ClusterReferenceName, string>> {
+    const resolved: Record<ClusterReferenceName, string> = {};
+    for (const [clusterReference, context] of clusterReferences) {
+      resolved[clusterReference] = await this.storageClassHelper.resolveStorageClass(context, userSuppliedClass);
+    }
+    return resolved;
+  }
+
   /**
    * Loads and validates the remote config for `network deploy`. Unlike other consumers of
    * `remoteConfig.loadAndValidate`, a missing remote config here does not necessarily mean the deployment is
@@ -2083,6 +2285,7 @@ export class NetworkCommand extends BaseCommand {
             });
           },
         },
+        this.waitForNetworkPvcs(),
         this.waitForNetworkPods(),
         this.installRootContainerTools(),
         this.verifyPersistentVolumeClaimMounts(),
