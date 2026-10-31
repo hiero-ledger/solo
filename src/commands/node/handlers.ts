@@ -43,6 +43,7 @@ import {getSoloVersion} from '../../../version.js';
 import {type ClusterReachability} from '../util/cluster-reachability.js';
 import {DiagnosticsCollector} from '../util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
+import {ResourceSnapshotCollector} from '../util/resource-snapshot-collector.js';
 import {findDeploymentsFromRemoteConfig} from '../util/remote-config-helper.js';
 import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
 import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
@@ -925,6 +926,7 @@ export class NodeCommandHandlers extends CommandHandler {
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
         this.tasks.collectPvcState(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
+        ResourceSnapshotCollector.collect(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.reportActivePortForwards(),
       ],
@@ -1042,6 +1044,13 @@ export class NodeCommandHandlers extends CommandHandler {
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory, scopeToSelectedDeployment),
         this.tasks.collectPvcState(outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory, scopeToSelectedDeployment),
+        ResourceSnapshotCollector.collect(
+          this.k8Factory,
+          this.logger,
+          outputDirectory,
+          scopeToSelectedDeployment,
+          !excludeSensitiveData,
+        ),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
