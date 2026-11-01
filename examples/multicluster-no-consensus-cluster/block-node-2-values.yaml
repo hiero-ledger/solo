@@ -3,3 +3,9 @@
 loadBalancer:
   enabled: true
   loadBalancerIP: '172.19.2.10'
+
+# block-node-2 is only a secondary target of node1, so it receives no live stream while block-node-1 is
+# healthy. Backfill greedily from block-node-1 so it still ends up with every block.
+blockNode:
+  config:
+    BACKFILL_GREEDY: 'true'

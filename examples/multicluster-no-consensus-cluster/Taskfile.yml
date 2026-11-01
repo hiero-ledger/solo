@@ -90,6 +90,10 @@ tasks:
       - cmd: |
           $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases node1 --deployment {{.SOLO_DEPLOYMENT}} --quiet-mode --dev
 
+      # Resolve each block node's service name from the other cluster before the block nodes start: the
+      # cluster 2 block node looks up block-node-1 as soon as it starts.
+      - task: link-clusters
+
       # block-node-1 (cluster 1) is node1's primary. block-node-2 (cluster 2) is listed as node1's
       # secondary, so node1's block-nodes.json points at a block node in the other cluster: the
       # address is block-node-2.<namespace>.svc.<cluster 2 dns base domain>. Sequential: both
@@ -99,8 +103,6 @@ tasks:
             --priority-mapping node1=1 --values-file {{.TASKFILE_DIR}}/block-node-1-values.yaml --quiet-mode --dev
           $SOLO_COMMAND block node add --deployment {{.SOLO_DEPLOYMENT}} --cluster-ref {{.CLUSTER_REF_2}} \
             --priority-mapping node1=2 --values-file {{.TASKFILE_DIR}}/block-node-2-values.yaml --quiet-mode --dev
-
-      - task: link-clusters
 
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{.SOLO_DEPLOYMENT}} --release-tag {{.CN_VERSION}} --quiet-mode --dev \
