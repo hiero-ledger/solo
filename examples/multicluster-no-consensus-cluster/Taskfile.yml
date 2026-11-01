@@ -149,6 +149,15 @@ tasks:
           check_ready {{.CLUSTER_NAME_2}} block-node-2
           check_ready {{.CLUSTER_NAME_2}} mirror-2
 
+      # Services, endpoints and MetalLB state behind the cross-cluster block node addresses
+      - cmd: |
+          for cluster in {{.CLUSTER_NAME_1}} {{.CLUSTER_NAME_2}}; do
+            echo "=== services and endpoints in ${cluster}"
+            kubectl --context "kind-${cluster}" get svc,endpoints -n {{.SOLO_NAMESPACE}} -o wide | grep -E "NAME|block-node" || true
+            echo "=== metallb speaker in ${cluster}"
+            kubectl --context "kind-${cluster}" logs -n metallb-system -l app.kubernetes.io/component=speaker --tail=30 --all-containers 2>&1 | tail -30 || true
+          done
+
       # node1 (cluster 1) must be able to reach block-node-2 in cluster 2 by its service name
       - cmd: |
           POD="$(kubectl --context kind-{{.CLUSTER_NAME_1}} get pods -n {{.SOLO_NAMESPACE}} -o name | grep network-node1 | head -1)"
