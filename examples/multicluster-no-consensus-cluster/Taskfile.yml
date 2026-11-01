@@ -154,8 +154,11 @@ tasks:
           for cluster in {{.CLUSTER_NAME_1}} {{.CLUSTER_NAME_2}}; do
             echo "=== services and endpoints in ${cluster}"
             kubectl --context "kind-${cluster}" get svc,endpoints -n {{.SOLO_NAMESPACE}} -o wide | grep -E "NAME|block-node" || true
-            echo "=== metallb speaker in ${cluster}"
-            kubectl --context "kind-${cluster}" logs -n metallb-system -l app.kubernetes.io/component=speaker --tail=30 --all-containers 2>&1 | tail -30 || true
+            echo "=== block node external service events in ${cluster}"
+            kubectl --context "kind-${cluster}" describe svc -n {{.SOLO_NAMESPACE}} -l app.kubernetes.io/name=block-node-${cluster##*-c} 2>&1 | sed -n '/^Events:/,$p' || true
+            echo "=== metallb controller in ${cluster}"
+            kubectl --context "kind-${cluster}" logs -n metallb-system -l app.kubernetes.io/component=controller --tail=30 2>&1 | tail -30 || true
+            kubectl --context "kind-${cluster}" get ipaddresspool,l2advertisement -n metallb-system 2>&1 || true
           done
 
       # node1 (cluster 1) must be able to reach block-node-2 in cluster 2 by its service name

@@ -3,5 +3,3 @@
 loadBalancer:
   enabled: true
   loadBalancerIP: '172.19.1.10'
-  annotations:
-    metallb.io/loadBalancerIPs: '172.19.1.10'
