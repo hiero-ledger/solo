@@ -24,6 +24,12 @@ vars:
   ENVOY_IPS: 'node1=172.19.1.2'
   NETWORK_NODE_IPS: 'node1=172.19.1.1'
 
+  # Static LoadBalancer IPs of the block nodes. Each cluster's CoreDNS resolves the other cluster's block
+  # node service name to this address, so pods in one cluster can reach a block node in the other.
+  BLOCK_NODE_1_IP: '172.19.1.10'
+  BLOCK_NODE_2_IP: '172.19.2.10'
+  DNS_DOMAIN: 'cluster.local'
+
   CN_VERSION:
     sh: echo "${CONSENSUS_NODE_VERSION:-$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' ../../version.ts)}"
 
@@ -90,9 +96,11 @@ tasks:
       # commands take the Solo distributed lock.
       - cmd: |
           $SOLO_COMMAND block node add --deployment {{.SOLO_DEPLOYMENT}} --cluster-ref {{.CLUSTER_REF_1}} \
-            --priority-mapping node1=1 --quiet-mode --dev
+            --priority-mapping node1=1 --values-file {{.TASKFILE_DIR}}/block-node-1-values.yaml --quiet-mode --dev
           $SOLO_COMMAND block node add --deployment {{.SOLO_DEPLOYMENT}} --cluster-ref {{.CLUSTER_REF_2}} \
-            --priority-mapping node1=2 --quiet-mode --dev
+            --priority-mapping node1=2 --values-file {{.TASKFILE_DIR}}/block-node-2-values.yaml --quiet-mode --dev
+
+      - task: link-clusters
 
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{.SOLO_DEPLOYMENT}} --release-tag {{.CN_VERSION}} --quiet-mode --dev \
@@ -101,10 +109,11 @@ tasks:
           $SOLO_COMMAND consensus node start --deployment {{.SOLO_DEPLOYMENT}} --dev
 
       # One mirror node per cluster. Run sequentially: each command takes the Solo distributed lock.
-      # The cluster 2 mirror node imports from the block node instead of the bucket, because the
-      # bucket (MinIO) lives next to the consensus node in cluster 1.
+      # Both import the block stream from the block node in their own cluster, so a transaction only
+      # shows up in a mirror node if it travelled consensus node -> block node -> mirror node.
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{.SOLO_DEPLOYMENT}} --cluster-ref {{.CLUSTER_REF_1}} \
+            --mirror-node-source block-node \
             --values-file {{.TASKFILE_DIR}}/mirror-memory-values.yaml --quiet-mode --dev
           $SOLO_COMMAND mirror node add --deployment {{.SOLO_DEPLOYMENT}} --cluster-ref {{.CLUSTER_REF_2}} \
             --mirror-node-source block-node \
@@ -113,7 +122,7 @@ tasks:
       - task: verify
 
   verify:
-    desc: Verify the remote config has no consensus node in cluster 2, the components are Ready, and report cross-cluster reachability
+    desc: Verify cluster 2 has no consensus node, the components are Ready, node1 reaches the cluster 2 block node, and a new account reaches both mirror nodes
     cmds:
       # cluster 2 must be attached to the deployment and hold no consensus node pods
       - cmd: |
@@ -140,17 +149,67 @@ tasks:
           check_ready {{.CLUSTER_NAME_2}} block-node-2
           check_ready {{.CLUSTER_NAME_2}} mirror-2
 
-      # Informational: can node1 (cluster 1) resolve the cluster 2 block node's service FQDN?
-      # Solo does not configure cross-cluster DNS; this only works if the clusters can resolve each
-      # other's service names.
+      # node1 (cluster 1) must be able to reach block-node-2 in cluster 2 by its service name
       - cmd: |
           POD="$(kubectl --context kind-{{.CLUSTER_NAME_1}} get pods -n {{.SOLO_NAMESPACE}} -o name | grep network-node1 | head -1)"
-          FQDN="block-node-2.{{.SOLO_NAMESPACE}}.svc.cluster.local"
-          if kubectl --context kind-{{.CLUSTER_NAME_1}} exec -n {{.SOLO_NAMESPACE}} "${POD}" -c root-container -- getent hosts "${FQDN}"; then
-            echo "OK: node1 resolves ${FQDN}"
-          else
-            echo "WARN: node1 cannot resolve ${FQDN}; the cross-cluster block node is not reachable from cluster 1"
-          fi
+          FQDN="block-node-2.{{.SOLO_NAMESPACE}}.svc.{{.DNS_DOMAIN}}"
+          kubectl --context kind-{{.CLUSTER_NAME_1}} exec -n {{.SOLO_NAMESPACE}} "${POD}" -c root-container -- getent hosts "${FQDN}" \
+            || { echo "ERROR: node1 cannot resolve ${FQDN}" >&2; exit 1; }
+          kubectl --context kind-{{.CLUSTER_NAME_1}} exec -n {{.SOLO_NAMESPACE}} "${POD}" -c root-container -- \
+            timeout 10 bash -c "</dev/tcp/${FQDN}/40840" \
+            || { echo "ERROR: node1 cannot open a connection to ${FQDN}:40840" >&2; exit 1; }
+          echo "OK: node1 reaches ${FQDN}:40840"
+
+      # A transaction must reach the mirror node of every cluster (consensus node -> block node -> mirror node)
+      - cmd: |
+          OUTPUT="$($SOLO_COMMAND ledger account create --deployment {{.SOLO_DEPLOYMENT}} --hbar-amount 100 --create-amount 1 --dev)"
+          echo "${OUTPUT}"
+          ACCOUNT_ID="$(echo "${OUTPUT}" | grep -o '"accountId": "[^"]*"' | head -n 1 | sed 's/"accountId": "\(.*\)"/\1/')"
+          [ -n "${ACCOUNT_ID}" ] || { echo "ERROR: accountId not found in output" >&2; exit 1; }
+          echo "Created account ${ACCOUNT_ID}"
+          for entry in "{{.CLUSTER_NAME_1}} mirror-1-rest" "{{.CLUSTER_NAME_2}} mirror-2-rest"; do
+            set -- ${entry}
+            found=false
+            for attempt in $(seq 1 60); do
+              RESPONSE="$(kubectl --context "kind-$1" get --raw \
+                "/api/v1/namespaces/{{.SOLO_NAMESPACE}}/services/$2:80/proxy/api/v1/accounts/${ACCOUNT_ID}" 2>/dev/null || true)"
+              if echo "${RESPONSE}" | grep -q "\"account\":\"${ACCOUNT_ID}\""; then
+                echo "OK: ${ACCOUNT_ID} found in $2 (cluster $1)"
+                found=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "${found}" != "true" ]; then
+              echo "ERROR: ${ACCOUNT_ID} not found in $2 (cluster $1) after 5 minutes" >&2
+              exit 1
+            fi
+          done
+
+  # Each cluster's CoreDNS resolves the other cluster's block node service name to its static
+  # LoadBalancer IP. Solo writes that name into node1's block-nodes.json (and into block node
+  # backfill sources), but nothing resolves it across clusters by default.
+  link-clusters:
+    desc: Make each cluster resolve the other cluster's block node service name to its LoadBalancer IP
+    cmds:
+      - cmd: |
+          link() {
+            cluster="$1"; name="$2"; ip="$3"
+            fqdn="${name}.{{.SOLO_NAMESPACE}}.svc.{{.DNS_DOMAIN}}"
+            COREFILE="$(kubectl --context "kind-${cluster}" get configmap coredns -n kube-system -o jsonpath='{.data.Corefile}')"
+            if echo "${COREFILE}" | grep -q "${fqdn}"; then
+              return
+            fi
+            NEW="$(echo "${COREFILE}" | awk -v ip="${ip}" -v fqdn="${fqdn}" '
+              /^[[:space:]]*kubernetes / { print "    hosts {"; print "        " ip " " fqdn; print "        fallthrough"; print "    }" }
+              { print }')"
+            kubectl --context "kind-${cluster}" create configmap coredns -n kube-system \
+              --from-literal="Corefile=${NEW}" --dry-run=client -o yaml | kubectl --context "kind-${cluster}" apply -f -
+            kubectl --context "kind-${cluster}" rollout restart deployment coredns -n kube-system
+            kubectl --context "kind-${cluster}" rollout status deployment coredns -n kube-system --timeout=120s
+          }
+          link {{.CLUSTER_NAME_1}} block-node-2 {{.BLOCK_NODE_2_IP}}
+          link {{.CLUSTER_NAME_2}} block-node-1 {{.BLOCK_NODE_1_IP}}
 
   destroy:
     desc: Destroy the Solo network and both Kind clusters

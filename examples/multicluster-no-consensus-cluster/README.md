@@ -9,9 +9,14 @@ with **zero** consensus nodes, hosting only a block node and a mirror node
 - Creates two Kind clusters (with MetalLB)
 - Attaches cluster 1 with one consensus node and cluster 2 with `--num-consensus-nodes 0`
 - Adds a block node and a mirror node to **each** cluster. `block-node-1` is `node1`'s primary
-  (`priority 1`); `block-node-2` in cluster 2 is `node1`'s secondary (`priority 2`)
+  (`priority 1`); `block-node-2` in cluster 2 is `node1`'s secondary (`priority 2`). Both mirror nodes
+  import the block stream from the block node in their own cluster
+- Exposes each block node through a static MetalLB address and points each cluster's CoreDNS at the
+  other cluster's block node (`link-clusters` task), so pods in one cluster can reach a block node in
+  the other
 - Verifies that cluster 2 is in the remote config with no consensus node pods, that every component pod is
-  Ready, and reports whether `node1` can resolve the cluster 2 block node
+  Ready, that `node1` can open a connection to `block-node-2`, and that a newly created account shows up
+  in the mirror node REST API of **both** clusters (consensus node → block node → mirror node)
 
 ## Prerequisites
 
@@ -34,9 +39,10 @@ task destroy    # clean up
 
 ## Notes
 
-- The deploy fails at `deployment cluster attach` for cluster 2 until zero consensus nodes are supported
-  (issue #3310).
-- Solo does not configure cross-cluster DNS. `node1`'s `block-nodes.json` addresses `block-node-2` by its
-  service FQDN, which only resolves from cluster 1 if the clusters can resolve each other's service names.
-  The verify task reports this as a warning rather than a failure.
-- The cluster 2 mirror node imports from the block node, because the bucket lives in cluster 1.
+- The deploy fails at `deployment cluster attach` for cluster 2 on Solo versions that do not support zero
+  consensus nodes (issue #3310).
+- Solo writes block nodes into `block-nodes.json` by their service FQDN
+  (`block-node-<id>.<namespace>.svc.<dns base domain>`) but does not make that name resolvable from another
+  cluster. This example does it with a CoreDNS `hosts` entry pointing at the block node's LoadBalancer IP.
+- The mirror node of cluster 2 reads from `block-node-2`, so it only receives data if `block-node-2` is fed,
+  either by `node1` (secondary) or by backfilling from `block-node-1`.
