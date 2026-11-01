@@ -90,6 +90,22 @@ export class ImageCacheHandler implements CacheOperationHandler {
     try {
       manifestImages = await this.fetchManifestImages();
     } catch (error) {
+      if (error instanceof SoloErrors.system.cacheManifestUnpublished) {
+        this.logger.info('Image cache manifest is not published, skipping cache download:', error);
+
+        return [
+          {
+            title: 'Download image archives',
+            task: (_, task): void => {
+              task.title += ' - skipped, no image cache manifest available';
+              this.logger.showUserUnlessOneShot(
+                'Image cache manifest is not published for this version; skipping image cache download.',
+              );
+            },
+          },
+        ];
+      }
+
       const message: string = ImageCacheHandler.getErrorMessage(error);
       this.logger.error('Failed to read the image cache manifest:', error);
 
