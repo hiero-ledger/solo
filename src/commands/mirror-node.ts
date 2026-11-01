@@ -61,6 +61,7 @@ import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
+import {type Secrets} from '../integration/kube/resources/secret/secrets.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {PostgresStateSchema} from '../data/schema/model/remote/state/postgres-state-schema.js';
 import {RedisStateSchema} from '../data/schema/model/remote/state/redis-state-schema.js';
@@ -1318,6 +1319,38 @@ export class MirrorNodeCommand extends BaseCommand {
    * (using the internal chart-managed Redis) would otherwise persist and cause pods to try to
    * resolve a non-existent hostname.
    */
+  /**
+   * The importer reads `uploader-mirror-secrets` through an envFrom reference, but the secret is only created by
+   * the consensus network chart (`solo-deployment`), which is not installed in a cluster that has no consensus
+   * nodes. Create an empty secret there so the importer container can start; the storage credentials it would
+   * hold are only needed to read from a cloud bucket.
+   */
+  private ensureUploaderSecretTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Ensure mirror-node uploader secret',
+      task: async (context_): Promise<void> => {
+        const secrets: Secrets = this.k8Factory.getK8(context_.config.clusterContext).secrets();
+
+        if (await secrets.exists(context_.config.namespace, constants.UPLOADER_SECRET_NAME)) {
+          return;
+        }
+
+        const isCreated: boolean = await secrets.createOrReplace(
+          context_.config.namespace,
+          constants.UPLOADER_SECRET_NAME,
+          SecretType.OPAQUE,
+          {},
+        );
+
+        if (!isCreated) {
+          throw new SoloErrors.system.k8sSecretCreateFailed(
+            `failed to create secret ${constants.UPLOADER_SECRET_NAME} using context: ${context_.config.clusterContext}`,
+          );
+        }
+      },
+    };
+  }
+
   private deleteStaleRedisSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Delete stale mirror redis secret',
@@ -2072,6 +2105,7 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Deploy charts',
           task: (_, parentTask): SoloListr<AnyListrContext> => {
             const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+              this.ensureUploaderSecretTask(),
               this.enableSharedResourcesTask(),
               this.primePostgresSecretTask(), // creates mirror-passwords secret before init reads it
               this.deleteStaleRedisSecretTask(), // remove stale sentinel nodes left by a prior prime install
