@@ -277,6 +277,70 @@ export class AccountCommand extends BaseCommand {
     return await this.accountManager.transferAmount(operatorAccountId, toAccountId, amount);
   }
 
+  /**
+   * Rotates each node's admin key, signing with the node's current admin key, and stores the new key in the node's
+   * admin key secret. A node whose current admin key Solo does not hold keeps its key, with a warning.
+   */
+  private async updateNodeAdminKeys(
+    namespace: NamespaceName,
+    deployment: DeploymentName,
+    nodeAliases: NodeAliases,
+  ): Promise<void> {
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+
+    for (const nodeAlias of nodeAliases) {
+      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+      const adminKey: PrivateKey = await this.accountManager.getNodeAdminKey(nodeAlias, namespace, consensusNodes);
+      await this.accountManager.refreshNodeClient(
+        namespace,
+        this.remoteConfig.getClusterRefs(),
+        deployment,
+        undefined,
+        {
+          type: 'all',
+          skipNodeAlias: nodeAlias,
+        },
+      );
+
+      try {
+        const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
+
+        const nodeUpdateStatus: HederaTransactionStatus = await this.accountManager.hederaClient!.updateNodeAdminKey(
+          nodeId,
+          newPrivateKey,
+          adminKey,
+        );
+
+        this.logger.debug(`NodeUpdate status ${nodeUpdateStatus.status} for node ${nodeAlias}`);
+
+        // save new key in k8s secret
+        const data: {privateKey: string; publicKey: string} = {
+          privateKey: Base64.encode(newPrivateKey.toString()),
+          publicKey: Base64.encode(newPrivateKey.publicKey.toString()),
+        };
+        // replace, not create: the node may already have an admin key secret holding the key just replaced
+        await this.k8Factory
+          .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
+          .secrets()
+          .createOrReplace(namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
+            'solo.hedera.com/node-admin-key': 'true',
+          });
+      } catch (error) {
+        if (error instanceof ReceiptStatusError && error.status === Status.InvalidSignature) {
+          // Solo holds no key that can sign for this node, so it keeps its current admin key
+          this.logger.showUser(
+            chalk.yellow(
+              `Warning: the admin key of ${nodeAlias} was not updated: its admin key is not one Solo ` +
+                'holds, so the network rejected the node update with INVALID_SIGNATURE.',
+            ),
+          );
+          continue;
+        }
+        throw new SoloErrors.component.nodeAccessConfigFailed(error);
+      }
+    }
+  }
+
   public async init(argv: ArgvStruct): Promise<boolean> {
     interface Config {
       namespace: NamespaceName;
@@ -413,61 +477,7 @@ export class AccountCommand extends BaseCommand {
                 {
                   title: 'Update node admin key',
                   task: async ({config}: Context): Promise<void> => {
-                    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
-
-                    for (const nodeAlias of config.nodeAliases) {
-                      const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-                      const adminKey: PrivateKey = await this.accountManager.getNodeAdminKey(
-                        nodeAlias,
-                        config.namespace,
-                        consensusNodes,
-                      );
-                      await this.accountManager.refreshNodeClient(
-                        config.namespace,
-                        this.remoteConfig.getClusterRefs(),
-                        config.deployment,
-                        undefined,
-                        {type: 'all', skipNodeAlias: nodeAlias},
-                      );
-
-                      try {
-                        const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
-
-                        const nodeUpdateStatus: HederaTransactionStatus =
-                          await this.accountManager.hederaClient!.updateNodeAdminKey(nodeId, newPrivateKey, adminKey);
-
-                        this.logger.debug(`NodeUpdate status ${nodeUpdateStatus.status} for node ${nodeAlias}`);
-
-                        // save new key in k8s secret
-                        const data: {privateKey: string; publicKey: string} = {
-                          privateKey: Base64.encode(newPrivateKey.toString()),
-                          publicKey: Base64.encode(newPrivateKey.publicKey.toString()),
-                        };
-                        // replace, not create: the node may already have an admin key secret holding the key just replaced
-                        await this.k8Factory
-                          .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
-                          .secrets()
-                          .createOrReplace(
-                            config.namespace,
-                            Templates.renderNodeAdminKeyName(nodeAlias),
-                            SecretType.OPAQUE,
-                            data,
-                            {'solo.hedera.com/node-admin-key': 'true'},
-                          );
-                      } catch (error) {
-                        if (error instanceof ReceiptStatusError && error.status === Status.InvalidSignature) {
-                          // Solo holds no key that can sign for this node, so it keeps its current admin key
-                          this.logger.showUser(
-                            chalk.yellow(
-                              `Warning: the admin key of ${nodeAlias} was not updated: its admin key is not one Solo ` +
-                                'holds, so the network rejected the node update with INVALID_SIGNATURE.',
-                            ),
-                          );
-                          continue;
-                        }
-                        throw new SoloErrors.component.nodeAccessConfigFailed(error);
-                      }
-                    }
+                    await this.updateNodeAdminKeys(config.namespace, config.deployment, config.nodeAliases);
                   },
                 },
                 {
