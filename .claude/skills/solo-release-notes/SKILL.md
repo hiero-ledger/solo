@@ -206,8 +206,9 @@ Before editing, make sure nobody changed the release since `gather` ran, so thei
 bash "${SKILL_DIR}/release-notes.sh" check "<out>"
 ```
 
-If it reports `changed` (exit 2), tell the user, re-run `gather` + `assemble`, print the notes again, and ask for
-confirmation again. Otherwise:
+If it reports `changed` (exit 2), tell the user, re-run `gather` (same `--out`) + `assemble`, print the notes again,
+and ask for confirmation again. `gather` only replaces the files it generates, so `<out>/summary.md` and the edits
+made to it survive the re-run. Otherwise:
 
 ```bash
 gh release edit "<tag>" --repo hiero-ledger/solo --notes-file "<out>/final-notes.md"

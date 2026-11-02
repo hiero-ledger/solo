@@ -87,7 +87,10 @@ gather() {
   fi
 
   out="${out:-${TMPDIR:-/tmp}/solo-release-notes-${tag}}"
-  rm -rf "${out}"
+  # Clear only the files gather owns; the hand-written summary.md and anything else in <out> survive a re-gather.
+  rm -rf "${out}/prs"
+  rm -f "${out}/changelog.md" "${out}/commits.tsv" "${out}/declared-breaking.tsv" "${out}/prs.json" \
+    "${out}/signals.md" "${out}/tag" "${out}/previous" "${out}/final-notes.md"
   mkdir -p "${out}/prs"
 
   # 1. Current release body (semantic-release changelog), minus any earlier generated summary.
@@ -104,7 +107,7 @@ gather() {
 
   # Commits that declare a breaking change explicitly (type! or BREAKING CHANGE footer).
   git log "${previous}..${tag}" --no-merges --pretty=format:'%H%x09%s%x09%b%x1e' \
-    | awk -v RS='\x1e' -F'\t' '$2 ~ /^[a-z]+(\([^)]*\))?!:/ || $3 ~ /BREAKING[ -]CHANGE/ { gsub(/^\n/, "", $1); print $1 "\t" $2 }' \
+    | awk -v RS=$'\x1e' -F'\t' '$2 ~ /^[a-z]+(\([^)]*\))?!:/ || $3 ~ /BREAKING[ -]CHANGE/ { gsub(/^\n/, "", $1); print $1 "\t" $2 }' \
     > "${out}/declared-breaking.tsv"
 
   # 3. PR details, fetched in parallel.
@@ -140,6 +143,26 @@ gather() {
   ' "${out}"/prs/*.json > "${out}/prs.json" 2>/dev/null || echo '[]' > "${out}/prs.json"
 
   # 4. Diff signals that commonly carry breaking changes or upgrade notes.
+  # Flag changes: a changed defaultValue is preceded by its owning name line, so the flag it belongs to is
+  # visible. -U10 keeps the name inside the hunk (it sits at most 9 lines above defaultValue in flags.ts).
+  local flagChanges
+  flagChanges="$(
+    git diff -U10 "${previous}" "${tag}" -- src/commands/flags.ts \
+      | awk -v q="'" '
+          /^@@/ { nameLine = ""; namePrinted = 0; next }
+          $0 ~ ("^[ +-][[:space:]]*name: " q) {
+            nameLine = $0; namePrinted = 0
+            if ($0 ~ /^[+-]/) { print; namePrinted = 1 }
+            next
+          }
+          /^[+-][[:space:]]*public static readonly [a-zA-Z0-9]+: CommandFlag/ { print; next }
+          /^[+-][[:space:]]*defaultValue:/ {
+            if (!namePrinted && nameLine != "") { print nameLine; namePrinted = 1 }
+            print
+          }
+        '
+  )"
+
   {
     echo "# Diff signals ${previous}..${tag}"
     echo
@@ -155,15 +178,13 @@ gather() {
     echo
     echo "## CLI flags added/removed or changed default (src/commands/flags.ts)"
     echo '```diff'
-    git diff -U0 "${previous}" "${tag}" -- src/commands/flags.ts \
-      | grep -E "^[+-][[:space:]]+(name: '|defaultValue:|public static readonly [a-zA-Z]+: CommandFlag)" \
-      || echo "(no changes)"
+    echo "${flagChanges:-(no changes)}"
     echo '```'
     echo
     echo "## Command definitions (src/commands/command-definitions)"
     echo '```diff'
     git diff -U0 "${previous}" "${tag}" -- src/commands/command-definitions \
-      | grep -E "^([+-][^+-].*(COMMAND_NAME|SUBCOMMAND_NAME|_COMMAND|_SUBCOMMAND|_OPERATION)|diff --git)" \
+      | grep -E "^([+-][^+-].*public static readonly [A-Z_0-9]+: string = '|diff --git)" \
       | head -200 || echo "(no changes)"
     echo '```'
     echo
