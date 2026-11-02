@@ -18,9 +18,10 @@ export class NoConsensusNodesForNodeAddSoloError extends SoloError {
       message: `Deployment '${deployment}' has no consensus nodes; 'consensus node add' requires an existing network`,
       code: ErrorCodeRegistry.NO_CONSENSUS_NODES_FOR_NODE_ADD,
       troubleshootingSteps:
-        `Deploy the initial consensus nodes with: solo consensus network deploy --deployment ${deployment}\n` +
-        `Then start them with: solo consensus node start --deployment ${deployment}\n` +
-        "Use 'consensus node add' only after the network is running.",
+        'Nodes are declared at cluster attach, so create a new deployment (new namespace) with at least one node:\n' +
+        '  solo deployment cluster attach --num-consensus-nodes <N>\n' +
+        '  then solo keys consensus generate, consensus network deploy, consensus node setup, consensus node start\n' +
+        'Use consensus node add only after the network is running.',
     });
   }
 }

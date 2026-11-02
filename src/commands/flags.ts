@@ -2648,12 +2648,13 @@ export class Flags {
         Flags.prompt('number', task, input, Flags.numberOfConsensusNodes);
 
       input = await promptForInput();
-      while (input === undefined || Number.isNaN(input) || input < 0) {
+      while (input === undefined) {
         input = await promptForInput();
       }
 
       return input;
     },
+    rules: [FlagRules.integer, FlagRules.atLeast(0)],
   };
 
   public static readonly dnsBaseDomain: CommandFlag = {
