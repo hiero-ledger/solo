@@ -11,20 +11,7 @@ import * as constants from '../core/constants.js';
 import {entityId, extractContextFromConsensusNodes, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
-import {
-  AccountId,
-  AccountInfo,
-  Client,
-  Hbar,
-  HbarUnit,
-  Long,
-  NodeUpdateTransaction,
-  PrivateKey,
-  ReceiptStatusError,
-  Status,
-  TransactionReceipt,
-  TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {AccountId, AccountInfo, Hbar, HbarUnit, PrivateKey, ReceiptStatusError, Status} from '@hiero-ledger/sdk';
 import {type HederaTransactionStatus} from '../integration/hedera/hedera-transaction-status.js';
 import {type ArgvStruct, type NodeAliases, NodeId} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';

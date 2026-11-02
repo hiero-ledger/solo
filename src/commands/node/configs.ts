@@ -765,12 +765,6 @@ export class NodeCommandConfigs {
       GenesisNetworkDataConstructor.validateAdminPublicKeys(parsed, config.consensusNodes);
     }
 
-    // The genesis network is only written once setup has fetched the platform software; reject bad keys before that
-    const adminPublicKeys: string = this.configManager.getFlag<string>(flags.adminPublicKeys);
-    if (adminPublicKeys) {
-      GenesisNetworkDataConstructor.validateAdminPublicKeys(splitFlagInput(adminPublicKeys), config.consensusNodes);
-    }
-
     await this.initializeSetup(config, this.k8Factory);
 
     if (config.domainNames) {

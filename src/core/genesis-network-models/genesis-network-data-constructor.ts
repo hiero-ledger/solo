@@ -99,24 +99,6 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     })();
   }
 
-  /**
-   * Validates admin public keys given for the consensus nodes: one ED25519 public key per node, in node alias order
-   */
-  public static validateAdminPublicKeys(adminPublicKeys: string[], consensusNodes: ConsensusNode[]): void {
-    if (adminPublicKeys.length !== consensusNodes.length) {
-      throw new SoloErrors.validation.adminKeysCountMismatch(adminPublicKeys.length, consensusNodes.length);
-    }
-
-    for (const [index, key] of adminPublicKeys.entries()) {
-      try {
-        PublicKey.fromStringED25519(key);
-      } catch {
-        // the parse error only says the key is malformed; the replacement names the node it was given for
-        throw new SoloErrors.validation.invalidAdminPublicKey(consensusNodes[index].name);
-      }
-    }
-  }
-
   public static validateAdminPublicKeys(
     adminPublicKeys: string[],
     consensusNodes: ConsensusNode[],
@@ -162,10 +144,6 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     // If admin keys are passed and if it is not the default value from flags then validate and build the adminPublicKeyMap
     if (adminPublicKeys.length > 0 && !adminPublicKeyIsDefaultValue) {
       adminPublicKeyMap = GenesisNetworkDataConstructor.validateAdminPublicKeys(adminPublicKeys, consensusNodes);
-
-      for (const [index, key] of adminPublicKeys.entries()) {
-        adminPublicKeyMap.set(consensusNodes[index].name, key);
-      }
     }
 
     const instance: GenesisNetworkDataConstructor = new GenesisNetworkDataConstructor(
