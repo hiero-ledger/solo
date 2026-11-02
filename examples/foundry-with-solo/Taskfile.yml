@@ -1,0 +1,117 @@
+version: 3
+
+env:
+  SOLO_COMMAND:
+    sh: |
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      else
+        echo "npm run solo --"
+      fi
+
+vars:
+  # JSON-RPC relay that `solo one-shot single deploy` port-forwards to localhost (same URL as foundry.toml)
+  RPC_URL: http://localhost:37546
+  SOLO_CHAIN_ID: '298'
+  # First account of the "ECDSA Alias Accounts (EVM compatible)" group that `solo one-shot single deploy`
+  # creates with predefined keys (also listed in accounts.json in the one-shot output directory)
+  DEPLOYER_PRIVATE_KEY: '0x105d050185ccb907fba04dd92d8de9e32c18305e097ab41dadda21489a211524'
+  # forge-std v1.17.0
+  FORGE_STD_REVISION: f3dae6e6ee381f25eb6a246f7da9b85c91a68219
+
+tasks:
+  default:
+    desc: Run the default deploy task
+    cmds:
+      - task: deploy
+
+  deploy:
+    desc: Deploy a complete Hiero network using one-shot single deploy, then test SimpleStorage with Foundry
+    env:
+      # No block node by default: a mirror node importing from a block node leaves created_contract_ids empty, so
+      # the relay returns receipts without contractAddress and `forge create` fails with "contract was not deployed"
+      # (https://github.com/hiero-ledger/hiero-mirror-node/issues/14473).
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "false" .ONE_SHOT_WITH_BLOCK_NODE}}'
+    # Fail before the network deployment instead of after it when Foundry is missing
+    preconditions: &foundry-preconditions
+      - sh: command -v forge && command -v cast
+        msg: 'forge and cast must be on PATH; install Foundry 1.8 or later: https://getfoundry.sh/introduction/installation/'
+    cmds:
+      # Install Solo CLI
+      - cmd: |
+          if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+            npm i @hashgraph/solo@latest
+          else
+            echo "Skipping npm install - using development version"
+          fi
+
+      # Create a Solo Deployment
+      - cmd: $SOLO_COMMAND one-shot single deploy
+
+      - task: test
+
+  install-forge-std:
+    desc: Install forge-std into lib/ without adding a git submodule to the enclosing repository
+    status:
+      - test -f lib/forge-std/src/Test.sol
+    cmds:
+      - cmd: forge install "foundry-rs/forge-std@{{.FORGE_STD_REVISION}}" --no-git
+
+  test:
+    desc: Deploy SimpleStorage with forge create, update it with cast, then run forge test against a fork of the relay
+    preconditions: *foundry-preconditions
+    cmds:
+      - task: install-forge-std
+      - cmd: forge --version
+      - cmd: forge build
+      - cmd: |
+          set -euo pipefail
+
+          chain_id="$(cast chain-id --rpc-url "{{.RPC_URL}}")"
+          if [ "${chain_id}" != "{{.SOLO_CHAIN_ID}}" ]; then
+            echo "Expected chain id {{.SOLO_CHAIN_ID}} from {{.RPC_URL}}, got ${chain_id}"
+            exit 1
+          fi
+
+          # Deploy SimpleStorage(42) to Solo. --constructor-args is variadic, so it must come last.
+          create_output="$(forge create contracts/SimpleStorage.sol:SimpleStorage \
+            --rpc-url "{{.RPC_URL}}" \
+            --private-key "{{.DEPLOYER_PRIVATE_KEY}}" \
+            --broadcast \
+            --json \
+            --constructor-args 42)"
+          printf '%s\n' "${create_output}"
+          contract_address="$(printf '%s' "${create_output}" | grep -o '"deployedTo": *"0x[0-9a-fA-F]\{40\}"' | grep -o '0x[0-9a-fA-F]\{40\}' || true)"
+          if [ -z "${contract_address}" ]; then
+            echo "Could not read the deployed SimpleStorage address from forge create output"
+            exit 1
+          fi
+          echo "SimpleStorage deployed to ${contract_address}"
+
+          value="$(cast call "${contract_address}" 'get()(uint256)' --rpc-url "{{.RPC_URL}}")"
+          if [ "${value}" != "42" ]; then
+            echo "Expected SimpleStorage.get() to return 42 after deployment, got ${value}"
+            exit 1
+          fi
+
+          cast send "${contract_address}" 'set(uint256)' 7 \
+            --rpc-url "{{.RPC_URL}}" \
+            --private-key "{{.DEPLOYER_PRIVATE_KEY}}"
+
+          value="$(cast call "${contract_address}" 'get()(uint256)' --rpc-url "{{.RPC_URL}}")"
+          if [ "${value}" != "7" ]; then
+            echo "Expected SimpleStorage.get() to return 7 after cast send, got ${value}"
+            exit 1
+          fi
+
+          # Fork the relay (eth_rpc_url in foundry.toml) and run the tests, including one that reads
+          # the contract deployed above.
+          SIMPLE_STORAGE_ADDRESS="${contract_address}" SIMPLE_STORAGE_VALUE=7 forge test -vvv
+
+  destroy:
+    desc: Destroy the Solo network using one-shot single destroy
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "false" .ONE_SHOT_WITH_BLOCK_NODE}}'
+    cmds:
+      # Solo one-shot single destroy
+      - cmd: $SOLO_COMMAND one-shot single destroy
