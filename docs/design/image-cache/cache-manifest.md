@@ -209,6 +209,10 @@ archive first and then its hash file, is handled in one of three ways:
 | Present with the same content | Skipped: an image unchanged since an earlier release. |
 | Present with other content    | Reported, and the release fails once all are checked. |
 
+When an archive conflicts, for example one left by an interrupted upload, its hash file is not
+uploaded: it would describe a different archive than the one on the CDN, and once published it could
+never be replaced to repair the pair. The other archives are still checked and uploaded.
+
 Content is compared by the MD5 Cloud Storage records for each object, so nothing is downloaded, and
 every upload only succeeds if the object does not exist yet, so a published file is never replaced
 (§5), not even by a concurrent run.
