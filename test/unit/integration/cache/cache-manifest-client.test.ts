@@ -7,6 +7,7 @@ import {CacheManifestClient} from '../../../../src/integration/cache/impl/cache-
 import {type CacheManifestImage} from '../../../../src/integration/cache/models/impl/cache-manifest-image.js';
 import {SoloError} from '../../../../src/core/errors/solo-error.js';
 import {Duration} from '../../../../src/core/time/duration.js';
+import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
 
 const SOLO_VERSION: string = '0.86.0';
 const PLATFORM: string = 'linux/amd64';
@@ -190,14 +191,51 @@ describe('CacheManifestClient', (): void => {
       );
     });
 
-    it('reports a download failure when the release asset is missing', async (): Promise<void> => {
+    it('reports an unpublished manifest when the default release asset is missing (HTTP 404)', async (): Promise<void> => {
       stubFetch('not found', false, 404);
 
       try {
         await CacheManifestClient.fetchImages(PLATFORM, SOLO_VERSION);
         expect.fail('expected the download to fail');
       } catch (error) {
-        expect(error).to.be.instanceOf(SoloError);
+        expect(error).to.be.instanceOf(SoloErrors.system.cacheManifestUnpublished);
+        expect((error as SoloError).message).to.contain('Image cache manifest is not published');
+      }
+    });
+
+    it('reports a download failure when an explicitly configured manifest URL returns HTTP 404', async (): Promise<void> => {
+      process.env[CacheManifestClient.MANIFEST_URL_ENVIRONMENT_VARIABLE] = 'https://example.com/custom-manifest.json';
+      stubFetch('not found', false, 404);
+
+      try {
+        await CacheManifestClient.fetchImages(PLATFORM, SOLO_VERSION);
+        expect.fail('expected the download to fail');
+      } catch (error) {
+        expect(error).to.be.instanceOf(SoloErrors.system.cacheManifestDownloadFailed);
+        expect((error as SoloError).message).to.contain('Failed to download the image cache manifest');
+      }
+    });
+
+    it('reports a download failure on server error (HTTP 500) for the default release asset URL', async (): Promise<void> => {
+      stubFetch('server error', false, 500);
+
+      try {
+        await CacheManifestClient.fetchImages(PLATFORM, SOLO_VERSION);
+        expect.fail('expected the download to fail');
+      } catch (error) {
+        expect(error).to.be.instanceOf(SoloErrors.system.cacheManifestDownloadFailed);
+        expect((error as SoloError).message).to.contain('Failed to download the image cache manifest');
+      }
+    });
+
+    it('reports a download failure on network error', async (): Promise<void> => {
+      sinon.stub(globalThis, 'fetch').rejects(new Error('network connection refused'));
+
+      try {
+        await CacheManifestClient.fetchImages(PLATFORM, SOLO_VERSION);
+        expect.fail('expected the download to fail');
+      } catch (error) {
+        expect(error).to.be.instanceOf(SoloErrors.system.cacheManifestDownloadFailed);
         expect((error as SoloError).message).to.contain('Failed to download the image cache manifest');
       }
     });
