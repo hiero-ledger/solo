@@ -324,7 +324,7 @@ describe('SdkHederaClient', (): void => {
 
     it('topicExists is false on INVALID_TOPIC_ID', async (): Promise<void> => {
       const {client}: {client: SdkHederaClient} = makeClient();
-      sinon.stub(TopicInfoQuery.prototype, 'execute').rejects(new Error('status INVALID_TOPIC_ID'));
+      sinon.stub(TopicInfoQuery.prototype, 'execute').rejects(makePrecheckStatusError(Status.InvalidTopicId));
 
       expect(await client.topicExists(topicId)).to.equal(false);
     });

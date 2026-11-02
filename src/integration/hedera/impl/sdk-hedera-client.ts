@@ -207,7 +207,7 @@ export class SdkHederaClient implements HederaClient {
       await new TopicInfoQuery().setTopicId(topicId).execute(this.sdkClient);
       return true;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('INVALID_TOPIC_ID')) {
+      if (error instanceof StatusError && error.status === Status.InvalidTopicId) {
         return false;
       }
       throw error;
