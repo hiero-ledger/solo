@@ -68,7 +68,8 @@ describe('image_cache_upload.sh', (): void => {
       },
     });
 
-  const published: () => string[] = (): string[] => fs.readdirSync(bucketDirectory).toSorted();
+  // eslint-disable-next-line unicorn/no-array-sort
+  const published: () => string[] = (): string[] => fs.readdirSync(bucketDirectory).sort();
 
   beforeEach((): void => {
     directory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-image-cache-upload-'));
