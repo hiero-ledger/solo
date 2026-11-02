@@ -841,7 +841,7 @@ export class NodeCommandTasks {
           throw new SoloErrors.component.nodeStatusMissingLine();
         }
 
-        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop() || '');
+        const statusNumber: NodeStatusCodes = Number.parseInt(statusLine.split(' ').pop() || '');
 
         if (statusNumber === status) {
           task.title = `${title} - status ${chalk.green(NodeStatusEnums[status])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -2397,10 +2397,20 @@ export class NodeCommandTasks {
       namespace,
     );
     const genesisPublicKey: string = genesisKey.publicKey.toString();
-    let adminPublicKeys: string[] = [];
-    adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
-      ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
-      : (Array.from({length: consensusNodes.length}, (): string => genesisPublicKey) as string[]);
+
+    let adminPublicKeys: string[];
+    const adminPublicKeysFlag: Optional<string> = this.configManager.getFlag(flags.adminPublicKeys);
+    if (adminPublicKeysFlag === undefined) {
+      adminPublicKeys = Array.from({length: consensusNodes.length}, (): string => genesisPublicKey);
+    } else {
+      const parsed: string[] = splitFlagInput(adminPublicKeysFlag);
+      if (parsed.length === 0) {
+        throw new SoloErrors.validation.invalidAdminPublicKey(consensusNodes[0]?.name);
+      }
+
+      adminPublicKeys = parsed;
+    }
+
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,

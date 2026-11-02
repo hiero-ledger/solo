@@ -158,6 +158,8 @@ import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-fa
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
 import {MinioOperatorCrdsOrphanedSoloError} from './classes/system/minio-operator-crds-orphaned-solo-error.js';
 import {PrometheusInstallFailedSoloError} from './classes/deployment/prometheus-install-failed-solo-error.js';
+import {GrafanaAlloyInstallFailedSoloError} from './classes/deployment/grafana-alloy-install-failed-solo-error.js';
+import {LokiInstallFailedSoloError} from './classes/deployment/loki-install-failed-solo-error.js';
 import {MetricsServerInstallFailedSoloError} from './classes/deployment/metrics-server-install-failed-solo-error.js';
 import {ClusterRoleInstallFailedSoloError} from './classes/deployment/cluster-role-install-failed-solo-error.js';
 import {ClusterApiServerTimeoutSoloError} from './classes/deployment/cluster-api-server-timeout-solo-error.js';
@@ -315,6 +317,7 @@ import {PostgresPodNotFoundSoloError} from './classes/system/postgres-pod-not-fo
 import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files-failed-solo-error.js';
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
 import {CacheManifestDownloadFailedSoloError} from './classes/system/cache-manifest-download-failed-solo-error.js';
+import {CacheManifestUnpublishedSoloError} from './classes/system/cache-manifest-unpublished-solo-error.js';
 import {CacheManifestInvalidSoloError} from './classes/system/cache-manifest-invalid-solo-error.js';
 import {CacheArchiveHashMismatchSoloError} from './classes/system/cache-archive-hash-mismatch-solo-error.js';
 import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
@@ -384,6 +387,8 @@ export class SoloErrors {
     readonly clusterResetFailed: typeof ClusterResetFailedSoloError;
     readonly minioInstallFailed: typeof MinioInstallFailedSoloError;
     readonly prometheusInstallFailed: typeof PrometheusInstallFailedSoloError;
+    readonly grafanaAlloyInstallFailed: typeof GrafanaAlloyInstallFailedSoloError;
+    readonly lokiInstallFailed: typeof LokiInstallFailedSoloError;
     readonly metricsServerInstallFailed: typeof MetricsServerInstallFailedSoloError;
     readonly clusterRoleInstallFailed: typeof ClusterRoleInstallFailedSoloError;
     readonly clusterApiServerTimeout: typeof ClusterApiServerTimeoutSoloError;
@@ -416,6 +421,8 @@ export class SoloErrors {
     clusterResetFailed: ClusterResetFailedSoloError,
     minioInstallFailed: MinioInstallFailedSoloError,
     prometheusInstallFailed: PrometheusInstallFailedSoloError,
+    grafanaAlloyInstallFailed: GrafanaAlloyInstallFailedSoloError,
+    lokiInstallFailed: LokiInstallFailedSoloError,
     metricsServerInstallFailed: MetricsServerInstallFailedSoloError,
     clusterRoleInstallFailed: ClusterRoleInstallFailedSoloError,
     clusterApiServerTimeout: ClusterApiServerTimeoutSoloError,
@@ -895,6 +902,7 @@ export class SoloErrors {
     readonly initSystemFilesFailed: typeof InitSystemFilesFailedSoloError;
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
     readonly cacheManifestDownloadFailed: typeof CacheManifestDownloadFailedSoloError;
+    readonly cacheManifestUnpublished: typeof CacheManifestUnpublishedSoloError;
     readonly cacheManifestInvalid: typeof CacheManifestInvalidSoloError;
     readonly cacheArchiveHashMismatch: typeof CacheArchiveHashMismatchSoloError;
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
@@ -989,6 +997,7 @@ export class SoloErrors {
     initSystemFilesFailed: InitSystemFilesFailedSoloError,
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
     cacheManifestDownloadFailed: CacheManifestDownloadFailedSoloError,
+    cacheManifestUnpublished: CacheManifestUnpublishedSoloError,
     cacheManifestInvalid: CacheManifestInvalidSoloError,
     cacheArchiveHashMismatch: CacheArchiveHashMismatchSoloError,
     podTerminationTimeout: PodTerminationTimeoutSoloError,

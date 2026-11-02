@@ -25,6 +25,7 @@ import {
   TransactionReceipt,
   TransactionResponse,
 } from '@hiero-ledger/sdk';
+import {type HederaTransactionStatus} from '../integration/hedera/hedera-transaction-status.js';
 import {type ArgvStruct, type NodeAliases, NodeId} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -434,7 +435,7 @@ export class AccountCommand extends BaseCommand {
                         config.namespace,
                         consensusNodes,
                       );
-                      const nodeClient: Client = await this.accountManager.refreshNodeClient(
+                      await this.accountManager.refreshNodeClient(
                         config.namespace,
                         this.remoteConfig.getClusterRefs(),
                         config.deployment,
@@ -443,20 +444,12 @@ export class AccountCommand extends BaseCommand {
                       );
 
                       try {
-                        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(
-                          new Long(nodeId),
-                        );
-
                         const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
 
-                        nodeUpdateTx = nodeUpdateTx.setAdminKey(newPrivateKey.publicKey);
-                        nodeUpdateTx = nodeUpdateTx.freezeWith(nodeClient);
-                        nodeUpdateTx = await nodeUpdateTx.sign(newPrivateKey);
-                        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(adminKey);
-                        const txResp: TransactionResponse = await signedTx.execute(nodeClient);
-                        const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(nodeClient);
+                        const nodeUpdateStatus: HederaTransactionStatus =
+                          await this.accountManager.hederaClient!.updateNodeAdminKey(nodeId, newPrivateKey, adminKey);
 
-                        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()} for node ${nodeAlias}`);
+                        this.logger.debug(`NodeUpdate status ${nodeUpdateStatus.status} for node ${nodeAlias}`);
 
                         // save new key in k8s secret
                         const data: {privateKey: string; publicKey: string} = {

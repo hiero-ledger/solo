@@ -236,7 +236,13 @@ install_binary() {
 
   # Run the new binary before it replaces anything, so one that cannot run here leaves an existing install intact.
   if ! version_output="$("${staged_binary}" --version </dev/null 2>&1)"; then
-    fail "the downloaded solo binary does not run on this system: ${version_output}"
+    # The musl binaries link libstdc++ and libgcc, which a bare Alpine does not have.
+    runtime_hint=''
+    case "${asset_name}" in
+      *-musl) runtime_hint=' (install its runtime libraries with: apk add libstdc++)' ;;
+      *) ;;
+    esac
+    fail "the downloaded solo binary does not run on this system${runtime_hint}: ${version_output}"
   fi
   mv -f "${staged_binary}" "${target}"
 

@@ -117,6 +117,29 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     }
   }
 
+  public static validateAdminPublicKeys(
+    adminPublicKeys: string[],
+    consensusNodes: ConsensusNode[],
+  ): Map<NodeAlias, string> {
+    if (adminPublicKeys.length !== consensusNodes.length) {
+      throw new SoloErrors.validation.adminKeysCountMismatch(adminPublicKeys.length, consensusNodes.length);
+    }
+
+    const adminPublicKeyMap: Map<NodeAlias, string> = new Map();
+    for (const [index, key] of adminPublicKeys.entries()) {
+      const nodeAlias: NodeAlias = consensusNodes[index].name;
+      try {
+        PublicKey.fromStringED25519(key);
+      } catch (error: unknown) {
+        throw new SoloErrors.validation.invalidAdminPublicKey(nodeAlias, error);
+      }
+
+      adminPublicKeyMap.set(nodeAlias, key);
+    }
+
+    return adminPublicKeyMap;
+  }
+
   public static async initialize(
     consensusNodes: ConsensusNode[],
     keyManager: KeyManager,
@@ -127,7 +150,7 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
   ): Promise<GenesisNetworkDataConstructor> {
-    const adminPublicKeyMap: Map<NodeAlias, string> = new Map();
+    let adminPublicKeyMap: Map<NodeAlias, string> = new Map();
 
     let adminPublicKeyIsDefaultValue: boolean = true;
     for (const publicKey of adminPublicKeys) {
@@ -138,14 +161,14 @@ export class GenesisNetworkDataConstructor implements ToJSON {
 
     // If admin keys are passed and if it is not the default value from flags then validate and build the adminPublicKeyMap
     if (adminPublicKeys.length > 0 && !adminPublicKeyIsDefaultValue) {
-      GenesisNetworkDataConstructor.validateAdminPublicKeys(adminPublicKeys, consensusNodes);
+      adminPublicKeyMap = GenesisNetworkDataConstructor.validateAdminPublicKeys(adminPublicKeys, consensusNodes);
 
       for (const [index, key] of adminPublicKeys.entries()) {
         adminPublicKeyMap.set(consensusNodes[index].name, key);
       }
     }
 
-    const instance = new GenesisNetworkDataConstructor(
+    const instance: GenesisNetworkDataConstructor = new GenesisNetworkDataConstructor(
       consensusNodes,
       keyManager,
       accountManager,

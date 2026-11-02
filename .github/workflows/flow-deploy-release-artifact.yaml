@@ -277,7 +277,7 @@ jobs:
           path: /home/runner/.npm/_logs
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@1e584506871998c267b7c100c02628a5b9c81db6 # v5.3.0
+        uses: jfrog/setup-jfrog-cli@1a84ddcff2d475751d8392ef6d7ecb478a7cfe53 # v5.3.1
         env:
           JF_URL: ${{ vars.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
@@ -612,12 +612,14 @@ jobs:
           # The SEA artifacts also hold build intermediates (.blob, .cjs, .json); publish only the binaries.
           [[ -f sea-artifacts/solo-linux-x64 ]] || { echo "::error::the solo-linux-x64 SEA binary was not built"; exit 1; }
           binaries=(solo-linux-x64)
-          # A failed arm64 leg must not block the x64 assets; install.sh then points arm64 users to npm.
-          if [[ -f sea-artifacts/solo-linux-arm64 ]]; then
-            binaries+=(solo-linux-arm64)
-          else
-            echo "::warning::the solo-linux-arm64 SEA binary was not built; publishing solo-linux-x64 only"
-          fi
+          # A failed arm64 or musl leg must not block the x64 assets; install.sh then points those users to npm.
+          for binary in solo-linux-arm64 solo-linux-x64-musl solo-linux-arm64-musl; do
+            if [[ -f "sea-artifacts/${binary}" ]]; then
+              binaries+=("${binary}")
+            else
+              echo "::warning::the ${binary} SEA binary was not built; publishing without it"
+            fi
+          done
           mkdir -p release-assets
           for binary in "${binaries[@]}"; do
             cp "sea-artifacts/${binary}" release-assets/

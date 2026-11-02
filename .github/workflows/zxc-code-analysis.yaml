@@ -40,11 +40,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable-snyk-scan:
-        description: "Snyk Scan Enabled"
-        type: boolean
-        required: false
-        default: false
       node-version:
         description: "NodeJS Version:"
         type: string
@@ -57,9 +52,6 @@ on:
         default: "Analyze"
 
     secrets:
-      snyk-token:
-        description: "The Snyk access token is used by Snyk to analyze the code for vulnerabilities "
-        required: false
       codecov-token:
         description: "The CodeCov access token is used by CodeCov.io to analyze the code coverage "
         required: false
@@ -155,65 +147,3 @@ jobs:
             echo -n "-r $(readlink -f "$file") "
           done)
           bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Javascript ${CODACY_PARAMS}
-
-      - name: Setup Snyk
-        env:
-          SNYK_TOKEN: ${{ secrets.snyk-token }}
-        if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        run: |
-          npm ci --prefix .github/workflows/support/snyk-tools
-          echo "${GITHUB_WORKSPACE}/.github/workflows/support/snyk-tools/node_modules/.bin" >> "${GITHUB_PATH}"
-
-      - name: Snyk Scan
-        id: snyk
-        env:
-          SNYK_TOKEN: ${{ secrets.snyk-token }}
-        if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        run: snyk test --org=release-engineering-N6EoZVZn3jw4qNuVkiG5Qs --all-projects --exclude=snyk-tools --severity-threshold=high --json-file-output=snyk-test.json
-
-      - name: Snyk Code
-        id: snyk-code
-        env:
-          SNYK_TOKEN: ${{ secrets.snyk-token }}
-        if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        run: snyk code test --org=release-engineering-N6EoZVZn3jw4qNuVkiG5Qs --severity-threshold=high --json-file-output=snyk-code.json
-
-      - name: Publish Snyk Results
-        if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        run: |
-          if [[ -f "snyk-test.json" && -n "$(cat snyk-test.json | tr -d '[:space:]')" ]]; then
-            snyk-to-html -i snyk-test.json -o snyk-test.html --summary
-            html-to-markdown snyk-test.html -o snyk
-            cat snyk/snyk-test.html.md >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Publish Snyk Code Results
-        if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        run: |
-          if [[ -f "snyk-code.json" && -n "$(cat snyk-code.json | tr -d '[:space:]')" ]]; then
-            snyk-to-html -i snyk-code.json -o snyk-code.html --summary
-            html-to-markdown snyk-code.html -o snyk
-            cat snyk/snyk-code.html.md >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Check Snyk Files
-        if: ${{ always() }}
-        run: |
-          echo "::group::Snyk File List"
-            ls -lah snyk* || true
-          echo "::endgroup::"
-          echo "::group::Snyk Test Contents"
-            cat snyk-test.json || true
-          echo "::endgroup::"
-          echo "::group::Snyk Code Contents"
-            cat snyk-code.json || true
-          echo "::endgroup::"
-
-      - name: Publish Snyk Reports
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ inputs.enable-snyk-scan && !cancelled() && !failure() }}
-        with:
-          name: Snyk Reports
-          path: |
-            snyk-*.html
-            snyk-*.json
