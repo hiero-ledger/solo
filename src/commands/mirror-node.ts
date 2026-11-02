@@ -1324,10 +1324,17 @@ export class MirrorNodeCommand extends BaseCommand {
    * the consensus network chart (`solo-deployment`), which is not installed in a cluster that has no consensus
    * nodes. Create an empty secret there so the importer container can start; the storage credentials it would
    * hold are only needed to read from a cloud bucket.
+   *
+   * A cluster that hosts consensus nodes is skipped: the chart installs the secret later and Helm refuses to adopt
+   * one that already exists without its ownership metadata.
    */
   private ensureUploaderSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Ensure mirror-node uploader secret',
+      skip: (context_): boolean =>
+        this.remoteConfig
+          .getConsensusNodes()
+          .some((consensusNode): boolean => consensusNode.cluster === context_.config.clusterReference),
       task: async (context_): Promise<void> => {
         const secrets: Secrets = this.k8Factory.getK8(context_.config.clusterContext).secrets();
 

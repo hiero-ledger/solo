@@ -57,6 +57,7 @@ interface MirrorNodeCommandInternal {
     _remoteConfig?: MirrorNodeRemoteConfigTestState;
     phase?: 'loaded' | 'not_loaded';
     getContexts?: () => string[];
+    getConsensusNodes?: () => {cluster: string}[];
   };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
@@ -120,6 +121,7 @@ interface MirrorNodeUploaderSecretTaskContext {
   config: {
     namespace: NamespaceName;
     clusterContext: string;
+    clusterReference: string;
   };
 }
 
@@ -1044,7 +1046,11 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
   describe('ensureUploaderSecretTask', (): void => {
     const context: MirrorNodeUploaderSecretTaskContext = {
-      config: {namespace: NamespaceName.of('test-namespace'), clusterContext: 'test-context'},
+      config: {
+        namespace: NamespaceName.of('test-namespace'),
+        clusterContext: 'test-context',
+        clusterReference: 'test-cluster',
+      },
     };
 
     const runTask = async (secretExists: boolean): Promise<{createOrReplace: sinon.SinonStub}> => {
@@ -1069,6 +1075,32 @@ describe('MirrorNodeCommand unit tests', (): void => {
         SecretType.OPAQUE,
         {},
       );
+    });
+
+    it('should skip a cluster that hosts consensus nodes because the network chart creates the secret', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'test-cluster'}]);
+
+      const skip: (context: MirrorNodeUploaderSecretTaskContext) => boolean =
+        mirrorNodeCommandInternal.ensureUploaderSecretTask().skip as (
+          context: MirrorNodeUploaderSecretTaskContext,
+        ) => boolean;
+
+      expect(skip(context)).to.equal(true);
+    });
+
+    it('should not skip a cluster without consensus nodes', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'other-cluster'}]);
+
+      const skip: (context: MirrorNodeUploaderSecretTaskContext) => boolean =
+        mirrorNodeCommandInternal.ensureUploaderSecretTask().skip as (
+          context: MirrorNodeUploaderSecretTaskContext,
+        ) => boolean;
+
+      expect(skip(context)).to.equal(false);
     });
 
     it('should leave an existing uploader secret untouched', async (): Promise<void> => {
