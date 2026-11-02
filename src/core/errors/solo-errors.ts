@@ -225,6 +225,7 @@ import {InvalidStorageTypeSoloError} from './classes/validation/invalid-storage-
 import {UnsupportedFlagFieldTypeSoloError} from './classes/validation/unsupported-flag-field-type-solo-error.js';
 import {VersionDowngradeBlockedSoloError} from './classes/validation/version-downgrade-blocked-solo-error.js';
 import {AdminKeysCountMismatchSoloError} from './classes/validation/admin-keys-count-mismatch-solo-error.js';
+import {InvalidAdminPublicKeySoloError} from './classes/validation/invalid-admin-public-key-solo-error.js';
 import {ComponentAlreadyExistsSoloError} from './classes/validation/component-already-exists-solo-error.js';
 import {ComponentIdRequiredSoloError} from './classes/validation/component-id-required-solo-error.js';
 import {ComponentNotFoundSoloError} from './classes/validation/component-not-found-solo-error.js';
@@ -319,6 +320,7 @@ import {PostgresPodNotFoundSoloError} from './classes/system/postgres-pod-not-fo
 import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files-failed-solo-error.js';
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
 import {CacheManifestDownloadFailedSoloError} from './classes/system/cache-manifest-download-failed-solo-error.js';
+import {CacheManifestUnpublishedSoloError} from './classes/system/cache-manifest-unpublished-solo-error.js';
 import {CacheManifestInvalidSoloError} from './classes/system/cache-manifest-invalid-solo-error.js';
 import {CacheArchiveHashMismatchSoloError} from './classes/system/cache-archive-hash-mismatch-solo-error.js';
 import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
@@ -674,6 +676,7 @@ export class SoloErrors {
     readonly unsupportedFlagFieldType: typeof UnsupportedFlagFieldTypeSoloError;
     readonly versionDowngradeBlocked: typeof VersionDowngradeBlockedSoloError;
     readonly adminKeysCountMismatch: typeof AdminKeysCountMismatchSoloError;
+    readonly invalidAdminPublicKey: typeof InvalidAdminPublicKeySoloError;
     readonly componentAlreadyExists: typeof ComponentAlreadyExistsSoloError;
     readonly componentIdRequired: typeof ComponentIdRequiredSoloError;
     readonly componentNotFound: typeof ComponentNotFoundSoloError;
@@ -764,6 +767,7 @@ export class SoloErrors {
     unsupportedFlagFieldType: UnsupportedFlagFieldTypeSoloError,
     versionDowngradeBlocked: VersionDowngradeBlockedSoloError,
     adminKeysCountMismatch: AdminKeysCountMismatchSoloError,
+    invalidAdminPublicKey: InvalidAdminPublicKeySoloError,
     componentAlreadyExists: ComponentAlreadyExistsSoloError,
     componentIdRequired: ComponentIdRequiredSoloError,
     componentNotFound: ComponentNotFoundSoloError,
@@ -905,6 +909,7 @@ export class SoloErrors {
     readonly initSystemFilesFailed: typeof InitSystemFilesFailedSoloError;
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
     readonly cacheManifestDownloadFailed: typeof CacheManifestDownloadFailedSoloError;
+    readonly cacheManifestUnpublished: typeof CacheManifestUnpublishedSoloError;
     readonly cacheManifestInvalid: typeof CacheManifestInvalidSoloError;
     readonly cacheArchiveHashMismatch: typeof CacheArchiveHashMismatchSoloError;
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
@@ -1001,6 +1006,7 @@ export class SoloErrors {
     initSystemFilesFailed: InitSystemFilesFailedSoloError,
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
     cacheManifestDownloadFailed: CacheManifestDownloadFailedSoloError,
+    cacheManifestUnpublished: CacheManifestUnpublishedSoloError,
     cacheManifestInvalid: CacheManifestInvalidSoloError,
     cacheArchiveHashMismatch: CacheArchiveHashMismatchSoloError,
     podTerminationTimeout: PodTerminationTimeoutSoloError,
