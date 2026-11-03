@@ -19,9 +19,10 @@ import {type KindDependencyManager} from '../../../src/core/dependency-managers/
 import {type PodmanDependencyManager} from '../../../src/core/dependency-managers/podman-dependency-manager.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type GitClient} from '../../../src/integration/git/git-client.js';
-import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../src/types/index.js';
+import {PodmanMode, type SoloListrTask, type SoloListrTaskWrapper} from '../../../src/types/index.js';
 import {type AnyObject} from '../../../src/types/aliases.js';
 import {SubprocessEnvironment} from '../../../src/core/subprocess-environment.js';
+import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
 
 function getConfigFilePath(manager: ClusterTaskManager, useSmallMemoryCluster: boolean): string {
   return (
@@ -66,6 +67,31 @@ function createClusterTaskManager(
     '/tmp/kind',
     {} as unknown as GitClient,
   );
+}
+
+async function getInstallKindDependencies(
+  podmanMode: PodmanMode,
+  shouldInstallPodman: boolean,
+  isDarwin: boolean,
+): Promise<string[]> {
+  sinon.stub(OperatingSystem, 'isDarwin').returns(isDarwin);
+  const taskCheckDependencies: SinonStub = sinon.stub().returns([]);
+  const getDependency: SinonStub = sinon.stub().resolves(container.resolve(InjectTokens.VfkitDependencyManager));
+  const manager: ClusterTaskManager = createClusterTaskManager(
+    {
+      shouldInstall: sinon.stub().resolves(shouldInstallPodman),
+      mode: podmanMode,
+    },
+    {getDependency, taskCheckDependencies},
+  );
+
+  const tasks: SoloListrTask<AnyObject>[] = manager.setupLocalClusterTasks();
+  const installKindTask: SoloListrTask<AnyObject> = tasks.find(
+    (taskItem: SoloListrTask<AnyObject>): boolean => taskItem.title === 'Install Kind',
+  ) as SoloListrTask<AnyObject>;
+  await installKindTask.task({}, {newListr: sinon.stub()} as unknown as SoloListrTaskWrapper<AnyObject>);
+
+  return taskCheckDependencies.firstCall.args[0] as string[];
 }
 
 describe('ClusterTaskManager', (): void => {
@@ -299,6 +325,50 @@ describe('ClusterTaskManager', (): void => {
       await createRootfulCluster(manager);
 
       expect(sudoRun.firstCall.args[3].at(-1)).to.equal(path.join(temporaryDirectory, '.kube', 'config'));
+    });
+  });
+
+  describe('setupLocalClusterTasks', (): void => {
+    afterEach((): void => {
+      sinon.restore();
+    });
+
+    it('should include vfkit on macOS (darwin) when podman runs in virtual-machine mode', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, true, true);
+
+      expect(dependencies).to.deep.equal([constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.KIND]);
+    });
+
+    it('should omit vfkit on Windows (win32) when podman runs in virtual-machine mode', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, true, false);
+
+      expect(dependencies).to.deep.equal([constants.PODMAN, constants.GVPROXY, constants.KIND]);
+      expect(dependencies).to.not.include(constants.VFKIT);
+    });
+
+    it('should omit podman virtual-machine dependencies on Linux where podman runs rootfully', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.ROOTFUL, true, false);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
+      expect(dependencies).to.not.include(constants.VFKIT);
+    });
+
+    it('should only require kind when Docker is available on macOS (darwin)', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, false, true);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
+    });
+
+    it('should only require kind when Docker is available on Windows (win32)', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, false, false);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
+    });
+
+    it('should only require kind when Docker is available on Linux', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.ROOTFUL, false, false);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
     });
   });
 });
