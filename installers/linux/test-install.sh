@@ -253,6 +253,10 @@ begin_case 'keeps the existing install when the new binary cannot run'
 run_installer
 check 'installer fails' test "$(run_installer --version v7.7.7 && echo passed || echo failed)" = 'failed'
 check 'error says the binary does not run' contains "${HOME}/install.log" 'does not run on this system'
+case "$(cat "${HOME}/install.log")" in
+  *'downloading solo-linux-'*'-musl '*) check 'error names the musl runtime package' contains "${HOME}/install.log" 'apk add libstdc++' ;;
+  *) check 'error has no musl hint' is_equal "$(count_of "${HOME}/install.log" 'apk add')" '0' ;;
+esac
 check 'previous binary still runs' is_equal "$("${HOME}/.solo/bin/solo" --version)" '0.0.0-test'
 
 begin_case 'installs to --prefix without editing startup files'

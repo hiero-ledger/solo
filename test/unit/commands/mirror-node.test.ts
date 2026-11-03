@@ -86,6 +86,8 @@ interface MirrorNodeCommandInternal {
   prepareResourceNameChartValues: (config: Record<string, unknown>) => Promise<HelmChartValues>;
   hasOtherMirrorNodes: (id: number, clusterReference: string, namespace: NamespaceName) => boolean;
   disableSharedResourceComponents: () => SoloListrTask<MirrorNodeDestroyTaskContext>;
+  destroySharedResourcesTask: () => SoloListrTask<MirrorNodeSharedResourcesDestroyTaskContext>;
+  sharedResourceManager: {uninstallChart: sinon.SinonStub};
   validateComponentImageArchive: (componentImage: string | string[], componentImageArchive: string) => void;
   isLocalImageAvailableInDocker: (componentImage: string) => boolean;
   kindLoadComponentImage: (
@@ -118,6 +120,15 @@ interface MirrorNodeDestroyTaskContext {
     clusterReference: string;
     namespace: NamespaceName;
   };
+}
+
+interface MirrorNodeSharedResourcesDestroyTaskContext {
+  config: MirrorNodeDestroyTaskContext['config'] & {clusterContext: string};
+}
+
+interface SharedResourcesPvcsStub {
+  list: sinon.SinonStub;
+  delete: sinon.SinonStub;
 }
 
 interface MirrorNodeSchemaWaitTaskContext {
@@ -646,6 +657,39 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
       withMirrorNodes(mirrorNodeCommandInternal, [{metadata: {id: 1, cluster: 'cluster-a', namespace: 'solo'}}]);
       expect(skip({config: {id: 1, clusterReference: 'cluster-a', namespace}})).to.be.false;
+    });
+  });
+
+  describe('destroySharedResourcesTask', (): void => {
+    it('waits for the shared resources pods to terminate after uninstalling the chart and deleting its PVCs', async (): Promise<void> => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      const namespace: NamespaceName = NamespaceName.of('solo');
+      const sharedResourcesLabels: string[] = ['app.kubernetes.io/instance=solo-shared-resources'];
+      const uninstallChart: sinon.SinonStub = sinon.stub().resolves();
+      const pvcsStub: SharedResourcesPvcsStub = {
+        list: sinon.stub().resolves(['data-solo-shared-resources-postgres-0']),
+        delete: sinon.stub().resolves(true),
+      };
+      const waitForPodsToTerminate: sinon.SinonStub = sinon.stub().resolves();
+      mirrorNodeCommandInternal.sharedResourceManager = {uninstallChart};
+      mirrorNodeCommandInternal.k8Factory = {
+        getK8: (): Record<string, unknown> => ({
+          pvcs: (): SharedResourcesPvcsStub => pvcsStub,
+          pods: (): {waitForPodsToTerminate: sinon.SinonStub} => ({waitForPodsToTerminate}),
+        }),
+      };
+
+      const task: SoloListrTask<MirrorNodeSharedResourcesDestroyTaskContext> =
+        mirrorNodeCommandInternal.destroySharedResourcesTask();
+      await (task.task as (context: MirrorNodeSharedResourcesDestroyTaskContext) => Promise<void>)({
+        config: {id: 1, clusterReference: 'cluster-a', clusterContext: 'kind-a', namespace},
+      });
+
+      expect(uninstallChart.calledOnceWithExactly(namespace, 'kind-a')).to.equal(true);
+      expect(pvcsStub.list.calledOnceWithExactly(namespace, sharedResourcesLabels)).to.equal(true);
+      expect(waitForPodsToTerminate.calledOnceWithExactly(namespace, sharedResourcesLabels)).to.equal(true);
+      sinon.assert.callOrder(uninstallChart, pvcsStub.delete, waitForPodsToTerminate);
     });
   });
 

@@ -72,6 +72,11 @@ export class AccountManager {
   private _nextPortForwardScanStart: number = 0;
   private _hederaClient: Optional<HederaClient>;
 
+  /** the Hedera client of the loaded node client, undefined until {@link loadNodeClient} has run */
+  public get hederaClient(): Optional<HederaClient> {
+    return this._hederaClient;
+  }
+
   /** @deprecated the SDK client behind the Hedera client, for callers that still build SDK transactions themselves */
   public get _nodeClient(): Optional<Client> {
     return this._hederaClient?.sdkClient;
@@ -403,7 +408,7 @@ export class AccountManager {
     networkNodeServicesMap: NodeServiceMapping,
     operatorId: string,
     operatorKey: string,
-    skipNodeAlias?: NodeAlias | undefined,
+    skipNodeAlias?: NodeAlias,
     skipAssignment: boolean = false,
   ): Promise<Client> {
     let nodes: Record<SdkNetworkEndpoint, AccountId> = {};

@@ -51,6 +51,7 @@ export class PostgresSharedResource {
   }
 
   public async waitForPodReady(namespace: NamespaceName, context: string): Promise<void> {
+    // a pod still terminating after a destroy keeps reporting phase Running, so only a pod not marked for deletion counts
     await this.k8Factory
       .getK8(context)
       .pods()
@@ -59,6 +60,9 @@ export class PostgresSharedResource {
         PostgresSharedResource.POSTGRES_LABEL_SELECTOR,
         constants.PODS_RUNNING_MAX_ATTEMPTS,
         constants.PODS_RUNNING_DELAY,
+        undefined,
+        undefined,
+        true,
       );
   }
 

@@ -200,7 +200,8 @@ describe('RemoteConfigValidator', (): void => {
           expect(error).to.be.instanceOf(SoloError);
           expect(error.message).to.include(RemoteConfigValidator.buildValidationErrorMessage(displayName, component));
         }
-      });
+        // the validator retries the pod lookup for ~30s before reporting the component missing
+      }).timeout(Duration.ofMinutes(2).toMillis());
 
       it('should succeed if component is present', async (): Promise<void> => {
         await createPod(podNames[componentKey], labelRecord[componentKey]);

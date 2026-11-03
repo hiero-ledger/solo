@@ -14,7 +14,6 @@ import {
 } from '../../../../../src/types/index.js';
 import {DeploymentPhase} from '../../../../../src/data/schema/model/remote/deployment-phase.js';
 import {ComponentStateMetadataSchema} from '../../../../../src/data/schema/model/remote/state/component-state-metadata-schema.js';
-import {LedgerPhase} from '../../../../../src/data/schema/model/remote/ledger-phase.js';
 import {type ComponentsDataWrapperApi} from '../../../../../src/core/config/remote/api/components-data-wrapper-api.js';
 import {RelayNodeStateSchema} from '../../../../../src/data/schema/model/remote/state/relay-node-state-schema.js';
 import {HaProxyStateSchema} from '../../../../../src/data/schema/model/remote/state/ha-proxy-state-schema.js';
@@ -65,7 +64,6 @@ export function createComponentsDataWrapper(): {
   const blockNodes: BlockNodeStateSchema[] = [new BlockNodeStateSchema(metadata)];
 
   const deploymentState: DeploymentStateSchema = new DeploymentStateSchema(
-    LedgerPhase.INITIALIZED,
     undefined,
     consensusNodes,
     blockNodes,

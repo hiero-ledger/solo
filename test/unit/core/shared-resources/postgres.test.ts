@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {afterEach, beforeEach, describe, it} from 'mocha';
-import sinon, {type SinonSpyCall} from 'sinon';
+import sinon, {type SinonFakeTimers, type SinonSpyCall, type SinonStub} from 'sinon';
 import fs from 'node:fs';
 import * as Base64 from 'js-base64';
 
@@ -19,6 +19,8 @@ import * as constants from '../../../../src/core/constants.js';
 import {type AnyObject} from '../../../../src/types/aliases.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
+import {K8ClientPods} from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
+import {resetForTest} from '../../../test-container.js';
 
 const encode: (s: string) => string = (s: string): string => Base64.encode(s);
 
@@ -110,6 +112,41 @@ describe('PostgresSharedResource', (): void => {
       expect(passedNamespace).to.equal(namespace);
       expect(maxAttempts).to.equal(constants.PODS_RUNNING_MAX_ATTEMPTS);
       expect(delay).to.equal(constants.PODS_RUNNING_DELAY);
+    });
+
+    it('waits for the replacement while the previous Postgres pod is still terminating', async (): Promise<void> => {
+      resetForTest();
+      const clock: SinonFakeTimers = sinon.useFakeTimers({toFake: ['setTimeout']});
+      const postgresPod: (deletionTimestamp?: Date) => Record<string, unknown> = (
+        deletionTimestamp?: Date,
+      ): Record<string, unknown> => ({
+        metadata: {
+          name: postgresPodReference.name.name,
+          namespace: namespace.name,
+          creationTimestamp: new Date(),
+          deletionTimestamp,
+        },
+        spec: {containers: [{name: 'postgresql'}]},
+        status: {phase: 'Running'},
+      });
+      // a destroyed Postgres pod keeps reporting phase Running until it is gone, and only then does its replacement appear
+      const listNamespacedPodStub: SinonStub = sinon.stub();
+      listNamespacedPodStub.onFirstCall().resolves({items: [postgresPod(new Date())]});
+      listNamespacedPodStub.onSecondCall().resolves({items: []});
+      listNamespacedPodStub.resolves({items: [postgresPod()]});
+      k8Stub.pods.returns(new K8ClientPods({listNamespacedPod: listNamespacedPodStub} as never, {} as never, ''));
+
+      let isReady: boolean = false;
+      const wait: Promise<void> = postgres.waitForPodReady(namespace, context).then((): void => {
+        isReady = true;
+      });
+
+      await clock.tickAsync(constants.PODS_RUNNING_DELAY);
+      expect(isReady).to.be.false;
+
+      await clock.tickAsync(constants.PODS_RUNNING_DELAY);
+      await wait;
+      expect(listNamespacedPodStub).to.have.been.calledThrice;
     });
   });
 

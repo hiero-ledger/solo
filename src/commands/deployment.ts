@@ -1366,7 +1366,7 @@ export class DeploymentCommand extends BaseCommand {
 
         await this.remoteConfig.populateFromExisting(namespace, existingClusterContext);
 
-        const ledgerPhase: LedgerPhase = this.remoteConfig.configuration.state.ledgerPhase;
+        const ledgerPhase: LedgerPhase = this.remoteConfig.configuration.ledger.phase;
 
         context_.config.ledgerPhase = ledgerPhase;
 
