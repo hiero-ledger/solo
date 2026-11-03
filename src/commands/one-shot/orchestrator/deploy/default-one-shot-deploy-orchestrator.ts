@@ -194,7 +194,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               allFlags,
             ) as OneShotSingleDeployConfigClass;
             config = context_.config;
-            configReference.value = config;
             config.argv = argv;
 
             config.consensusNodeConfiguration ??= {};
@@ -217,6 +216,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.context ||= this.k8Factory.default().contexts().readCurrent();
             config.deployment ||= constants.ONE_SHOT_DEPLOYMENT_NAME;
             config.namespace ||= NamespaceName.of(constants.ONE_SHOT_DEPLOYMENT_NAME);
+            // Published for rollback only after validation, so a rejected values file never triggers a rollback
+            configReference.value = config;
             this.configManager.setFlag(flags.namespace, config.namespace);
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;

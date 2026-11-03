@@ -20,6 +20,9 @@ import {PathEx} from '../../../../../../src/business/utils/path-ex.js';
 import {ChainIdMismatchSoloError} from '../../../../../../src/core/errors/classes/validation/chain-id-mismatch-solo-error.js';
 import {DefaultOneShotCommand} from '../../../../../../src/commands/one-shot/default-one-shot.js';
 import * as constants from '../../../../../../src/core/constants.js';
+import {ContainerResourcePreflight} from '../../../../../../src/core/container-resource-preflight.js';
+import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
+import {type ArgvStruct} from '../../../../../../src/types/aliases.js';
 import fs from 'node:fs';
 import os from 'node:os';
 
@@ -37,24 +40,28 @@ function makeOrchestrator(
     helm?: MockType;
     logger?: MockType;
     k8Factory?: MockType;
+    configManager?: MockType;
+    oneShotState?: MockType;
+    clusterTaskManager?: MockType;
+    eventBus?: MockType;
   } = {},
 ): DefaultOneShotDeployOrchestrator {
   return new DefaultOneShotDeployOrchestrator(
     {} as MockType,
-    {} as MockType,
+    overrides.eventBus ?? ({} as MockType),
     {} as MockType,
     overrides.localConfig ?? ({} as MockType),
     overrides.remoteConfig ?? ({} as MockType),
     overrides.logger ?? makeLogger(),
-    {} as MockType,
-    {} as MockType,
+    overrides.configManager ?? ({} as MockType),
+    overrides.oneShotState ?? ({} as MockType),
     overrides.k8Factory ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
     overrides.helm ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
-    {} as MockType,
+    overrides.clusterTaskManager ?? ({} as MockType),
   );
 }
 
@@ -1021,6 +1028,66 @@ function makeMessageGroupLogger(): MockType {
 function messages(logger: MockType): string[] {
   return logger.addMessageGroupMessage.getCalls().map((call: sinon.SinonSpyCall): string => call.args[1]);
 }
+
+async function runInitializePhase(
+  valuesFile: string,
+  configReference: {value?: OneShotSingleDeployConfigClass},
+): Promise<void> {
+  sinon.stub(ContainerResourcePreflight, 'warnIfInsufficient').resolves();
+  sinon.stub(DeployArgvBuilders, 'resolveOneShotComponentVersions').resolves(makeConfig().versions);
+  const argv: ArgvStruct = {_: [], [Flags.valuesFile.name]: valuesFile};
+  const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator({
+    configManager: {
+      update: sinon.stub(),
+      setFlag: sinon.stub(),
+      getFlag: sinon.stub().returns(false),
+      executePrompt: sinon.stub().resolves(),
+      getConfig: sinon.stub().returns({...makeConfig(), namespace: undefined, chainId: undefined}),
+    },
+    oneShotState: {activate: sinon.stub()},
+    clusterTaskManager: {createdClusterWithOneShotPortMappings: false},
+    eventBus: {abort: sinon.stub()},
+  });
+  const pipeline: OrchestratorPipeline<OneShotSingleDeployContext> = orchestrator.buildDeployPipeline(
+    argv,
+    {required: [], optional: []},
+    {},
+    configReference,
+  );
+  const initialize: MockType = (pipeline.tasks as MockType[]).find(
+    (task: MockType): boolean => task.title === 'Initialize',
+  );
+  await initialize.task({} as OneShotSingleDeployContext, {} as MockType);
+}
+
+describe('DefaultOneShotDeployOrchestrator Initialize phase values file validation', (): void => {
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  // A config published for rollback before its namespace is set made rollback crash with a TypeError
+  it('rejects a mismatched relayNode chain ID before publishing the config for rollback', async (): Promise<void> => {
+    const valuesFile: string = PathEx.join(os.tmpdir(), `chain-id-mismatch.unit.${Date.now()}.yaml`);
+    fs.writeFileSync(valuesFile, 'network:\n  --chain-id: 1234\nrelayNode:\n  --chain-id: 298\n');
+    const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+
+    try {
+      await expect(runInitializePhase(valuesFile, configReference)).to.be.rejectedWith(ChainIdMismatchSoloError);
+    } finally {
+      fs.rmSync(valuesFile, {force: true});
+    }
+    expect(configReference.value).to.be.undefined;
+  });
+
+  it('rejects a missing values file before publishing the config for rollback', async (): Promise<void> => {
+    const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+
+    await expect(
+      runInitializePhase(PathEx.join(os.tmpdir(), `missing.unit.${Date.now()}.yaml`), configReference),
+    ).to.be.rejectedWith(ValuesFileNotFoundSoloError);
+    expect(configReference.value).to.be.undefined;
+  });
+});
 
 describe('DefaultOneShotDeployOrchestrator deploy summary', (): void => {
   it('prints the chain ID in the user notes', (): void => {
