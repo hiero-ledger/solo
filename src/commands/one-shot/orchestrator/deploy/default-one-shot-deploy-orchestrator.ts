@@ -61,6 +61,7 @@ import {DeploymentCommandDefinition} from '../../../command-definitions/deployme
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
 import {type InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
+import {FlagValidation} from '../../../validation/flag-validation.js';
 import * as constants from '../../../../core/constants.js';
 import {createDirectoryIfNotExists, entityId, Helpers, sleep} from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
@@ -1372,10 +1373,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     const networkChainId: string = `${config.networkConfiguration[chainIdKey] ?? ''}`.trim();
     const relayChainId: string = `${config.relayNodeConfiguration[chainIdKey] ?? ''}`.trim();
 
-    config.chainId = networkChainId || config.chainId || (flags.chainId.definition.defaultValue as string);
+    const chainId: string = networkChainId || config.chainId || (flags.chainId.definition.defaultValue as string);
+    // A values file bypasses flag validation, so the resolved chain ID is checked here
+    FlagValidation.assertAllValid([flags.chainId], {[flags.chainId.name]: chainId});
+    // The consensus node parses contracts.chainId as a decimal integer, so a hex chain ID (0x12a) is passed as 298
+    config.chainId = String(Number(chainId));
 
-    // Number() lets the relay's hex form (0x12a) match the consensus node's decimal form (298)
-    if (relayChainId && relayChainId !== config.chainId && Number(relayChainId) !== Number(config.chainId)) {
+    // Number() lets the relay's hex form (0x12a) match the decimal chain ID (298)
+    if (relayChainId && Number(relayChainId) !== Number(config.chainId)) {
       throw new SoloErrors.validation.chainIdMismatch(config.chainId, relayChainId);
     }
   }
