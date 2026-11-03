@@ -395,6 +395,7 @@ export class DeployArgvBuilders {
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
       ...config.relayNodeConfiguration,
+      [optionFromFlag(Flags.chainId)]: config.chainId,
     });
     return argvPushGlobalFlags(argv);
   }
@@ -408,9 +409,7 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.soloChartVersion),
       config.versions.soloChart,
     );
-    if (config.networkConfiguration) {
-      appendConfigToArgv(argv, config.networkConfiguration);
-    }
+    appendConfigToArgv(argv, {...config.networkConfiguration, [optionFromFlag(Flags.chainId)]: config.chainId});
     if (this.isBlockNodeEnvironmentEnabled()) {
       argv.push(optionFromFlag(Flags.tssEnabled));
     }

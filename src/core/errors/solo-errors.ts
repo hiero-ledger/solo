@@ -226,6 +226,7 @@ import {UnsupportedFlagFieldTypeSoloError} from './classes/validation/unsupporte
 import {VersionDowngradeBlockedSoloError} from './classes/validation/version-downgrade-blocked-solo-error.js';
 import {AdminKeysCountMismatchSoloError} from './classes/validation/admin-keys-count-mismatch-solo-error.js';
 import {InvalidAdminPublicKeySoloError} from './classes/validation/invalid-admin-public-key-solo-error.js';
+import {ChainIdMismatchSoloError} from './classes/validation/chain-id-mismatch-solo-error.js';
 import {ComponentAlreadyExistsSoloError} from './classes/validation/component-already-exists-solo-error.js';
 import {ComponentIdRequiredSoloError} from './classes/validation/component-id-required-solo-error.js';
 import {ComponentNotFoundSoloError} from './classes/validation/component-not-found-solo-error.js';
@@ -674,6 +675,7 @@ export class SoloErrors {
     readonly versionDowngradeBlocked: typeof VersionDowngradeBlockedSoloError;
     readonly adminKeysCountMismatch: typeof AdminKeysCountMismatchSoloError;
     readonly invalidAdminPublicKey: typeof InvalidAdminPublicKeySoloError;
+    readonly chainIdMismatch: typeof ChainIdMismatchSoloError;
     readonly componentAlreadyExists: typeof ComponentAlreadyExistsSoloError;
     readonly componentIdRequired: typeof ComponentIdRequiredSoloError;
     readonly componentNotFound: typeof ComponentNotFoundSoloError;
@@ -764,6 +766,7 @@ export class SoloErrors {
     versionDowngradeBlocked: VersionDowngradeBlockedSoloError,
     adminKeysCountMismatch: AdminKeysCountMismatchSoloError,
     invalidAdminPublicKey: InvalidAdminPublicKeySoloError,
+    chainIdMismatch: ChainIdMismatchSoloError,
     componentAlreadyExists: ComponentAlreadyExistsSoloError,
     componentIdRequired: ComponentIdRequiredSoloError,
     componentNotFound: ComponentNotFoundSoloError,
