@@ -18,6 +18,7 @@ import {Flags} from '../../../../../../src/commands/flags.js';
 import {ValuesFileNotFoundSoloError} from '../../../../../../src/core/errors/classes/validation/values-file-not-found-solo-error.js';
 import {PathEx} from '../../../../../../src/business/utils/path-ex.js';
 import {ChainIdMismatchSoloError} from '../../../../../../src/core/errors/classes/validation/chain-id-mismatch-solo-error.js';
+import {InvalidFlagValueSoloError} from '../../../../../../src/core/errors/classes/validation/invalid-flag-value-solo-error.js';
 import {DefaultOneShotCommand} from '../../../../../../src/commands/one-shot/default-one-shot.js';
 import * as constants from '../../../../../../src/core/constants.js';
 import {ContainerResourcePreflight} from '../../../../../../src/core/container-resource-preflight.js';
@@ -981,6 +982,25 @@ describe('DefaultOneShotDeployOrchestrator resolveChainId', (): void => {
     expect(config.chainId).to.equal('1234');
   });
 
+  it('converts a hex chain ID to the decimal form the consensus node parses', (): void => {
+    expect(resolve(makeConfig({chainId: '0x4d2'})).chainId).to.equal('1234');
+    expect(resolve(makeConfig({chainId: undefined, networkConfiguration: {[chainIdKey]: '0x4d2'}})).chainId).to.equal(
+      '1234',
+    );
+  });
+
+  it('rejects a chain ID in the values file that is not a positive whole number', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      chainId: undefined,
+      networkConfiguration: {[chainIdKey]: 'abc'},
+    });
+
+    expect((): OneShotSingleDeployConfigClass => resolve(config)).to.throw(
+      InvalidFlagValueSoloError,
+      "Invalid value 'abc' for flag --chain-id",
+    );
+  });
+
   it('accepts a relayNode chain ID that matches the consensus node, in decimal or hex', (): void => {
     expect(resolve(makeConfig({chainId: '1234', relayNodeConfiguration: {[chainIdKey]: '1234'}})).chainId).to.equal(
       '1234',
@@ -1073,6 +1093,19 @@ describe('DefaultOneShotDeployOrchestrator Initialize phase values file validati
 
     try {
       await expect(runInitializePhase(valuesFile, configReference)).to.be.rejectedWith(ChainIdMismatchSoloError);
+    } finally {
+      fs.rmSync(valuesFile, {force: true});
+    }
+    expect(configReference.value).to.be.undefined;
+  });
+
+  it('rejects an invalid chain ID in the values file before publishing the config for rollback', async (): Promise<void> => {
+    const valuesFile: string = PathEx.join(os.tmpdir(), `chain-id-invalid.unit.${Date.now()}.yaml`);
+    fs.writeFileSync(valuesFile, 'network:\n  --chain-id: abc\n');
+    const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+
+    try {
+      await expect(runInitializePhase(valuesFile, configReference)).to.be.rejectedWith(InvalidFlagValueSoloError);
     } finally {
       fs.rmSync(valuesFile, {force: true});
     }

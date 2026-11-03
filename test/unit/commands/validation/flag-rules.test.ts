@@ -75,6 +75,25 @@ describe('FlagRules', (): void => {
     });
   });
 
+  describe('chainId', (): void => {
+    it('should accept a positive whole number in decimal or 0x-prefixed hex', (): void => {
+      for (const value of ['298', '0x12a', '0X12A', '  1234  ']) {
+        expect(FlagRules.chainId(value), value).to.be.undefined;
+      }
+    });
+
+    it('should reject zero, in either form', (): void => {
+      expect(FlagRules.chainId('0')).to.equal('must be a positive whole number, in decimal or 0x-prefixed hex');
+      expect(FlagRules.chainId('0x0')).to.not.be.undefined;
+    });
+
+    it('should reject anything that is not written as a decimal or hex whole number', (): void => {
+      for (const value of ['abc', '-5', '1.5', '1e3', '1.', '0b11', '0x', '12a']) {
+        expect(FlagRules.chainId(value), value).to.not.be.undefined;
+      }
+    });
+  });
+
   describe('atLeast', (): void => {
     it('should accept a value at the bound', (): void => {
       expect(FlagRules.atLeast(1)('1')).to.be.undefined;
