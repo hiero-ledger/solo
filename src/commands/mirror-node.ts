@@ -1313,13 +1313,6 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /**
-   * Deletes the `<release>-redis` secret so that the subsequent mirror chart install/upgrade
-   * re-creates it cleanly.  This is necessary because Kubernetes strategic-merge-patch does not
-   * remove keys — stale `SPRING_DATA_REDIS_SENTINEL_NODES` values written by a previous install
-   * (using the internal chart-managed Redis) would otherwise persist and cause pods to try to
-   * resolve a non-existent hostname.
-   */
-  /**
    * The importer reads `uploader-mirror-secrets` through an envFrom reference, but the secret is only created by
    * the consensus network chart (`solo-deployment`), which is not installed in a cluster that has no consensus
    * nodes. Create an empty secret there so the importer container can start; the storage credentials it would
@@ -1358,6 +1351,13 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  /**
+   * Deletes the `<release>-redis` secret so that the subsequent mirror chart install/upgrade
+   * re-creates it cleanly.  This is necessary because Kubernetes strategic-merge-patch does not
+   * remove keys — stale `SPRING_DATA_REDIS_SENTINEL_NODES` values written by a previous install
+   * (using the internal chart-managed Redis) would otherwise persist and cause pods to try to
+   * resolve a non-existent hostname.
+   */
   private deleteStaleRedisSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Delete stale mirror redis secret',
