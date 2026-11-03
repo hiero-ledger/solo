@@ -1,3 +1,0 @@
-# falcon-values.yaml
-network:
-  --values-file: ./minio-image-override.yaml
