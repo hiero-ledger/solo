@@ -110,6 +110,16 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    */
   private static readonly CONTAINERD_SOCKET_FATAL_THRESHOLD: number = 5;
 
+  /** Retrying never fixes a rejected certificate, and only ErrImagePull polls carry the detail, so never wait for a streak. */
+  private static readonly REGISTRY_TRUST_FATAL_THRESHOLD: number = 1;
+
+  private static readonly REGISTRY_TRUST_PATTERNS: ReadonlyArray<RegExp> = [
+    /certificate signed by unknown authority/i,
+    /tls: failed to verify certificate/i,
+    /proxyconnect tcp/i,
+    /server gave HTTP response to HTTPS client/i,
+  ];
+
   private static readonly NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
     /not found/i,
     /manifest unknown/i,
@@ -119,6 +129,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     /unauthorized/i,
     /authentication required/i,
     /invalid reference format/i,
+    ...K8ClientPods.REGISTRY_TRUST_PATTERNS,
   ];
 
   /**
@@ -140,6 +151,10 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       return false;
     }
     return K8ClientPods.CONTAINERD_SOCKET_PATTERNS.some((pattern): boolean => pattern.test(message));
+  }
+
+  private static isRegistryTrustError(message?: string): boolean {
+    return K8ClientPods.REGISTRY_TRUST_PATTERNS.some((pattern): boolean => pattern.test(message ?? ''));
   }
 
   public constructor(
@@ -183,6 +198,14 @@ export class K8ClientPods extends K8ClientBase implements Pods {
           continue;
         }
         const detail: string = containerStatus.waitingMessage ? `: ${containerStatus.waitingMessage}` : '';
+        if (K8ClientPods.isRegistryTrustError(containerStatus.waitingMessage)) {
+          return (
+            `Pod "${podName}" container "${containerStatus.name}" cannot pull its image because the registry ` +
+            `certificate was rejected: ${containerStatus.waitingReason}${detail}. ` +
+            'This is typically a TLS-inspecting corporate proxy. To fix: trust the proxy CA inside the ' +
+            'container runtime, or pre-load the image with "solo cache image pull" then "solo cache image load".'
+          );
+        }
         return (
           `Pod "${podName}" container "${containerStatus.name}" is in a non-recoverable state: ` +
           `${containerStatus.waitingReason}${detail}`
@@ -201,6 +224,16 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
 
     return undefined;
+  }
+
+  private static fatalErrorThreshold(fatalError: string): number {
+    if (K8ClientPods.isContainerdSocketError(fatalError)) {
+      return K8ClientPods.CONTAINERD_SOCKET_FATAL_THRESHOLD;
+    }
+    if (K8ClientPods.isRegistryTrustError(fatalError)) {
+      return K8ClientPods.REGISTRY_TRUST_FATAL_THRESHOLD;
+    }
+    return K8ClientPods.FATAL_ERROR_RETRY_THRESHOLD;
   }
 
   private static isNonRecoverableImagePullError(message?: string): boolean {
@@ -559,11 +592,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 const nextCount: number = previous?.error === fatalError ? previous.count + 1 : 1;
                 fatalErrorStreakByPod.set(podName, {count: nextCount, error: fatalError});
 
-                // Use a higher threshold for containerd socket errors to tolerate transient
-                // Docker Desktop startup races on macOS before surfacing the actionable hint.
-                const threshold: number = K8ClientPods.isContainerdSocketError(fatalError)
-                  ? K8ClientPods.CONTAINERD_SOCKET_FATAL_THRESHOLD
-                  : K8ClientPods.FATAL_ERROR_RETRY_THRESHOLD;
+                const threshold: number = K8ClientPods.fatalErrorThreshold(fatalError);
 
                 if (nextCount >= threshold) {
                   return reject(new KubePodCreationFailedError(fatalError));
