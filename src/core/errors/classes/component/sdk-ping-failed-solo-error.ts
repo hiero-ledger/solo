@@ -20,6 +20,7 @@ export class SdkPingFailedSoloError extends SoloError {
       {
         message:
           `SDK ping to network node ${nodeAlias} failed after ${maxRetries} retries` +
+          (cause?.message ? `; cause: ${cause.message}` : '') +
           (lastPlatformStatus ? `; last consensus node platform status: ${lastPlatformStatus}` : ''),
         code: ErrorCodeRegistry.SDK_PING_FAILED,
         troubleshootingSteps:

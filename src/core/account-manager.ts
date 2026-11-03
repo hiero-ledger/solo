@@ -476,7 +476,14 @@ export class AccountManager {
 
       // ping the node client to ensure it is working
       if (!constants.SKIP_NODE_PING) {
-        await hederaClient.ping(AccountId.fromString(operatorId));
+        // bound the ping: the client's configured max attempts (for long-running transactions) would otherwise let a
+        // failing ping retry for hours before surfacing the underlying gRPC error
+        hederaClient.sdkClient.setMaxAttempts(constants.NODE_CLIENT_SDK_PING_MAX_RETRIES);
+        try {
+          await hederaClient.ping(AccountId.fromString(operatorId));
+        } finally {
+          hederaClient.sdkClient.setMaxAttempts(constants.NODE_CLIENT_MAX_ATTEMPTS);
+        }
       }
 
       return hederaClient.sdkClient;

@@ -974,7 +974,7 @@ export class NodeCommandTasks {
 
         this.logger.debug(
           `${title} : Error in checking gRPC readiness for node '${nodeAlias}': ` +
-            `attempt: ${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}: ${JSON.stringify(error)}`,
+            `attempt: ${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}: ${error?.message ?? JSON.stringify(error)}`,
         );
 
         task.title =
