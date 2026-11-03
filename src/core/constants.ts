@@ -423,7 +423,6 @@ export const ONE_SHOT_RELAY_HOST_PORT: number = 37_546;
 export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
 export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
-export const BLOCK_NODE_SOLO_DEV_FILE: string = BLOCK_NODE_VALUES_FILE;
 export const GRAFANA_ALLOY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'grafana-alloy-values.yaml');
 export const LOKI_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'loki-values.yaml');
 export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
