@@ -165,6 +165,65 @@ describe('DeploymentCommand unit tests', (): void => {
     });
   });
 
+  describe('create() - chain ID', (): void => {
+    const chainIdDeploymentName: string = 'chain-id-deployment';
+    const chainIdNamespace: NamespaceName = NamespaceName.of('chain-id-namespace');
+
+    function buildCreateArgv(chainId: string): Argv {
+      const argv: Argv = Argv.getDefaultArgv(chainIdNamespace);
+      argv.setArg(flags.deployment, chainIdDeploymentName);
+      argv.setArg(flags.namespace, chainIdNamespace.name);
+      argv.setArg(flags.chainId, chainId);
+      return argv;
+    }
+
+    async function createdChainId(chainId: string): Promise<number> {
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+      await expect(deploymentCommand.create(buildCreateArgv(chainId).build())).to.eventually.be.true;
+
+      await localConfig.load();
+      return localConfig.configuration.chainIdForDeployment(chainIdDeploymentName);
+    }
+
+    it('should persist the --chain-id value in the local config', async (): Promise<void> => {
+      expect(await createdChainId('1234')).to.equal(1234);
+    });
+
+    it('should store the hex form the relay accepts as its decimal value', async (): Promise<void> => {
+      expect(await createdChainId('0x4d2')).to.equal(1234);
+    });
+
+    it('should persist the default chain ID when --chain-id is not set', async (): Promise<void> => {
+      expect(await createdChainId('')).to.equal(Number(flags.chainId.definition.defaultValue));
+    });
+
+    for (const invalidChainId of ['abc', '-5', '1.5', '0']) {
+      it(`should reject --chain-id ${invalidChainId} before adding the deployment`, async (): Promise<void> => {
+        const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+        const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+        let thrownError: unknown;
+        try {
+          await deploymentCommand.create(buildCreateArgv(invalidChainId).build());
+        } catch (error) {
+          thrownError = error;
+        }
+
+        expect(thrownError).to.be.instanceof(SoloErrors.deployment.createFailed);
+        expect((thrownError as SoloError).cause).to.be.instanceof(SoloErrors.validation.invalidFlagValue);
+
+        await localConfig.load();
+        expect(
+          localConfig.configuration.deployments.some(
+            (deployment: Deployment): boolean => deployment.name === chainIdDeploymentName,
+          ),
+        ).to.be.false;
+      });
+    }
+  });
+
   describe('importConfig()', (): void => {
     const importedDeploymentName: string = 'alpha-prod';
     const importedNamespaceName: string = 'solo-alpha-prod';
@@ -231,8 +290,8 @@ describe('DeploymentCommand unit tests', (): void => {
       expect(imported?.clusters.map((cluster): string => cluster.toString())).to.deep.equal([importedClusterReference]);
     });
 
-    it("should read the realm and shard from a consensus node's application.properties", async (): Promise<void> => {
-      const applicationPropertiesContent: string = 'hedera.realm=3\nhedera.shard=2\n';
+    it("should read the realm, shard and chain ID from a consensus node's application.properties", async (): Promise<void> => {
+      const applicationPropertiesContent: string = 'hedera.realm=3\nhedera.shard=2\ncontracts.chainId=1234\n';
       k8Stub.pods = sinon.stub().returns({
         list: sinon
           .stub()
@@ -255,6 +314,7 @@ describe('DeploymentCommand unit tests', (): void => {
       );
       expect(imported?.realm).to.equal(3);
       expect(imported?.shard).to.equal(2);
+      expect(imported?.chainId).to.equal(1234);
     });
 
     it('should read the realm and shard from the shared data ConfigMap when no consensus node is running', async (): Promise<void> => {
@@ -289,7 +349,7 @@ describe('DeploymentCommand unit tests', (): void => {
       expect(imported?.shard).to.equal(1);
     });
 
-    it('should warn and fall back to the default realm and shard when they cannot be determined', async (): Promise<void> => {
+    it('should warn and fall back to the default realm and shard and the remote chain ID when they cannot be read', async (): Promise<void> => {
       k8Stub.pods = sinon.stub().returns({list: sinon.stub().resolves([])});
 
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
@@ -303,6 +363,10 @@ describe('DeploymentCommand unit tests', (): void => {
         showUserStub.getCalls().some((call): boolean => String(call.args[0]).includes('realm')),
         'expected a warning about falling back to the default realm and shard',
       ).to.be.true;
+      expect(
+        showUserStub.getCalls().some((call): boolean => String(call.args[0]).includes('chain ID')),
+        'expected a warning about falling back to the remote config chain ID',
+      ).to.be.true;
 
       await localConfig.load();
       const imported: Deployment | undefined = localConfig.configuration.deployments.find(
@@ -310,6 +374,8 @@ describe('DeploymentCommand unit tests', (): void => {
       );
       expect(imported?.realm).to.equal(0);
       expect(imported?.shard).to.equal(0);
+      // the v0.35.1 remote config predates the chain ID, so its migration seeds the default
+      expect(imported?.chainId).to.equal(Number(constants.HEDERA_CHAIN_ID));
     });
 
     it('should fail when no Solo deployment exists in the targeted context', async (): Promise<void> => {
@@ -421,7 +487,7 @@ describe('DeploymentCommand unit tests', (): void => {
   });
 
   describe('ports()', (): void => {
-    it('should include the static one-shot host ports when the deployment is one-shot', async (): Promise<void> => {
+    it('should include the chain ID and the static one-shot host ports when the deployment is one-shot', async (): Promise<void> => {
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
       const remoteConfigStub = {
         loadAndValidate: sinon.stub().resolves(),
@@ -479,6 +545,7 @@ describe('DeploymentCommand unit tests', (): void => {
           deploymentByName: sinon.stub().returns({
             name: constants.ONE_SHOT_DEPLOYMENT_NAME,
             namespace: namespace.name,
+            chainId: 1234,
             clusters: [{toString: (): string => 'cluster-1'}],
           }),
         },
@@ -492,7 +559,11 @@ describe('DeploymentCommand unit tests', (): void => {
       await expect(deploymentCommand.ports(argv.build())).to.eventually.be.true;
 
       const output: string = fs.readFileSync('test/data/tmp/output/forwarded-ports.json', 'utf8');
-      const report: {services: Record<string, unknown>} = JSON.parse(output) as {services: Record<string, unknown>};
+      const report: {chainId: number; services: Record<string, unknown>} = JSON.parse(output) as {
+        chainId: number;
+        services: Record<string, unknown>;
+      };
+      expect(report.chainId).to.equal(1234);
       expect(report.services.consensusNodeGrpc).to.deep.include({
         componentId: 1,
         localPort: constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT,

@@ -6,4 +6,5 @@ export interface LedgerStructure {
   phase: LedgerPhase;
   realm: number;
   shard: number;
+  chainId: number;
 }

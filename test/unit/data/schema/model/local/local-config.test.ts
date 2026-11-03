@@ -21,6 +21,7 @@ import {
 import {ConfigKeyFormatter} from '../../../../../../src/data/key/config-key-formatter.js';
 import {type ClusterReferences} from '../../../../../../src/types/index.js';
 import {SemanticVersion} from '../../../../../../src/business/utils/semantic-version.js';
+import {HEDERA_CHAIN_ID} from '../../../../../../src/core/constants.js';
 
 describe('LocalConfig', (): void => {
   const schema: LocalConfigSchemaDefinition = new LocalConfigSchemaDefinition(
@@ -51,9 +52,11 @@ describe('LocalConfig', (): void => {
       expect(lc.deployments[0].name).to.equal('dual-cluster-full-deployment');
       expect(lc.deployments[0].realm).to.equal(0);
       expect(lc.deployments[0].shard).to.equal(0);
+      expect(lc.deployments[0].chainId).to.equal(Number(HEDERA_CHAIN_ID));
       expect(lc.deployments[1].name).to.equal('deployment');
       expect(lc.deployments[1].realm).to.equal(0);
       expect(lc.deployments[1].shard).to.equal(0);
+      expect(lc.deployments[1].chainId).to.equal(Number(HEDERA_CHAIN_ID));
       expect(lc.clusterRefs).to.be.instanceOf(Map);
       expect(lc.clusterRefs).to.have.lengthOf(4);
       expect(lc.userIdentity).to.not.be.undefined.and.to.not.be.null;
@@ -68,8 +71,9 @@ describe('LocalConfig', (): void => {
           ['e2e-cluster-1', 'e2e-cluster-2'],
           0,
           0,
+          Number(HEDERA_CHAIN_ID),
         ),
-        new DeploymentSchema('deployment', 'solo-e2e', ['cluster-1'], 0, 0),
+        new DeploymentSchema('deployment', 'solo-e2e', ['cluster-1'], 0, 0, Number(HEDERA_CHAIN_ID)),
       ];
 
       const clusterReferences: ClusterReferences = new Map<string, string>([
@@ -87,7 +91,7 @@ describe('LocalConfig', (): void => {
         new SemanticVersion<string>(EXPLORER_VERSION),
         new SemanticVersion<string>(HEDERA_JSON_RPC_RELAY_VERSION),
       );
-      const lc: LocalConfigSchema = new LocalConfigSchema(2, versions, deployments, clusterReferences);
+      const lc: LocalConfigSchema = new LocalConfigSchema(3, versions, deployments, clusterReferences);
       const newPlainObject: object = instanceToPlain(lc);
 
       expect(newPlainObject).to.not.be.undefined.and.to.not.be.null;

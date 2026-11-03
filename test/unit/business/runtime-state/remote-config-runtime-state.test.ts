@@ -29,6 +29,8 @@ import {Helpers} from '../../../../src/core/helpers.js';
 import {type Context} from '../../../../src/types/index.js';
 import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
 import {getSoloVersion} from '../../../../version.js';
+import {LedgerPhase} from '../../../../src/data/schema/model/remote/ledger-phase.js';
+import {type RemoteConfigSchema} from '../../../../src/data/schema/model/remote/remote-config-schema.js';
 
 const namespace: NamespaceName = NamespaceName.of('solo');
 const remoteConfigMap: ConfigMap = {name: 'solo-remote-config'} as unknown as ConfigMap;
@@ -370,6 +372,52 @@ describe('RemoteConfigRuntimeState', (): void => {
 
     it('should leave the stored version untouched when it already matches', (): void => {
       expect(runUpdateCliVersion(getSoloVersion()).toString()).to.equal(getSoloVersion());
+    });
+  });
+
+  describe('create', (): void => {
+    it("should seed the ledger with the local deployment's realm, shard and chain ID", async (): Promise<void> => {
+      const localConfig: LocalConfigRuntimeState = {
+        configuration: {
+          userIdentity: {name: 'user', hostname: 'host'},
+          realmForDeployment: (): number => 1,
+          shardForDeployment: (): number => 2,
+          chainIdForDeployment: (): number => 1234,
+        },
+      } as unknown as LocalConfigRuntimeState;
+      const runtimeState: RemoteConfigRuntimeState = new RemoteConfigRuntimeState(
+        {} as unknown as K8Factory,
+        {} as unknown as SoloLogger,
+        localConfig,
+        {} as unknown as ConfigManager,
+        {} as unknown as RemoteConfigValidatorApi,
+        {} as unknown as ObjectMapper,
+        {} as unknown as ContainerEngineClient,
+      );
+      sandbox.stub(runtimeState, 'populateClusterReferences');
+      sandbox.stub(runtimeState, 'createConfigMap').resolves(remoteConfigMap);
+      sandbox.stub(runtimeState, 'persist').resolves();
+      sandbox.stub(runtimeState as unknown as {initializeComponentVersions: () => void}, 'initializeComponentVersions');
+      const populateFromConfigMap: SinonStub = sandbox
+        .stub(runtimeState as unknown as {populateFromConfigMap: () => Promise<void>}, 'populateFromConfigMap')
+        .resolves();
+
+      await runtimeState.create(
+        argv,
+        LedgerPhase.UNINITIALIZED,
+        ['node1'],
+        namespace,
+        deploymentName,
+        'cluster-1',
+        'context-1',
+        'cluster.local',
+        'network-{nodeAlias}-svc.{namespace}.svc',
+      );
+
+      const remoteConfig: RemoteConfigSchema = populateFromConfigMap.firstCall.args[1] as RemoteConfigSchema;
+      expect(remoteConfig.ledger.realm).to.equal(1);
+      expect(remoteConfig.ledger.shard).to.equal(2);
+      expect(remoteConfig.ledger.chainId).to.equal(1234);
     });
   });
 });

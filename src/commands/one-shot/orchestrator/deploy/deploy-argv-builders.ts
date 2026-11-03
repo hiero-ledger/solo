@@ -466,6 +466,8 @@ export class DeployArgvBuilders {
       config.deployment,
       optionFromFlag(Flags.namespace),
       config.namespace.name,
+      optionFromFlag(Flags.chainId),
+      config.chainId,
     );
     return argvPushGlobalFlags(argv);
   }
