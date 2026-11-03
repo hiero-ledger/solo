@@ -199,7 +199,7 @@ describe('DeploymentCommand unit tests', (): void => {
       expect(await createdChainId('')).to.equal(Number(flags.chainId.definition.defaultValue));
     });
 
-    for (const invalidChainId of ['abc', '-5', '1.5', '0']) {
+    for (const invalidChainId of ['abc', '-5', '1.5', '0', '1e3']) {
       it(`should reject --chain-id ${invalidChainId} before adding the deployment`, async (): Promise<void> => {
         const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
         const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);

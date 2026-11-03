@@ -5,6 +5,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {BaseCommand} from './base.js';
 import {Flags, Flags as flags} from './flags.js';
+import {FlagValidation} from './validation/flag-validation.js';
 import * as constants from '../core/constants.js';
 import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
@@ -972,11 +973,8 @@ export class DeploymentCommand extends BaseCommand {
 
   /** Parse a --chain-id value; the hex form the relay accepts (0x12a) is stored as its decimal value (298). */
   private static parseChainId(value: string): number {
-    const chainId: number = Number(value);
-    if (!Number.isSafeInteger(chainId) || chainId <= 0) {
-      throw new SoloErrors.validation.invalidFlagValue(flags.chainId.name, value, 'must be a positive integer');
-    }
-    return chainId;
+    FlagValidation.assertAllValid([flags.chainId], {[flags.chainId.name]: value});
+    return Number(value);
   }
 
   /** Fetch application.properties from the first reachable consensus node pod, else from the shared data ConfigMap. */
