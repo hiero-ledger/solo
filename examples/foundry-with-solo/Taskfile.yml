@@ -32,10 +32,14 @@ tasks:
       # the relay returns receipts without contractAddress and `forge create` fails with "contract was not deployed"
       # (https://github.com/hiero-ledger/hiero-mirror-node/issues/14473).
       ONE_SHOT_WITH_BLOCK_NODE: '{{default "false" .ONE_SHOT_WITH_BLOCK_NODE}}'
-    # Fail before the network deployment instead of after it when Foundry is missing
+    # Fail before the network deployment instead of after it when a required tool is missing
     preconditions: &foundry-preconditions
       - sh: command -v forge && command -v cast
         msg: 'forge and cast must be on PATH; install Foundry 1.8 or later: https://getfoundry.sh/introduction/installation/'
+      - sh: command -v jq
+        msg: 'jq must be on PATH: https://jqlang.org/download/'
+      - sh: command -v git
+        msg: 'git must be on PATH (forge install uses it): https://git-scm.com/downloads'
     cmds:
       # Install Solo CLI
       - cmd: |
@@ -51,11 +55,14 @@ tasks:
       - task: test
 
   install-forge-std:
-    desc: Install forge-std into lib/ without adding a git submodule to the enclosing repository
+    desc: Install forge-std at FORGE_STD_REVISION into lib/ without adding a git submodule to the enclosing repository
     status:
-      - test -f lib/forge-std/src/Test.sol
+      # `forge install --no-git` keeps no git metadata, so record the installed revision to reinstall on a bump
+      - test "$(cat lib/forge-std/.installed-revision 2>/dev/null)" = "{{.FORGE_STD_REVISION}}"
     cmds:
+      - cmd: rm -rf lib/forge-std
       - cmd: forge install "foundry-rs/forge-std@{{.FORGE_STD_REVISION}}" --no-git
+      - cmd: printf '%s\n' "{{.FORGE_STD_REVISION}}" > lib/forge-std/.installed-revision
 
   test:
     desc: Deploy SimpleStorage with forge create, update it with cast, then run forge test against a fork of the relay
@@ -81,7 +88,7 @@ tasks:
             --json \
             --constructor-args 42)"
           printf '%s\n' "${create_output}"
-          contract_address="$(printf '%s' "${create_output}" | grep -o '"deployedTo": *"0x[0-9a-fA-F]\{40\}"' | grep -o '0x[0-9a-fA-F]\{40\}' || true)"
+          contract_address="$(printf '%s' "${create_output}" | jq -r '.deployedTo // empty')"
           if [ -z "${contract_address}" ]; then
             echo "Could not read the deployed SimpleStorage address from forge create output"
             exit 1

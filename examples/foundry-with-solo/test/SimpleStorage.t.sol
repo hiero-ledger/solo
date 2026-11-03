@@ -40,11 +40,14 @@ contract SimpleStorageTest is Test {
     }
 
     /// Reads the SimpleStorage instance that `task test` deployed to Solo with `forge create` and updated with
-    /// `cast send`. Skipped when SIMPLE_STORAGE_ADDRESS is not set.
+    /// `cast send`. Fails, rather than skips, when SIMPLE_STORAGE_ADDRESS or SIMPLE_STORAGE_VALUE is missing.
     function test_ReadsContractDeployedToSolo() public {
-        address deployed = vm.envOr("SIMPLE_STORAGE_ADDRESS", address(0));
-        vm.skip(deployed == address(0));
-        SimpleStorage instance = SimpleStorage(deployed);
+        assertTrue(
+            vm.envExists("SIMPLE_STORAGE_ADDRESS") && vm.envExists("SIMPLE_STORAGE_VALUE"),
+            "set SIMPLE_STORAGE_ADDRESS and SIMPLE_STORAGE_VALUE, or run `task test`, which deploys SimpleStorage and sets both"
+        );
+        SimpleStorage instance = SimpleStorage(vm.envAddress("SIMPLE_STORAGE_ADDRESS"));
+        assertGt(address(instance).code.length, 0, "no contract at SIMPLE_STORAGE_ADDRESS on the Solo network");
 
         assertEq(instance.get(), vm.envUint("SIMPLE_STORAGE_VALUE"));
 

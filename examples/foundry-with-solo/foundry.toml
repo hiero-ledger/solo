@@ -2,7 +2,7 @@
 # Every option is documented at https://getfoundry.sh/config/reference/
 
 [profile.default]
-# Reuse the Hardhat project layout so contracts/SimpleStorage.sol is shared verbatim with hardhat-with-solo.
+# Use the Hardhat project layout; contracts/SimpleStorage.sol is a copy of the hardhat-with-solo contract.
 src = "contracts"
 test = "test"
 out = "out"
@@ -15,8 +15,7 @@ solc_version = "0.8.28"
 evm_version = "cancun"
 
 # `forge test` forks the JSON-RPC relay that `solo one-shot single deploy` port-forwards to localhost:37546,
-# so tests run against live Solo state (chain id 298) instead of an empty local EVM. The same URL is the
-# default `--rpc-url` for `forge create` and `cast` when they run from this directory.
+# so tests run against live Solo state (chain id 298) instead of an empty local EVM.
 eth_rpc_url = "http://localhost:37546"
 
 # A Solo network is ephemeral and its block numbers restart on every redeploy, so never reuse cached fork state.

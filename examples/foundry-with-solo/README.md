@@ -26,9 +26,13 @@ Browse the source code and configuration files for this example in the [GitHub r
 ## Usage
 
 1. **Install dependencies:**
-   * [Task](https://taskfile.dev/)
+   * [Task](https://taskfile.dev/) (3.45 or later on Windows, which provides the `rm` and `cat` the Taskfile uses)
    * [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/)
    * [Foundry](https://getfoundry.sh/introduction/installation/) 1.8 or later (`forge` and `cast`)
+   * [Git](https://git-scm.com/downloads) (used by `forge install`)
+   * [jq](https://jqlang.org/download/)
+
+   The Taskfile runs in Task's built-in shell and needs no other Unix tools, so it works on Linux, macOS and Windows.
 
 2. **Start the deployment and run the tests:**
    ```sh
@@ -39,7 +43,7 @@ Browse the source code and configuration files for this example in the [GitHub r
    * Deploy `SimpleStorage` with `forge create` and interact with it using `cast`
    * Run `forge test`
 
-   To rerun only the Foundry steps against a network that is already running, use `task test`.
+   To rerun only the Foundry steps against a network that is already running, use `task test`. A bare `forge test` fails `test_ReadsContractDeployedToSolo` unless `SIMPLE_STORAGE_ADDRESS` and `SIMPLE_STORAGE_VALUE` are set; `task test` deploys the contract and sets both.
 
 3. **Destroy the deployment:**
    ```sh
@@ -50,13 +54,13 @@ Browse the source code and configuration files for this example in the [GitHub r
 ## Files
 
 * `Taskfile.yml` — Automation tasks and configuration
-* `foundry.toml` — Foundry configuration that points `forge` and `cast` at the Solo relay on `http://localhost:37546`
-* `contracts/SimpleStorage.sol` — Sample Solidity contract, shared with the `hardhat-with-solo` example
+* `foundry.toml` — Foundry configuration that makes `forge test` fork the Solo relay on `http://localhost:37546`
+* `contracts/SimpleStorage.sol` — Sample Solidity contract, a copy of the one in the `hardhat-with-solo` example
 * `test/SimpleStorage.t.sol` — Forge tests that run against a fork of the Solo deployment
 
 ## Foundry Configuration
 
-`solo one-shot single deploy` port-forwards the JSON-RPC relay to `http://localhost:37546`; the network's chain id is `298`. Setting `eth_rpc_url` in `foundry.toml` makes that relay the default RPC endpoint, so `forge test` forks the Solo network and `forge create` and `cast` send to it without a `--rpc-url` flag.
+`solo one-shot single deploy` port-forwards the JSON-RPC relay to `http://localhost:37546`; the network's chain id is `298`. Setting `eth_rpc_url` in `foundry.toml` makes `forge test` fork the Solo network. The Taskfile still passes `--rpc-url` to `forge create` and `cast`, so every command that talks to the network shows which endpoint it uses.
 
 `forge test` runs every test in a local EVM that loads state from the relay on demand. Contracts the tests create and every state change stay in that fork; to change the Solo network itself, send transactions with `forge create` or `cast send` as the Taskfile does.
 
