@@ -15,12 +15,6 @@
     "local-java-build": false
   },
   {
-    "name": "Hardhat with Solo",
-    "directory": "hardhat-with-solo",
-    "local-java-build": false,
-    "one-shot-with-block-node": false
-  },
-  {
     "name": "Local Build with Custom Config",
     "directory": "local-build-with-custom-config",
     "local-java-build": true
