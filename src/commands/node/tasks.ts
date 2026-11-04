@@ -25,6 +25,7 @@ import {
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {type HederaClient} from '../../integration/hedera/hedera-client.js';
+import {type HederaNodeUpdateOptions} from '../../integration/hedera/hedera-node-update-options.js';
 import {type HederaTransactionStatus} from '../../integration/hedera/hedera-transaction-status.js';
 import {type HederaFileTransactionResult} from '../../integration/hedera/hedera-file-transaction-result.js';
 import {type HederaFreezeResult} from '../../integration/hedera/hedera-freeze-result.js';
@@ -35,15 +36,10 @@ import {
   type Client,
   FileId,
   Long,
-  NodeCreateTransaction,
-  NodeDeleteTransaction,
-  NodeUpdateTransaction,
   PrivateKey,
   ReceiptStatusError,
   ServiceEndpoint,
   Status,
-  TransactionReceipt,
-  TransactionResponse,
 } from '@hiero-ledger/sdk';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -2304,18 +2300,15 @@ export class NodeCommandTasks {
           });
 
           const nodeAdminKey: PrivateKey = await this.loadNodeAdminKey(nodeAlias, namespace, config.consensusNodes);
-          const updateTransaction: NodeUpdateTransaction = await new NodeUpdateTransaction()
-            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
-            .setServiceEndpoints([grpcServiceEndpoint])
-            .freezeWith(nodeClient)
-            .sign(nodeAdminKey);
 
-          let transactionResponse: TransactionResponse;
-          let updateTransactionReceipt: TransactionReceipt;
+          let updateStatus: HederaTransactionStatus;
           try {
-            transactionResponse = await updateTransaction.execute(nodeClient);
-            updateTransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+            updateStatus = await this.accountManager.hederaClientFor(nodeClient).updateNode({
+              nodeId: Number(networkNodeService.nodeId),
+              grpcWebProxyEndpoint,
+              serviceEndpoints: [grpcServiceEndpoint],
+              signingKeys: [nodeAdminKey],
+            });
           } catch (error) {
             if (error instanceof ReceiptStatusError && error.status === Status.InvalidSignature) {
               // Solo holds no key that can sign for this node, and the node itself is already running
@@ -2331,7 +2324,7 @@ export class NodeCommandTasks {
             throw new SoloErrors.component.nodeUpdateTransactionError(error);
           }
 
-          if (updateTransactionReceipt.status !== Status.Success) {
+          if (!updateStatus.isSuccess) {
             throw new SoloErrors.system.grpcProxyEndpointFailed();
           }
         }
@@ -4169,14 +4162,16 @@ export class NodeCommandTasks {
           );
         }
 
-        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
-        nodeUpdateTx = nodeUpdateTx.setGossipEndpoints(await this.prepareNodeUpdateGossipEndpoints(config));
+        const updateOptions: HederaNodeUpdateOptions = {
+          nodeId,
+          gossipEndpoints: await this.prepareNodeUpdateGossipEndpoints(config),
+          signingKeys: [],
+        };
 
         if (config.tlsPublicKey && config.tlsPrivateKey) {
           this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
           const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-          const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
-          nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
+          updateOptions.certificateHash = crypto.createHash('sha384').update(tlsCertDer).digest();
 
           const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
           const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
@@ -4186,8 +4181,7 @@ export class NodeCommandTasks {
 
         if (config.gossipPublicKey && config.gossipPrivateKey) {
           this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-          const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
-          nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
+          updateOptions.gossipCaCertificate = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
 
           const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
           const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
@@ -4196,19 +4190,15 @@ export class NodeCommandTasks {
         }
 
         if (config.newAccountNumber) {
-          nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
+          updateOptions.accountId = config.newAccountNumber;
         }
 
+        // config.adminKey contains the original key, needed to sign the transaction
         let parsedNewKey: PrivateKey;
         if (config.newAdminKey) {
           parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
-          nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
-        }
-        nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
-
-        // config.adminKey contains the original key, needed to sign the transaction
-        if (config.newAdminKey) {
-          nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
+          updateOptions.adminKey = parsedNewKey.publicKey;
+          updateOptions.signingKeys.push(parsedNewKey);
         }
 
         // also sign with new account's key if account is being updated
@@ -4217,21 +4207,19 @@ export class NodeCommandTasks {
             config.newAccountNumber,
             config.namespace,
           );
-          nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+          updateOptions.signingKeys.push(PrivateKey.fromStringED25519(accountKeys.privateKey));
         }
 
-        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+        updateOptions.signingKeys.push(config.adminKey);
 
-        let txResp: TransactionResponse;
-        let nodeUpdateReceipt: TransactionReceipt;
+        let nodeUpdateStatus: HederaTransactionStatus;
         try {
-          txResp = await signedTx.execute(config.nodeClient);
-          nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          nodeUpdateStatus = await this.accountManager.hederaClientFor(config.nodeClient).updateNode(updateOptions);
         } catch (error) {
           throw new SoloErrors.component.nodeUpdateTransactionError(error);
         }
 
-        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+        this.logger.debug(`NodeUpdate status: ${nodeUpdateStatus.status}`);
 
         // If admin key was updated, save the new key to k8s secret
         if (config.newAdminKey) {
@@ -5443,25 +5431,19 @@ export class NodeCommandTasks {
 
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
 
-        const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
-          .setNodeId(new Long(nodeId))
-          .freezeWith(config.nodeClient);
-
-        let signedTransaction: NodeDeleteTransaction;
-        let transactionResponse: TransactionResponse;
-        let nodeDeleteReceipt: TransactionReceipt;
+        let nodeDeleteStatus: HederaTransactionStatus;
         try {
-          signedTransaction = await nodeDeleteTransaction.sign(config.adminKey);
-          transactionResponse = await signedTransaction.execute(config.nodeClient);
-          nodeDeleteReceipt = await transactionResponse.getReceipt(config.nodeClient);
+          nodeDeleteStatus = await this.accountManager
+            .hederaClientFor(config.nodeClient)
+            .deleteNode(nodeId, config.adminKey);
         } catch (error) {
           throw new SoloErrors.component.nodeDeleteTransactionError(error);
         }
 
-        this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
+        this.logger.debug(`NodeDelete status: ${nodeDeleteStatus.status}`);
 
-        if (nodeDeleteReceipt.status !== Status.Success) {
-          throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteReceipt.status.toString());
+        if (!nodeDeleteStatus.isSuccess) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteStatus.status);
         }
 
         // Delete admin key secret from k8s after successful node deletion
@@ -5486,37 +5468,31 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass = context_.config;
 
-        const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
-          .setAccountId(context_.newNode.accountId)
-          .setGossipEndpoints(context_.gossipEndpoints)
-          .setServiceEndpoints(context_.grpcServiceEndpoints)
-          .setGossipCaCertificate(context_.signingCertDer)
-          .setCertificateHash(context_.tlsCertHash)
-          .setAdminKey(context_.adminKey.publicKey)
-          .freezeWith(config.nodeClient);
-
-        let signedTransaction: NodeCreateTransaction;
-        let txResp: TransactionResponse;
-        let nodeCreateReceipt: TransactionReceipt;
+        let nodeCreateStatus: HederaTransactionStatus;
         try {
           const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
             context_.newNode.accountId,
             config.namespace,
           );
 
-          // v0.75+ requires accountId signature when the account already exists.
-          signedTransaction = await nodeCreateTransaction.sign(PrivateKey.fromString(accountKeys.privateKey));
-          signedTransaction = await signedTransaction.sign(context_.adminKey);
-          txResp = await signedTransaction.execute(config.nodeClient);
-          nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
+          nodeCreateStatus = await this.accountManager.hederaClientFor(config.nodeClient).createNode({
+            accountId: context_.newNode.accountId,
+            gossipEndpoints: context_.gossipEndpoints,
+            serviceEndpoints: context_.grpcServiceEndpoints,
+            gossipCaCertificate: context_.signingCertDer,
+            certificateHash: context_.tlsCertHash,
+            adminKey: context_.adminKey.publicKey,
+            // v0.75+ requires accountId signature when the account already exists.
+            signingKeys: [PrivateKey.fromString(accountKeys.privateKey), context_.adminKey],
+          });
         } catch (error) {
           throw new SoloErrors.component.nodeCreateTransactionError(error);
         }
 
-        this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
+        this.logger.debug(`NodeCreate status: ${nodeCreateStatus.status}`);
 
-        if (nodeCreateReceipt.status !== Status.Success) {
-          throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateReceipt.status.toString());
+        if (!nodeCreateStatus.isSuccess) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateStatus.status);
         }
 
         // Save admin key to k8s secret after successful node creation

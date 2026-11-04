@@ -10,6 +10,8 @@ import {
 } from '@hiero-ledger/sdk';
 import {type HederaFileInfo} from './hedera-file-info.js';
 import {type HederaFreezeOptions} from './hedera-freeze-options.js';
+import {type HederaNodeCreateOptions} from './hedera-node-create-options.js';
+import {type HederaNodeUpdateOptions} from './hedera-node-update-options.js';
 import {type HederaFreezeResult} from './hedera-freeze-result.js';
 import {type HederaFileTransactionResult} from './hedera-file-transaction-result.js';
 import {type HederaSubmittedTransaction} from './hedera-submitted-transaction.js';
@@ -126,6 +128,29 @@ export interface HederaClient {
     newAdminKey: PrivateKey,
     currentAdminKey: PrivateKey,
   ): Promise<HederaTransactionStatus>;
+
+  /**
+   * Updates a consensus node. Execution and receipt failures are thrown as the SDK raises them, so callers can map
+   * the network status.
+   * @param options - the node and the fields to change, and the keys that sign
+   * @returns the receipt status
+   */
+  updateNode(options: HederaNodeUpdateOptions): Promise<HederaTransactionStatus>;
+
+  /**
+   * Creates a consensus node
+   * @param options - the fields of the node and the keys that sign
+   * @returns the receipt status
+   */
+  createNode(options: HederaNodeCreateOptions): Promise<HederaTransactionStatus>;
+
+  /**
+   * Deletes a consensus node
+   * @param nodeId - the id of the node
+   * @param adminKey - the admin key of the node, which signs the transaction
+   * @returns the receipt status
+   */
+  deleteNode(nodeId: number, adminKey: PrivateKey): Promise<HederaTransactionStatus>;
 
   /**
    * Writes a chunk of a file, signed by the operator only
