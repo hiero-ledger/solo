@@ -9,10 +9,13 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   existsSync,
+  fstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   rmSync,
   statSync,
@@ -294,7 +297,13 @@ test('npm version does not overwrite a TCK lockfile replaced after reading', con
   originalLock.version = `0.92.0-${'old'.repeat(256)}`;
   writeFileSync(lockPath, JSON.stringify(originalLock));
   chmodSync(lockPath, 0o640);
-  const before = statSync(lockPath);
+  const snapshotDescriptor = openSync(lockPath, 'r');
+  let before;
+  try {
+    before = fstatSync(snapshotDescriptor);
+  } finally {
+    closeSync(snapshotDescriptor);
+  }
   writeFileSync(
     preloaderPath,
     `// SPDX-License-Identifier: Apache-2.0
