@@ -1,6 +1,6 @@
 {
   "name": "@hiero-ledger/solo-tck",
-  "version": "0.1.0-dev.0",
+  "version": "0.95.0",
   "private": true,
   "type": "module",
   "engines": {

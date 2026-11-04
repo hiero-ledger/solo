@@ -4,10 +4,15 @@ Development implementation of the Solo Technology Compatibility Kit. The `js-sdk
 inside Solo, deploys CN and MN with Falcon, and uses the same SDK as a client. It reuses the package-identity and
 account/transaction scenarios from [SDK pilot #4537](https://github.com/hiero-ledger/hiero-sdk-js/pull/4537).
 
-This is separate from the SDK conformance TCK. No kit release, supported Solo release, or caller migration is claimed.
+This is separate from the SDK conformance TCK. No qualified kit release, supported Solo release, Linux acceptance,
+or caller migration is claimed.
 [Solo #6228](https://github.com/hiero-ledger/solo/pull/6228) fixes the operator-account ping exposed by the pilot.
-The implementation is based on [release isolation #6235](https://github.com/hiero-ledger/solo/pull/6235) and follows
-the [architecture proposal #5165](https://github.com/hiero-ledger/solo/pull/5165).
+The implementation is based on [co-release alignment #6235](https://github.com/hiero-ledger/solo/pull/6235)
+and follows the merged [architecture #5165](https://github.com/hiero-ledger/solo/pull/5165).
+
+The kit lives in Solo's `tck/` directory and uses Solo's version and release cycle. The action source shares the
+CLI's `v*` release tag and commit. Consumers pin `hiero-ledger/solo/tck@<verified Solo release SHA>`, with the release
+version in a comment. Solo's npm package excludes `tck/`; the action source is fetched from that Git ref.
 
 ## Run locally
 
@@ -24,7 +29,7 @@ for directory in packages/proto packages/cryptography .; do
 done
 ```
 
-Then run from the Solo checkout, with the explicit planned-break Solo commit:
+Then run from the Solo checkout, with the explicit full Solo source commit:
 
 ```bash
 node tck/src/run.mjs --component js-sdk --candidate-packages /tmp/sdk-candidate \
@@ -54,24 +59,26 @@ caller-asserted, not independently verified. This option is not exposed by the c
 It selects Node 22, runs the lane, and uploads its evidence even when the run fails. It needs only `contents: read`
 and no secrets. The caller builds its candidate and owns its 30-minute job deadline, build included.
 
-Until a kit revision has completed release verification, `solo-versions.json` intentionally has no default and an
-empty `supported` list. An explicit full Solo SHA is required. A released version cannot bypass this check. After
-the containing Solo fix is released, Linux verification must pass before adding that release to the list and making
-it the default. Release publishing and the SDK caller switch are separate changes.
+The action's shared release identifies its source. `solo-versions.json` independently records the qualified default
+and supported CLI releases, which can differ from the action version. Until a kit revision has completed release
+verification, that file intentionally has no default and an empty `supported` list. An explicit full Solo SHA is
+required. A released version cannot bypass this check. After the containing Solo fix is released, Linux verification
+must pass before adding that release to the list and making it the default. Shared Solo release publication and the
+SDK caller switch are separate changes.
 
 ## Contract and reports
 
 See [the lane spec](specs/js-sdk.md) and [the SDK assumptions exercised](specs/js-sdk-assumptions.md).
 
-- P1 validates the lane, packages and Solo selection.
-- P3 proves one copy of each candidate package by tarball sha512 and both SDK resolutions from Solo's package.
-- P2 uses `solo one-shot falcon deploy`, CN and MN only, pinger off, default resource limits, metrics server on.
-- P7 creates an account through Solo, changes its key through Solo, and reads that key through the candidate SDK.
-- P5 obtains SUCCESS receipts for a transfer, topic creation and topic message.
-- P6 reads the exact transfer and message from Mirror REST, with a 120-second ingestion deadline.
-- P8 submits 2,400 alternating transfers and topic messages over two minutes at 20 transactions per second, checks
+* P1 validates the lane, packages and Solo selection.
+* P3 proves one copy of each candidate package by tarball sha512 and both SDK resolutions from Solo's package.
+* P2 uses `solo one-shot falcon deploy`, CN and MN only, pinger off, default resource limits, metrics server on.
+* P7 creates an account through Solo, changes its key through Solo, and reads that key through the candidate SDK.
+* P5 obtains SUCCESS receipts for a transfer, topic creation and topic message.
+* P6 reads the exact transfer and message from Mirror REST, with a 120-second ingestion deadline.
+* P8 submits 2,400 alternating transfers and topic messages over two minutes at 20 transactions per second, checks
   every receipt, then reads back the last transfer and message.
-- P4 watches pods from deployment onward, rejects OOMs, crashes, definitive image failures, and any post-deploy
+* P4 watches pods from deployment onward, rejects OOMs, crashes, definitive image failures, and any post-deploy
   restart/replacement or non-Ready pod. Container CPU/memory peaks are sampled every 15 seconds after deployment.
   Missing metrics are reported explicitly; CPU and memory ceilings remain report-only.
 
