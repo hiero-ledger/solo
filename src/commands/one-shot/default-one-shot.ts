@@ -208,11 +208,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     if (config.rollback === false) {
-      this.logger.warn('Automatic rollback skipped (--no-rollback flag provided)');
+      this.logger.warn('Automatic rollback skipped (it is opt-in: pass --rollback to enable it)');
       this.logger.warn('To clean up: solo one-shot single destroy');
       this.logger.warn(`Or: kubectl delete ns ${config.namespace.name}`);
       throw new SoloErrors.component.oneShotDeployFailed(
-        `Deploy failed: ${deployError.message}. Rollback skipped (--no-rollback).`,
+        `Deploy failed: ${deployError.message}. Rollback skipped (not enabled with --rollback).`,
         deployError,
       );
     }

@@ -14,6 +14,8 @@ import {
   type FileInfo,
   FileInfoQuery,
   FileUpdateTransaction,
+  FreezeTransaction,
+  FreezeType,
   Hbar,
   HbarUnit,
   Long,
@@ -24,6 +26,7 @@ import {
   StatusError,
   type TransactionReceipt,
   TopicCreateTransaction,
+  Timestamp,
   type TopicId,
   TopicInfoQuery,
   type TransactionResponse,
@@ -31,6 +34,9 @@ import {
 } from '@hiero-ledger/sdk';
 import {type HederaClient} from '../hedera-client.js';
 import {type HederaFileInfo} from '../hedera-file-info.js';
+import {type HederaFreezeOptions} from '../hedera-freeze-options.js';
+import {type HederaFreezeResult} from '../hedera-freeze-result.js';
+import {type HederaFreezeType} from '../hedera-freeze-type.js';
 import {type HederaFileTransactionResult} from '../hedera-file-transaction-result.js';
 import {type HederaSubmittedTransaction} from '../hedera-submitted-transaction.js';
 import {type HederaTransactionStatus} from '../hedera-transaction-status.js';
@@ -46,6 +52,11 @@ export class SdkHederaClient implements HederaClient {
   private static readonly FILE_CONTENTS_MAX_ATTEMPTS: number = 5;
   private static readonly FILE_CONTENTS_RETRY_DELAY_MS: number = 5000;
   private static readonly FILE_TRANSACTION_MAX_FEE_HBAR: number = 100;
+  private static readonly FREEZE_TYPES: Record<HederaFreezeType, FreezeType> = {
+    'prepare-upgrade': FreezeType.PrepareUpgrade,
+    'freeze-upgrade': FreezeType.FreezeUpgrade,
+    'freeze-only': FreezeType.FreezeOnly,
+  };
 
   public constructor(
     public readonly sdkClient: Client,
@@ -60,7 +71,7 @@ export class SdkHederaClient implements HederaClient {
     return this.sdkClient.operatorAccountId;
   }
 
-  public setOperator(accountId: string, privateKey: string): void {
+  public setOperator(accountId: AccountId | string, privateKey: PrivateKey | string): void {
     this.sdkClient.setOperator(accountId, privateKey);
   }
 
@@ -200,6 +211,43 @@ export class SdkHederaClient implements HederaClient {
     const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
 
     return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
+  }
+
+  public async writeFileChunk(
+    fileId: FileId,
+    contents: Uint8Array,
+    mode: 'update' | 'append',
+  ): Promise<HederaFileTransactionResult> {
+    const transaction: FileUpdateTransaction | FileAppendTransaction =
+      mode === 'update'
+        ? new FileUpdateTransaction().setFileId(fileId).setContents(contents)
+        : new FileAppendTransaction().setFileId(fileId).setContents(contents);
+
+    return await this.executeFileTransaction(transaction);
+  }
+
+  public async freeze(options: HederaFreezeOptions): Promise<HederaFreezeResult> {
+    const transaction: FreezeTransaction = new FreezeTransaction().setFreezeType(
+      SdkHederaClient.FREEZE_TYPES[options.type],
+    );
+    if (options.startTime) {
+      transaction.setStartTimestamp(Timestamp.fromDate(options.startTime));
+    }
+    if (options.fileId) {
+      transaction.setFileId(options.fileId);
+    }
+    if (options.fileHash) {
+      transaction.setFileHash(options.fileHash);
+    }
+
+    const response: TransactionResponse = await transaction.freezeWith(this.sdkClient).execute(this.sdkClient);
+    const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
+
+    return {
+      isSuccess: receipt.status === Status.Success,
+      status: receipt.status.toString(),
+      transactionId: response.transactionId.toString(),
+    };
   }
 
   public async topicExists(topicId: TopicId): Promise<boolean> {
