@@ -1,0 +1,9 @@
+# Foundry build output and fork cache
+/out
+/cache
+
+# Dependencies installed by `task install-forge-std`
+/lib
+foundry.lock
+
+.env

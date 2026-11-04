@@ -86,6 +86,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.blockNodeChartVersion,
       flags.blockNodeVersion,
       flags.deployMetricsServer,
+      flags.chainId,
     ],
   };
 
