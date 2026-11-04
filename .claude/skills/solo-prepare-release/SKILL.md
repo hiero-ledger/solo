@@ -21,7 +21,7 @@ Run everything from the `solo/` repo root (the directory containing `version.ts`
 
 ## When to use
 
-- The user asks to prepare/cut a release, bump the version, or open a release PR for Solo.
+* The user asks to prepare/cut a release, bump the version, or open a release PR for Solo.
 
 Do **not** use for: actually tagging/publishing the release (that is the release workflow, not this skill), or for
 non-Solo repos.
@@ -31,7 +31,7 @@ non-Solo repos.
 | Fact | How to get it |
 |------|----------------|
 | Last released version | `git describe --tags --match 'v[0-9]*' --abbrev=0` (e.g. `v0.79.0`) |
-| Commits since last tag | `git log "$(git describe --tags --match 'v[0-9]*' --abbrev=0)"..HEAD --pretty=%s` |
+| Commits since last tag | `git log "$(git describe --tags --match 'v[0-9]*' --abbrev=0)"..HEAD --pretty=%B` |
 | Today's date | `date +%Y-%m-%d` |
 | Dependency versions | `version.ts` constants (see mapping below) |
 
@@ -39,29 +39,32 @@ non-Solo repos.
 
 Read the current version from `package.json` (`"version"`) — confirm it matches the last tag.
 
-Decide the bump by inspecting commit subjects since the last tag:
+Decide the shared Solo/TCK bump by inspecting commit subjects and bodies since the last Solo tag:
 
 ```bash
 LAST_TAG="$(git describe --tags --match 'v[0-9]*' --abbrev=0)"
-git log "${LAST_TAG}..HEAD" --pretty=%s
+git log "${LAST_TAG}..HEAD" --pretty=%B
 ```
 
-- Ignore commits whose exact scope is `tck`, including `feat(tck)!:`. They belong to the independently released
-  Solo TCK.
-- If **any remaining** subject starts with `feat:` (also count conventional variants `feat(scope):` and `feat!:`/`feat(scope)!:`),
-  bump the **minor** version and reset patch to 0 → `0.79.0` becomes `0.80.0`.
-- Otherwise bump only the **patch** version → `0.79.0` becomes `0.79.1`.
+* Include every scope, including `tck`, in Solo's shared release.
+* A feature (`feat:`, `feat(scope):`) or any breaking change (`type!:`, `type(scope)!:`, or a
+  `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer) bumps the **minor** version and resets patch to 0 →
+  `0.79.0` becomes `0.80.0`. Solo's policy uses minor for breaking changes, including TCK changes.
+* Otherwise bump only the **patch** version → `0.79.0` becomes `0.79.1`.
+* Mixed commits take the largest bump: a TCK feature or breaking change plus a Solo fix is a minor release.
 
-Version calculation (`NEXT` ends up as the bare version, no leading `v`, when Solo commits remain):
+Version calculation (`NEXT` ends up as the bare version, no leading `v`, when commits exist):
 
 ```bash
 CUR="$(node -p "require('./package.json').version")"   # e.g. 0.79.0
 IFS=. read -r MAJ MIN PAT <<< "${CUR}"
-SOLO_SUBJECTS="$(git log "${LAST_TAG}..HEAD" --pretty=%s | sed -E '/^[^(:]+\(tck\)!?:/d')"
-if [[ -z "${SOLO_SUBJECTS}" ]]; then
-  echo "No Solo commits since ${LAST_TAG}; nothing to prepare."
+SUBJECTS="$(git log "${LAST_TAG}..HEAD" --pretty=%s)"
+MESSAGES="$(git log "${LAST_TAG}..HEAD" --pretty=%B)"
+if [[ -z "${SUBJECTS}" ]]; then
+  echo "No commits since ${LAST_TAG}; nothing to prepare."
 else
-  if grep -Eq '^feat(\(.+\))?!?:' <<< "${SOLO_SUBJECTS}"; then
+  if grep -Eq '^(feat(\([^)]*\))?!?|[[:alnum:]_-]+(\([^)]*\))?!):' <<< "${SUBJECTS}" ||
+    grep -Eq '^[[:space:]]*BREAKING[ -]CHANGE:' <<< "${MESSAGES}"; then
     NEXT="${MAJ}.$((MIN + 1)).0"
   else
     NEXT="${MAJ}.${MIN}.$((PAT + 1))"
@@ -70,10 +73,10 @@ else
 fi
 ```
 
-If no Solo commits remain, report that there is nothing to prepare and stop before Step 2. Otherwise state the
-computed version and the reason (Solo feat found -> minor / none -> patch) before proceeding.
+If no commits exist, report that there is nothing to prepare and stop before Step 2. Otherwise state the
+computed version and the reason (feature or breaking change found -> minor / otherwise -> patch) before proceeding.
 
-> **Patch-only short-circuit:** if the bump is a **patch** (no `feat:` commits since the last tag), there is
+> **Patch-only short-circuit:** if the bump is a **patch** (no features or breaking changes since the last tag), there is
 > **nothing to prepare** — do **not** create a branch, edit any files, or commit. Report that the next version is a
 > patch release and that no documentation changes are needed, then stop. Skip every step below. Only continue when the
 > bump is a **minor**.
@@ -82,8 +85,8 @@ computed version and the reason (Solo feat found -> minor / none -> patch) befor
 
 The minor number decides the support policy:
 
-- **Even minor** (e.g. `0.80.x`) → **LTS**: row label gets a ` (LTS)` suffix, support window is **3 months**.
-- **Odd minor** (e.g. `0.81.x`) → **normal**: no suffix, support window is **1 month**.
+* **Even minor** (e.g. `0.80.x`) → **LTS**: row label gets a ` (LTS)` suffix, support window is **3 months**.
+* **Odd minor** (e.g. `0.81.x`) → **normal**: no suffix, support window is **1 month**.
 
 Patch releases inherit the parity of their minor (e.g. `0.79.1` is odd → normal).
 
@@ -191,18 +194,19 @@ Then report: the computed version, LTS/normal classification, the new README row
 
 ### MUST
 
-- Stop immediately with no branch, no file edits, and no commit when the bump is **patch-only** (no `feat:` commits).
-- Read dependency versions from `version.ts` (`HEDERA_PLATFORM_VERSION`, `KUBECTL_VERSION`), never assume them.
-- Insert the new release as the first data row of the "Current Releases" table.
-- Apply the even=LTS/3-month, odd=normal/1-month rule from the **minor** version number.
-- Move only rows whose End of Support is before today, preserving legacy-table descending order and formatting.
-- Commit with both `-s` (sign-off) and a valid signature; stop if signing is unavailable.
-- Whenever a commit is made, push the branch and open the PR — with a Conventional Commit title that matches the
+* Stop immediately with no branch, no file edits, and no commit when the bump is **patch-only** (no features or
+  breaking changes).
+* Read dependency versions from `version.ts` (`HEDERA_PLATFORM_VERSION`, `KUBECTL_VERSION`), never assume them.
+* Insert the new release as the first data row of the "Current Releases" table.
+* Apply the even=LTS/3-month, odd=normal/1-month rule from the **minor** version number.
+* Move only rows whose End of Support is before today, preserving legacy-table descending order and formatting.
+* Commit with both `-s` (sign-off) and a valid signature; stop if signing is unavailable.
+* Whenever a commit is made, push the branch and open the PR — with a Conventional Commit title that matches the
   commit subject (`chore(release): update readme and legacy versions for release <next>`).
 
 ### MUST NOT
 
-- Commit anything other than `README.md` and `legacy-versions.md`.
-- "Fix" the existing legacy-table header typo or reflow unrelated table rows.
-- Make any file change or commit for a patch-only bump.
-- Bump major version — this skill only does minor/patch bumps.
+* Commit anything other than `README.md` and `legacy-versions.md`.
+* "Fix" the existing legacy-table header typo or reflow unrelated table rows.
+* Make any file change or commit for a patch-only bump.
+* Bump major version — this skill only does minor/patch bumps.
