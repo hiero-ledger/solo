@@ -7,7 +7,17 @@
 
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import {createRequire} from 'node:module';
 import {devNull, tmpdir} from 'node:os';
 import path from 'node:path';
@@ -272,6 +282,55 @@ test('npm version --allow-same-version synchronizes the kit through the real lif
   const manifest = JSON.parse(readFileSync(path.join(directory, 'tck/package.json'), 'utf8'));
   const lock = JSON.parse(readFileSync(path.join(directory, 'tck/package-lock.json'), 'utf8'));
   assert.deepEqual([manifest.version, lock.version, lock.packages[''].version], ['0.93.0', '0.93.0', '0.93.0']);
+});
+
+test('npm version does not overwrite a TCK lockfile replaced after reading', context => {
+  const directory = versionFixture(context, ['.', 'tck']);
+  const lockPath = path.join(directory, 'tck/package-lock.json');
+  const originalPath = path.join(directory, 'tck/package-lock.original.json');
+  const preloaderPath = path.join(directory, 'replace-lockfile.mjs');
+  const replacement = '{"version":"replacement","untouched":true}\n';
+  const originalLock = JSON.parse(readFileSync(lockPath, 'utf8'));
+  originalLock.version = `0.92.0-${'old'.repeat(256)}`;
+  writeFileSync(lockPath, JSON.stringify(originalLock));
+  chmodSync(lockPath, 0o640);
+  const before = statSync(lockPath);
+  writeFileSync(
+    preloaderPath,
+    `// SPDX-License-Identifier: Apache-2.0
+import fs from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
+
+const lockPath = new URL('./tck/package-lock.json', import.meta.url);
+const originalPath = new URL('./tck/package-lock.original.json', import.meta.url);
+const {readFileSync, renameSync, writeFileSync, statSync, fstatSync} = fs;
+const original = statSync(lockPath);
+let replaced = false;
+fs.readFileSync = (file, ...arguments_) => {
+  const contents = readFileSync(file, ...arguments_);
+  const metadata = typeof file === 'number' ? fstatSync(file) : statSync(file);
+  if (!replaced && metadata.dev === original.dev && metadata.ino === original.ino) {
+    replaced = true;
+    renameSync(lockPath, originalPath);
+    writeFileSync(lockPath, ${JSON.stringify(replacement)});
+  }
+  return contents;
+};
+syncBuiltinESMExports();
+`,
+  );
+
+  run(
+    'npm',
+    ['version', '0.94.0', '--no-git-tag-version', `--node-options=--import=${pathToFileURL(preloaderPath).href}`],
+    directory,
+  );
+
+  assert.equal(readFileSync(lockPath, 'utf8'), replacement, 'The replacement lockfile must remain untouched.');
+  const lock = JSON.parse(readFileSync(originalPath, 'utf8'));
+  assert.deepEqual([lock.version, lock.packages[''].version], ['0.94.0', '0.94.0']);
+  const after = statSync(originalPath);
+  assert.deepEqual([after.uid, after.gid, after.mode], [before.uid, before.gid, before.mode]);
 });
 
 for (const [name, files] of [
