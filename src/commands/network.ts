@@ -970,6 +970,10 @@ export class NetworkCommand extends BaseCommand {
         // an undersized volume stops the node before it writes state rather than after.
         .set('defaults.volumeClaims.capacityCheck.enabled', config.verifyPersistentVolumeClaimMounts);
 
+      // The class chosen here is stored in the release values. `node add` / `node upgrade` do not take
+      // --pvc-storage-class: they run `helm upgrade --reuse-values` on this release, so the volume claims they create
+      // keep the class resolved at deploy time (a release created before this value existed falls back to the
+      // cluster default, as it always did).
       const resolvedStorageClass: string = config.resolvedPvcStorageClass[clusterReference];
       if (resolvedStorageClass) {
         chartValuesMap[clusterReference]

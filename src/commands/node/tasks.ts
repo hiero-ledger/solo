@@ -3348,6 +3348,8 @@ export class NodeCommandTasks {
                     MINIMUM_SOLO_CHART_VERSION,
                   );
 
+                  // reuseValues=true keeps the release's stored values, including the StorageClass that
+                  // `network deploy` chose for volume claims (defaults.volumeClaims.storageClassName)
                   await this.chartManager.upgrade(
                     config.namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
@@ -4845,6 +4847,8 @@ export class NodeCommandTasks {
               .clone()
               .add(valuesFilesMap[clusterReference]);
 
+            // reuseValues=true keeps the release's stored values, including the StorageClass that
+            // `network deploy` chose for volume claims (defaults.volumeClaims.storageClassName)
             await this.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
