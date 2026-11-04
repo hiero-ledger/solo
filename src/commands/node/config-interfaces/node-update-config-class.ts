@@ -4,7 +4,7 @@ import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
 import {type PrivateKey} from '@hiero-ledger/sdk';
 import {type CheckedNodesConfigClass} from './checked-nodes-config-class.js';
 import {type NodeCommonConfigWithNodeAlias} from './node-common-config-with-node-alias.js';
-import {type Client} from '@hiero-ledger/sdk';
+import {type HederaClient} from '../../../integration/hedera/hedera-client.js';
 import {type EndpointPortMapping} from '../../../types/index.js';
 
 export interface NodeUpdateConfigClass extends NodeCommonConfigWithNodeAlias, CheckedNodesConfigClass {
@@ -32,7 +32,7 @@ export interface NodeUpdateConfigClass extends NodeCommonConfigWithNodeAlias, Ch
   chartPath: string;
   freezeAdminPrivateKey: PrivateKey | string;
   keysDir: string;
-  nodeClient: Client;
+  nodeClient: HederaClient;
   stagingDir: string;
   treasuryKey: PrivateKey;
   curDate: Date;

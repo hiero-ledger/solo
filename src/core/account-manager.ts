@@ -71,21 +71,12 @@ export class AccountManager {
   private _nextPortForwardScanStart: number = 0;
   private _hederaClient: Optional<HederaClient>;
 
-  /**
-   * The Hedera client for an SDK node client that a caller still holds in its configuration
-   * @deprecated transitional: returns the managed client when it wraps the given SDK client, otherwise a new wrapper
-   * @param sdkClient - the SDK node client
-   */
-  public hederaClientFor(sdkClient: Client): HederaClient {
-    return this._hederaClient?.sdkClient === sdkClient ? this._hederaClient : this.hederaClientFactory.wrap(sdkClient);
-  }
-
   /** the Hedera client of the loaded node client, undefined until {@link loadNodeClient} has run */
   public get hederaClient(): Optional<HederaClient> {
     return this._hederaClient;
   }
 
-  /** @deprecated the SDK client behind the Hedera client, for callers that still build SDK transactions themselves */
+  /** @deprecated the SDK client behind the Hedera client, only for E2E tests that still build SDK transactions themselves */
   public get _nodeClient(): Optional<Client> {
     return this._hederaClient?.sdkClient;
   }
@@ -304,7 +295,7 @@ export class AccountManager {
     clusterReferences: ClusterReferences,
     deployment: DeploymentName,
     forcePortForward?: boolean,
-  ): Promise<Client> {
+  ): Promise<HederaClient> {
     try {
       this.logger.debug(
         `loading node client: [!this._hederaClient=${!this._hederaClient}, this._hederaClient.isShutDown=${this._hederaClient?.isShutDown}]`,
@@ -325,7 +316,7 @@ export class AccountManager {
         }
       }
 
-      return this._nodeClient!;
+      return this._hederaClient!;
     } catch (error) {
       throw new SoloErrors.component.nodeClientLoadFailed(error);
     }
@@ -354,7 +345,7 @@ export class AccountManager {
     deployment: DeploymentName,
     forcePortForward?: boolean,
     selection: NodeClientSelection = DEFAULT_NODE_CLIENT_SELECTION,
-  ): Promise<Client> {
+  ): Promise<HederaClient> {
     try {
       await this.close();
       if (forcePortForward !== undefined) {
@@ -369,7 +360,7 @@ export class AccountManager {
       );
 
       const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
-      const nodeClient: Client = await this._getNodeClient(
+      const nodeClient: HederaClient = await this._getNodeClient(
         namespace,
         selectedNodeServicesMap,
         treasuryAccountInfo.accountId,
@@ -416,7 +407,7 @@ export class AccountManager {
     operatorKey: string,
     skipNodeAlias?: NodeAlias,
     skipAssignment: boolean = false,
-  ): Promise<Client> {
+  ): Promise<HederaClient> {
     let nodes: Record<SdkNetworkEndpoint, AccountId> = {};
     const configureNodeAccessPromiseArray: Promise<Record<SdkNetworkEndpoint, AccountId>>[] = [];
 
@@ -488,7 +479,7 @@ export class AccountManager {
         await hederaClient.ping(AccountId.fromString(operatorId));
       }
 
-      return hederaClient.sdkClient;
+      return hederaClient;
     } catch (error) {
       throw new SoloErrors.component.nodeClientSetupFailed(error);
     }

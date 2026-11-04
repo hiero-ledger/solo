@@ -33,7 +33,6 @@ import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {
   AccountId,
   type AccountInfo,
-  type Client,
   FileId,
   Long,
   PrivateKey,
@@ -1234,11 +1233,7 @@ export class NodeCommandTasks {
             postUpgradeSystemFiles,
           );
         }
-        context_.upgradeZipHash = await this._uploadUpgradeZip(
-          context_.upgradeZipFile,
-          this.accountManager.hederaClientFor(config.nodeClient),
-          deployment,
-        );
+        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }
@@ -1371,7 +1366,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
@@ -1422,7 +1417,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
 
@@ -1467,8 +1462,10 @@ export class NodeCommandTasks {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(
-          await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment),
+        const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
+          namespace,
+          this.remoteConfig.getClusterRefs(),
+          deployment,
         );
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
@@ -2240,7 +2237,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const nodeClient: Client = await this.accountManager.loadNodeClient(
+          const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             deployment,
@@ -2303,7 +2300,7 @@ export class NodeCommandTasks {
 
           let updateStatus: HederaTransactionStatus;
           try {
-            updateStatus = await this.accountManager.hederaClientFor(nodeClient).updateNode({
+            updateStatus = await nodeClient.updateNode({
               nodeId: Number(networkNodeService.nodeId),
               grpcWebProxyEndpoint,
               serviceEndpoints: [grpcServiceEndpoint],
@@ -4214,7 +4211,7 @@ export class NodeCommandTasks {
 
         let nodeUpdateStatus: HederaTransactionStatus;
         try {
-          nodeUpdateStatus = await this.accountManager.hederaClientFor(config.nodeClient).updateNode(updateOptions);
+          nodeUpdateStatus = await config.nodeClient.updateNode(updateOptions);
         } catch (error) {
           throw new SoloErrors.component.nodeUpdateTransactionError(error);
         }
@@ -5433,9 +5430,7 @@ export class NodeCommandTasks {
 
         let nodeDeleteStatus: HederaTransactionStatus;
         try {
-          nodeDeleteStatus = await this.accountManager
-            .hederaClientFor(config.nodeClient)
-            .deleteNode(nodeId, config.adminKey);
+          nodeDeleteStatus = await config.nodeClient.deleteNode(nodeId, config.adminKey);
         } catch (error) {
           throw new SoloErrors.component.nodeDeleteTransactionError(error);
         }
@@ -5475,7 +5470,7 @@ export class NodeCommandTasks {
             config.namespace,
           );
 
-          nodeCreateStatus = await this.accountManager.hederaClientFor(config.nodeClient).createNode({
+          nodeCreateStatus = await config.nodeClient.createNode({
             accountId: context_.newNode.accountId,
             gossipEndpoints: context_.gossipEndpoints,
             serviceEndpoints: context_.grpcServiceEndpoints,
