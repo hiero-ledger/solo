@@ -19,6 +19,13 @@ import {EnvironmentAliasRegistry} from '../schema/decorators/environment-alias-r
  * operator's own {@code ~/.solo/solo-config.yaml}.
  */
 export class DeclaredTypeCoercer {
+  private static readonly BOOLEAN_SPELLINGS: ReadonlyMap<string, boolean> = new Map<string, boolean>([
+    ['true', true],
+    ['1', true],
+    ['false', false],
+    ['0', false],
+  ]);
+
   /**
    * Rewrites each value of {@code data} in place into the canonical form of its declared type. Keys the
    * schema does not declare are left untouched, so a forest holding something other than
@@ -69,25 +76,42 @@ export class DeclaredTypeCoercer {
     return EnvironmentAliasRegistry.configLeaves().get(configKey) === 'string' ? value : ReflectAssist.coerce(value);
   }
 
-  private static asBoolean(key: string, value: string, originFor: (configKey: string) => string): boolean {
-    switch (value.trim().toLowerCase()) {
-      case 'true':
-      case '1': {
-        return true;
+  /** True when {@code value} can be read as the type the schema declares for {@code configKey}. */
+  public static accepts(configKey: string, value: string): boolean {
+    switch (EnvironmentAliasRegistry.configLeaves().get(configKey)) {
+      case 'boolean': {
+        return DeclaredTypeCoercer.parseBoolean(value) !== undefined;
       }
-      case 'false':
-      case '0': {
-        return false;
+      case 'number': {
+        return DeclaredTypeCoercer.parseNumber(value) !== undefined;
       }
       default: {
-        throw new SoloErrors.validation.configValueTypeMismatch(originFor(key), key, value, 'boolean');
+        return true;
       }
     }
   }
 
-  private static asNumber(key: string, value: string, originFor: (configKey: string) => string): number {
+  private static parseBoolean(value: string): boolean | undefined {
+    return DeclaredTypeCoercer.BOOLEAN_SPELLINGS.get(value.trim().toLowerCase());
+  }
+
+  private static parseNumber(value: string): number | undefined {
     const parsed: number = Number(value.trim());
-    if (value.trim() === '' || !Number.isFinite(parsed)) {
+    return value.trim() === '' || !Number.isFinite(parsed) ? undefined : parsed;
+  }
+
+  private static asBoolean(key: string, value: string, originFor: (configKey: string) => string): boolean {
+    const parsed: boolean | undefined = DeclaredTypeCoercer.parseBoolean(value);
+    if (parsed === undefined) {
+      throw new SoloErrors.validation.configValueTypeMismatch(originFor(key), key, value, 'boolean');
+    }
+
+    return parsed;
+  }
+
+  private static asNumber(key: string, value: string, originFor: (configKey: string) => string): number {
+    const parsed: number | undefined = DeclaredTypeCoercer.parseNumber(value);
+    if (parsed === undefined) {
       throw new SoloErrors.validation.configValueTypeMismatch(originFor(key), key, value, 'number');
     }
 

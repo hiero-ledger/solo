@@ -14,7 +14,7 @@ import {type ClassConstructor} from '../../../business/utils/class-constructor.t
  *       `SOLO_FF_*` forms and for the `EXPERIMENTAL_*` name an experimental flag carries.</li>
  *   <li>{@link legacyAlias} — accepted only for backwards compatibility, typically an ad-hoc environment
  *       variable that predates the config field. Never recommend one in docs; it exists so existing CI
- *       jobs and scripts keep working.</li>
+ *       jobs and scripts keep working, so a value it cannot parse is ignored with a warning, not rejected.</li>
  * </ul>
  *
  * <p>The generated `SOLO_*` name always takes precedence; an alias only applies when the generated

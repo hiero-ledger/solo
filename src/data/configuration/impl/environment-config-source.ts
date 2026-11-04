@@ -109,7 +109,7 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
   /**
    * Applies fixed environment variable aliases, in descending precedence: the generated `SOLO_*` name,
    * then supported aliases, then legacy ones. An alias is used only when nothing higher has already set
-   * its canonical key.
+   * its canonical key; a legacy one also only when its value parses as the declared type.
    */
   private applyAliases(): void {
     const aliases: [string, string][] = [...EnvironmentAliasRegistry.aliasMap()];
@@ -139,6 +139,15 @@ export class EnvironmentConfigSource extends LayeredConfigSource implements Conf
         console.warn(
           `Environment variable '${name}' is ignored because ${winner} for config key ` +
             `'${canonicalKey}' is also set and takes precedence.`,
+        );
+        continue;
+      }
+
+      // A legacy name predates strict parsing, so an old-style value such as `yes` must not abort startup.
+      if (EnvironmentAliasRegistry.isLegacy(name) && !DeclaredTypeCoercer.accepts(canonicalKey, value)) {
+        console.warn(
+          `Environment variable '${name}' is ignored because '${value}' is not a valid value for config key ` +
+            `'${canonicalKey}' (booleans accept true, false, 1 or 0); the configured or default value applies.`,
         );
         continue;
       }

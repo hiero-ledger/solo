@@ -19,9 +19,9 @@ setting — that is a CLI flag or a plain `SoloConfigSchema` field.
 | `disableBlockNodeIntegration` | `false` | `src/commands/mirror-node.ts` | `SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION`, `DISABLE_IMPORTER_SPRING_PROFILES` |
 | `enableImageCache`            | `true`  | `src/commands/one-shot/`      | `SOLO_FF_ENABLE_IMAGE_CACHE`, `ENABLE_IMAGE_CACHE`                           |
 
-Every flag also answers to its generated `SOLO_FEATURE_FLAGS_*` name. `copyWrapsLibraryInParallel` is still
-experimental, so it carries only an `EXPERIMENTAL_` alias. `enableImageCache` is the one opt-out flag — it
-defaults on; new flags default off.
+Every flag also answers to its generated `SOLO_FEATURE_FLAGS_*` name. `copyWrapsLibraryInParallel` keeps only
+the deprecated `EXPERIMENTAL_` variable it replaced, as a legacy alias. `enableImageCache` is the one opt-out
+flag — it defaults on; new flags default off.
 
 Keep this table in the same commit as the code change.
 
@@ -34,7 +34,7 @@ Keep this table in the same commit as the code change.
    Default to `false` — a flag that defaults on is an opt-out and needs a reason.
 2. **Alias it** with `@EnvironmentAliasRegistry.alias(...)`: `SOLO_FF_<UPPER_SNAKE>` for a standard flag,
    `EXPERIMENTAL_<UPPER_SNAKE>` while experimental. If the behaviour was previously toggled by an ad-hoc
-   environment variable, list that legacy name as an extra alias so existing scripts keep working.
+   environment variable, list that legacy name with `legacyAlias(...)` so existing scripts keep working.
 3. **Add a getter** on `FeatureFlags` (`src/business/runtime-state/config/solo/feature-flags.ts`) returning
    `this.currentFlags.<flag>`.
 4. **Read it** at the branch point (see below) and delete the ad-hoc `getEnvironmentVariable()` read it
@@ -94,12 +94,12 @@ same reasoning applies to consumers — do not cache a flag value.
 
 A flag answers to several names. The first match in this order wins:
 
-| Form                               | When                                                                        | Example                                   |
-| ---------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------- |
-| `SOLO_FEATURE_FLAGS_<UPPER_SNAKE>` | Generated from the property path; always available, highest precedence      | `SOLO_FEATURE_FLAGS_SKIP_NODE_PING`       |
-| `SOLO_FF_<UPPER_SNAKE>`            | Readable alias for a standard flag                                          | `SOLO_FF_SKIP_NODE_PING`                  |
-| `EXPERIMENTAL_<UPPER_SNAKE>`       | Alias while the flag is experimental                                        | `EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL` |
-| legacy name                        | `legacyAlias` preserved when a flag replaces an ad-hoc environment variable | `SKIP_NODE_PING`                          |
+| Form                               | When                                                                        | Example                             |
+| ---------------------------------- | --------------------------------------------------------------------------- | ----------------------------------- |
+| `SOLO_FEATURE_FLAGS_<UPPER_SNAKE>` | Generated from the property path; always available, highest precedence      | `SOLO_FEATURE_FLAGS_SKIP_NODE_PING` |
+| `SOLO_FF_<UPPER_SNAKE>`            | Readable alias for a standard flag                                          | `SOLO_FF_SKIP_NODE_PING`            |
+| `EXPERIMENTAL_<UPPER_SNAKE>`       | Alias while the flag is experimental                                        | none today                          |
+| legacy name                        | `legacyAlias` preserved when a flag replaces an ad-hoc environment variable | `SKIP_NODE_PING`                    |
 
 The generated form uses `_` for both camelCase word boundaries and schema nesting levels, so every name is a
 valid POSIX identifier and can be set with `export`. A name therefore cannot be taken apart again, so the
@@ -124,7 +124,8 @@ spellings at once logs a warning naming the one that won.
 Every config source parses a flag against the type its schema field declares, so a flag holds a real
 boolean rather than whatever `JSON.parse` made of the string. Accepted, case-insensitively and ignoring
 surrounding whitespace: `true`, `false`, `1`, `0`. Anything else — `yes`, `off`, `2` — is rejected at load
-with an error naming the variable or file, rather than being read as truthy.
+with an error naming the variable or file, rather than being read as truthy. A legacy name is the exception:
+scripts set it before it was parsed strictly, so such a value logs a warning and is ignored as if unset.
 
 So `SOLO_FF_SKIP_NODE_PING=false` and `=FALSE` and `=0` all genuinely mean "off", unlike the
 `Boolean('false')` reads these flags replaced. An empty or whitespace-only value counts as unset and falls

@@ -12,7 +12,7 @@ import {EnvironmentAliasRegistry} from '../../decorators/environment-alias-regis
 @Exclude()
 export class FeatureFlagsSchema {
   @Expose()
-  @EnvironmentAliasRegistry.alias('EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL')
+  @EnvironmentAliasRegistry.legacyAlias('EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL')
   public copyWrapsLibraryInParallel: boolean;
 
   @Expose()

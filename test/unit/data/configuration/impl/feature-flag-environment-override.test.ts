@@ -9,6 +9,7 @@
 
 import {expect} from 'chai';
 import {afterEach, beforeEach, describe, it} from 'mocha';
+import sinon, {type SinonStub} from 'sinon';
 import {Exclude, Expose, Type} from 'class-transformer';
 import {EnvironmentConfigSource} from '../../../../../src/data/configuration/impl/environment-config-source.js';
 import {ClassToObjectMapper} from '../../../../../src/data/mapper/impl/class-to-object-mapper.js';
@@ -16,6 +17,7 @@ import {ConfigKeyFormatter} from '../../../../../src/data/key/config-key-formatt
 import {EnvironmentAliasRegistry} from '../../../../../src/data/schema/decorators/environment-alias-registry.js';
 import {SoloConfigSchema} from '../../../../../src/data/schema/model/solo/solo-config-schema.js';
 import {FeatureFlagsSchema} from '../../../../../src/data/schema/model/solo/feature-flags-schema.js';
+import {DeclaredTypeCoercer} from '../../../../../src/data/key/declared-type-coercer.js';
 import {EnvironmentScope} from '../../../../helpers/environment-scope.js';
 
 const mapper: ClassToObjectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
@@ -190,7 +192,7 @@ describe('feature flags – legacy environment variable names', (): void => {
   );
 
   it(
-    'honours EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL, which keeps its experimental name',
+    'honours the legacy EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL name',
     EnvironmentScope.with({EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL: 'true'}, async (): Promise<void> => {
       const flags: FeatureFlagsSchema = await readSoloFlags();
       expect(flags?.copyWrapsLibraryInParallel).to.be.true;
@@ -230,18 +232,48 @@ describe('feature flags – value parsing', (): void => {
 
   for (const value of ['no', 'off', '4']) {
     it(
-      `rejects ENABLE_IMAGE_CACHE='${value}' instead of reading it as truthy`,
-      EnvironmentScope.with({ENABLE_IMAGE_CACHE: value}, async (): Promise<void> => {
+      `rejects SOLO_FF_ENABLE_IMAGE_CACHE='${value}' instead of reading it as truthy`,
+      EnvironmentScope.with({SOLO_FF_ENABLE_IMAGE_CACHE: value}, async (): Promise<void> => {
         try {
           await readSoloFlags();
           expect.fail('expected a type mismatch error');
         } catch (error) {
-          expect(error.message).to.include('ENABLE_IMAGE_CACHE');
+          expect(error.message).to.include('SOLO_FF_ENABLE_IMAGE_CACHE');
           expect(error.message).to.include('not a valid boolean');
         }
       }),
     );
   }
+
+  for (const [name, value] of [
+    ['SKIP_NODE_PING', 'yes'],
+    ['ENABLE_IMAGE_CACHE', 'off'],
+    ['DISABLE_IMPORTER_SPRING_PROFILES', 'on'],
+    ['EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL', '4'],
+  ] as [string, string][]) {
+    it(
+      `ignores legacy ${name}='${value}' with a warning instead of aborting startup`,
+      EnvironmentScope.with({[name]: value}, async (): Promise<void> => {
+        const warn: SinonStub = sinon.stub(console, 'warn');
+        try {
+          const flags: FeatureFlagsSchema = FeatureFlagsSchema.withDefaults(await readSoloFlags());
+          expect(flags).to.deep.equal(new FeatureFlagsSchema());
+          expect(warn.calledOnce).to.be.true;
+          expect(warn.firstCall.args[0]).to.include(`'${name}' is ignored`);
+        } finally {
+          warn.restore();
+        }
+      }),
+    );
+  }
+
+  it('checks a value against the type the schema declares for its key', (): void => {
+    expect(DeclaredTypeCoercer.accepts('featureFlags.skipNodePing', ' FALSE ')).to.be.true;
+    expect(DeclaredTypeCoercer.accepts('featureFlags.skipNodePing', 'yes')).to.be.false;
+    expect(DeclaredTypeCoercer.accepts('tss.readyMaxAttempts', '5')).to.be.true;
+    expect(DeclaredTypeCoercer.accepts('tss.readyMaxAttempts', 'five')).to.be.false;
+    expect(DeclaredTypeCoercer.accepts('helmChart.directory', 'yes')).to.be.true;
+  });
 
   const blank: string = ' '.repeat(3);
 

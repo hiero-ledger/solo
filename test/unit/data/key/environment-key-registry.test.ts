@@ -87,12 +87,10 @@ describe('environment variable naming contract', (): void => {
     expect(EnvironmentAliasRegistry.isLegacy('ENABLE_IMAGE_CACHE'), 'ad-hoc predecessor is legacy').to.be.true;
     expect(EnvironmentAliasRegistry.isLegacy('DISABLE_IMPORTER_SPRING_PROFILES'), 'ad-hoc predecessor is legacy').to.be
       .true;
+    expect(EnvironmentAliasRegistry.isLegacy('EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL'), 'ad-hoc predecessor is legacy')
+      .to.be.true;
 
     expect(EnvironmentAliasRegistry.isLegacy('SOLO_FF_SKIP_NODE_PING'), 'short form is supported').to.be.false;
-    expect(
-      EnvironmentAliasRegistry.isLegacy('EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL'),
-      'experimental name is supported',
-    ).to.be.false;
   });
 
   it('keeps both decorators on one field rather than the later clobbering the earlier', (): void => {
