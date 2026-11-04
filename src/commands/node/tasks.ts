@@ -25,14 +25,13 @@ import {
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {type HederaClient} from '../../integration/hedera/hedera-client.js';
+import {type HederaTransactionStatus} from '../../integration/hedera/hedera-transaction-status.js';
 import {type HederaFileTransactionResult} from '../../integration/hedera/hedera-file-transaction-result.js';
 import {type HederaFreezeResult} from '../../integration/hedera/hedera-freeze-result.js';
 import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {
   AccountId,
   type AccountInfo,
-  AccountInfoQuery,
-  AccountUpdateTransaction,
   type Client,
   FileId,
   Long,
@@ -1125,7 +1124,7 @@ export class NodeCommandTasks {
       deploymentName,
       this.configManager.getFlag<boolean>(flags.forcePortForward),
     );
-    const client: Client = this.accountManager._nodeClient;
+    const client: HederaClient = this.accountManager.hederaClient;
     const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       namespace,
       deploymentName,
@@ -1138,7 +1137,7 @@ export class NodeCommandTasks {
     // check balance
     let treasuryAccountInfo: AccountInfo;
     try {
-      treasuryAccountInfo = await new AccountInfoQuery().setAccountId(treasuryAccountId).execute(client);
+      treasuryAccountInfo = await client.getAccountInfo(treasuryAccountId);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(treasuryAccountId, error);
     }
@@ -1151,31 +1150,24 @@ export class NodeCommandTasks {
     // check balance
     let accountInfo: AccountInfo;
     try {
-      accountInfo = await new AccountInfoQuery().setAccountId(accountId).execute(client);
+      accountInfo = await client.getAccountInfo(accountId);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(accountId, error);
     }
     this.logger.debug(`Account ${accountId} balance: ${accountInfo.balance}`);
 
-    // Create the transaction
-    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
-      .setAccountId(accountId)
-      .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
-      .freezeWith(client);
-
-    // Sign the transaction with the account's private key
-    const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
-
-    let transactionResponse: TransactionResponse;
-    let receipt: TransactionReceipt;
+    let stakeStatus: HederaTransactionStatus;
     try {
-      transactionResponse = await signTransaction.execute(client);
-      receipt = await transactionResponse.getReceipt(client);
+      stakeStatus = await client.updateAccountStakedNode(
+        accountId,
+        Templates.nodeIdFromNodeAlias(nodeAlias),
+        treasuryPrivateKey,
+      );
     } catch (error) {
       throw new SoloErrors.component.nodeStakeTransactionError(error);
     }
 
-    this.logger.debug(`The transaction consensus status is ${receipt.status}`);
+    this.logger.debug(`The transaction consensus status is ${stakeStatus.status}`);
   }
 
   public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {

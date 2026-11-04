@@ -115,6 +115,24 @@ export class SdkHederaClient implements HederaClient {
     return receipt.status === Status.Success;
   }
 
+  public async updateAccountStakedNode(
+    accountId: AccountId | string,
+    nodeId: number,
+    signerPrivateKey: PrivateKey,
+  ): Promise<HederaTransactionStatus> {
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
+      .setAccountId(accountId)
+      .setStakedNodeId(nodeId)
+      .freezeWith(this.sdkClient);
+
+    const signedTransaction: AccountUpdateTransaction = await transaction.sign(signerPrivateKey);
+
+    const response: TransactionResponse = await signedTransaction.execute(this.sdkClient);
+    const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
+
+    return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
+  }
+
   public async createAccount(
     privateKey: PrivateKey,
     initialBalanceHbar: number,

@@ -70,6 +70,18 @@ export interface HederaClient {
   ): Promise<boolean>;
 
   /**
+   * Stakes an account to a consensus node, signing with the given key in addition to the operator
+   * @param accountId - the account
+   * @param nodeId - the id of the node to stake to
+   * @param signerPrivateKey - the key of the account
+   */
+  updateAccountStakedNode(
+    accountId: AccountId | string,
+    nodeId: number,
+    signerPrivateKey: PrivateKey,
+  ): Promise<HederaTransactionStatus>;
+
+  /**
    * Creates an account, retrying when the network answers DUPLICATE_TRANSACTION
    * @param privateKey - the key of the new account
    * @param initialBalanceHbar - the HBAR the new account starts with

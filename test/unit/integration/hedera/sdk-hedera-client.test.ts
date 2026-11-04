@@ -12,6 +12,7 @@ import {
   FileUpdateTransaction,
   FreezeTransaction,
   FreezeType,
+  AccountUpdateTransaction,
   NodeUpdateTransaction,
   TopicCreateTransaction,
   TopicId,
@@ -292,6 +293,25 @@ describe('SdkHederaClient', (): void => {
       expect(receiptQuery.setMinBackoff.calledOnceWithExactly(50)).to.equal(true);
       expect(receiptQuery.setMaxBackoff.calledOnceWithExactly(50)).to.equal(true);
       expect(status).to.deep.equal({isSuccess: false, status: 'INVALID_SIGNATURE'});
+    });
+  });
+
+  describe('updateAccountStakedNode', (): void => {
+    it('stakes the account to the node, signs with the given key and reports the receipt status', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const signerKey: PrivateKey = PrivateKey.generateED25519();
+      sinon.stub(AccountUpdateTransaction.prototype, 'freezeWith').returnsThis();
+      const stakeStub: sinon.SinonSpy = sinon.spy(AccountUpdateTransaction.prototype, 'setStakedNodeId');
+      const signStub: sinon.SinonStub = sinon.stub(AccountUpdateTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(AccountUpdateTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().resolves({status: Status.Success}),
+      } as never);
+
+      const status: HederaTransactionStatus = await client.updateAccountStakedNode('0.0.1002', 1, signerKey);
+
+      expect(stakeStub.firstCall.args[0]).to.equal(1);
+      expect(signStub.firstCall.args[0]).to.equal(signerKey);
+      expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
     });
   });
 
