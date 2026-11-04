@@ -114,6 +114,9 @@ export class NetworkCommand extends BaseCommand {
   /** How many times the volumes of one stranded pod are re-provisioned before the deploy fails. */
   private static readonly PVC_STRANDED_POD_MAX_RECOVERIES: number = 3;
 
+  /** Allowance, on top of the bind wait, for the deploy steps that run before the claims are first polled. */
+  private static readonly PVC_RECOVERY_CLAIM_AGE_SLACK: Duration = Duration.ofMinutes(5);
+
   private profileValuesFile?: Record<ClusterReferenceName, string>;
 
   public constructor(
@@ -259,6 +262,10 @@ export class NetworkCommand extends BaseCommand {
       // the poll delay can be overridden, so the threshold is converted to attempts rather than fixed in attempts
       Math.ceil(NetworkCommand.PVC_STRANDED_POD_THRESHOLD.toMillis() / constants.PVC_BOUND_DELAY),
       NetworkCommand.PVC_STRANDED_POD_MAX_RECOVERIES,
+      // claims this deploy created cannot be older than the time it has been waiting for them, plus the steps before
+      Duration.ofMillis(constants.PVC_BOUND_MAX_ATTEMPTS * constants.PVC_BOUND_DELAY).plus(
+        NetworkCommand.PVC_RECOVERY_CLAIM_AGE_SLACK,
+      ),
     );
     const baseTitle: string = task.title;
     let claims: PvcDetail[] = [];
@@ -357,6 +364,20 @@ export class NetworkCommand extends BaseCommand {
 
     for (const pod of stranded) {
       const podName: string = pod.podReference.name.toString();
+      const podClaims: PvcDetail[] = tracker.claimsOf(podName, claims);
+
+      // The chart keeps claims across uninstalls, so a claim older than this deploy may hold data from an earlier
+      // run. Deleting it would destroy that data, so stop here and let the user decide.
+      const retained: PvcDetail[] = tracker.retainedClaims(podClaims, Date.now());
+      if (retained.length > 0) {
+        throw new SoloErrors.system.pvcPodsStranded(
+          [podName],
+          tracker.maxRecoveryAttempts,
+          tracker.lastSchedulerMessage,
+          retained.map((claim: PvcDetail): string => claim.pvcReference.name.toString()),
+        );
+      }
+
       if (!tracker.recordRecovery(podName)) {
         throw new SoloErrors.system.pvcPodsStranded(
           stranded.map((strandedPod: Pod): string => strandedPod.podReference.name.toString()),
@@ -370,10 +391,8 @@ export class NetworkCommand extends BaseCommand {
           `re-provisioning its volume claims [namespace: ${namespace.name}]`,
       );
       await k8.pods().delete(pod.podReference);
-      for (const claim of claims) {
-        if (claim.pvcReference.name.toString().endsWith(`-${podName}`)) {
-          await k8.pvcs().delete(claim.pvcReference);
-        }
+      for (const claim of podClaims) {
+        await k8.pvcs().delete(claim.pvcReference);
       }
     }
 

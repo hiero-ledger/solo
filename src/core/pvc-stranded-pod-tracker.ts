@@ -2,6 +2,8 @@
 
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type PodCondition} from '../integration/kube/resources/pod/pod-condition.js';
+import {type PvcDetail} from '../integration/kube/resources/pvc/pvc-detail.js';
+import {type Duration} from './time/duration.js';
 
 /**
  * Detects pods whose volumes were provisioned on nodes the pods cannot run on. With a node-local StorageClass a pod's
@@ -28,11 +30,36 @@ export class PvcStrandedPodTracker {
    * considered stranded. The scheduler message alternates between causes, so conflict is remembered, not required on
    * every poll.
    * @param maxRecoveries - how many times the same pod may be recovered before it is reported as unrecoverable
+   * @param maxClaimAge - how old a claim may be and still be re-provisioned. Older claims predate this deploy (the
+   * chart keeps them across uninstalls) and may hold data, so they are never deleted.
    */
   public constructor(
     private readonly thresholdAttempts: number,
     private readonly maxRecoveries: number,
+    private readonly maxClaimAge: Duration,
   ) {}
+
+  /**
+   * The claims that belong to a pod. A StatefulSet names each claim `<template>-<pod>`.
+   * @param podName - the pod name
+   * @param claims - the claims to choose from
+   */
+  public claimsOf(podName: string, claims: PvcDetail[]): PvcDetail[] {
+    return claims.filter((claim: PvcDetail): boolean => claim.pvcReference.name.toString().endsWith(`-${podName}`));
+  }
+
+  /**
+   * The claims that must not be re-provisioned because they may hold data: those created longer ago than the maximum
+   * claim age, and those whose age is not known.
+   * @param claims - the claims to check
+   * @param now - the current time in milliseconds since the epoch
+   */
+  public retainedClaims(claims: PvcDetail[], now: number): PvcDetail[] {
+    return claims.filter(
+      (claim: PvcDetail): boolean =>
+        claim.createdAt === undefined || now - claim.createdAt.getTime() > this.maxClaimAge.toMillis(),
+    );
+  }
 
   /**
    * Records the current state of the pods and returns those that are stranded and due for recovery.

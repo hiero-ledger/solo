@@ -86,6 +86,7 @@ export class K8ClientPvcs implements Pvcs {
         phase: item.status?.phase ?? 'Unknown',
         requestedStorageBytes: KubernetesQuantity.toBytes(requestedStorage),
         storageClassName: item.spec?.storageClassName,
+        createdAt: item.metadata.creationTimestamp,
       };
     });
   }

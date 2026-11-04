@@ -13,13 +13,32 @@ export class PvcPodsStrandedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
-  public constructor(podNames: string[], recoveryAttempts: number, schedulerMessage: string) {
+  /**
+   * @param podNames - the pods that cannot be scheduled
+   * @param recoveryAttempts - how many times the claims of one pod may be re-provisioned
+   * @param schedulerMessage - the scheduler's last explanation
+   * @param retainedClaims - claims that predate this deploy and were left in place because they may hold data
+   */
+  public constructor(
+    podNames: string[],
+    recoveryAttempts: number,
+    schedulerMessage: string,
+    retainedClaims: string[] = [],
+  ) {
     super({
       message:
-        `Pods are still unschedulable after their volume claims were provisioned: ${podNames.join(', ')} ` +
-        `(up to ${recoveryAttempts} claim re-provisioning attempt(s) per pod). Scheduler: ${schedulerMessage}`,
+        retainedClaims.length > 0
+          ? 'Pods cannot be scheduled because their volume claims are bound to nodes they cannot run on: ' +
+            `${podNames.join(', ')}. The claims predate this deploy and may hold data, so they were left in place: ` +
+            `${retainedClaims.join(', ')}. Scheduler: ${schedulerMessage}`
+          : `Pods are still unschedulable after their volume claims were provisioned: ${podNames.join(', ')} ` +
+            `(up to ${recoveryAttempts} claim re-provisioning attempt(s) per pod). Scheduler: ${schedulerMessage}`,
       code: ErrorCodeRegistry.PVC_PODS_STRANDED,
       troubleshootingSteps:
+        (retainedClaims.length > 0
+          ? 'If the data on the retained claims is not needed, delete them and the pod, then deploy again: ' +
+            'kubectl delete pvc <name> -n <namespace>\n'
+          : '') +
         'Check why the pod cannot be scheduled: kubectl describe pod <name> -n <namespace>\n' +
         'Check which node each volume is pinned to: kubectl get pv -o custom-columns=NAME:.metadata.name,CLAIM:.spec.claimRef.name,NODE:.spec.nodeAffinity\n' +
         'Confirm the nodes allowed for the pod have free cpu and memory: kubectl describe node <name>\n' +
