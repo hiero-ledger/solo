@@ -352,6 +352,16 @@ jobs:
           version: 'v0.29.0'
           kubectl-version: 'v1.32.2'
 
+      - name: Install Foundry
+        if: ${{ matrix.example.foundry && !cancelled() && !failure() }}
+        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: v1.8.7
+          # The cache holds Foundry's RPC/fork data; a fresh Solo network has nothing worth reusing, and
+          # skipping it avoids another cross-run cache that pull requests could poison.
+          cache: false
+
       - name: Prepare Example Directory - ${{ matrix.example.name }}
         id: prepare_example
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
