@@ -36,6 +36,12 @@ export class FlagRules {
   public static readonly integer: FlagRule = (value: string): string | undefined =>
     /^-?\d+$/.test(value.trim()) ? undefined : 'must be a whole number';
 
+  /** A positive whole number in decimal or `0x`-prefixed hex, the two forms the JSON-RPC relay accepts. */
+  public static readonly chainId: FlagRule = (value: string): string | undefined =>
+    /^(?:\d+|0x[\da-f]+)$/i.test(value.trim()) && Number(value) > 0
+      ? undefined
+      : 'must be a positive whole number, in decimal or 0x-prefixed hex';
+
   public static atLeast(minimum: number): FlagRule {
     return (value: string): string | undefined =>
       Number(value) >= minimum ? undefined : `must be at least ${minimum}`;

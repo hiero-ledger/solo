@@ -571,9 +571,72 @@ jobs:
     if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
     needs:
       - prepare-release
+    permissions:
+      contents: read
+      id-token: write # the called workflow signs in to the image cache CDN bucket to upload the archives
     uses: $/.github/workflows/flow-image-cache-cluster-images.yaml
     with:
       version: ${{ needs.prepare-release.outputs.version }}
+      # A dry run publishes nothing, so only a real release uploads to the CDN.
+      upload-to-cdn: ${{ inputs.dry-run-enabled != true }}
+
+  # Attaches cache-manifest.json, the image cache archives the CLI may download for this release, to the GitHub
+  # Release once every archive it lists is confirmed on the CDN.
+  publish-image-cache-manifest:
+    name: Publish Image Cache Manifest
+    runs-on: hiero-solo-linux-medium
+    permissions:
+      contents: read # the release upload authenticates with GH_ACCESS_TOKEN, not GITHUB_TOKEN
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && needs.create-github-release.result == 'success' && needs.capture-image-cache-cluster-images.result == 'success' }}
+    needs:
+      - prepare-release
+      - create-github-release
+      - capture-image-cache-cluster-images
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/workflows/script
+
+      - name: Install jq
+        uses: step-security/install-jq-action@01c80bba4b4dfda4f9f5df20aa272d43e93a9fb1 # v4.0.1
+
+      - name: Download Image Cache Index
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-cache-index
+          path: image-cache
+
+      - name: Build Image Cache Manifest
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+          # A dry run uploads nothing to the CDN, so only a real release is checked against it.
+          IMAGE_CACHE_CDN_BASE_URL: ${{ inputs.dry-run-enabled != true && 'https://cdn.solo.hiero.org' || '' }}
+        run: |
+          .github/workflows/script/image_cache_manifest.sh \
+            image-cache/image-cache-images.json "${RELEASE_VERSION}" cache-manifest.json
+
+      - name: Upload Image Cache Manifest Artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cache-manifest
+          path: cache-manifest.json
+          if-no-files-found: error
+
+      - name: Upload Image Cache Manifest to Release
+        if: ${{ inputs.dry-run-enabled != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release upload --clobber "v${RELEASE_VERSION}" cache-manifest.json --repo "${GITHUB_REPOSITORY}"
 
   # Attaches the Linux SEA binaries, install.sh and SHA256SUMS to the GitHub Release.
   publish-linux-installer:

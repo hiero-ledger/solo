@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import fs from 'node:fs';
-import sinon, {type SinonStub} from 'sinon';
+import sinon, {type SinonSpy, type SinonStub} from 'sinon';
 import {before, beforeEach, afterEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
@@ -11,6 +11,7 @@ import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type DeploymentCommand} from '../../../src/commands/deployment.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
 import {type SoloError} from '../../../src/core/errors/solo-error.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
@@ -417,6 +418,25 @@ describe('DeploymentCommand unit tests', (): void => {
       );
       expect(deletedDeployment).to.be.undefined;
       expect([...localConfig.configuration.clusterRefs.keys()]).to.deep.equal(clusterReferenceNamesBefore);
+    });
+
+    it('should unload the remote config so later commands in the process do not resolve the deleted deployment', async (): Promise<void> => {
+      const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+      const unloadSpy: SinonSpy = sinon.spy(remoteConfig, 'unload');
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+      argv.setArg(flags.quiet, true);
+
+      try {
+        await expect(deploymentCommand.delete(argv.build())).to.eventually.be.true;
+
+        expect(unloadSpy.calledOnce).to.be.true;
+        expect(remoteConfig.isLoaded()).to.be.false;
+      } finally {
+        unloadSpy.restore();
+      }
     });
   });
 
