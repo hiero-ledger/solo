@@ -29,6 +29,7 @@ export interface RemoteConfigRuntimeStateApi {
   getLeaseContext(): Context;
 
   isLoaded(): boolean;
+  unload(): void;
   load(namespace?: NamespaceName, context?: Context): Promise<void>;
   persist(): Promise<void>;
 

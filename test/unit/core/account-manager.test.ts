@@ -10,6 +10,7 @@ import {SdkHederaClientFactory} from '../../../src/integration/hedera/impl/sdk-h
 import {AccountManager} from '../../../src/core/account-manager.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {type HederaClientFactory} from '../../../src/integration/hedera/hedera-client-factory.js';
 import {type HederaClient} from '../../../src/integration/hedera/hedera-client.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
@@ -96,6 +97,30 @@ describe('AccountManager createNewAccount', (): void => {
     }
 
     expect(createOrReplaceStub.callCount).to.equal(0);
+  });
+
+  describe('hederaClientFor', (): void => {
+    it('returns the managed Hedera client when it wraps the given SDK client', (): void => {
+      const accountManager: AccountManager = makeAccountManager(sinon.stub(), {} as SoloLogger);
+      const sdkClient: Client = {} as Client;
+      const managed: HederaClient = {sdkClient} as HederaClient;
+      (accountManager as unknown as {_hederaClient: HederaClient})._hederaClient = managed;
+
+      expect(accountManager.hederaClientFor(sdkClient)).to.equal(managed);
+    });
+
+    it('wraps an SDK client the manager does not own', (): void => {
+      const accountManager: AccountManager = makeAccountManager(sinon.stub(), {} as SoloLogger);
+      const sdkClient: Client = {} as Client;
+      const wrapped: HederaClient = {sdkClient} as HederaClient;
+      const wrapStub: sinon.SinonStub = sinon.stub().returns(wrapped);
+      (accountManager as unknown as {hederaClientFactory: Partial<HederaClientFactory>}).hederaClientFactory = {
+        wrap: wrapStub,
+      };
+
+      expect(accountManager.hederaClientFor(sdkClient)).to.equal(wrapped);
+      expect(wrapStub.calledOnceWithExactly(sdkClient)).to.equal(true);
+    });
   });
 });
 

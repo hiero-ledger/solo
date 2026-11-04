@@ -455,6 +455,10 @@ export class DeploymentCommand extends BaseCommand {
             } catch {
               // Deployment might not exist in local config, ignore error and continue with cleanup of other deployments if needed
             }
+
+            // A remote config loaded earlier in this process describes the deleted deployment; a command that runs
+            // next in the same process (e.g. one-shot deploy after its auto-clean) must not resolve its clusters.
+            this.remoteConfig.unload();
           },
         },
       ],
