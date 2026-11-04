@@ -101,6 +101,7 @@ interface MirrorNodeDeployConfigClass {
   chartValues: HelmChartValues;
   quiet: boolean;
   mirrorNodeVersion: string;
+  pvcStorageClass: string;
   force: boolean;
   componentImage: string;
   componentImageArchive: string;
@@ -158,6 +159,7 @@ interface MirrorNodeUpgradeConfigClass {
   chartValues: HelmChartValues;
   quiet: boolean;
   mirrorNodeVersion: string;
+  pvcStorageClass: string;
   force: boolean;
   componentImage: string;
   componentImageArchive: string;
@@ -336,6 +338,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.mirrorNodeSource,
       flags.parallelDeploy,
       flags.force,
+      flags.pvcStorageClass,
     ],
   };
 
@@ -380,6 +383,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
       flags.mirrorNodeSource,
       flags.force,
+      flags.pvcStorageClass,
     ],
   };
 
@@ -1204,7 +1208,7 @@ export class MirrorNodeCommand extends BaseCommand {
               this.sharedResourceManager.setSchedulingChartValues(context_.config.chartValues);
               const resolvedStorageClass: string = await this.storageClassHelper.resolveStorageClass(
                 context_.config.clusterContext,
-                '',
+                context_.config.pvcStorageClass,
               );
               context_.config.installSharedResources = await this.sharedResourceManager.installChart(
                 context_.config.namespace,

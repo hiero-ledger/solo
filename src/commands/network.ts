@@ -108,8 +108,8 @@ export class NetworkCommand extends BaseCommand {
   /** How often, in poll attempts, bind progress is mirrored into the log for non-TTY runs such as CI. */
   private static readonly PVC_BIND_LOG_INTERVAL_ATTEMPTS: number = 15;
 
-  /** How many poll attempts a pod must stay unscheduled with a volume node affinity conflict to be treated as stranded. */
-  private static readonly PVC_STRANDED_POD_ATTEMPTS: number = 120;
+  /** How long a pod must stay unscheduled with a volume node affinity conflict to be treated as stranded. */
+  private static readonly PVC_STRANDED_POD_THRESHOLD: Duration = Duration.ofMinutes(2);
 
   /** How many times the volumes of one stranded pod are re-provisioned before the deploy fails. */
   private static readonly PVC_STRANDED_POD_MAX_RECOVERIES: number = 3;
@@ -256,7 +256,8 @@ export class NetworkCommand extends BaseCommand {
     const k8: K8 = this.k8Factory.getK8(context);
     const pvcs: Pvcs = k8.pvcs();
     const strandedPods: PvcStrandedPodTracker = new PvcStrandedPodTracker(
-      NetworkCommand.PVC_STRANDED_POD_ATTEMPTS,
+      // the poll delay can be overridden, so the threshold is converted to attempts rather than fixed in attempts
+      Math.ceil(NetworkCommand.PVC_STRANDED_POD_THRESHOLD.toMillis() / constants.PVC_BOUND_DELAY),
       NetworkCommand.PVC_STRANDED_POD_MAX_RECOVERIES,
     );
     const baseTitle: string = task.title;

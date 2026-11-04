@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
-import {StorageClassNotFoundSoloError} from './errors/classes/validation/storage-class-not-found-solo-error.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
@@ -127,7 +126,7 @@ export class StorageClassHelper {
       const available: string = storageClasses
         .map((storageClass: StorageClass): string => storageClass.name)
         .join(', ');
-      throw new StorageClassNotFoundSoloError(userSuppliedClass, available);
+      throw new SoloErrors.validation.storageClassNotFound(userSuppliedClass, available);
     }
     return userSuppliedClass;
   }

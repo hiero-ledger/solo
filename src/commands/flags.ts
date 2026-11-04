@@ -1724,8 +1724,7 @@ export class Flags {
     constName: 'persistentVolumeClaims',
     name: 'pvcs',
     definition: {
-      describe:
-        'Enable persistent volume claims to store data outside the pod (default: true; required for node add and local builds)',
+      describe: 'Enable persistent volume claims to store data outside the pod',
       defaultValue: true,
       type: 'boolean',
       promptText: 'Would you like to enable persistent volume claims to store data outside the pod? ',
@@ -1742,10 +1741,7 @@ export class Flags {
     constName: 'pvcStorageClass',
     name: 'pvc-storage-class',
     definition: {
-      describe:
-        'StorageClass name for PersistentVolumeClaims; auto-detected from the cluster when not set ' +
-        '(uses the default StorageClass if one exists, otherwise installs and uses local-path-provisioner ' +
-        'without making it the cluster default)',
+      describe: 'StorageClass name for PersistentVolumeClaims; auto-detected from the cluster when not set',
       defaultValue: '',
       type: 'string',
     },
