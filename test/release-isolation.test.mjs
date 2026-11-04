@@ -9,13 +9,10 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {
   chmodSync,
-  closeSync,
   copyFileSync,
   existsSync,
-  fstatSync,
   mkdirSync,
   mkdtempSync,
-  openSync,
   readFileSync,
   rmSync,
   statSync,
@@ -289,6 +286,7 @@ test('npm version --allow-same-version synchronizes the kit through the real lif
 
 test('npm version does not overwrite a TCK lockfile replaced after reading', context => {
   const directory = versionFixture(context, ['.', 'tck']);
+  const fixtureOwner = statSync(directory);
   const lockPath = path.join(directory, 'tck/package-lock.json');
   const originalPath = path.join(directory, 'tck/package-lock.original.json');
   const preloaderPath = path.join(directory, 'replace-lockfile.mjs');
@@ -297,13 +295,6 @@ test('npm version does not overwrite a TCK lockfile replaced after reading', con
   originalLock.version = `0.92.0-${'old'.repeat(256)}`;
   writeFileSync(lockPath, JSON.stringify(originalLock));
   chmodSync(lockPath, 0o640);
-  const snapshotDescriptor = openSync(lockPath, 'r');
-  let before;
-  try {
-    before = fstatSync(snapshotDescriptor);
-  } finally {
-    closeSync(snapshotDescriptor);
-  }
   writeFileSync(
     preloaderPath,
     `// SPDX-License-Identifier: Apache-2.0
@@ -328,6 +319,8 @@ fs.readFileSync = (file, ...arguments_) => {
 syncBuiltinESMExports();
 `,
   );
+  chmodSync(preloaderPath, 0o640);
+  const expectedMode = statSync(preloaderPath).mode & 0o777;
 
   run(
     'npm',
@@ -339,7 +332,7 @@ syncBuiltinESMExports();
   const lock = JSON.parse(readFileSync(originalPath, 'utf8'));
   assert.deepEqual([lock.version, lock.packages[''].version], ['0.94.0', '0.94.0']);
   const after = statSync(originalPath);
-  assert.deepEqual([after.uid, after.gid, after.mode], [before.uid, before.gid, before.mode]);
+  assert.deepEqual([after.uid, after.gid, after.mode & 0o777], [fixtureOwner.uid, fixtureOwner.gid, expectedMode]);
 });
 
 for (const [name, files] of [
