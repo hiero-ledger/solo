@@ -11,6 +11,7 @@ import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-c
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
+import {sleep} from '../../../src/core/helpers.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
@@ -165,11 +166,31 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         );
 
         try {
-          const response: Response = await fetch(`http://${constants.LOCAL_HOST}:${localPort}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
-          });
+          let response: Response;
+          for (let attempt: number = 1; attempt <= 5; attempt++) {
+            try {
+              response = await fetch(`http://${constants.LOCAL_HOST}:${localPort}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
+                signal: AbortSignal.timeout(Duration.ofSeconds(10).toMillis()),
+              });
+              break;
+            } catch (error) {
+              if (
+                attempt === 5 ||
+                !(error instanceof TypeError) ||
+                typeof error.cause !== 'object' ||
+                !error.cause ||
+                !('code' in error.cause) ||
+                error.cause.code !== 'ECONNREFUSED'
+              ) {
+                throw error;
+              }
+              // The detached port-forward may not be listening yet; retry only its startup connection refusal.
+              await sleep(Duration.ofSeconds(2));
+            }
+          }
           const body: {result?: string} = (await response.json()) as {result?: string};
           expect(body.result).to.equal(`0x${options.chainId.toString(16)}`);
         } finally {
