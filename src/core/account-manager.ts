@@ -71,6 +71,15 @@ export class AccountManager {
   private _nextPortForwardScanStart: number = 0;
   private _hederaClient: Optional<HederaClient>;
 
+  /**
+   * The Hedera client for an SDK node client that a caller still holds in its configuration
+   * @deprecated transitional: returns the managed client when it wraps the given SDK client, otherwise a new wrapper
+   * @param sdkClient - the SDK node client
+   */
+  public hederaClientFor(sdkClient: Client): HederaClient {
+    return this._hederaClient?.sdkClient === sdkClient ? this._hederaClient : this.hederaClientFactory.wrap(sdkClient);
+  }
+
   /** the Hedera client of the loaded node client, undefined until {@link loadNodeClient} has run */
   public get hederaClient(): Optional<HederaClient> {
     return this._hederaClient;
