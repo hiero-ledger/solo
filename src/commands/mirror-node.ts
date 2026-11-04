@@ -1206,10 +1206,19 @@ export class MirrorNodeCommand extends BaseCommand {
 
               this.sharedResourceManager.enableRedis();
               this.sharedResourceManager.setSchedulingChartValues(context_.config.chartValues);
-              const resolvedStorageClass: string = await this.storageClassHelper.resolveStorageClass(
+              // The class only matters when the chart is installed here. Resolving it for an existing install could
+              // install a provisioner, or reject --pvc-storage-class, for nothing.
+              const isAlreadyInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.SOLO_SHARED_RESOURCES_CHART,
                 context_.config.clusterContext,
-                context_.config.pvcStorageClass,
               );
+              const resolvedStorageClass: string = isAlreadyInstalled
+                ? ''
+                : await this.storageClassHelper.resolveStorageClass(
+                    context_.config.clusterContext,
+                    context_.config.pvcStorageClass,
+                  );
               context_.config.installSharedResources = await this.sharedResourceManager.installChart(
                 context_.config.namespace,
                 context_.config.chartDirectory,
