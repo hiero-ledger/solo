@@ -15,6 +15,7 @@ import {UpgradeChartOptionsBuilder} from '../integration/helm/model/upgrade/upgr
 import {Chart} from '../integration/helm/model/chart.js';
 import {type InstallChartOptions} from '../integration/helm/model/install/install-chart-options.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
+import {type SemanticVersion} from '../business/utils/semantic-version.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
 import {UnInstallChartOptionsBuilder} from '../integration/helm/model/install/un-install-chart-options-builder.js';
 import {AddRepoOptionsBuilder} from '../integration/helm/model/add/add-repo-options-builder.js';
@@ -27,11 +28,27 @@ import {CacheTarget} from '../integration/cache/models/impl/cache-target.js';
 import {CacheArtifactEnum} from '../integration/cache/enums/cache-artifact-enum.js';
 import {type CacheCatalogStore} from '../integration/cache/api/cache-catalog-store.js';
 import {type CacheHealthInspector} from '../integration/cache/api/cache-health-inspector.js';
+import {type Release} from '../integration/helm/model/chart/release.js';
+import {Helpers} from './helpers.js';
+import {Duration} from './time/duration.js';
 
 @injectable()
 export class ChartManager {
   /** Log-message fragment emitted when a chart is installed or upgraded from the local chart cache. */
   public static readonly INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT: string = 'from cached chart archive';
+
+  /** Attempts for a Helm command that downloads a repository index or a chart, counting the first one. */
+  private static readonly DOWNLOAD_ATTEMPTS: number = 4;
+
+  /** Wait before the first retry of a download; it doubles on each later retry. */
+  private static readonly DOWNLOAD_RETRY_BASE_DELAY: Duration = Duration.ofSeconds(2);
+
+  /** Helm errors for a repository index or chart download that hit HTTP 429/5xx or a network error. */
+  private static readonly TRANSIENT_DOWNLOAD_ERRORS: readonly RegExp[] = [
+    /failed to fetch \S+ : (?:429|5\d\d)\b/,
+    /unexpected status from (?:HEAD|GET) request to \S+: (?:429|5\d\d)\b/,
+    /(?:Get "[^"]*(?:\.tgz|\/index\.yaml)[^"]*"|failed to do request: (?:Head|Get) "[^"]+"): [^\n]*?(?:no such host|i\/o timeout|connection reset by peer|TLS handshake timeout|server misbehaving)/,
+  ];
 
   public constructor(
     @inject(InjectTokens.Helm) private readonly helm?: HelmClient,
@@ -53,7 +70,7 @@ export class ChartManager {
    * Resolves the local path to a cached chart tarball for the given chart, when one is available.
    *
    * Returns undefined (so callers fall back to a normal network install) when the version is empty,
-   * when {@link repoName} points to an explicit local chart directory (dev mode must not be overridden),
+   * when {@link repoName} is a local chart path, even a missing one (dev mode must not be overridden),
    * or when no matching tarball has been pulled into the cache via `solo cache chart pull`.
    */
   private async resolveCachedChartPath(
@@ -61,7 +78,8 @@ export class ChartManager {
     version: string,
     repoName: string,
   ): Promise<string | undefined> {
-    if (!version) {
+    // A wrong local chart path must fail in helm instead of silently installing the cached published chart.
+    if (!version || ChartManager.isLocalChartPath(repoName)) {
       return undefined;
     }
 
@@ -79,6 +97,11 @@ export class ChartManager {
     const archivePath: string = this.cacheCatalogStore.resolvePath(target, CacheArtifactEnum.HELM_CHART);
 
     return (await this.cacheHealthInspector.exists(archivePath)) ? archivePath : undefined;
+  }
+
+  /** A chart reference with a path separator and no URL scheme (oci://, https://) is a local path. */
+  private static isLocalChartPath(repoName: string): boolean {
+    return !/^[a-z][\d+.a-z-]*:\/\//i.test(repoName) && /[/\\]/.test(repoName);
   }
 
   /**
@@ -146,8 +169,35 @@ export class ChartManager {
     }
     this.logger.debug(`Adding repo ${name} -> ${url}`, {repoName: name, repoURL: url});
     const options: AddRepoOptions = new AddRepoOptionsBuilder().forceUpdate(force).build();
-    await this.helm.addRepository(new Repository(name, url), options);
+    await this.retryTransientDownload((): Promise<void> => this.helm.addRepository(new Repository(name, url), options));
     return url;
+  }
+
+  /** Runs a Helm command that downloads a repository index or a chart, retrying it on a transient download error. */
+  private async retryTransientDownload<T>(command: () => Promise<T>): Promise<T> {
+    for (let attempt: number = 1; attempt < ChartManager.DOWNLOAD_ATTEMPTS; attempt++) {
+      try {
+        return await command();
+      } catch (error) {
+        if (!ChartManager.isTransientDownloadError(error)) {
+          throw error;
+        }
+        // transient: wait and run the command again; the last attempt below lets its error through
+        const delay: Duration = Duration.ofMillis(
+          ChartManager.DOWNLOAD_RETRY_BASE_DELAY.toMillis() * 2 ** (attempt - 1),
+        );
+        this.logger.warn(
+          `Helm download failed (attempt ${attempt} of ${ChartManager.DOWNLOAD_ATTEMPTS}), retrying in ${delay.toMillis()} ms: ${error.message}`,
+        );
+        await Helpers.sleep(delay);
+      }
+    }
+    return await command();
+  }
+
+  private static isTransientDownloadError(error: unknown): boolean {
+    const message: string = error instanceof Error ? error.message : String(error);
+    return ChartManager.TRANSIENT_DOWNLOAD_ERRORS.some((pattern: RegExp): boolean => pattern.test(message));
   }
 
   /** List available clusters
@@ -193,6 +243,7 @@ export class ChartManager {
           .atomic(atomic)
           .waitFor(waitFor)
           .valueArguments(chartValues.toArguments())
+          .environmentVariables(chartValues.toEnvironment())
           .dependencyUpdate(dependencyUpdate)
           .skipCrds(skipCrds);
 
@@ -215,7 +266,9 @@ export class ChartManager {
           );
         }
 
-        await this.helm.installChart(chartReleaseName, chart, options);
+        await this.retryTransientDownload((): Promise<Release> =>
+          this.helm.installChart(chartReleaseName, chart, options),
+        );
         this.logger.debug(`OK: chart is installed: ${chartReleaseName} (${chartName}) (${repoName})`);
       }
     } catch (error) {
@@ -223,6 +276,12 @@ export class ChartManager {
     }
 
     return true;
+  }
+
+  /** The major version of the Helm CLI in use; Helm 3 and Helm 4 take different kinds of post-renderers. */
+  public async getHelmMajorVersion(): Promise<number> {
+    const version: SemanticVersion<string> = await this.helm.version();
+    return version.major;
   }
 
   public async isChartInstalled(
@@ -314,6 +373,7 @@ export class ChartManager {
         .namespace(namespaceName.name)
         .kubeContext(kubeContext)
         .valueArguments(chartValues.toArguments())
+        .environmentVariables(chartValues.toEnvironment())
         .dependencyUpdate(dependencyUpdate);
 
       // A local chart tarball is self-describing; `helm upgrade` rejects `--version` for a local chart.
@@ -330,7 +390,9 @@ export class ChartManager {
         );
       }
 
-      await this.helm.upgradeChart(chartReleaseName, chart, options);
+      await this.retryTransientDownload((): Promise<Release> =>
+        this.helm.upgradeChart(chartReleaseName, chart, options),
+      );
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);
     } catch (error) {
       throw new SoloErrors.system.helmChartUpgradeFailed(chartReleaseName, error);

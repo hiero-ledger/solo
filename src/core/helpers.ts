@@ -113,6 +113,23 @@ export class Helpers {
     return Helpers.getBlockStreamModeForConsensusVersion(consensusNodeVersion, blockNodeIntegrationEnabled, tssEnabled);
   }
 
+  /**
+   * Returns true when Solo has to provision WRAPS for the consensus node itself: download and copy the proving
+   * key, and point the node at it with tss.wrapsEnabled and TSS_LIB_WRAPS_ARTIFACTS_PATH. That is only the case
+   * when WRAPS is enabled and the node predates the release that embeds the proving parameters in its TSS library.
+   */
+  public static shouldProvisionWraps(
+    wrapsEnabled: boolean,
+    consensusNodeVersion: SemanticVersion<string> | string,
+  ): boolean {
+    return (
+      wrapsEnabled &&
+      new SemanticVersion<string>(consensusNodeVersion.toString()).lessThan(
+        versions.MINIMUM_CN_VERSION_FOR_EMBEDDED_WRAPS_PARAMETERS,
+      )
+    );
+  }
+
   public static parseBlockStreamMode(applicationPropertiesText: string): string | undefined {
     const match: RegExpMatchArray | null = applicationPropertiesText.match(
       /^\s*blockStream\.streamMode\s*=\s*(\S+)\s*$/m,
@@ -137,8 +154,15 @@ export class Helpers {
 
     if (streamMode === 'BLOCKS') {
       Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
-    } else if (streamMode === 'BOTH') {
-      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'true');
+    } else if (
+      streamMode === 'BOTH' &&
+      !lines.some((line: string): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
+    ) {
+      // streamMode=BOTH sends both native blocks (BLOCK_HEADER) and Wrapped Record Blocks (ROUND_HEADER) to the
+      // block node. The block node drops ROUND_HEADER items, and the mirror importer's retries on the resulting
+      // gaps trigger HTTP/2 rapid-reset protection, so default to disabled. A value the user set explicitly is
+      // never rewritten.
+      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
     }
   }
 
@@ -162,12 +186,6 @@ export class Helpers {
 
     if (!propertyUpdated) {
       lines.push(`${key}=${value}`);
-    }
-  }
-
-  public static ensureWrappedRecordBlocksDisabled(lines: string[], streamMode: string): void {
-    if (streamMode === 'BOTH') {
-      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
     }
   }
 
@@ -937,12 +955,6 @@ export class Helpers {
       tssEnabled,
     );
     Helpers.updateBlockStreamPropertiesForMode(lines, blockStreamMode);
-
-    // streamMode=BOTH (used by performance tests) produces both native block-stream blocks
-    // (BLOCK_HEADER) and Wrapped Record Blocks (ROUND_HEADER). The mirror importer rejects
-    // ROUND_HEADER; its rapid retries trigger the block node's HTTP/2 rapid-reset protection,
-    // cutting off block ingestion. Disable WRBs only when BOTH mode is active.
-    Helpers.ensureWrappedRecordBlocksDisabled(lines, blockStreamMode);
 
     const updatedApplicationPropertiesData: string = lines.join('\n');
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {

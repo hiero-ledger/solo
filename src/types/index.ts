@@ -17,6 +17,7 @@ export type {ToObject} from './to-object.js';
 export type {ToJSON} from './to-json.js';
 export type {ServiceEndpoint} from './service-endpoint.js';
 export type {NodeAccountId} from './node-account-id.js';
+export type {ProtobufEd25519Key} from './protobuf-ed25519-key.js';
 export type {GenesisNetworkNodeStructure} from './genesis-network-node-structure.js';
 export type {GenesisNetworkRosterStructure} from './genesis-network-roster-structure.js';
 export type {GossipEndpoint} from './gossip-endpoint.js';

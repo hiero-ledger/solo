@@ -2,15 +2,8 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {type Listr, type ListrBaseClassOptions, type ListrContext, type ListrRendererValue} from 'listr2';
-import {
-  AccountId,
-  type Client,
-  HbarUnit,
-  PublicKey,
-  TopicCreateTransaction,
-  TopicId,
-  TopicInfoQuery,
-} from '@hiero-ledger/sdk';
+import {AccountId, HbarUnit, PublicKey, TopicId} from '@hiero-ledger/sdk';
+import {type HederaClient} from '../../../../integration/hedera/hedera-client.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
@@ -315,13 +308,21 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 config.networkConfiguration[flags.getFormattedFlagKey(flags.genesisThrottlesFile)] = throttlesFile;
               }
 
-              // For CN >= 0.73.0, cap K8s container memory at 1Gi to prevent unbounded mmap'd state-on-disk page cache growth
+              // Cap MinIO's tenant pool memory (hiero-ledger/solo#5602) unconditionally, and — for CN
+              // >= 0.73.0 — also cap K8s container memory at 1Gi to prevent unbounded mmap'd
+              // state-on-disk page cache growth. Both live in the same --values-file, comma-joined
+              // per cluster-ref, since Helm merges multiple -f files in order.
+              const helmOverrideFiles: string[] = [PathEx.join(overridesDirectory, 'minio-resources.yaml')];
               if (useStateOnDisk) {
-                const helmOverrideFile: string = PathEx.join(stateOnDiskDirectory, 'helm-overrides.yaml');
-                if (fs.existsSync(helmOverrideFile)) {
-                  config.networkConfiguration[flags.getFormattedFlagKey(flags.valuesFile)] =
-                    `${config.clusterRef}=${helmOverrideFile}`;
-                }
+                helmOverrideFiles.push(PathEx.join(stateOnDiskDirectory, 'helm-overrides.yaml'));
+              }
+              const existingHelmOverrideFiles: string[] = helmOverrideFiles.filter((file: string): boolean =>
+                fs.existsSync(file),
+              );
+              if (existingHelmOverrideFiles.length > 0) {
+                config.networkConfiguration[flags.getFormattedFlagKey(flags.valuesFile)] = existingHelmOverrideFiles
+                  .map((file: string): string => `${config.clusterRef}=${file}`)
+                  .join(',');
               }
             }
 
@@ -356,8 +357,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       // resume cleanly — rebuilding is the predictable behavior. That includes a local config which
       // claims a deployment the cluster can no longer back: its remote config is gone, so there is
       // nothing left to resume, only leftovers to clear out. The confirmation and the destroy it
-      // gates both run before the deploy lock is acquired because the invoked destroy acquires the
-      // same lock.
+      // gates both run before the deploy lock is acquired: the lease lives in the namespace the
+      // destroy deletes. The destroy's deployment delete also unloads the remote config, so the lock
+      // falls back to --context instead of resolving the deleted deployment's cluster ref.
       new OrchestratorPipelinePhase('Confirm cleanup of existing deployment state', {
         asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Confirm cleanup of existing deployment state',
@@ -769,34 +771,30 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
         const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
 
-        const client: Client = await this.accountManager.loadNodeClient(
+        await this.accountManager.loadNodeClient(
           config.namespace,
           this.remoteConfig.getClusterRefs(),
           config.deployment,
         );
+        const client: HederaClient = this.accountManager.hederaClient!;
 
         const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
         const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
         try {
-          const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
-            TopicId.fromString(entityId(realm, shard, 1001)),
-          );
-          await entity1001Query.execute(client);
-        } catch (topicCheckError) {
-          try {
-            if (topicCheckError.message.includes('INVALID_TOPIC_ID')) {
-              const bufferTopic: TopicCreateTransaction = new TopicCreateTransaction().setTopicMemo(
-                'Buffer topic to bump entity IDs',
+          const entity1001Exists: boolean = await client.topicExists(TopicId.fromString(entityId(realm, shard, 1001)));
+          if (!entity1001Exists) {
+            try {
+              await client.createTopic('Buffer topic to bump entity IDs');
+            } catch (topicCreateError) {
+              this.logger.warn(
+                'Failed to create topic. Created account IDs may be offset from the expected values.',
+                topicCreateError,
               );
-              await bufferTopic.execute(client);
             }
-          } catch (topicCreateError) {
-            this.logger.warn(
-              'Failed to create topic. Created account IDs may be offset from the expected values.',
-              topicCreateError,
-            );
           }
+        } catch {
+          // best-effort: the buffer topic only keeps created account IDs aligned, so an unreadable entity 1001 is not fatal
         }
 
         const accountsToCreate: PredefinedAccount[] = [...predefinedEcdsaAccountsWithAlias];

@@ -32,10 +32,10 @@
  *   constants.ts reads SOLO_SEA_ROOT_DIR (set before require()) for ROOT_DIR.
  *   version.ts reads SOLO_SEA_VERSION (set before require()) for getSoloVersion().
  *
- * Output: sea/dist/solo-<platform>-<arch>[.exe]
+ * Output: sea/dist/solo-<platform>-<arch>[-musl][.exe] (-musl when built with a musl Node.js, on Alpine)
  *
- * Run with: npx tsx sea/build.ts
- * Or via:   task sea:build   (which ensures build:compile ran first)
+ * Run with: task sea:build   (installs dependencies and runs build:compile first; not part of task build)
+ * Or:       npx tsx sea/build.ts   (after compiling with npx tsc)
  */
 
 import * as esbuild from 'esbuild';
@@ -58,7 +58,12 @@ const version: string = packageJson.version;
 
 const {platform, arch} = process;
 const extension: string = platform === 'win32' ? '.exe' : '';
-const binaryName: string = `solo-${platform}-${arch}${extension}`;
+// A musl Node.js reports no glibc runtime version. Its binary cannot run on glibc (nor the reverse),
+// so it gets its own asset name, the one installers/linux/install.sh selects on musl systems.
+const isMusl: boolean =
+  platform === 'linux' &&
+  (process.report.getReport() as {header: {glibcVersionRuntime?: string}}).header.glibcVersionRuntime === undefined;
+const binaryName: string = `solo-${platform}-${arch}${isMusl ? '-musl' : ''}${extension}`;
 
 const bundlePath: string = path.join(BUILD_DIR, 'solo-src-bundle.cjs');
 const seaMainPath: string = path.join(BUILD_DIR, 'sea-main.cjs');
