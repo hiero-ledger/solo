@@ -136,6 +136,24 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
     expect(patchCount.value).to.equal(0);
   });
 
+  it('explains how to proceed when the user may not install the provisioner', async (): Promise<void> => {
+    const k8: K8 = {
+      storageClasses: (): unknown => ({list: async (): Promise<StorageClass[]> => []}),
+      manifests: (): unknown => ({
+        applyManifest: async (): Promise<void> => {
+          throw Object.assign(new Error('forbidden'), {code: 403});
+        },
+      }),
+    } as unknown as K8;
+    const k8Factory: K8Factory = {getK8: (): K8 => k8} as unknown as K8Factory;
+    const stubLogger: SoloLogger = {info: (): void => {}, showUser: (): void => {}} as unknown as SoloLogger;
+    const helper: StorageClassHelper = new StorageClassHelper(k8Factory, stubLogger);
+
+    await expect(helper.resolveStorageClass('test-context', '')).to.be.rejectedWith(
+      'installing rancher.io/local-path was forbidden',
+    );
+  });
+
   it('installs local-path-provisioner without setting it as default when classes exist but none is default or local-path', async (): Promise<void> => {
     const storageClasses: StorageClass[] = [{name: 'fast-ssd', provisioner: 'pd.csi.storage.gke.io', isDefault: false}];
     const applyCount: {value: number} = {value: 0};

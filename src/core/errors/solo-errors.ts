@@ -245,6 +245,7 @@ import {DomainNameParseFailedSoloError} from './classes/validation/domain-name-p
 import {UnknownTemplateDependencySoloError} from './classes/validation/unknown-template-dependency-solo-error.js';
 import {NoConsensusNodesFoundSoloError} from './classes/validation/no-consensus-nodes-found-solo-error.js';
 import {ServiceTypeMismatchSoloError} from './classes/validation/service-type-mismatch-solo-error.js';
+import {StorageClassInstallForbiddenSoloError} from './classes/validation/storage-class-install-forbidden-solo-error.js';
 import {StorageClassNameConflictSoloError} from './classes/validation/storage-class-name-conflict-solo-error.js';
 import {StorageClassNotFoundSoloError} from './classes/validation/storage-class-not-found-solo-error.js';
 import {BackupConfigNotFoundSoloError} from './classes/validation/backup-config-not-found-solo-error.js';
@@ -700,6 +701,7 @@ export class SoloErrors {
     readonly serviceTypeMismatch: typeof ServiceTypeMismatchSoloError;
     readonly storageClassNotFound: typeof StorageClassNotFoundSoloError;
     readonly storageClassNameConflict: typeof StorageClassNameConflictSoloError;
+    readonly storageClassInstallForbidden: typeof StorageClassInstallForbiddenSoloError;
     readonly backupConfigNotFound: typeof BackupConfigNotFoundSoloError;
     readonly backupConfigInvalid: typeof BackupConfigInvalidSoloError;
     readonly backupConfigReadFailed: typeof BackupConfigReadFailedSoloError;
@@ -793,6 +795,7 @@ export class SoloErrors {
     serviceTypeMismatch: ServiceTypeMismatchSoloError,
     storageClassNotFound: StorageClassNotFoundSoloError,
     storageClassNameConflict: StorageClassNameConflictSoloError,
+    storageClassInstallForbidden: StorageClassInstallForbiddenSoloError,
     backupConfigNotFound: BackupConfigNotFoundSoloError,
     backupConfigInvalid: BackupConfigInvalidSoloError,
     backupConfigReadFailed: BackupConfigReadFailedSoloError,

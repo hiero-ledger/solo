@@ -2,6 +2,7 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {SoloErrors} from './errors/solo-errors.js';
+import {KubeApiResponse} from '../integration/kube/kube-api-response.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8} from '../integration/kube/k8.js';
@@ -137,7 +138,16 @@ export class StorageClassHelper {
       `No default StorageClass found in cluster — installing ${constants.LOCAL_PATH_PROVISIONER}-provisioner ` +
         '(not set as cluster default). Use --pvc-storage-class to specify an existing StorageClass.',
     );
-    await k8.manifests().applyManifest(manifestPath, {ignoreExisting: true});
+    try {
+      await k8.manifests().applyManifest(manifestPath, {ignoreExisting: true});
+    } catch (error) {
+      // Creating a namespace, StorageClass and ClusterRole needs cluster-level permission, which a user of a shared
+      // cluster often lacks. Say so, with the way out, instead of surfacing the raw API response.
+      if (KubeApiResponse.isForbidden(error)) {
+        throw new SoloErrors.validation.storageClassInstallForbidden(constants.LOCAL_PATH_PROVISIONER);
+      }
+      throw error;
+    }
     return constants.LOCAL_PATH_STORAGE_CLASS;
   }
 }
