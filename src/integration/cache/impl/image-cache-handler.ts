@@ -88,8 +88,24 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
     let manifestImages: ReadonlyMap<string, CacheManifestImage>;
     try {
-      manifestImages = await ImageCacheHandler.fetchManifestImages();
+      manifestImages = await this.fetchManifestImages();
     } catch (error) {
+      if (error instanceof SoloErrors.system.cacheManifestUnpublished) {
+        this.logger.info('Image cache manifest is not published, skipping cache download:', error);
+
+        return [
+          {
+            title: 'Download image archives',
+            task: (_, task): void => {
+              task.title += ' - skipped, no image cache manifest available';
+              this.logger.showUserUnlessOneShot(
+                'Image cache manifest is not published for this version; skipping image cache download.',
+              );
+            },
+          },
+        ];
+      }
+
       const message: string = ImageCacheHandler.getErrorMessage(error);
       this.logger.error('Failed to read the image cache manifest:', error);
 
@@ -172,9 +188,14 @@ export class ImageCacheHandler implements CacheOperationHandler {
     };
   }
 
-  /** Fetches the manifest for the running Solo version, keyed by image reference. */
-  private static async fetchManifestImages(): Promise<ReadonlyMap<string, CacheManifestImage>> {
-    const images: readonly CacheManifestImage[] = await CacheManifestClient.fetchImages();
+  /**
+   * Fetches the manifest entries for the running Solo version and the container engine's platform, keyed by
+   * image reference. The engine's platform is the cluster's, so only archives the cluster can run are cached.
+   */
+  private async fetchManifestImages(): Promise<ReadonlyMap<string, CacheManifestImage>> {
+    const images: readonly CacheManifestImage[] = await CacheManifestClient.fetchImages(
+      await this.engine.getLinuxPlatform(),
+    );
 
     return new Map<string, CacheManifestImage>(
       images.map((image): [string, CacheManifestImage] => [image.image, image]),
@@ -377,7 +398,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
    */
   private async resolveManifestImagesForLoad(): Promise<ReadonlyMap<string, CacheManifestImage>> {
     try {
-      return await ImageCacheHandler.fetchManifestImages();
+      return await this.fetchManifestImages();
     } catch (error) {
       this.logger.debug(
         'Unable to read the image cache manifest; cached archives will be loaded without re-validation: ' +

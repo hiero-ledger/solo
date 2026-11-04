@@ -107,6 +107,17 @@ export const HEDERA_CHAIN_ID: string = getEnvironmentVariable('SOLO_CHAIN_ID') |
 export const HEDERA_HGCAPP_DIR: string = '/opt/hgcapp';
 export const HEDERA_SERVICES_PATH: string = `${HEDERA_HGCAPP_DIR}/services-hedera`;
 export const HEDERA_HAPI_PATH: string = `${HEDERA_SERVICES_PATH}/HapiApp2.0`;
+
+// How Solo starts/stops the consensus node process inside the root container:
+//  - 'solo-container' (default): the solo-containers debian-s6-java25 image and its /command/network-node-lifecycle helper
+//  - 'consensus-node-image': opt-in; the hiero-consensus-node deterministic image and its single s6 'consensus' service
+export const NETWORK_NODE_LIFECYCLE_MODE: string =
+  getEnvironmentVariable('NETWORK_NODE_LIFECYCLE_MODE') || 'solo-container';
+
+// Public release location of the hiero-consensus-node deterministic image, used as the root container image
+// when NETWORK_NODE_LIFECYCLE_MODE is 'consensus-node-image'. Tags are the release version without a 'v' prefix.
+export const CONSENSUS_NODE_IMAGE_REGISTRY: string = 'gcr.io';
+export const CONSENSUS_NODE_IMAGE_REPOSITORY: string = 'hedera-registry/consensus-node';
 export const HEDERA_DATA_APPS_DIR: string = 'data/apps';
 export const HEDERA_DATA_LIB_DIR: string = 'data/lib';
 export const HEDERA_USER_HOME_DIR: string = '/home/hedera';
@@ -171,6 +182,19 @@ export const PROMETHEUS_RELEASE_NAME: string = 'kube-prometheus-stack';
 export const SOLO_SERVICE_MONITOR_NAME: string = 'solo-service-monitor';
 
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
+
+// Helm repository that publishes both the Grafana Alloy and Loki charts.
+export const GRAFANA_CHART_URL: string =
+  getEnvironmentVariable('GRAFANA_CHART_URL') ?? 'https://grafana.github.io/helm-charts';
+export const GRAFANA_CHART_REPO: string = 'grafana';
+
+export const GRAFANA_ALLOY_CHART: string = 'alloy';
+export const GRAFANA_ALLOY_RELEASE_NAME: string = 'grafana-alloy';
+
+export const LOKI_CHART: string = 'loki';
+// The Loki release name yields the `loki` Service that the Alloy and Grafana datasource values reference.
+export const LOKI_RELEASE_NAME: string = 'loki';
+export const LOKI_GRAFANA_DATASOURCE_CONFIGMAP_NAME: string = 'loki-grafana-datasource';
 
 export const MINIO_OPERATOR_CHART_URL: string =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
@@ -283,7 +307,8 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
   .set(METRICS_SERVER_RELEASE_NAME, METRICS_SERVER_CHART_URL)
-  .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
+  .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL)
+  .set(GRAFANA_CHART_REPO, GRAFANA_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME: string = 'mirror-ingress-class';
 export const MIRROR_INGRESS_CONTROLLER: string = 'mirror-ingress-controller';
@@ -392,7 +417,8 @@ export const ONE_SHOT_RELAY_HOST_PORT: number = 37_546;
 export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
 export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
-export const BLOCK_NODE_SOLO_DEV_FILE: string = BLOCK_NODE_VALUES_FILE;
+export const GRAFANA_ALLOY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'grafana-alloy-values.yaml');
+export const LOKI_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'loki-values.yaml');
 export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-postgres-truncate.sql',
@@ -675,6 +701,7 @@ export const IGNORED_NODE_ACCOUNT_ID: string = '0.0.0';
 export const UPLOADER_SECRET_NAME: string = 'uploader-mirror-secrets';
 export const MINIO_SECRET_NAME: string = 'minio-secrets';
 export const BACKUP_SECRET_NAME: string = 'backup-uploader-secrets';
+export const MIRROR_NODE_SECRETS_BACKUP_NAME: string = 'mirror-node-secrets-backup';
 export const MIRROR_INGRESS_TLS_SECRET_NAME: string = 'ca-secret-mirror-node';
 export const EXPLORER_INGRESS_TLS_SECRET_NAME: string = 'ca-secret-hiero-explorer';
 export const NODE_TLS_KEYS_SECRET_NAME: string = 'network-node-hapi-app-secrets';

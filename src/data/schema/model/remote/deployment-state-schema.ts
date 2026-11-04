@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Exclude, Expose, Transform, Type} from 'class-transformer';
+import {Exclude, Expose, Type} from 'class-transformer';
 import {ConsensusNodeStateSchema} from './state/consensus-node-state-schema.js';
-import {type LedgerPhase} from './ledger-phase.js';
-import {Transformations} from '../utils/transformations.js';
 import {RelayNodeStateSchema} from './state/relay-node-state-schema.js';
 import {MirrorNodeStateSchema} from './state/mirror-node-state-schema.js';
 import {HaProxyStateSchema} from './state/ha-proxy-state-schema.js';
@@ -18,10 +16,6 @@ import {RedisStateSchema} from './state/redis-state-schema.js';
 
 @Exclude()
 export class DeploymentStateSchema implements DeploymentStateStructure {
-  @Expose()
-  @Transform(Transformations.LedgerPhase)
-  public ledgerPhase: LedgerPhase;
-
   @Expose()
   public tssEnabled: boolean;
 
@@ -87,7 +81,6 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
   public redis: RedisStateSchema[];
 
   public constructor(
-    ledgerPhase?: LedgerPhase,
     componentIds?: ComponentIdsSchema,
     consensusNodes?: ConsensusNodeStateSchema[],
     blockNodes?: BlockNodeStateSchema[],
@@ -104,7 +97,6 @@ export class DeploymentStateSchema implements DeploymentStateStructure {
     blockNodeMessageSizeSoftLimitBytes?: number,
     blockNodeMessageSizeHardLimitBytes?: number,
   ) {
-    this.ledgerPhase = ledgerPhase;
     this.componentIds = componentIds || new ComponentIdsSchema();
     this.consensusNodes = consensusNodes || [];
     this.blockNodes = blockNodes || [];

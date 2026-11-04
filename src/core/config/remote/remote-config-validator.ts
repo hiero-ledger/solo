@@ -20,6 +20,8 @@ import {type K8Factory} from '../../../integration/kube/k8-factory.js';
 import * as constants from '../../constants.js';
 import {NodeAlias, NodeAliases} from '../../../types/aliases.js';
 import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/relay-node-state-schema.js';
+import {sleep} from '../../helpers.js';
+import {Duration} from '../../time/duration.js';
 
 /**
  * Static class is used to validate that components in the remote config
@@ -27,6 +29,11 @@ import {RelayNodeStateSchema} from '../../../data/schema/model/remote/state/rela
  */
 @injectable()
 export class RemoteConfigValidator implements RemoteConfigValidatorApi {
+  // A redeploy can briefly leave a component without pods while its controller recreates them,
+  // so the pod lookup is retried for a short window before the component is reported missing.
+  private static readonly POD_LOOKUP_MAX_ATTEMPTS: number = 30;
+  private static readonly POD_LOOKUP_DELAY: Duration = Duration.ofSeconds(1);
+
   public constructor(
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
@@ -163,7 +170,16 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
         : getLabelsCallback(component.metadata.id);
 
       try {
-        const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
+        let pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
+
+        for (
+          let attempt: number = 1;
+          pods.length === 0 && attempt < RemoteConfigValidator.POD_LOOKUP_MAX_ATTEMPTS;
+          attempt++
+        ) {
+          await sleep(RemoteConfigValidator.POD_LOOKUP_DELAY);
+          pods = await this.k8Factory.getK8(context).pods().list(namespace, labels);
+        }
 
         if (pods.length === 0) {
           throw new Error('Pod not found'); // to return the generic error message

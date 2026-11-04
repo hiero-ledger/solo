@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {afterEach, before, describe, it} from 'mocha';
+import {afterEach, before, beforeEach, describe, it} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -19,9 +19,10 @@ import {type KindDependencyManager} from '../../../src/core/dependency-managers/
 import {type PodmanDependencyManager} from '../../../src/core/dependency-managers/podman-dependency-manager.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type GitClient} from '../../../src/integration/git/git-client.js';
-import {type SoloListrTaskWrapper} from '../../../src/types/index.js';
+import {PodmanMode, type SoloListrTask, type SoloListrTaskWrapper} from '../../../src/types/index.js';
 import {type AnyObject} from '../../../src/types/aliases.js';
 import {SubprocessEnvironment} from '../../../src/core/subprocess-environment.js';
+import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
 
 function getConfigFilePath(manager: ClusterTaskManager, useSmallMemoryCluster: boolean): string {
   return (
@@ -39,6 +40,18 @@ function configureBrewPodmanRuntime(manager: ClusterTaskManager): Promise<void> 
   ).configureBrewPodmanRuntime({title: 'Configure podman container runtime...'} as SoloListrTaskWrapper<AnyObject>);
 }
 
+async function createRootfulCluster(manager: ClusterTaskManager): Promise<void> {
+  const parentTask: SoloListrTaskWrapper<AnyObject> = {
+    title: 'Create default cluster',
+  } as SoloListrTaskWrapper<AnyObject>;
+  const createTask: SoloListrTask<AnyObject> = manager
+    .rootfullInstallTasks(parentTask, false)
+    .find((task: SoloListrTask<AnyObject>): boolean => task.title === 'Creating local cluster...');
+  await (createTask.task as (context: AnyObject, task: SoloListrTaskWrapper<AnyObject>) => Promise<void>)({}, {
+    title: 'Creating local cluster...',
+  } as SoloListrTaskWrapper<AnyObject>);
+}
+
 function createClusterTaskManager(
   podmanDependencyManager: object = {},
   dependencyManager: object = {},
@@ -54,6 +67,31 @@ function createClusterTaskManager(
     '/tmp/kind',
     {} as unknown as GitClient,
   );
+}
+
+async function getInstallKindDependencies(
+  podmanMode: PodmanMode,
+  shouldInstallPodman: boolean,
+  isDarwin: boolean,
+): Promise<string[]> {
+  sinon.stub(OperatingSystem, 'isDarwin').returns(isDarwin);
+  const taskCheckDependencies: SinonStub = sinon.stub().returns([]);
+  const getDependency: SinonStub = sinon.stub().resolves(container.resolve(InjectTokens.VfkitDependencyManager));
+  const manager: ClusterTaskManager = createClusterTaskManager(
+    {
+      shouldInstall: sinon.stub().resolves(shouldInstallPodman),
+      mode: podmanMode,
+    },
+    {getDependency, taskCheckDependencies},
+  );
+
+  const tasks: SoloListrTask<AnyObject>[] = manager.setupLocalClusterTasks();
+  const installKindTask: SoloListrTask<AnyObject> = tasks.find(
+    (taskItem: SoloListrTask<AnyObject>): boolean => taskItem.title === 'Install Kind',
+  ) as SoloListrTask<AnyObject>;
+  await installKindTask.task({}, {newListr: sinon.stub()} as unknown as SoloListrTaskWrapper<AnyObject>);
+
+  return taskCheckDependencies.firstCall.args[0] as string[];
 }
 
 describe('ClusterTaskManager', (): void => {
@@ -210,6 +248,127 @@ describe('ClusterTaskManager', (): void => {
       expect(sudoRun.firstCall.args[3][0]).to.equal(
         `PATH=${runtimeBinaryDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`,
       );
+    });
+  });
+
+  describe('rootful local cluster creation', (): void => {
+    let temporaryDirectory: string;
+    let previousKubeConfig: string | undefined;
+    let manager: ClusterTaskManager;
+    let sudoRun: SinonStub;
+
+    beforeEach((): void => {
+      temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-rootful-kubeconfig-'));
+      previousKubeConfig = process.env.KUBECONFIG;
+      manager = createClusterTaskManager({
+        getRuntimeBinaryDirectory: sinon.stub().resolves(temporaryDirectory),
+        containerConfigEnvironment: sinon.stub().returns({}),
+      });
+      sudoRun = sinon.stub(manager, 'sudoRun').resolves([]);
+    });
+
+    afterEach((): void => {
+      sinon.restore();
+      if (previousKubeConfig === undefined) {
+        delete process.env.KUBECONFIG;
+      } else {
+        process.env.KUBECONFIG = previousKubeConfig;
+      }
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    });
+
+    it('should let kind write a new user kubeconfig and hand it back to the user', async (): Promise<void> => {
+      const kubeConfigPath: string = path.join(temporaryDirectory, 'kube', 'config');
+      process.env.KUBECONFIG = kubeConfigPath;
+
+      await createRootfulCluster(manager);
+
+      const kindArguments: string[] = sudoRun.firstCall.args[3];
+      expect(kindArguments.slice(-2)).to.deep.equal(['--kubeconfig', kubeConfigPath]);
+      expect(fs.statSync(path.dirname(kubeConfigPath)).isDirectory()).to.be.true;
+      const user: os.UserInfo<string> = os.userInfo();
+      expect(sudoRun.callCount).to.equal(2);
+      expect(sudoRun.secondCall.args.slice(2, 4)).to.deep.equal(['chown', [`${user.uid}:${user.gid}`, kubeConfigPath]]);
+      expect(sudoRun.getCalls().flatMap((call): string[] => call.args[3])).to.not.include('/root/.kube/config');
+    });
+
+    it('should leave the owner of an existing user kubeconfig alone', async (): Promise<void> => {
+      const kubeConfigPath: string = path.join(temporaryDirectory, 'config');
+      fs.writeFileSync(kubeConfigPath, '');
+      process.env.KUBECONFIG = kubeConfigPath;
+
+      await createRootfulCluster(manager);
+
+      expect(sudoRun.calledOnce).to.be.true;
+      expect(sudoRun.firstCall.args[3].slice(-2)).to.deep.equal(['--kubeconfig', kubeConfigPath]);
+    });
+
+    it('should pick the first existing KUBECONFIG entry, else the last one', async (): Promise<void> => {
+      const [first, second, third]: string[] = ['a', 'b', 'c'].map((name: string): string =>
+        path.join(temporaryDirectory, name),
+      );
+      process.env.KUBECONFIG = [first, second, third].join(path.delimiter);
+
+      await createRootfulCluster(manager);
+      expect(sudoRun.firstCall.args[3].at(-1)).to.equal(third);
+
+      sudoRun.resetHistory();
+      fs.writeFileSync(second, '');
+      await createRootfulCluster(manager);
+      expect(sudoRun.firstCall.args[3].at(-1)).to.equal(second);
+    });
+
+    it('should default to ~/.kube/config when KUBECONFIG is unset', async (): Promise<void> => {
+      delete process.env.KUBECONFIG;
+      sinon.stub(os, 'homedir').returns(temporaryDirectory);
+
+      await createRootfulCluster(manager);
+
+      expect(sudoRun.firstCall.args[3].at(-1)).to.equal(path.join(temporaryDirectory, '.kube', 'config'));
+    });
+  });
+
+  describe('setupLocalClusterTasks', (): void => {
+    afterEach((): void => {
+      sinon.restore();
+    });
+
+    it('should include vfkit on macOS (darwin) when podman runs in virtual-machine mode', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, true, true);
+
+      expect(dependencies).to.deep.equal([constants.PODMAN, constants.VFKIT, constants.GVPROXY, constants.KIND]);
+    });
+
+    it('should omit vfkit on Windows (win32) when podman runs in virtual-machine mode', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, true, false);
+
+      expect(dependencies).to.deep.equal([constants.PODMAN, constants.GVPROXY, constants.KIND]);
+      expect(dependencies).to.not.include(constants.VFKIT);
+    });
+
+    it('should omit podman virtual-machine dependencies on Linux where podman runs rootfully', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.ROOTFUL, true, false);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
+      expect(dependencies).to.not.include(constants.VFKIT);
+    });
+
+    it('should only require kind when Docker is available on macOS (darwin)', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, false, true);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
+    });
+
+    it('should only require kind when Docker is available on Windows (win32)', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.VIRTUAL_MACHINE, false, false);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
+    });
+
+    it('should only require kind when Docker is available on Linux', async (): Promise<void> => {
+      const dependencies: string[] = await getInstallKindDependencies(PodmanMode.ROOTFUL, false, false);
+
+      expect(dependencies).to.deep.equal([constants.KIND]);
     });
   });
 });

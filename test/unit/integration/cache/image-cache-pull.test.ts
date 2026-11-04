@@ -23,6 +23,7 @@ import {type PackageDownloader} from '../../../../src/core/package-downloader.js
 import {type SoloListrTask} from '../../../../src/types/index.js';
 import {type AnyListrContext} from '../../../../src/types/aliases.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
+import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
 
 const IMAGE_REFERENCE: string = 'docker.io/library/busybox:1.36.1';
 const TAR_FILE: string = 'docker.io__library__busybox__1.36.1.tar';
@@ -41,11 +42,13 @@ const engine: ContainerEngineClient = {
   removeImage: async (): Promise<void> => undefined,
   listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
   resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
+  getLinuxPlatform: async (): Promise<string> => 'linux/amd64',
 };
 
 function manifestImage(sha256: string = ARCHIVE_HASH, size?: number): CacheManifestImage {
   return new CacheManifestImage(
     IMAGE_REFERENCE,
+    'linux/amd64',
     TAR_FILE,
     `${TAR_FILE}.sha256`,
     sha256,
@@ -164,6 +167,26 @@ describe('ImageCacheHandler pull', (): void => {
     expect(await exists(hashPath)).to.equal(true);
   });
 
+  it("reads the manifest entries for the container engine's platform", async (): Promise<void> => {
+    const fetchImages: SinonStub = sinon.stub(CacheManifestClient, 'fetchImages').resolves([]);
+    const arm64Engine: ContainerEngineClient = {
+      ...engine,
+      getLinuxPlatform: async (): Promise<string> => 'linux/arm64',
+    };
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      arm64Engine,
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+      {fetchFile: stubDownloader({})} as unknown as PackageDownloader,
+    );
+
+    await runPull(handler);
+
+    expect(fetchImages).to.have.been.calledOnceWithExactly('linux/arm64');
+  });
+
   it('skips the download when a valid archive is already cached', async (): Promise<void> => {
     await fs.writeFile(archivePath, ARCHIVE_CONTENTS);
     await fs.writeFile(hashPath, ARCHIVE_HASH);
@@ -262,6 +285,30 @@ describe('ImageCacheHandler pull', (): void => {
     expect(fetchFile).to.not.have.been.called;
     expect(context.config.results).to.have.lengthOf(0);
     expect(loggerStub.addMessageGroupMessage).to.have.been.called;
+  });
+
+  it('skips downloading and records no failures when the manifest is unpublished', async (): Promise<void> => {
+    sinon
+      .stub(CacheManifestClient, 'fetchImages')
+      .rejects(new SoloErrors.system.cacheManifestUnpublished('https://example.com/manifest.json'));
+    const fetchFile: SinonStub = stubDownloader({});
+    const handler: ImageCacheHandler = createHandler(fetchFile);
+
+    const subtasks: readonly SoloListrTask<AnyListrContext>[] = await handler.pull();
+    expect(subtasks).to.have.lengthOf(1);
+    expect(subtasks[0].title).to.equal('Download image archives');
+
+    const fakeTask: {title: string} = {title: subtasks[0].title as string};
+    const context: {config: {results: unknown[]}} = {config: {results: []}};
+    await (subtasks[0].task as (context_: unknown, task_: unknown) => Promise<void>)(context, fakeTask);
+
+    expect(fetchFile).to.not.have.been.called;
+    expect(context.config.results).to.have.lengthOf(0);
+    expect(loggerStub.error).to.not.have.been.called;
+    expect(loggerStub.addMessageGroupMessage).to.not.have.been.called;
+    expect(loggerStub.info).to.have.been.called;
+    expect(loggerStub.showUserUnlessOneShot).to.have.been.called;
+    expect(fakeTask.title).to.equal('Download image archives - skipped, no image cache manifest available');
   });
 
   it('caches nothing and never throws when the manifest is unavailable', async (): Promise<void> => {
