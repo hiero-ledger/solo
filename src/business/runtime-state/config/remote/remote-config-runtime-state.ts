@@ -46,6 +46,7 @@ import {LocalConfigRuntimeState} from '../local/local-config-runtime-state.js';
 import {RemoteConfigMetadataSchema} from '../../../../data/schema/model/remote/remote-config-metadata-schema.js';
 import {ApplicationVersionsSchema} from '../../../../data/schema/model/common/application-versions-schema.js';
 import {ClusterSchema} from '../../../../data/schema/model/common/cluster-schema.js';
+import {LedgerSchema} from '../../../../data/schema/model/remote/ledger-schema.js';
 import {DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
 import {DeploymentHistorySchema} from '../../../../data/schema/model/remote/deployment-history-schema.js';
 import {RemoteConfigSchemaDefinition} from '../../../../data/schema/migration/impl/remote/remote-config-schema-definition.js';
@@ -166,6 +167,21 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return this.phase === RuntimeStatePhase.Loaded;
   }
 
+  /**
+   * Forgets the loaded remote config, so that isLoaded() is false and the next load() reads the cluster again. Call it
+   * once the deployment the remote config belongs to is gone: the state is a process-wide singleton, so without this a
+   * command running later in the same process (e.g. one-shot deploy after its auto-clean destroy) would still see the
+   * clusters of the removed deployment.
+   */
+  public unload(): void {
+    this.phase = RuntimeStatePhase.NotLoaded;
+    this._remoteConfig = undefined;
+    this.source = undefined;
+    this.backend = undefined;
+    this.namespace = undefined;
+    this.clusterReferences.clear();
+  }
+
   private failIfNotLoaded(): void {
     if (!this.isLoaded()) {
       throw new SoloErrors.internal.readRemoteConfigBeforeLoad();
@@ -238,12 +254,20 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       new RemoteConfigMetadataSchema(new Date(), userIdentity),
       new ApplicationVersionsSchema(cliVersion),
       [cluster],
-      new DeploymentStateSchema(ledgerPhase, new ComponentIdsSchema(nodeAliases.length + 1), consensusNodeStates),
+      new DeploymentStateSchema(new ComponentIdsSchema(nodeAliases.length + 1), consensusNodeStates),
       new DeploymentHistorySchema([command], command),
+      new LedgerSchema(
+        ledgerPhase,
+        Number(this.localConfig.configuration.realmForDeployment(deploymentName)),
+        Number(this.localConfig.configuration.shardForDeployment(deploymentName)),
+      ),
     );
 
     const configMap: ConfigMap = await this.createConfigMap(namespace, context);
     await this.populateFromConfigMap(configMap, remoteConfig);
+
+    // record default component versions up front so they are not left as 0.0.0 until each component is deployed
+    this.initializeComponentVersions(argv, remoteConfig);
 
     await this.persist();
   }
@@ -301,6 +325,14 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     await this.persist();
+  }
+
+  /** Records the running Solo version as the one that last touched the remote config. */
+  private updateCliVersion(): void {
+    const currentVersion: SemanticVersion<string> = new SemanticVersion<string>(getSoloVersion());
+    if (!this.getComponentVersion(ComponentTypes.Cli).equals(currentVersion)) {
+      this.updateComponentVersion(ComponentTypes.Cli, currentVersion);
+    }
   }
 
   public addCommandToHistory(command: string): void {
@@ -515,6 +547,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     this.initializeComponentVersions(argv, this.source.modelData);
+    this.updateCliVersion();
 
     await this.persist();
   }

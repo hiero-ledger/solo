@@ -27,11 +27,13 @@ import {CacheCommandDefinition} from '../../../command-definitions/cache-command
 import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
 import {Templates} from '../../../../core/templates.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
+import {helmValuesHelper} from '../../../../core/helm-values-helper.js';
+import {type ComponentVersionTuple} from '../../../../business/compatibility/component-version-tuple.js';
+import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
 
 const MIRROR_NODE_ID: number = 1;
 const GITHUB_RELEASES_PER_PAGE: number = 100;
@@ -63,9 +65,39 @@ export class DeployArgvBuilders {
     return this.isBlockNodeEnvironmentEnabled();
   }
 
+  /**
+   * The versions of the components this one-shot run will deploy together. The sub-commands each check compatibility
+   * against what remote config records when they run, which in this pipeline can be before the other components have
+   * recorded their versions, so one-shot validates the whole set up front.
+   */
+  public static buildComponentVersionTuple(config: OneShotSingleDeployConfigClass): ComponentVersionTuple {
+    const tuple: Partial<Record<ComponentTypes, string>> = {[ComponentTypes.ConsensusNode]: config.versions.consensus};
+    if (this.shouldDeployBlockNode(config)) {
+      tuple[ComponentTypes.BlockNode] = config.versions.blockNode;
+    }
+    if (config.deployMirrorNode) {
+      tuple[ComponentTypes.MirrorNode] = config.versions.mirror;
+    }
+    if (config.deployRelay || config.minimalSetup) {
+      tuple[ComponentTypes.RelayNodes] = config.versions.relay;
+    }
+    if (config.deployExplorer || config.minimalSetup) {
+      tuple[ComponentTypes.Explorer] = config.versions.explorer;
+    }
+    return tuple;
+  }
+
   private static shouldSkipMinioSetup(config: OneShotSingleDeployConfigClass): boolean {
     if (!this.shouldDeployBlockNode(config)) {
       return false;
+    }
+
+    const networkValuesFileInput: unknown = config.networkConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
+    if (typeof networkValuesFileInput === 'string' && networkValuesFileInput.trim().length > 0) {
+      const filePaths: string[] = Object.values(Flags.parseValuesFilesInput(networkValuesFileInput)).flat();
+      if (helmValuesHelper.hasExplicitMinioEnabled(filePaths)) {
+        return false;
+      }
     }
 
     const consensusNodeVersion: string = config.versions.consensus || version.HEDERA_PLATFORM_VERSION;
@@ -125,15 +157,8 @@ export class DeployArgvBuilders {
     delete blockNodeConfiguration.consensusNodeVersion;
     delete blockNodeConfiguration['consensus-node-version'];
 
-    // Build a local copy with the dev image values file appended, without mutating
-    // config.blockNodeConfiguration — it may be an alias for another section's object
-    // (e.g. via YAML anchors), causing the values file to leak into other commands.
-    // When ONE_SHOT_BLOCK_NODE_PERF=true, also inject the messaging workaround values
-    // (larger Disruptor ring buffer + memory, no JFR) before the solo-dev image override
-    // so the settings apply but the image is still the solo-dev image.
+    // Local copy so the values file never leaks into config.blockNodeConfiguration (it may be a shared YAML anchor).
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
-    const isPerfMode: boolean = constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true';
-    const perfValuesFile: string | undefined = isPerfMode ? constants.BLOCK_NODE_MESSAGING_WORKAROUND_FILE : undefined;
     // WRB/RSA blocks require the block node's RSA address book before block 0 is verified.
     // Mirror can provide it later, but block-node startup must be seeded to avoid BAD_BLOCK_PROOF
     // on the first block.
@@ -143,12 +168,7 @@ export class DeployArgvBuilders {
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...blockNodeConfiguration,
-      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [
-        blockExistingValuesFile,
-        perfValuesFile,
-        rsaBootstrapValuesFile,
-        constants.BLOCK_NODE_SOLO_DEV_FILE,
-      ]
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [blockExistingValuesFile, rsaBootstrapValuesFile]
         .filter(Boolean)
         .join(','),
     };
@@ -235,7 +255,7 @@ export class DeployArgvBuilders {
         ],
       },
     });
-    const filePath: string = path.join(os.tmpdir(), 'bn-rsa-bootstrap-init-container.yaml');
+    const filePath: string = path.join(Helpers.getTemporaryDirectory(), 'bn-rsa-bootstrap-init-container.yaml');
     fs.writeFileSync(filePath, content, 'utf8');
     return filePath;
   }

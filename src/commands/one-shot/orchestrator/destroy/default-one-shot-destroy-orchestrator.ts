@@ -385,7 +385,8 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             return ListrLock.newAcquireLockTask(leaseReference.value, task);
           },
           // The lock lives in the cluster; skip it when there is nothing to do, the cluster is
-          // unreachable, or the caller already holds the lock (e.g. one-shot deploy's auto-clean).
+          // unreachable, or the destroy runs inside a one-shot deploy: its rollback already holds the
+          // lock, and its auto-clean runs before the deploy takes the lock in the namespace it destroys.
           skip: (): boolean => skipDeploymentLock || getConfig().skipAll || getConfig().skipClusterCleanup,
         }),
       }),

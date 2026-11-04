@@ -8,6 +8,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {GitHubReleaseDependencyManager} from './github-release-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import {type GitHubReleaseAsset} from '../../types/index.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 @injectable()
 export class VfkitDependencyManager extends GitHubReleaseDependencyManager {
@@ -34,6 +35,10 @@ export class VfkitDependencyManager extends GitHubReleaseDependencyManager {
 
   public override getVerifyChecksum(): boolean {
     return false;
+  }
+
+  public override async shouldInstall(): Promise<boolean> {
+    return OperatingSystem.isDarwin();
   }
 
   /** vfkit releases a single universal macOS binary, so the asset is matched by name only. */

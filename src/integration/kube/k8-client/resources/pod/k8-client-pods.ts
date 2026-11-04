@@ -50,6 +50,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * or the container process has repeatedly crashed and will never restart cleanly on its own).
    */
   private static readonly FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
+    'ErrImageNeverPull',
     'ImagePullBackOff',
     'ErrImagePull',
     'InvalidImageName',
@@ -596,7 +597,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         }
 
         if (++attempts < maxAttempts) {
-          setTimeout((): Promise<void> => check(resolve, reject), delay);
+          setTimeout((): void => {
+            void check(resolve, reject);
+          }, delay);
         } else if (lastObservedPod) {
           const volumeMountDiagnostic: string | undefined = await this.buildVolumeMountDiagnostic(
             namespace,
@@ -620,7 +623,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         }
       };
 
-      check(resolve, reject);
+      void check(resolve, reject);
     });
   }
 

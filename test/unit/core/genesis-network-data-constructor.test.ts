@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type AccountId, PrivateKey} from '@hiero-ledger/sdk';
+import {type AccountId, PrivateKey, type PublicKey} from '@hiero-ledger/sdk';
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
+import crypto from 'node:crypto';
 import {GenesisNetworkDataConstructor} from '../../../src/core/genesis-network-models/genesis-network-data-constructor.js';
 import {type AccountManager} from '../../../src/core/account-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
@@ -12,12 +13,27 @@ import {NetworkNodeServices} from '../../../src/core/network-node-services.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
-import {type EndpointPortMapping, type ServiceEndpoint} from '../../../src/types/index.js';
+import {
+  type EndpointPortMapping,
+  type GenesisNetworkNodeStructure,
+  type ProtobufEd25519Key,
+  type ServiceEndpoint,
+} from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import * as constants from '../../../src/core/constants.js';
+import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
 
 function secureGrpcPorts(basePort: number): number[] {
   return [basePort, basePort + 1];
+}
+
+function serializedNodes(genesisNetworkData: GenesisNetworkDataConstructor): GenesisNetworkNodeStructure[] {
+  const {nodeMetadata}: {nodeMetadata: {node: GenesisNetworkNodeStructure}[]} = JSON.parse(genesisNetworkData.toJSON());
+  return nodeMetadata.map(({node}: {node: GenesisNetworkNodeStructure}): GenesisNetworkNodeStructure => node);
+}
+
+function serializedAdminKey(publicKey: PublicKey): ProtobufEd25519Key {
+  return {ed25519: Buffer.from(publicKey.toBytesRaw()).toString('base64')};
 }
 
 describe('core/genesis-network-data-constructor', (): void => {
@@ -43,12 +59,16 @@ describe('core/genesis-network-data-constructor', (): void => {
     return serviceMap;
   }
 
+  const tlsCertificateDer: Uint8Array = new Uint8Array([4, 5, 6]);
+
   const keyManager: KeyManager = {
-    getDerFromPem: (): Uint8Array => new Uint8Array([1, 2, 3]),
+    getDerFromPem: (pem: string): Uint8Array =>
+      pem === 'tls-certificate-pem' ? tlsCertificateDer : new Uint8Array([1, 2, 3]),
   } as unknown as KeyManager;
 
   const accountManager: AccountManager = {
     getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+    getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
     createOrReplaceAccountKeySecret: async (): Promise<void> => {},
   } as unknown as AccountManager;
 
@@ -116,6 +136,39 @@ describe('core/genesis-network-data-constructor', (): void => {
     ]);
   });
 
+  it('should set the grpc certificate hash to the SHA-384 of the gRPC TLS certificate', async (): Promise<void> => {
+    const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData();
+    const expectedHash: string = crypto.createHash('sha384').update(tlsCertificateDer).digest('base64');
+
+    for (const nodeAlias of nodeAliases) {
+      expect(genesisNetworkData.nodes[nodeAlias].grpcCertificateHash).to.equal(expectedHash);
+    }
+  });
+
+  it('should serialize the generated admin key as a protobuf ed25519 key', async (): Promise<void> => {
+    const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData();
+
+    for (const [index, node] of serializedNodes(genesisNetworkData).entries()) {
+      expect(node.adminKey).to.deep.equal(serializedAdminKey(genesisNetworkData.nodes[nodeAliases[index]].adminKey));
+      expect(node.accountId).to.deep.equal({shardNum: '0', realmNum: '0', accountNum: `${index + 3}`});
+    }
+  });
+
+  it('should serialize the admin keys supplied through the admin public keys flag', async (): Promise<void> => {
+    const suppliedKeys: PublicKey[] = nodeAliases.map((): PublicKey => PrivateKey.generateED25519().publicKey);
+    const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
+      consensusNodes,
+      keyManager,
+      accountManager,
+      networkNodeServiceMap(),
+      suppliedKeys.map((publicKey: PublicKey): string => publicKey.toString()),
+    );
+
+    for (const [index, node] of serializedNodes(genesisNetworkData).entries()) {
+      expect(node.adminKey).to.deep.equal(serializedAdminKey(suppliedKeys[index]));
+    }
+  });
+
   it('should register both grpc and grpcs service endpoints in node metadata', async (): Promise<void> => {
     const generatedAdminKey: PrivateKey = PrivateKey.generateED25519();
     const generateEd25519Stub: SinonStub = sinon.stub(PrivateKey, 'generateED25519').returns(generatedAdminKey);
@@ -162,6 +215,7 @@ describe('core/genesis-network-data-constructor', (): void => {
     const accountManagerStub: AccountManager = {
       createOrReplaceAccountKeySecret: sinon.stub().resolves(),
       getGossipPublicKeyPem: sinon.stub().resolves('test-pem'),
+      getTlsCertificatePem: sinon.stub().resolves('test-tls-pem'),
     } as unknown as AccountManager;
     const keyManagerStub: KeyManager = {
       getDerFromPem: sinon.stub().returns(Uint8Array.from([1, 2, 3])),
@@ -199,5 +253,97 @@ describe('core/genesis-network-data-constructor', (): void => {
     } finally {
       generateEd25519Stub.restore();
     }
+  });
+
+  it('should throw InvalidAdminPublicKeySoloError and not create secrets when a malformed admin key is supplied', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    await expect(
+      GenesisNetworkDataConstructor.initialize(
+        consensusNodes,
+        keyManager,
+        testAccountManager,
+        networkNodeServiceMap(),
+        ['invalid-public-key', 'another-invalid-key'],
+      ),
+    ).to.be.rejectedWith(SoloErrors.validation.invalidAdminPublicKey);
+
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
+  });
+
+  it('should throw InvalidAdminPublicKeySoloError and not create secrets when an ECDSA admin key is supplied', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    const ecdsaKey: string = PrivateKey.generateECDSA().publicKey.toString();
+    const validEdKey: string = PrivateKey.generateED25519().publicKey.toString();
+
+    await expect(
+      GenesisNetworkDataConstructor.initialize(
+        consensusNodes,
+        keyManager,
+        testAccountManager,
+        networkNodeServiceMap(),
+        [ecdsaKey, validEdKey],
+      ),
+    ).to.be.rejectedWith(SoloErrors.validation.invalidAdminPublicKey);
+
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
+  });
+
+  it('should fail before generating any secrets when one of multiple node keys is invalid', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    const validKey: PrivateKey = PrivateKey.generateED25519();
+
+    await expect(
+      GenesisNetworkDataConstructor.initialize(
+        consensusNodes,
+        keyManager,
+        testAccountManager,
+        networkNodeServiceMap(),
+        [validKey.publicKey.toString(), 'invalid-key-for-node2'],
+      ),
+    ).to.be.rejectedWith(SoloErrors.validation.invalidAdminPublicKey);
+
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
+  });
+
+  it('should use valid ED25519 admin keys and not generate fallback secrets', async (): Promise<void> => {
+    const createSecretStub: SinonStub = sinon.stub().resolves();
+    const testAccountManager: AccountManager = {
+      getGossipPublicKeyPem: async (): Promise<string> => 'gossip-public-key-pem',
+      getTlsCertificatePem: async (): Promise<string> => 'tls-certificate-pem',
+      createOrReplaceAccountKeySecret: createSecretStub,
+    } as unknown as AccountManager;
+
+    const validKey1: PrivateKey = PrivateKey.generateED25519();
+    const validKey2: PrivateKey = PrivateKey.generateED25519();
+
+    const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
+      consensusNodes,
+      keyManager,
+      testAccountManager,
+      networkNodeServiceMap(),
+      [validKey1.publicKey.toString(), validKey2.publicKey.toString()],
+    );
+
+    expect(genesisNetworkData.nodes['node1'].adminKey.toString()).to.equal(validKey1.publicKey.toString());
+    expect(genesisNetworkData.nodes['node2'].adminKey.toString()).to.equal(validKey2.publicKey.toString());
+    expect(createSecretStub.called, 'createOrReplaceAccountKeySecret must not be called').to.be.false;
   });
 });

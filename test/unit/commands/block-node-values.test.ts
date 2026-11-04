@@ -22,8 +22,11 @@ interface BlockNodeValuesConfig {
   blockNode?: {
     config?: {
       ROSTER_BOOTSTRAP_TSS_BLOCK_NODE_SOURCES_PATH?: string;
+      SERVER_SOCKET_RECEIVE_BUFFER_SIZE_BYTES?: string;
+      SERVER_SOCKET_SEND_BUFFER_SIZE_BYTES?: string;
     };
     persistence?: BlockNodePersistenceConfig;
+    initContainers?: Array<{name: string; image: string}>;
   };
 }
 
@@ -53,6 +56,23 @@ describe('Block node default values', (): void => {
     expect(parsedValues.blockNode?.config?.ROSTER_BOOTSTRAP_TSS_BLOCK_NODE_SOURCES_PATH).to.equal(
       '/opt/hiero/block-node/backfill/block-node-sources.json',
     );
+  });
+
+  it('should pin the init container image instead of the chart floating busybox tag', (): void => {
+    const valuesContent: string = fs.readFileSync(constants.BLOCK_NODE_VALUES_FILE, 'utf8');
+    const parsedValues: BlockNodeValuesConfig = yaml.parse(valuesContent) as BlockNodeValuesConfig;
+
+    expect(parsedValues.blockNode?.initContainers?.map(({image}): string => image)).to.deep.equal(['busybox:1.36.1']);
+  });
+
+  it('should pin both socket buffers to fit the memory-constrained pod', (): void => {
+    const valuesContent: string = fs.readFileSync(constants.BLOCK_NODE_VALUES_FILE, 'utf8');
+    const parsedValues: BlockNodeValuesConfig = yaml.parse(valuesContent) as BlockNodeValuesConfig;
+
+    // BN 0.45+ defaults both buffers to kernel autotune, which can grow each connection's buffers to several MB
+    // and exhaust the 160Mi limit; pin them to match the block node chart's nano profile.
+    expect(parsedValues.blockNode?.config?.SERVER_SOCKET_RECEIVE_BUFFER_SIZE_BYTES).to.equal('131072');
+    expect(parsedValues.blockNode?.config?.SERVER_SOCKET_SEND_BUFFER_SIZE_BYTES).to.equal('131072');
   });
 });
 

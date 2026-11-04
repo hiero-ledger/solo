@@ -70,7 +70,7 @@ jobs:
 
       - name: Harden Runner
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -122,11 +122,10 @@ jobs:
 
       - name: Setup Node
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 24
-          cache: npm
 
       - name: Configure npm registry
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
@@ -177,13 +176,11 @@ jobs:
 
       - name: Install Kind
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
-        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        uses: $/.github/actions/setup-kind
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          install_only: true
           version: 'v0.29.0'
-          node_image: 'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211'
-          kubectl_version: 'v1.32.2'
+          kubectl-version: 'v1.32.2'
 
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
         id: run-gcs-script
@@ -221,7 +218,7 @@ jobs:
 
       - name: Upload Logs to GitHub
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs-${{ matrix.storageType }}
