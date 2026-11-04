@@ -357,8 +357,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       // resume cleanly — rebuilding is the predictable behavior. That includes a local config which
       // claims a deployment the cluster can no longer back: its remote config is gone, so there is
       // nothing left to resume, only leftovers to clear out. The confirmation and the destroy it
-      // gates both run before the deploy lock is acquired because the invoked destroy acquires the
-      // same lock.
+      // gates both run before the deploy lock is acquired: the lease lives in the namespace the
+      // destroy deletes. The destroy's deployment delete also unloads the remote config, so the lock
+      // falls back to --context instead of resolving the deleted deployment's cluster ref.
       new OrchestratorPipelinePhase('Confirm cleanup of existing deployment state', {
         asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Confirm cleanup of existing deployment state',
