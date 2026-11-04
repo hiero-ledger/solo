@@ -222,8 +222,8 @@ export class DefaultHelmClient implements HelmClient {
     }
   }
 
-  public async updateRepositories(): Promise<void> {
-    await this.executeAsync(new RepositoryUpdateRequest());
+  public async updateRepositories(...repositoryNames: string[]): Promise<void> {
+    await this.executeAsync(new RepositoryUpdateRequest(repositoryNames));
   }
 
   public async pullChartPackage(

@@ -54,6 +54,7 @@ import {DeploymentCommandDefinition} from '../../../command-definitions/deployme
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
 import {type InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
+import {FlagValidation} from '../../../validation/flag-validation.js';
 import * as constants from '../../../../core/constants.js';
 import {createDirectoryIfNotExists, entityId, Helpers, sleep} from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
@@ -63,6 +64,7 @@ import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
 import {ConfirmationRequiredSoloError} from '../../../../core/errors/classes/validation/confirmation-required-solo-error.js';
 import {ValuesFileNotFoundSoloError} from '../../../../core/errors/classes/validation/values-file-not-found-solo-error.js';
+import {SoloErrors} from '../../../../core/errors/solo-errors.js';
 import {ValuesFileParser} from '../../../../core/util/values-file-parser.js';
 import {Templates} from '../../../../core/templates.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
@@ -186,7 +188,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               allFlags,
             ) as OneShotSingleDeployConfigClass;
             config = context_.config;
-            configReference.value = config;
             config.argv = argv;
 
             config.consensusNodeConfiguration ??= {};
@@ -204,10 +205,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
             this.applyValuesFileOverrides(config);
+            this.resolveChainId(config);
             config.clusterRef ||= 'one-shot';
             config.context ||= this.k8Factory.default().contexts().readCurrent();
             config.deployment ||= constants.ONE_SHOT_DEPLOYMENT_NAME;
             config.namespace ||= NamespaceName.of(constants.ONE_SHOT_DEPLOYMENT_NAME);
+            // Published for rollback only after validation, so a rejected values file never triggers a rollback
+            configReference.value = config;
             this.configManager.setFlag(flags.namespace, config.namespace);
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
@@ -982,6 +986,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       `Cluster Reference: ${context_.config.clusterRef}`,
       `Deployment Name: ${context_.config.deployment}`,
       `Namespace Name: ${context_.config.namespace.name}`,
+      `Chain ID: ${context_.config.chainId}`,
     ];
 
     for (const line of data) {
@@ -1069,6 +1074,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       label: string;
       nodePort: number;
       podPort: number;
+      scheme?: string;
       selectorLabels: string[];
       serviceName: string;
     }[] = [
@@ -1096,6 +1102,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         label: 'JSON RPC Relay',
         nodePort: constants.ONE_SHOT_RELAY_NODE_PORT,
         podPort: constants.JSON_RPC_RELAY_PORT,
+        scheme: 'http',
         selectorLabels: Templates.renderRelayLabels(1),
         serviceName: 'one-shot-relay-nodeport',
       },
@@ -1125,9 +1132,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         // of failing the whole deploy so a re-run stays idempotent.
         this.logger.warn(`Failed to create NodePort service ${target.serviceName}: ${error.message}`);
       }
+      const address: string = `${constants.LOCAL_HOST}:${target.hostPort}`;
       this.logger.addMessageGroupMessage(
         constants.PORT_FORWARDING_MESSAGE_GROUP,
-        `${target.label} available on ${constants.LOCAL_HOST}:${target.hostPort} (NodePort)`,
+        `${target.label} available on ${target.scheme ? `${target.scheme}://${address}` : address} (NodePort)`,
       );
     }
 
@@ -1346,6 +1354,24 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     }
     if (profileItems.relayNode) {
       config.relayNodeConfiguration = {...config.relayNodeConfiguration, ...(profileItems.relayNode as object)};
+    }
+  }
+
+  /** Resolves the one chain ID shared by the consensus node and relay; a relayNode section that disagrees is rejected. */
+  private resolveChainId(config: OneShotSingleDeployConfigClass): void {
+    const chainIdKey: string = flags.getFormattedFlagKey(flags.chainId);
+    const networkChainId: string = `${config.networkConfiguration[chainIdKey] ?? ''}`.trim();
+    const relayChainId: string = `${config.relayNodeConfiguration[chainIdKey] ?? ''}`.trim();
+
+    const chainId: string = networkChainId || config.chainId || (flags.chainId.definition.defaultValue as string);
+    // A values file bypasses flag validation, so the resolved chain ID is checked here
+    FlagValidation.assertAllValid([flags.chainId], {[flags.chainId.name]: chainId});
+    // The consensus node parses contracts.chainId as a decimal integer, so a hex chain ID (0x12a) is passed as 298
+    config.chainId = String(Number(chainId));
+
+    // Number() lets the relay's hex form (0x12a) match the decimal chain ID (298)
+    if (relayChainId && Number(relayChainId) !== Number(config.chainId)) {
+      throw new SoloErrors.validation.chainIdMismatch(config.chainId, relayChainId);
     }
   }
 

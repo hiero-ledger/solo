@@ -39,6 +39,7 @@ import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 import {DeploymentTest} from './tests/deployment-test.js';
 import {KeysAndPermissionsTest} from './tests/keys-and-permissions-test.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {Templates} from '../../../src/core/templates.js';
 
 const minimalSetup: boolean = process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true';
 
@@ -55,14 +56,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
-      let originalChainId: string | undefined;
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
-        if (options.chainId) {
-          originalChainId = process.env.SOLO_CHAIN_ID;
-          process.env.SOLO_CHAIN_ID = String(options.chainId);
-        }
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
           fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
@@ -87,13 +83,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       after(async (): Promise<void> => {
-        if (options.chainId) {
-          if (originalChainId === undefined) {
-            delete process.env.SOLO_CHAIN_ID;
-          } else {
-            process.env.SOLO_CHAIN_ID = originalChainId;
-          }
-        }
         await main(soloDeploymentDiagnosticsLogs(testName, deployment));
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
@@ -103,7 +92,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, deployment, options.minimalSetup));
+        await main(soloOneShotDeploy(testName, deployment, options.minimalSetup, options.chainId));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
@@ -162,6 +151,32 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         expect(content).to.include(`contracts.chainId=${options.chainId}`);
       }).timeout(Duration.ofMinutes(2).toMillis());
 
+      it('should report the same chainId through the relay', async (): Promise<void> => {
+        const k8: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).default();
+        const oneShotNamespace: NamespaceName = NamespaceName.of('one-shot');
+        const relayPods: Pod[] = await k8.pods().list(oneShotNamespace, Templates.renderRelayLabels(1));
+        expect(relayPods).to.have.lengthOf(1);
+
+        const relayPod: Pod = k8.pods().readByReference(relayPods[0].podReference);
+        const localPort: number = await relayPod.portForward(
+          constants.JSON_RPC_RELAY_LOCAL_PORT,
+          constants.JSON_RPC_RELAY_PORT,
+          false,
+        );
+
+        try {
+          const response: Response = await fetch(`http://${constants.LOCAL_HOST}:${localPort}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
+          });
+          const body: {result?: string} = (await response.json()) as {result?: string};
+          expect(body.result).to.equal(`0x${options.chainId.toString(16)}`);
+        } finally {
+          await relayPod.stopPortForward(localPort);
+        }
+      }).timeout(Duration.ofMinutes(2).toMillis());
+
       it('Should write log metrics', async (): Promise<void> => {
         if (minimalSetup) {
           await HelmMetricsServer.installMetricsServer(testName);
@@ -179,7 +194,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, deployment: string, minimalSetup: boolean): string[] {
+export function soloOneShotDeploy(
+  testName: string,
+  deployment: string,
+  minimalSetup: boolean,
+  chainId?: number,
+): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -192,6 +212,9 @@ export function soloOneShotDeploy(testName: string, deployment: string, minimalS
     optionFromFlag(Flags.minimalSetup),
     minimalSetup ? 'true' : 'false',
   );
+  if (chainId !== undefined) {
+    argv.push(optionFromFlag(Flags.chainId), String(chainId));
+  }
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

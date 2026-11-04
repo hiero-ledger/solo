@@ -314,6 +314,13 @@ describe('buildRelayArgv', (): void => {
     const argv: string[] = DeployArgvBuilders.buildRelayArgv(makeConfig({clusterHasOneShotPortMappings: false}));
     expect(argv).to.not.include(negatedOptionFromFlag(Flags.forcePortForward));
   });
+
+  it('passes the resolved chain ID even when the relayNode section leaves --chain-id empty', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildRelayArgv(
+      makeConfig({chainId: '1234', relayNodeConfiguration: {[optionFromFlag(Flags.chainId)]: ''}}),
+    );
+    expect(argv[argv.indexOf(optionFromFlag(Flags.chainId)) + 1]).to.equal('1234');
+  });
 });
 
 describe('buildConsensusDeployArgv', (): void => {
@@ -335,6 +342,19 @@ describe('buildConsensusDeployArgv', (): void => {
 
     expect(valuesFileIndex).to.be.greaterThan(-1);
     expect(argv[valuesFileIndex + 1]).to.equal(valuesFile);
+  });
+
+  it('passes the same chain ID as the relay even when the network section leaves --chain-id empty', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      chainId: '1234',
+      networkConfiguration: {[optionFromFlag(Flags.chainId)]: ''},
+    });
+    const consensusArgv: string[] = DeployArgvBuilders.buildConsensusDeployArgv(config);
+    const relayArgv: string[] = DeployArgvBuilders.buildRelayArgv(config);
+
+    expect(consensusArgv.filter((token: string): boolean => token === optionFromFlag(Flags.chainId))).to.have.length(1);
+    expect(consensusArgv[consensusArgv.indexOf(optionFromFlag(Flags.chainId)) + 1]).to.equal('1234');
+    expect(relayArgv[relayArgv.indexOf(optionFromFlag(Flags.chainId)) + 1]).to.equal('1234');
   });
 });
 
