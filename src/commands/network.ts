@@ -290,7 +290,8 @@ export class NetworkCommand extends BaseCommand {
       }
 
       // Bound claims are not enough with node-local volumes: a pod whose claims bound to nodes it cannot use never
-      // schedules, so scheduling is part of this wait and is where such pods are recovered.
+      // schedules, so a volume conflict is part of this wait and is where such pods are recovered. Pods that are
+      // unscheduled for other reasons are not waited on here; the pod readiness step reports those.
       const recovered: number = await this.recoverStrandedPods(k8, namespace, claims, strandedPods, attempt);
 
       // The claims are created by the chart, so an empty list means they have not appeared yet rather than that
@@ -299,10 +300,10 @@ export class NetworkCommand extends BaseCommand {
         claims.length > 0 &&
         unbound.length === 0 &&
         recovered === 0 &&
-        strandedPods.unscheduledPodNames.length === 0
+        strandedPods.affinityConflictPodNames.length === 0
       ) {
         this.logger.info(
-          `All ${claims.length} consensus node volume claim(s) bound and their pods scheduled [namespace: ${namespace.name}, context: ${context}]`,
+          `All ${claims.length} consensus node volume claim(s) bound and no pod is blocked by a volume conflict [namespace: ${namespace.name}, context: ${context}]`,
         );
         return;
       }
@@ -310,9 +311,9 @@ export class NetworkCommand extends BaseCommand {
       await sleep(Duration.ofMillis(constants.PVC_BOUND_DELAY));
     }
 
-    if (unbound.length === 0 && strandedPods.unscheduledPodNames.length > 0) {
+    if (unbound.length === 0 && strandedPods.affinityConflictPodNames.length > 0) {
       throw new SoloErrors.system.pvcPodsStranded(
-        strandedPods.unscheduledPodNames,
+        strandedPods.affinityConflictPodNames,
         strandedPods.maxRecoveryAttempts,
         strandedPods.lastSchedulerMessage,
       );

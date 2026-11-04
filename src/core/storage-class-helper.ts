@@ -2,6 +2,7 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {StorageClassNotFoundSoloError} from './errors/classes/validation/storage-class-not-found-solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type K8} from '../integration/kube/k8.js';
@@ -30,7 +31,8 @@ export class StorageClassHelper {
    * 1. Cluster default StorageClass (annotated with is-default-class=true).
    * 2. A StorageClass backed by LOCAL_PATH_PROVISIONER (common on Kind clusters).
    * 3. Install LOCAL_PATH_PROVISIONER from the bundled manifest, without marking it as the
-   *    cluster default, then return LOCAL_PATH_STORAGE_CLASS.
+   *    cluster default, then return LOCAL_PATH_STORAGE_CLASS. Fails if LOCAL_PATH_STORAGE_CLASS is already taken
+   *    by a StorageClass of another provisioner.
    */
   public async resolveStorageClass(context: string, userSuppliedClass: string): Promise<string> {
     const k8: K8 = this.k8Factory.getK8(context);
@@ -72,6 +74,19 @@ export class StorageClassHelper {
         `Using existing ${constants.LOCAL_PATH_PROVISIONER} StorageClass: ${StorageClassHelper.describeStorageClass(localPathClass)}`,
       );
       return localPathClass.name;
+    }
+
+    // Not matched above, so a class carrying this name is backed by a different provisioner. Installing would skip it
+    // as already existing and PVCs would end up on the wrong class, so refuse instead.
+    const nameConflict: StorageClass | undefined = storageClasses.find(
+      (storageClass: StorageClass): boolean => storageClass.name === constants.LOCAL_PATH_STORAGE_CLASS,
+    );
+    if (nameConflict) {
+      throw new SoloErrors.validation.storageClassNameConflict(
+        nameConflict.name,
+        nameConflict.provisioner || '<unknown>',
+        constants.LOCAL_PATH_PROVISIONER,
+      );
     }
 
     return this.installLocalPath(k8);

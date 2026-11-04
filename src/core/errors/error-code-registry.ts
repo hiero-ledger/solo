@@ -241,6 +241,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   MIRROR_NODE_BLOCK_NODE_SOURCE_UNAVAILABLE: 'SOLO-4092',
   INVALID_ADMIN_PUBLIC_KEY: 'SOLO-4093',
   STORAGE_CLASS_NOT_FOUND: 'SOLO-4094',
+  STORAGE_CLASS_NAME_CONFLICT: 'SOLO-4095',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',

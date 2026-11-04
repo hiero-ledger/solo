@@ -121,6 +121,21 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
     expect(patchCount.value).to.equal(0);
   });
 
+  it('fails instead of installing when the local-path name is taken by another provisioner', async (): Promise<void> => {
+    const storageClasses: StorageClass[] = [
+      {name: LOCAL_PATH_STORAGE_CLASS, provisioner: 'some.other.provisioner', isDefault: false},
+    ];
+    const applyCount: {value: number} = {value: 0};
+    const patchCount: {value: number} = {value: 0};
+    const helper: StorageClassHelper = buildHelper(storageClasses, applyCount, patchCount);
+
+    await expect(helper.resolveStorageClass('test-context', '')).to.be.rejectedWith(
+      `StorageClass '${LOCAL_PATH_STORAGE_CLASS}' already exists in the cluster with provisioner 'some.other.provisioner'`,
+    );
+    expect(applyCount.value).to.equal(0);
+    expect(patchCount.value).to.equal(0);
+  });
+
   it('installs local-path-provisioner without setting it as default when classes exist but none is default or local-path', async (): Promise<void> => {
     const storageClasses: StorageClass[] = [{name: 'fast-ssd', provisioner: 'pd.csi.storage.gke.io', isDefault: false}];
     const applyCount: {value: number} = {value: 0};

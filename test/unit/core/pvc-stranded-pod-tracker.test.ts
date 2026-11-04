@@ -49,14 +49,41 @@ describe('PvcStrandedPodTracker', (): void => {
     expect(tracker.observe([unscheduledPod('network-node3-0', BINDING_MESSAGE)], 4)).to.have.lengthOf(0);
   });
 
-  it('counts a pod without a PodScheduled condition as unscheduled and reports the last scheduler message', (): void => {
+  it('reports only pods with a volume affinity conflict, with the scheduler message of that conflict', (): void => {
     const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2);
     const unplaced: Pod = {
       podReference: PodReference.of(NamespaceName.of('solo'), PodName.of('network-node6-0')),
     } as unknown as Pod;
-    tracker.observe([unplaced, unscheduledPod('network-node7-0', BINDING_MESSAGE), scheduledPod('network-node1-0')], 0);
-    expect(tracker.unscheduledPodNames).to.have.members(['network-node6-0', 'network-node7-0']);
-    expect(tracker.lastSchedulerMessage).to.equal(BINDING_MESSAGE);
+    tracker.observe(
+      [
+        unplaced,
+        unscheduledPod('network-node7-0', BINDING_MESSAGE),
+        unscheduledPod('network-node2-0', AFFINITY_MESSAGE),
+        scheduledPod('network-node1-0'),
+      ],
+      0,
+    );
+    expect(tracker.affinityConflictPodNames).to.deep.equal(['network-node2-0']);
+    expect(tracker.lastSchedulerMessage).to.equal(AFFINITY_MESSAGE);
+  });
+
+  it('does not report a pod that is unscheduled for a reason other than its volumes', (): void => {
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2);
+    const insufficientCpu: string = '0/56 nodes are available: 56 Insufficient cpu.';
+    for (let attempt: number = 0; attempt < 10; attempt++) {
+      expect(tracker.observe([unscheduledPod('network-node5-0', insufficientCpu)], attempt)).to.have.lengthOf(0);
+    }
+    expect(tracker.affinityConflictPodNames).to.have.lengthOf(0);
+    expect(tracker.lastSchedulerMessage).to.equal('<none>');
+  });
+
+  it('keeps reporting a conflicted pod while its message alternates, until it is scheduled', (): void => {
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2);
+    tracker.observe([unscheduledPod('network-node2-0', AFFINITY_MESSAGE)], 0);
+    tracker.observe([unscheduledPod('network-node2-0', BINDING_MESSAGE)], 1);
+    expect(tracker.affinityConflictPodNames).to.deep.equal(['network-node2-0']);
+    tracker.observe([scheduledPod('network-node2-0')], 2);
+    expect(tracker.affinityConflictPodNames).to.have.lengthOf(0);
   });
 
   it('allows a bounded number of recoveries per pod', (): void => {

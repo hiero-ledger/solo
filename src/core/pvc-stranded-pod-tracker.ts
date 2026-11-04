@@ -56,14 +56,16 @@ export class PvcStrandedPodTracker {
       const condition: PodCondition | undefined = scheduling[0];
 
       unscheduledNow.add(name);
-      if (condition?.message) {
-        this.lastMessage = condition.message;
-      }
       if (!this.unscheduledSince.has(name)) {
         this.unscheduledSince.set(name, attempt);
       }
       if (condition?.message?.includes(PvcStrandedPodTracker.VOLUME_AFFINITY_MESSAGE)) {
         this.affinityConflicts.add(name);
+      }
+      // only a pod with a volume conflict is of interest: other scheduling failures (CPU, taints, ...) are not a
+      // volume problem and are left to the pod readiness checks that follow
+      if (this.affinityConflicts.has(name) && condition?.message) {
+        this.lastMessage = condition.message;
       }
       if (this.affinityConflicts.has(name) && attempt - this.unscheduledSince.get(name) >= this.thresholdAttempts) {
         due.push(pod);
@@ -93,12 +95,15 @@ export class PvcStrandedPodTracker {
     return true;
   }
 
-  /** Names of the pods that were not yet scheduled at the last observation. */
-  public get unscheduledPodNames(): string[] {
-    return [...this.unscheduledSince.keys()];
+  /**
+   * Names of the pods that were not yet scheduled at the last observation and have reported a volume node affinity
+   * conflict. Pods that are unscheduled for any other reason are not included.
+   */
+  public get affinityConflictPodNames(): string[] {
+    return [...this.unscheduledSince.keys()].filter((name: string): boolean => this.affinityConflicts.has(name));
   }
 
-  /** The most recent scheduler message seen for an unscheduled pod. */
+  /** The most recent scheduler message seen for a pod with a volume node affinity conflict. */
   public get lastSchedulerMessage(): string {
     return this.lastMessage;
   }
