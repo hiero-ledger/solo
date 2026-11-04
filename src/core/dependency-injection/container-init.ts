@@ -307,10 +307,7 @@ export class Container {
             objectMapper,
           );
 
-          // Operator-editable configuration in SOLO_HOME_DIR. Included so the cascade is
-          // complete for consumers that refresh the config; the subprocess allowlist is applied
-          // separately at startup by SubprocessEnvironmentBootstrap, because sources load
-          // asynchronously and this factory is synchronous.
+          // Operator-editable; SubprocessEnvironmentBootstrap vets this file before main() refreshes the config.
           const userConfigSource: OptionalDefaultConfigSource<SoloConfigSchema> =
             new OptionalDefaultConfigSource<SoloConfigSchema>(
               constants.DEFAULT_SOLO_CONFIG_FILE,
