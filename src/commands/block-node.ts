@@ -1458,7 +1458,6 @@ export class BlockNodeCommand extends BaseCommand {
               ? `${constants.BLOCK_NODE_RELEASE_NAME}-0`
               : this.renderReleaseName(config.id);
 
-            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion = UpgradeVersionResolver.resolveFromFlags(
               this.configManager,
               [flags.upgradeVersion],
