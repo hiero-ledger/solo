@@ -21,7 +21,7 @@ Run everything from the `solo/` repo root (the directory containing `version.ts`
 
 ## When to use
 
-* The user asks to prepare/cut a release, bump the version, or open a release PR for Solo.
+- The user asks to prepare/cut a release, bump the version, or open a release PR for Solo.
 
 Do **not** use for: actually tagging/publishing the release (that is the release workflow, not this skill), or for
 non-Solo repos.
@@ -46,12 +46,12 @@ LAST_TAG="$(git describe --tags --match 'v[0-9]*' --abbrev=0)"
 git log "${LAST_TAG}..HEAD" --pretty=%B
 ```
 
-* Include every scope, including `tck`, in Solo's shared release.
-* A feature (`feat:`, `feat(scope):`) or any breaking change (`type!:`, `type(scope)!:`, or a
+- Include every scope, including `tck`, in Solo's shared release.
+- A feature (`feat:`, `feat(scope):`) or any breaking change (`type!:`, `type(scope)!:`, or a
   `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer) bumps the **minor** version and resets patch to 0 →
   `0.79.0` becomes `0.80.0`. Solo's policy uses minor for breaking changes, including TCK changes.
-* Otherwise bump only the **patch** version → `0.79.0` becomes `0.79.1`.
-* Mixed commits take the largest bump: a TCK feature or breaking change plus a Solo fix is a minor release.
+- Otherwise bump only the **patch** version → `0.79.0` becomes `0.79.1`.
+- Mixed commits take the largest bump: a TCK feature or breaking change plus a Solo fix is a minor release.
 
 Version calculation (`NEXT` ends up as the bare version, no leading `v`, when commits exist):
 
@@ -85,8 +85,8 @@ computed version and the reason (feature or breaking change found -> minor / oth
 
 The minor number decides the support policy:
 
-* **Even minor** (e.g. `0.80.x`) → **LTS**: row label gets a ` (LTS)` suffix, support window is **3 months**.
-* **Odd minor** (e.g. `0.81.x`) → **normal**: no suffix, support window is **1 month**.
+- **Even minor** (e.g. `0.80.x`) → **LTS**: row label gets a ` (LTS)` suffix, support window is **3 months**.
+- **Odd minor** (e.g. `0.81.x`) → **normal**: no suffix, support window is **1 month**.
 
 Patch releases inherit the parity of their minor (e.g. `0.79.1` is odd → normal).
 
@@ -194,19 +194,19 @@ Then report: the computed version, LTS/normal classification, the new README row
 
 ### MUST
 
-* Stop immediately with no branch, no file edits, and no commit when the bump is **patch-only** (no features or
+- Stop immediately with no branch, no file edits, and no commit when the bump is **patch-only** (no features or
   breaking changes).
-* Read dependency versions from `version.ts` (`HEDERA_PLATFORM_VERSION`, `KUBECTL_VERSION`), never assume them.
-* Insert the new release as the first data row of the "Current Releases" table.
-* Apply the even=LTS/3-month, odd=normal/1-month rule from the **minor** version number.
-* Move only rows whose End of Support is before today, preserving legacy-table descending order and formatting.
-* Commit with both `-s` (sign-off) and a valid signature; stop if signing is unavailable.
-* Whenever a commit is made, push the branch and open the PR — with a Conventional Commit title that matches the
+- Read dependency versions from `version.ts` (`HEDERA_PLATFORM_VERSION`, `KUBECTL_VERSION`), never assume them.
+- Insert the new release as the first data row of the "Current Releases" table.
+- Apply the even=LTS/3-month, odd=normal/1-month rule from the **minor** version number.
+- Move only rows whose End of Support is before today, preserving legacy-table descending order and formatting.
+- Commit with both `-s` (sign-off) and a valid signature; stop if signing is unavailable.
+- Whenever a commit is made, push the branch and open the PR — with a Conventional Commit title that matches the
   commit subject (`chore(release): update readme and legacy versions for release <next>`).
 
 ### MUST NOT
 
-* Commit anything other than `README.md` and `legacy-versions.md`.
-* "Fix" the existing legacy-table header typo or reflow unrelated table rows.
-* Make any file change or commit for a patch-only bump.
-* Bump major version — this skill only does minor/patch bumps.
+- Commit anything other than `README.md` and `legacy-versions.md`.
+- "Fix" the existing legacy-table header typo or reflow unrelated table rows.
+- Make any file change or commit for a patch-only bump.
+- Bump major version — this skill only does minor/patch bumps.
