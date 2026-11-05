@@ -793,6 +793,7 @@ export class CacheCommand extends BaseCommand {
           // These are external/chart-internal and have no Solo edge variants.
           version.MINIO_OPERATOR_VERSION,
           version.MINIO_IMAGE_DIGEST,
+          version.POSTGRES_IMAGE_DIGEST,
           version.SOLO_CHEETAH_VERSION,
           version.SOLO_CONTAINERS_VERSION,
         ),

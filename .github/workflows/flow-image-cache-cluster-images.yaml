@@ -232,6 +232,27 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
+      # TEMPORARY (#6387): remove the floating-tag postgresql:latest archives uploaded by the #6309 test runs.
+      # Solo now caches the digest-pinned image under a different name, so nothing refers to these files.
+      # Delete this step once it has run against the production bucket.
+      - name: Remove Stale PostgreSQL Archives from CDN
+        if: ${{ inputs.upload-to-cdn }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          CDN_BUCKET: ${{ inputs.cdn-bucket }}
+        run: |
+          for platform in amd64 arm64; do
+            for suffix in tar tar.sha256; do
+              object="gs://${CDN_BUCKET}/registry-1.docker.io__bitnami__postgresql__latest__linux__${platform}.${suffix}"
+              if gcloud storage objects describe "${object}" --format='value(name)' >/dev/null 2>&1; then
+                gcloud storage rm "${object}"
+                echo "removed ${object}"
+              else
+                echo "not present: ${object}"
+              fi
+            done
+          done
+
       - name: Upload Image Cache Archives to CDN
         if: ${{ inputs.upload-to-cdn }}
         timeout-minutes: 30

@@ -149,6 +149,9 @@ export const REDIS_SENTINEL_GETMASTERTIMEOUT: number = +getEnvironmentVariable('
 export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
 export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
+// docker.io (not the chart's registry-1.docker.io) so the image name matches the image cache target.
+export const POSTGRES_IMAGE_REGISTRY: string = 'docker.io';
+export const POSTGRES_IMAGE_REPOSITORY: string = 'bitnami/postgresql';
 
 // --------------- Charts related constants ----------------------------------------------------------------------------
 export const SOLO_SETUP_NAMESPACE: NamespaceName = NamespaceName.of('solo-setup');

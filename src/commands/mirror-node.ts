@@ -1216,6 +1216,9 @@ export class MirrorNodeCommand extends BaseCommand {
                   'redis.sentinel.image.tag': versions.REDIS_SENTINEL_IMAGE_VERSION,
                   'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
                   'redis.sentinel.getMasterTimeout': constants.REDIS_SENTINEL_GETMASTERTIMEOUT,
+                  'postgresql.image.registry': constants.POSTGRES_IMAGE_REGISTRY,
+                  'postgresql.image.repository': constants.POSTGRES_IMAGE_REPOSITORY,
+                  'postgresql.image.digest': `sha256:${versions.POSTGRES_IMAGE_DIGEST}`,
                 },
               );
             },
