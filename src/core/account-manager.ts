@@ -45,6 +45,7 @@ import {Address} from '../business/address/address.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {type NetworkNodes} from './network-nodes.js';
 import {NodeStatusCodes, NodeStatusEnums} from './enumerations.js';
+import {type FeatureFlags} from '../business/runtime-state/config/solo/feature-flags.js';
 
 // TODO - revisit and remove once we complete the cutover to BN and no longer need MN to pull from CN.
 // This should remove this dependency on @hiero-ledger/proto
@@ -71,6 +72,15 @@ export class AccountManager {
   private _nextPortForwardScanStart: number = 0;
   private _hederaClient: Optional<HederaClient>;
 
+  /**
+   * The Hedera client for an SDK node client that a caller still holds in its configuration
+   * @deprecated transitional: returns the managed client when it wraps the given SDK client, otherwise a new wrapper
+   * @param sdkClient - the SDK node client
+   */
+  public hederaClientFor(sdkClient: Client): HederaClient {
+    return this._hederaClient?.sdkClient === sdkClient ? this._hederaClient : this.hederaClientFactory.wrap(sdkClient);
+  }
+
   /** the Hedera client of the loaded node client, undefined until {@link loadNodeClient} has run */
   public get hederaClient(): Optional<HederaClient> {
     return this._hederaClient;
@@ -88,6 +98,7 @@ export class AccountManager {
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.NetworkNodes) private readonly networkNodes?: NetworkNodes,
     @inject(InjectTokens.HederaClientFactory) private readonly hederaClientFactory?: HederaClientFactory,
+    @inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
@@ -99,6 +110,7 @@ export class AccountManager {
       InjectTokens.HederaClientFactory,
       this.constructor.name,
     );
+    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
 
     this._portForwards = [];
     this._hederaClient = undefined;
@@ -307,7 +319,7 @@ export class AccountManager {
         await this.refreshNodeClient(namespace, clusterReferences, deployment, forcePortForward);
       } else {
         try {
-          if (!constants.SKIP_NODE_PING) {
+          if (!this.featureFlags.skipNodePing) {
             await this._hederaClient.ping(this._hederaClient.operatorAccountId);
           }
         } catch {
@@ -475,7 +487,7 @@ export class AccountManager {
       }
 
       // ping the node client to ensure it is working
-      if (!constants.SKIP_NODE_PING) {
+      if (!this.featureFlags.skipNodePing) {
         await hederaClient.ping(AccountId.fromString(operatorId));
       }
 
@@ -1266,7 +1278,7 @@ export class AccountManager {
       nodeClient = this.hederaClientFactory.create({network: object});
       this.logger.debug(`sdk pinging network node: ${Object.keys(object)[0]}`);
 
-      if (!constants.SKIP_NODE_PING) {
+      if (!this.featureFlags.skipNodePing) {
         await nodeClient.ping(accountId);
       }
       this.logger.debug(`sdk ping successful for network node: ${Object.keys(object)[0]}`);

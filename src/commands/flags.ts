@@ -976,6 +976,7 @@ export class Flags {
     prompt: async function promptChainId(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.chainId);
     },
+    rules: [FlagRules.chainId],
   };
 
   // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
