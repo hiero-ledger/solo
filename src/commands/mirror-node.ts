@@ -249,6 +249,9 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
   private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
   private static readonly MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS: string = '0.157.0-0';
+
+  private static readonly DISABLE_BLOCK_NODE_INTEGRATION_ENVIRONMENT_VARIABLE_NAMES: string =
+    'SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION (or DISABLE_IMPORTER_SPRING_PROFILES)';
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -471,14 +474,17 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
     }
 
-    if (!config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+    const blockNodeIntegrationDisabled: boolean = this.featureFlags.disableBlockNodeIntegration;
+
+    if (!config.forceBlockNodeIntegration && blockNodeIntegrationDisabled) {
       this.logger.info(
-        'Mirror node will remain configured to pull from consensus node; DISABLE_IMPORTER_SPRING_PROFILES=true disables automatic block node integration',
+        'Mirror node will remain configured to pull from consensus node; ' +
+          `${MirrorNodeCommand.DISABLE_BLOCK_NODE_INTEGRATION_ENVIRONMENT_VARIABLE_NAMES} disables automatic block node integration`,
       );
       return new HelmChartValues();
-    } else if (constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+    } else if (blockNodeIntegrationDisabled) {
       this.logger.showUser(
-        `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
+        `${MirrorNodeCommand.DISABLE_BLOCK_NODE_INTEGRATION_ENVIRONMENT_VARIABLE_NAMES} is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
       );
     }
 
@@ -517,14 +523,7 @@ export class MirrorNodeCommand extends BaseCommand {
       MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
     );
 
-    if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
-      if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
-        this.logger.showUser(
-          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
-        );
-      }
-      data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
-    }
+    data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
 
     const importerConfig: {
       [key: string]: {
@@ -1237,6 +1236,9 @@ export class MirrorNodeCommand extends BaseCommand {
                   'redis.sentinel.image.tag': versions.REDIS_SENTINEL_IMAGE_VERSION,
                   'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
                   'redis.sentinel.getMasterTimeout': constants.REDIS_SENTINEL_GETMASTERTIMEOUT,
+                  'postgresql.image.registry': constants.POSTGRES_IMAGE_REGISTRY,
+                  'postgresql.image.repository': constants.POSTGRES_IMAGE_REPOSITORY,
+                  'postgresql.image.digest': `sha256:${versions.POSTGRES_IMAGE_DIGEST}`,
                 },
               );
             },
