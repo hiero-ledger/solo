@@ -240,6 +240,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INVALID_NETWORK_NODE_LIFECYCLE_MODE: 'SOLO-4091',
   MIRROR_NODE_BLOCK_NODE_SOURCE_UNAVAILABLE: 'SOLO-4092',
   INVALID_ADMIN_PUBLIC_KEY: 'SOLO-4093',
+  CONFIG_VALUE_TYPE_MISMATCH: 'SOLO-4094',
   CHAIN_ID_MISMATCH: 'SOLO-4095',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
