@@ -4,7 +4,9 @@
       "@semantic-release/commit-analyzer",
       {
         "preset": "conventionalcommits",
-        "releaseRules": [{"breaking": true, "release": "minor"}]
+        "releaseRules": [
+          { "breaking": true, "release": "minor" }
+        ]
       }
     ],
     [
@@ -36,7 +38,7 @@
     ],
     "@semantic-release/github"
   ],
-  "branches": [
+  "branches":[
     {
       "name": "main"
     },
