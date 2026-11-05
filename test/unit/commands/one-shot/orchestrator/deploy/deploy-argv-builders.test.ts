@@ -60,21 +60,19 @@ describe('buildBlockNodeArgv', (): void => {
     expect(argv).to.include('test-deployment');
   });
 
-  it('sets values file to BLOCK_NODE_SOLO_DEV_FILE when no existing values file is provided', (): void => {
+  it('does not pass a values file when none is configured', (): void => {
     const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(makeConfig({blockNodeConfiguration: {}}));
-    const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
-    expect(valueIndex).to.be.greaterThan(-1);
-    expect(argv[valueIndex + 1]).to.equal(constants.BLOCK_NODE_SOLO_DEV_FILE);
+    expect(argv).to.not.include(optionFromFlag(Flags.valuesFile));
   });
 
-  it('appends BLOCK_NODE_SOLO_DEV_FILE to an existing values file', (): void => {
+  it('passes an existing values file through unchanged', (): void => {
     const existingFile: string = '/path/to/custom.yaml';
     const valuesFileFlagName: string = optionFromFlag(Flags.valuesFile);
     const blockNodeConfiguration: Record<string, string> = {[valuesFileFlagName]: existingFile};
     const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(makeConfig({blockNodeConfiguration}));
     const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
     expect(valueIndex).to.be.greaterThan(-1);
-    expect(argv[valueIndex + 1]).to.equal(`${existingFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`);
+    expect(argv[valueIndex + 1]).to.equal(existingFile);
   });
 
   it('injects RSA bootstrap values for one-shot block node WRB/RSA deploys', (): void => {
@@ -99,8 +97,8 @@ describe('buildBlockNodeArgv', (): void => {
     const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
     expect(valueIndex).to.be.greaterThan(-1);
     const valuesFiles: string[] = argv[valueIndex + 1].split(',');
-    expect(valuesFiles).to.have.length(2);
-    expect(valuesFiles[1]).to.equal(constants.BLOCK_NODE_SOLO_DEV_FILE);
+    // The RSA bootstrap file must be the last values file, or a later file replaces its init container.
+    expect(valuesFiles).to.have.length(1);
 
     const rsaBootstrapValues: string = fs.readFileSync(valuesFiles[0], 'utf8');
     expect(rsaBootstrapValues).to.contain('rsa-bootstrap-roster.json');

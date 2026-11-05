@@ -35,12 +35,12 @@ interface RawCacheManifest {
  * file, and the two must agree.
  *
  * The CDN is flat: `<base>/<tarFile>` and `<base>/<hashFile>`. The base defaults to
- * `https://cdn.solo.hashgraph.io` and can be overridden with the `SOLO_CACHE_CDN_BASE_URL` environment
+ * {@link CacheManifestClient.DEFAULT_CDN_BASE_URL} and can be overridden with the `SOLO_CACHE_CDN_BASE_URL` environment
  * variable for staging and testing. The manifest URL can likewise be replaced wholesale with the
  * `SOLO_CACHE_MANIFEST_URL` environment variable, for a manifest that is not published as a release asset.
  */
 export class CacheManifestClient {
-  public static readonly DEFAULT_CDN_BASE_URL: string = 'https://cdn.solo.hashgraph.io';
+  public static readonly DEFAULT_CDN_BASE_URL: string = 'https://cdn.solo.hiero.org';
   public static readonly CDN_BASE_URL_ENVIRONMENT_VARIABLE: string = 'SOLO_CACHE_CDN_BASE_URL';
   public static readonly MANIFEST_URL_ENVIRONMENT_VARIABLE: string = 'SOLO_CACHE_MANIFEST_URL';
   /** Version 2 added `images[].platform`; a version 1 manifest cannot say which platform an archive is for. */
