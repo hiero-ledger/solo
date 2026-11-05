@@ -27,6 +27,12 @@ import {type ContainerEngineClient} from '../../../../src/integration/container-
 import {ClusterNodeResumeOutcome} from '../../../../src/integration/container-engine/cluster-node-resume-outcome.js';
 import {Helpers} from '../../../../src/core/helpers.js';
 import {type Context} from '../../../../src/types/index.js';
+import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
+import {getSoloVersion} from '../../../../version.js';
+import {ClassToObjectMapper} from '../../../../src/data/mapper/impl/class-to-object-mapper.js';
+import {ConfigKeyFormatter} from '../../../../src/data/key/config-key-formatter.js';
+import {RemoteConfigSchema} from '../../../../src/data/schema/model/remote/remote-config-schema.js';
+import yaml from 'yaml';
 
 const namespace: NamespaceName = NamespaceName.of('solo');
 const remoteConfigMap: ConfigMap = {name: 'solo-remote-config'} as unknown as ConfigMap;
@@ -93,6 +99,35 @@ function buildLeaseRuntimeState(
     ],
   }));
   return runtimeState;
+}
+
+// a remote config left behind by an interrupted one-shot deploy
+const oneShotRemoteConfigMap: ConfigMap = {
+  name: 'solo-remote-config',
+  namespace: NamespaceName.of('one-shot'),
+  data: {
+    'remote-config-data': yaml.stringify({
+      schemaVersion: RemoteConfigSchema.SCHEMA_VERSION.major,
+      clusters: [{name: 'one-shot', namespace: 'one-shot'}],
+    }),
+  },
+} as unknown as ConfigMap;
+
+/** Builds a runtime state that maps a stubbed ConfigMap read through the real remote config schema. */
+function buildLoadableRuntimeState(read: SinonStub): RemoteConfigRuntimeState {
+  const k8Factory: K8Factory = {
+    getK8: (): unknown => ({configMaps: (): unknown => ({read})}),
+  } as unknown as K8Factory;
+
+  return new RemoteConfigRuntimeState(
+    k8Factory,
+    {} as unknown as SoloLogger,
+    {} as unknown as LocalConfigRuntimeState,
+    {} as unknown as ConfigManager,
+    {} as unknown as RemoteConfigValidatorApi,
+    new ClassToObjectMapper(ConfigKeyFormatter.instance()),
+    {} as unknown as ContainerEngineClient,
+  );
 }
 
 describe('RemoteConfigRuntimeState', (): void => {
@@ -350,6 +385,51 @@ describe('RemoteConfigRuntimeState', (): void => {
         SoloErrors.deployment.clusterRefNotFound,
         'Cluster ref cluster-1 not found in local config',
       );
+    });
+  });
+
+  describe('unload', (): void => {
+    it('should forget the loaded remote config so the deleted deployment is no longer resolved', async (): Promise<void> => {
+      read.resolves(oneShotRemoteConfigMap);
+      const runtimeState: RemoteConfigRuntimeState = buildLoadableRuntimeState(read);
+      await runtimeState.load(NamespaceName.of('one-shot'), 'kind-solo');
+      expect(runtimeState.getNamespace().name).to.equal('one-shot');
+
+      runtimeState.unload();
+
+      expect(runtimeState.isLoaded()).to.be.false;
+      // LockManager.create() relies on this throwing to fall back to --context instead of getLeaseContext()
+      expect((): NamespaceName => runtimeState.getNamespace()).to.throw(SoloErrors.internal.readRemoteConfigBeforeLoad);
+    });
+
+    it('should read the cluster again on the next load', async (): Promise<void> => {
+      read.resolves(oneShotRemoteConfigMap);
+      const runtimeState: RemoteConfigRuntimeState = buildLoadableRuntimeState(read);
+      await runtimeState.load(NamespaceName.of('one-shot'), 'kind-solo');
+
+      runtimeState.unload();
+      await runtimeState.load(NamespaceName.of('one-shot'), 'kind-solo');
+
+      expect(read.callCount).to.equal(2);
+      expect(runtimeState.isLoaded()).to.be.true;
+    });
+  });
+
+  describe('updateCliVersion', (): void => {
+    function runUpdateCliVersion(recordedVersion: string): SemanticVersion<string> {
+      const runtimeState: RemoteConfigRuntimeState = buildRuntimeState(read, resumeStoppedClusterNode);
+      const versions: {cli: SemanticVersion<string>} = {cli: new SemanticVersion<string>(recordedVersion)};
+      sandbox.stub(runtimeState, 'configuration').get((): unknown => ({versions}));
+      (runtimeState as unknown as {updateCliVersion: () => void}).updateCliVersion();
+      return versions.cli;
+    }
+
+    it('should record the running Solo version when the stored one is older', (): void => {
+      expect(runUpdateCliVersion('0.0.1').toString()).to.equal(getSoloVersion());
+    });
+
+    it('should leave the stored version untouched when it already matches', (): void => {
+      expect(runUpdateCliVersion(getSoloVersion()).toString()).to.equal(getSoloVersion());
     });
   });
 });

@@ -6,7 +6,7 @@ import {expect} from 'chai';
 import * as constants from '../../../../src/core/constants.js';
 import * as fs from 'node:fs';
 
-import {endToEndTestSuite, getTestCacheDirectory, getTestCluster, getTestLogger} from '../../../test-utility.js';
+import {endToEndTestSuite, getTestCacheDirectory, getTestCluster, getTestLogger} from '../../test-utility.js';
 import {Flags as flags} from '../../../../src/commands/flags.js';
 import * as version from '../../../../version.js';
 import {Duration} from '../../../../src/core/time/duration.js';
@@ -33,7 +33,7 @@ argv.setArg(flags.generateTlsKeys, true);
 argv.setArg(flags.enableMonitoringSupport, false);
 
 endToEndTestSuite(namespace.name, argv, {startNodes: false}, ({opts}): void => {
-  describe('Platform Installer E2E', async (): Promise<void> => {
+  describe('Platform Installer E2E', (): void => {
     const {k8Factory, accountManager, platformInstaller} = opts;
     const podReference: PodReference = PodReference.of(namespace, PodName.of('network-node1-0'));
     const packageVersion: string = 'v0.42.5';

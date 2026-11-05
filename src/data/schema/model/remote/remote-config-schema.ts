@@ -4,6 +4,7 @@ import {Exclude, Expose, Type} from 'class-transformer';
 import {RemoteConfigMetadataSchema} from './remote-config-metadata-schema.js';
 import {ApplicationVersionsSchema} from '../common/application-versions-schema.js';
 import {ClusterSchema} from '../common/cluster-schema.js';
+import {LedgerSchema} from './ledger-schema.js';
 import {DeploymentStateSchema} from './deployment-state-schema.js';
 import {DeploymentHistorySchema} from './deployment-history-schema.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
@@ -15,7 +16,7 @@ export class RemoteConfigSchema implements RemoteConfigStructure {
    * The current version of the remote configuration schema. This must always match the version produced by the newest
    * migration registered in RemoteConfigSchemaDefinition.
    */
-  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(8);
+  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(9);
 
   @Expose()
   public schemaVersion: number;
@@ -33,6 +34,10 @@ export class RemoteConfigSchema implements RemoteConfigStructure {
   public clusters: ClusterSchema[];
 
   @Expose()
+  @Type((): typeof LedgerSchema => LedgerSchema)
+  public ledger: LedgerSchema;
+
+  @Expose()
   @Type((): typeof DeploymentStateSchema => DeploymentStateSchema)
   public state: DeploymentStateSchema;
 
@@ -47,11 +52,13 @@ export class RemoteConfigSchema implements RemoteConfigStructure {
     clusters?: ClusterSchema[],
     state?: DeploymentStateSchema,
     history?: DeploymentHistorySchema,
+    ledger?: LedgerSchema,
   ) {
     this.schemaVersion = schemaVersion || 0;
     this.metadata = metadata || new RemoteConfigMetadataSchema();
     this.versions = versions || new ApplicationVersionsSchema();
     this.clusters = clusters || [];
+    this.ledger = ledger || new LedgerSchema();
     this.state = state || new DeploymentStateSchema();
     this.history = history || new DeploymentHistorySchema();
   }

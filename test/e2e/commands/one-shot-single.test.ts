@@ -14,7 +14,7 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
-import {getTemporaryDirectory} from '../../test-utility.js';
+import {getTemporaryDirectory} from '../test-utility.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {
   Client,
@@ -55,14 +55,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
-      let originalChainId: string | undefined;
 
       // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
       before(async (): Promise<void> => {
-        if (options.chainId) {
-          originalChainId = process.env.SOLO_CHAIN_ID;
-          process.env.SOLO_CHAIN_ID = String(options.chainId);
-        }
         fs.rmSync(testCacheDirectory, {recursive: true, force: true});
         try {
           fs.rmSync(PathEx.joinWithRealPath(testCacheDirectory, '..', DEFAULT_LOCAL_CONFIG_FILE), {
@@ -87,13 +82,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       after(async (): Promise<void> => {
-        if (options.chainId) {
-          if (originalChainId === undefined) {
-            delete process.env.SOLO_CHAIN_ID;
-          } else {
-            process.env.SOLO_CHAIN_ID = originalChainId;
-          }
-        }
         await main(soloDeploymentDiagnosticsLogs(testName, deployment));
         testLogger.info(`${testName}: beginning ${testName}: destroy`);
         await main(soloOneShotDestroy(testName));
@@ -103,7 +91,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       // TODO pass in namespace for cache directory for proper destroy on restart
       it(`${testName}: deploy`, async (): Promise<void> => {
         testLogger.info(`${testName}: beginning ${testName}: deploy`);
-        await main(soloOneShotDeploy(testName, deployment, options.minimalSetup));
+        await main(soloOneShotDeploy(testName, deployment, options.minimalSetup, options.chainId));
         testLogger.info(`${testName}: finished ${testName}: deploy`);
       }).timeout(Duration.ofMinutes(20).toMillis());
 
@@ -162,6 +150,19 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         expect(content).to.include(`contracts.chainId=${options.chainId}`);
       }).timeout(Duration.ofMinutes(2).toMillis());
 
+      it('should report the same chainId through the relay', async (): Promise<void> => {
+        const response: Response = await fetch(
+          `http://${constants.LOCAL_HOST}:${constants.JSON_RPC_RELAY_LOCAL_PORT}`,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
+          },
+        );
+        const body: {result?: string} = (await response.json()) as {result?: string};
+        expect(body.result).to.equal(`0x${options.chainId.toString(16)}`);
+      }).timeout(Duration.ofMinutes(2).toMillis());
+
       it('Should write log metrics', async (): Promise<void> => {
         if (minimalSetup) {
           await HelmMetricsServer.installMetricsServer(testName);
@@ -179,7 +180,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, deployment: string, minimalSetup: boolean): string[] {
+export function soloOneShotDeploy(
+  testName: string,
+  deployment: string,
+  minimalSetup: boolean,
+  chainId?: number,
+): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -192,6 +198,9 @@ export function soloOneShotDeploy(testName: string, deployment: string, minimalS
     optionFromFlag(Flags.minimalSetup),
     minimalSetup ? 'true' : 'false',
   );
+  if (chainId !== undefined) {
+    argv.push(optionFromFlag(Flags.chainId), String(chainId));
+  }
   argvPushGlobalFlags(argv, testName);
   return argv;
 }

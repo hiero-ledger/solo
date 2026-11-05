@@ -16,6 +16,7 @@ import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/con
 import {NetworkNodeLifecycle} from '../core/network-node-lifecycle.js';
 import {SharedClusterResourceReport} from '../core/shared-cluster-resource-report.js';
 import {ClusterCrdProbe} from '../core/cluster-crd-probe.js';
+import {GenesisKeyResolver} from '../core/genesis-key-resolver.js';
 import {Templates} from '../core/templates.js';
 import {
   Helpers,
@@ -1084,6 +1085,11 @@ export class NetworkCommand extends BaseCommand {
       ],
     ) as NetworkDeployConfigClass;
 
+    // Read values-file from argv (closure-captured, immutable) rather than configManager. configManager is a
+    // process-wide singleton shared across concurrent one-shot subcommands, and a sibling's Initialize task
+    // (e.g. mirror node add with its HikariCP limits file) can race-overwrite the value set by update(argv).
+    config.valuesFile = (argv[flags.valuesFile.name] as string | undefined) ?? config.valuesFile;
+
     if (config.verifyPersistentVolumeClaimMounts && !config.persistentVolumeClaims) {
       throw new SoloErrors.validation.invalidFlagValue(
         flags.verifyPersistentVolumeClaimMounts.name,
@@ -1161,6 +1167,9 @@ export class NetworkCommand extends BaseCommand {
 
     this.logger.debug('Preparing storage secrets');
     await this.prepareStorageSecrets(config);
+
+    this.logger.debug('Storing genesis key secret');
+    await GenesisKeyResolver.store(this.k8Factory, config.contexts, namespace);
 
     return config;
   }
@@ -2473,7 +2482,7 @@ export class NetworkCommand extends BaseCommand {
               return;
             }
 
-            const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
+            const destroyOnTimeout: () => Promise<void> = async (): Promise<void> => {
               const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
               this.logger.error(message);
               this.logger.showUser(chalk.red(message));
@@ -2493,6 +2502,14 @@ export class NetworkCommand extends BaseCommand {
                   this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
                 }
               }
+            };
+
+            const onTimeoutCallback: NodeJS.Timeout = setTimeout((): void => {
+              destroyOnTimeout().catch((error: unknown): void => {
+                // best-effort cleanup after the timeout: report the failure without crashing the destroy command
+                this.logger.error('Cleanup after the consensus network destroy timeout failed', error);
+                this.logger.showUser(chalk.red('Cleanup after the destroy timeout failed, see solo.log for details'));
+              });
             }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
             await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);

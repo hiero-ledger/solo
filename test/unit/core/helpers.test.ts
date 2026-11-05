@@ -272,8 +272,20 @@ describe('Helpers', (): void => {
       ]);
     });
 
-    it('keeps wrapped record block publishing enabled for BOTH mode', (): void => {
-      const lines: string[] = ['blockStream.streamMode=BLOCKS', 'blockStream.streamWrappedRecordBlocks=false'];
+    it('defaults wrappedRecordBlocks=false in BOTH mode when the property is absent', (): void => {
+      const lines: string[] = ['blockStream.streamMode=BLOCKS'];
+
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BOTH');
+
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BOTH',
+        'blockStream.writerMode=FILE_AND_GRPC',
+        'blockStream.streamWrappedRecordBlocks=false',
+      ]);
+    });
+
+    it('preserves an explicit wrappedRecordBlocks=true in BOTH mode', (): void => {
+      const lines: string[] = ['blockStream.streamMode=BOTH', 'blockStream.streamWrappedRecordBlocks=true'];
 
       Helpers.updateBlockStreamPropertiesForMode(lines, 'BOTH');
 
@@ -284,12 +296,16 @@ describe('Helpers', (): void => {
       ]);
     });
 
-    it('disables wrapped record block publishing for BOTH mode when requested', (): void => {
-      const lines: string[] = ['blockStream.streamMode=BOTH', 'blockStream.streamWrappedRecordBlocks=true'];
+    it('preserves an explicit wrappedRecordBlocks=false in BOTH mode', (): void => {
+      const lines: string[] = ['blockStream.streamMode=BLOCKS', 'blockStream.streamWrappedRecordBlocks=false'];
 
-      Helpers.ensureWrappedRecordBlocksDisabled(lines, 'BOTH');
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BOTH');
 
-      expect(lines).to.deep.equal(['blockStream.streamMode=BOTH', 'blockStream.streamWrappedRecordBlocks=false']);
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BOTH',
+        'blockStream.streamWrappedRecordBlocks=false',
+        'blockStream.writerMode=FILE_AND_GRPC',
+      ]);
     });
   });
 

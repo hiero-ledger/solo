@@ -134,6 +134,7 @@ import {OneShotDestroyFailedSoloError} from './classes/component/one-shot-destro
 import {OneShotDeploymentInfoRetrievalFailedSoloError} from './classes/component/one-shot-deployment-info-retrieval-failed-solo-error.js';
 import {FalconValuesPreparationFailedSoloError} from './classes/component/falcon-values-preparation-failed-solo-error.js';
 import {BlockNodeNotInRemoteConfigSoloError} from './classes/system/block-node-not-in-remote-config-solo-error.js';
+import {BlockNodeBlocksUnavailableSoloError} from './classes/system/block-node-blocks-unavailable-solo-error.js';
 import {BlockNodeNotReadySoloError} from './classes/system/block-node-not-ready-solo-error.js';
 import {BlockNodePodNotFoundSoloError} from './classes/system/block-node-pod-not-found-solo-error.js';
 import {BlockNodesJsonEmptySoloError} from './classes/system/block-nodes-json-empty-solo-error.js';
@@ -151,11 +152,14 @@ import {BlockNodeLocalImageNotFoundSoloError} from './classes/validation/block-n
 import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer-invalid-component-id-solo-error.js';
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
 import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
+import {MirrorNodeBlockNodeSourceUnavailableSoloError} from './classes/validation/mirror-node-block-node-source-unavailable-solo-error.js';
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
 import {MinioOperatorCrdsOrphanedSoloError} from './classes/system/minio-operator-crds-orphaned-solo-error.js';
 import {PrometheusInstallFailedSoloError} from './classes/deployment/prometheus-install-failed-solo-error.js';
+import {GrafanaAlloyInstallFailedSoloError} from './classes/deployment/grafana-alloy-install-failed-solo-error.js';
+import {LokiInstallFailedSoloError} from './classes/deployment/loki-install-failed-solo-error.js';
 import {MetricsServerInstallFailedSoloError} from './classes/deployment/metrics-server-install-failed-solo-error.js';
 import {ClusterRoleInstallFailedSoloError} from './classes/deployment/cluster-role-install-failed-solo-error.js';
 import {ClusterApiServerTimeoutSoloError} from './classes/deployment/cluster-api-server-timeout-solo-error.js';
@@ -221,6 +225,8 @@ import {InvalidStorageTypeSoloError} from './classes/validation/invalid-storage-
 import {UnsupportedFlagFieldTypeSoloError} from './classes/validation/unsupported-flag-field-type-solo-error.js';
 import {VersionDowngradeBlockedSoloError} from './classes/validation/version-downgrade-blocked-solo-error.js';
 import {AdminKeysCountMismatchSoloError} from './classes/validation/admin-keys-count-mismatch-solo-error.js';
+import {InvalidAdminPublicKeySoloError} from './classes/validation/invalid-admin-public-key-solo-error.js';
+import {ChainIdMismatchSoloError} from './classes/validation/chain-id-mismatch-solo-error.js';
 import {ComponentAlreadyExistsSoloError} from './classes/validation/component-already-exists-solo-error.js';
 import {ComponentIdRequiredSoloError} from './classes/validation/component-id-required-solo-error.js';
 import {ComponentNotFoundSoloError} from './classes/validation/component-not-found-solo-error.js';
@@ -312,6 +318,7 @@ import {PostgresPodNotFoundSoloError} from './classes/system/postgres-pod-not-fo
 import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files-failed-solo-error.js';
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
 import {CacheManifestDownloadFailedSoloError} from './classes/system/cache-manifest-download-failed-solo-error.js';
+import {CacheManifestUnpublishedSoloError} from './classes/system/cache-manifest-unpublished-solo-error.js';
 import {CacheManifestInvalidSoloError} from './classes/system/cache-manifest-invalid-solo-error.js';
 import {CacheArchiveHashMismatchSoloError} from './classes/system/cache-archive-hash-mismatch-solo-error.js';
 import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
@@ -381,6 +388,8 @@ export class SoloErrors {
     readonly clusterResetFailed: typeof ClusterResetFailedSoloError;
     readonly minioInstallFailed: typeof MinioInstallFailedSoloError;
     readonly prometheusInstallFailed: typeof PrometheusInstallFailedSoloError;
+    readonly grafanaAlloyInstallFailed: typeof GrafanaAlloyInstallFailedSoloError;
+    readonly lokiInstallFailed: typeof LokiInstallFailedSoloError;
     readonly metricsServerInstallFailed: typeof MetricsServerInstallFailedSoloError;
     readonly clusterRoleInstallFailed: typeof ClusterRoleInstallFailedSoloError;
     readonly clusterApiServerTimeout: typeof ClusterApiServerTimeoutSoloError;
@@ -413,6 +422,8 @@ export class SoloErrors {
     clusterResetFailed: ClusterResetFailedSoloError,
     minioInstallFailed: MinioInstallFailedSoloError,
     prometheusInstallFailed: PrometheusInstallFailedSoloError,
+    grafanaAlloyInstallFailed: GrafanaAlloyInstallFailedSoloError,
+    lokiInstallFailed: LokiInstallFailedSoloError,
     metricsServerInstallFailed: MetricsServerInstallFailedSoloError,
     clusterRoleInstallFailed: ClusterRoleInstallFailedSoloError,
     clusterApiServerTimeout: ClusterApiServerTimeoutSoloError,
@@ -653,6 +664,7 @@ export class SoloErrors {
     readonly explorerInvalidComponentId: typeof ExplorerInvalidComponentIdSoloError;
     readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
+    readonly mirrorNodeBlockNodeSourceUnavailable: typeof MirrorNodeBlockNodeSourceUnavailableSoloError;
     readonly invalidHbarAmount: typeof InvalidHbarAmountSoloError;
     readonly invalidFileIdFormat: typeof InvalidFileIdFormatSoloError;
     readonly invalidEndpointFormat: typeof InvalidEndpointFormatSoloError;
@@ -662,6 +674,8 @@ export class SoloErrors {
     readonly unsupportedFlagFieldType: typeof UnsupportedFlagFieldTypeSoloError;
     readonly versionDowngradeBlocked: typeof VersionDowngradeBlockedSoloError;
     readonly adminKeysCountMismatch: typeof AdminKeysCountMismatchSoloError;
+    readonly invalidAdminPublicKey: typeof InvalidAdminPublicKeySoloError;
+    readonly chainIdMismatch: typeof ChainIdMismatchSoloError;
     readonly componentAlreadyExists: typeof ComponentAlreadyExistsSoloError;
     readonly componentIdRequired: typeof ComponentIdRequiredSoloError;
     readonly componentNotFound: typeof ComponentNotFoundSoloError;
@@ -741,6 +755,7 @@ export class SoloErrors {
     explorerInvalidComponentId: ExplorerInvalidComponentIdSoloError,
     relayInvalidComponentId: RelayInvalidComponentIdSoloError,
     mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
+    mirrorNodeBlockNodeSourceUnavailable: MirrorNodeBlockNodeSourceUnavailableSoloError,
     invalidHbarAmount: InvalidHbarAmountSoloError,
     invalidFileIdFormat: InvalidFileIdFormatSoloError,
     invalidEndpointFormat: InvalidEndpointFormatSoloError,
@@ -750,6 +765,8 @@ export class SoloErrors {
     unsupportedFlagFieldType: UnsupportedFlagFieldTypeSoloError,
     versionDowngradeBlocked: VersionDowngradeBlockedSoloError,
     adminKeysCountMismatch: AdminKeysCountMismatchSoloError,
+    invalidAdminPublicKey: InvalidAdminPublicKeySoloError,
+    chainIdMismatch: ChainIdMismatchSoloError,
     componentAlreadyExists: ComponentAlreadyExistsSoloError,
     componentIdRequired: ComponentIdRequiredSoloError,
     componentNotFound: ComponentNotFoundSoloError,
@@ -803,6 +820,7 @@ export class SoloErrors {
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
   public static readonly system: {
     readonly blockNodePodNotFound: typeof BlockNodePodNotFoundSoloError;
+    readonly blockNodeBlocksUnavailable: typeof BlockNodeBlocksUnavailableSoloError;
     readonly blockNodeNotReady: typeof BlockNodeNotReadySoloError;
     readonly blockNodeNotInRemoteConfig: typeof BlockNodeNotInRemoteConfigSoloError;
     readonly blockNodesJsonEmpty: typeof BlockNodesJsonEmptySoloError;
@@ -887,6 +905,7 @@ export class SoloErrors {
     readonly initSystemFilesFailed: typeof InitSystemFilesFailedSoloError;
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
     readonly cacheManifestDownloadFailed: typeof CacheManifestDownloadFailedSoloError;
+    readonly cacheManifestUnpublished: typeof CacheManifestUnpublishedSoloError;
     readonly cacheManifestInvalid: typeof CacheManifestInvalidSoloError;
     readonly cacheArchiveHashMismatch: typeof CacheArchiveHashMismatchSoloError;
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
@@ -896,6 +915,7 @@ export class SoloErrors {
   } = Object.freeze({
     minioOperatorCrdsOrphaned: MinioOperatorCrdsOrphanedSoloError,
     blockNodePodNotFound: BlockNodePodNotFoundSoloError,
+    blockNodeBlocksUnavailable: BlockNodeBlocksUnavailableSoloError,
     blockNodeNotReady: BlockNodeNotReadySoloError,
     blockNodeNotInRemoteConfig: BlockNodeNotInRemoteConfigSoloError,
     blockNodesJsonEmpty: BlockNodesJsonEmptySoloError,
@@ -980,6 +1000,7 @@ export class SoloErrors {
     initSystemFilesFailed: InitSystemFilesFailedSoloError,
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
     cacheManifestDownloadFailed: CacheManifestDownloadFailedSoloError,
+    cacheManifestUnpublished: CacheManifestUnpublishedSoloError,
     cacheManifestInvalid: CacheManifestInvalidSoloError,
     cacheArchiveHashMismatch: CacheArchiveHashMismatchSoloError,
     podTerminationTimeout: PodTerminationTimeoutSoloError,

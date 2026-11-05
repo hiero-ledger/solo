@@ -25,15 +25,15 @@ export const AARDVARK_DNS_VERSION: string = 'v2.0.0';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.67.0';
-export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.77.2';
-export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.163.0';
+export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.78.1';
+export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.164.2';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.2.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.80.1';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
 // If this version changes, regenerate test/data/proto.zip (see test/data/get-block.sh for steps) —
 // a stale vendored schema causes intermittent grpcurl unmarshal failures (see issue #5848).
-export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.44.2';
+export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.44.3';
 
 export const METALLB_CHART_VERSION: string = constants.getEnvironmentVariable('METALLB_CHART_VERSION') || '0.15.3';
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
@@ -56,6 +56,10 @@ export const PROMETHEUS_STACK_VERSION: string =
   constants.getEnvironmentVariable('PROMETHEUS_STACK_VERSION') || '52.0.1';
 export const GRAFANA_PODLOGS_CRD_VERSION: string =
   constants.getEnvironmentVariable('GRAFANA_PODLOGS_CRD_VERSION') || 'v1.11.3';
+// Chart 1.4.0 ships Alloy v1.11.3 — the same app version as GRAFANA_PODLOGS_CRD_VERSION and the
+// pre-cached grafana/alloy image used by the consensus node sidecar.
+export const GRAFANA_ALLOY_VERSION: string = constants.getEnvironmentVariable('GRAFANA_ALLOY_VERSION') || '1.4.0';
+export const LOKI_VERSION: string = constants.getEnvironmentVariable('LOKI_VERSION') || '7.1.0';
 export const PROMETHEUS_OPERATOR_CRDS_VERSION: string =
   constants.getEnvironmentVariable('PROMETHEUS_OPERATOR_CRDS_VERSION') || '24.0.2';
 
@@ -73,14 +77,14 @@ export const SOLO_CONTAINERS_VERSION: string = constants.getEnvironmentVariable(
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.77.2';
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.78.1';
 export const MIRROR_NODE_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || 'v0.164.0';
+  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || 'v0.164.2';
 export const EXPLORER_EDGE_VERSION: string =
   constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || EXPLORER_VERSION;
 export const HEDERA_JSON_RPC_RELAY_EDGE_VERSION: string =
   constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || '0.80.1';
-export const BLOCK_NODE_EDGE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || '0.44.2';
+export const BLOCK_NODE_EDGE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || '0.44.3';
 
 // -------------------------------------------------------------------- //
 

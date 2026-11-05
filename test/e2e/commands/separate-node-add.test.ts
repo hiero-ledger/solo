@@ -10,7 +10,7 @@ import {
   type BootstrapResponse,
   getNodeAliasesPrivateKeysHash,
   getTemporaryDirectory,
-} from '../../test-utility.js';
+} from '../test-utility.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {type NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type Argv} from '../../helpers/argv-wrapper.js';
@@ -53,7 +53,7 @@ export function testSeparateNodeAdd(
     opts: {k8Factory, accountManager, remoteConfig, logger},
   } = bootstrapResp;
 
-  describe('Node add via separated commands should success', async (): Promise<void> => {
+  describe('Node add via separated commands should success', (): void => {
     let existingServiceMap: NodeServiceMapping;
     let existingNodeIdsPrivateKeysHash: Map<NodeAlias, Map<string, string>>;
 

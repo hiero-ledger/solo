@@ -25,6 +25,7 @@ import {FlagValidation} from './validation/flag-validation.js';
 const TLS_CLUSTER_ISSUER_TYPES: string[] = ['acme-staging', 'acme-prod', 'self-signed'];
 // Each component needs its own JVM image swap and values overlay (rest-java, web3 and grpc are native images too).
 const MIRROR_NODE_DEBUG_COMPONENTS: string[] = ['importer'];
+const MIRROR_NODE_SOURCES: string[] = ['auto', 'bucket', 'block-node'];
 
 export class Flags {
   public static KEY_COMMON: string = '_COMMON_';
@@ -376,6 +377,23 @@ export class Flags {
     },
   };
 
+  public static readonly deployGrafanaAlloy: CommandFlag = {
+    constName: 'deployGrafanaAlloy',
+    name: 'grafana-alloy',
+    definition: {
+      describe: 'Deploy Grafana Alloy and Loki to collect and store pod logs',
+      defaultValue: false,
+      type: 'boolean',
+      promptText: 'Would you like to deploy Grafana Alloy? ',
+    },
+    prompt: async function promptDeployGrafanaAlloy(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.prompt('toggle', task, input, Flags.deployGrafanaAlloy);
+    },
+  };
+
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -678,6 +696,22 @@ export class Flags {
     },
   };
 
+  public static readonly mirrorNodeSource: CommandFlag = {
+    constName: 'mirrorNodeSource',
+    name: 'mirror-node-source',
+    definition: {
+      describe:
+        'Where the mirror node imports its data from: "bucket" reads the consensus node record files, ' +
+        '"block-node" reads the block stream of a block node and fails when no block node applies, ' +
+        '"auto" picks the block node when one is deployed in the same cluster and the bucket otherwise. ' +
+        'Pass it again on every upgrade, because "auto" is applied when it is omitted',
+      defaultValue: 'auto',
+      type: 'string',
+    },
+    prompt: undefined,
+    rules: [FlagRules.oneOf(...MIRROR_NODE_SOURCES)],
+  };
+
   public static readonly javaFlightRecorderConfiguration: CommandFlag = {
     constName: 'javaFlightRecorderConfiguration',
     name: 'jfr-config',
@@ -736,7 +770,7 @@ export class Flags {
     constName: 'explorerChartDirectory',
     name: 'explorer-chart-dir',
     definition: {
-      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/charts)',
+      describe: 'Explorer local chart directory path (e.g. ~/hiero-mirror-node-explorer/_frontend/chart)',
       defaultValue: '',
       type: 'string',
     },
@@ -942,6 +976,7 @@ export class Flags {
     prompt: async function promptChainId(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       return await Flags.prompt('input', task, input, Flags.chainId);
     },
+    rules: [FlagRules.chainId],
   };
 
   // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay/blob/main/docs/configuration.md
@@ -2924,6 +2959,7 @@ export class Flags {
     Flags.deployCertManager,
     Flags.deployCertManagerCrds,
     Flags.deployJsonRpcRelay,
+    Flags.deployGrafanaAlloy,
     Flags.deployMinio,
     Flags.deployMetricsServer,
     Flags.deployPrometheusStack,
@@ -3092,6 +3128,7 @@ export class Flags {
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
+    Flags.mirrorNodeSource,
     Flags.rollback,
     Flags.parallelDeploy,
     Flags.edgeEnabled,
