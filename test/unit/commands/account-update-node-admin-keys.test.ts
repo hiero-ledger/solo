@@ -2,6 +2,7 @@
 
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
+import {Base64} from 'js-base64';
 import sinon, {type SinonStub} from 'sinon';
 import {
   AccountId,
@@ -109,6 +110,21 @@ describe('AccountCommand node admin key update', (): void => {
     expect(updateNodeAdminKey.firstCall.args[2]).to.equal(currentAdminKeys.node1);
     expect(updateNodeAdminKey.secondCall.args[0]).to.equal(1);
     expect(updateNodeAdminKey.secondCall.args[2]).to.equal(currentAdminKeys.node2);
+  });
+
+  it("saves each node's new admin key in the node's own cluster context", async (): Promise<void> => {
+    await updateNodeAdminKeys(namespace, deployment, nodeAliases);
+
+    expect(getK8.args).to.deep.equal([['context-1'], ['context-2']]);
+    expect(createOrReplace.firstCall.args[1]).to.equal(Templates.renderNodeAdminKeyName('node1'));
+    expect(createOrReplace.secondCall.args[1]).to.equal(Templates.renderNodeAdminKeyName('node2'));
+
+    // the saved key is the one the network was told to use
+    for (const [index, nodeAlias] of nodeAliases.entries()) {
+      const newKey: PrivateKey = updateNodeAdminKey.getCall(index).args[1];
+      const savedData: {privateKey: string} = createOrReplace.getCall(index).args[3];
+      expect(Base64.decode(savedData.privateKey), nodeAlias).to.equal(newKey.toStringDer());
+    }
   });
 
   it('fails on any other receipt status without warning or saving a key', async (): Promise<void> => {

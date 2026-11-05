@@ -194,8 +194,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
         const previousAdminKeys: Map<NodeAlias, string> = new Map();
 
         async function readNodeAdminKey(nodeAlias: NodeAlias): Promise<string> {
+          // each node's secret lives in its own cluster, which is not necessarily the default one
           const keyFromK8: Secret = await k8Factory
-            .default()
+            .getK8(Helpers.extractContextFromConsensusNodes(nodeAlias, remoteConfig.getConsensusNodes()))
             .secrets()
             .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
           return Base64.decode(keyFromK8.data.privateKey);
