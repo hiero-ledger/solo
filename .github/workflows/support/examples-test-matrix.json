@@ -15,6 +15,13 @@
     "local-java-build": false
   },
   {
+    "name": "Foundry with Solo",
+    "directory": "foundry-with-solo",
+    "local-java-build": false,
+    "one-shot-with-block-node": false,
+    "foundry": true
+  },
+  {
     "name": "Local Build with Custom Config",
     "directory": "local-build-with-custom-config",
     "local-java-build": true

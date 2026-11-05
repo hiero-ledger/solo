@@ -15,15 +15,19 @@ export class DependencyInstallFailedSoloError extends SoloError {
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
   public constructor(executableName: string, cause: Error) {
+    // a more specific cause (e.g. a Helm repository setup failure) knows better how to fix this than the generic steps
+    const causeSteps: ReadonlyArray<string> | undefined =
+      cause instanceof SoloError ? cause.getTroubleshootingSteps() : undefined;
     super(
       {
         message: `Failed to install ${executableName}: ${cause.message}`,
         code: ErrorCodeRegistry.DEPENDENCY_INSTALL_FAILED,
-        troubleshootingSteps:
-          'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
-          'Verify network connectivity for downloading the dependency\n' +
-          'Check available disk space\n' +
-          'Re-run the command to retry the installation',
+        troubleshootingSteps: causeSteps?.length
+          ? causeSteps.join('\n')
+          : 'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
+            'Verify network connectivity for downloading the dependency\n' +
+            'Check available disk space\n' +
+            'Re-run the command to retry the installation',
       },
       cause,
     );

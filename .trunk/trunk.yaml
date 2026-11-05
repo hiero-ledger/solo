@@ -30,6 +30,7 @@ merge:
 #    - "Test Example (Address Book)"
     - "Test Example (External Database Test)"
     - "Test Example (Hardhat with Solo)"
+#    - "Test Example (Foundry with Solo)"
 #    - "Test Example (Network with Domain Names)"
 #    - "Test Example (Node Create Transaction)"
 #    - "Test Example (Node Delete Transaction)"

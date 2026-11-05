@@ -157,9 +157,7 @@ export class DeployArgvBuilders {
     delete blockNodeConfiguration.consensusNodeVersion;
     delete blockNodeConfiguration['consensus-node-version'];
 
-    // Build a local copy with the dev image values file appended, without mutating
-    // config.blockNodeConfiguration — it may be an alias for another section's object
-    // (e.g. via YAML anchors), causing the values file to leak into other commands.
+    // Local copy so the values file never leaks into config.blockNodeConfiguration (it may be a shared YAML anchor).
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     // WRB/RSA blocks require the block node's RSA address book before block 0 is verified.
     // Mirror can provide it later, but block-node startup must be seeded to avoid BAD_BLOCK_PROOF
@@ -170,11 +168,7 @@ export class DeployArgvBuilders {
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...blockNodeConfiguration,
-      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [
-        blockExistingValuesFile,
-        rsaBootstrapValuesFile,
-        constants.BLOCK_NODE_SOLO_DEV_FILE,
-      ]
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [blockExistingValuesFile, rsaBootstrapValuesFile]
         .filter(Boolean)
         .join(','),
     };
@@ -395,6 +389,7 @@ export class DeployArgvBuilders {
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
       ...config.relayNodeConfiguration,
+      [optionFromFlag(Flags.chainId)]: config.chainId,
     });
     return argvPushGlobalFlags(argv);
   }
@@ -408,9 +403,7 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.soloChartVersion),
       config.versions.soloChart,
     );
-    if (config.networkConfiguration) {
-      appendConfigToArgv(argv, config.networkConfiguration);
-    }
+    appendConfigToArgv(argv, {...config.networkConfiguration, [optionFromFlag(Flags.chainId)]: config.chainId});
     if (this.isBlockNodeEnvironmentEnabled()) {
       argv.push(optionFromFlag(Flags.tssEnabled));
     }
