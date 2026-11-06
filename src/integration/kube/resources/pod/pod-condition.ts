@@ -10,4 +10,9 @@ export interface PodCondition {
    * The status of the condition
    */
   readonly status: string;
+
+  /**
+   * Human readable details about the condition, for example why the scheduler could not place the pod
+   */
+  readonly message?: string;
 }

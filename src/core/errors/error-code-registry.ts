@@ -241,7 +241,10 @@ export const ErrorCodeRegistry: Record<string, string> = {
   MIRROR_NODE_BLOCK_NODE_SOURCE_UNAVAILABLE: 'SOLO-4092',
   INVALID_ADMIN_PUBLIC_KEY: 'SOLO-4093',
   CONFIG_VALUE_TYPE_MISMATCH: 'SOLO-4094',
+  STORAGE_CLASS_NOT_FOUND: 'SOLO-4095',
   CHAIN_ID_MISMATCH: 'SOLO-4095',
+  STORAGE_CLASS_NAME_CONFLICT: 'SOLO-4096',
+  STORAGE_CLASS_INSTALL_FORBIDDEN: 'SOLO-4097',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -336,6 +339,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   POD_LOGS_CRD_INVALID: 'SOLO-5090',
   BLOCK_NODE_BLOCKS_UNAVAILABLE: 'SOLO-5091',
   CACHE_MANIFEST_UNPUBLISHED: 'SOLO-5092',
+  PVC_BIND_TIMEOUT: 'SOLO-5093',
+  PVC_PODS_STRANDED: 'SOLO-5094',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

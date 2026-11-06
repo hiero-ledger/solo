@@ -87,6 +87,14 @@ export class KubeApiResponse {
     return errorResponse?.code === StatusCodes.NOT_FOUND || errorResponse?.statusCode === StatusCodes.NOT_FOUND;
   }
 
+  /**
+   * Checks if the error response has a status code indicating a "Forbidden" error (403).
+   * @param errorResponse
+   */
+  public static isForbidden(errorResponse: ApiError): boolean {
+    return errorResponse?.code === StatusCodes.FORBIDDEN || errorResponse?.statusCode === StatusCodes.FORBIDDEN;
+  }
+
   private static readonly TRANSIENT_STATUS_CODES: number[] = [
     StatusCodes.TOO_MANY_REQUESTS,
     StatusCodes.INTERNAL_SERVER_ERROR,

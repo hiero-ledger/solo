@@ -506,7 +506,8 @@ export class K8ClientPod implements Pod {
       v1Pod.spec.containers[0]?.image,
       v1Pod.spec.containers[0]?.command,
       v1Pod.status?.conditions?.map(
-        (condition): K8ClientPodCondition => new K8ClientPodCondition(condition.type, condition.status),
+        (condition): K8ClientPodCondition =>
+          new K8ClientPodCondition(condition.type, condition.status, condition.message),
       ),
       v1Pod.status?.podIP,
       v1Pod.metadata?.creationTimestamp ? new Date(v1Pod.metadata.creationTimestamp) : undefined,
