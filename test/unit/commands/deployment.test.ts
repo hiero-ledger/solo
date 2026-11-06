@@ -27,6 +27,8 @@ import {PodReference} from '../../../src/integration/kube/resources/pod/pod-refe
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import * as constants from '../../../src/core/constants.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {LedgerPhase} from '../../../src/data/schema/model/remote/ledger-phase.js';
 
 describe('DeploymentCommand unit tests', (): void => {
   type K8StubbedMethods = Pick<
@@ -727,6 +729,51 @@ describe('DeploymentCommand unit tests', (): void => {
 
       expect(thrownError).to.be.instanceof(SoloErrors.deployment.clusterAddFailed);
       expect((thrownError as SoloError).cause).to.equal(expectedCause);
+    });
+  });
+
+  describe('checkNetworkState() - consensus node count for an additional cluster', (): void => {
+    type NetworkStateTask = ReturnType<DeploymentCommand['checkNetworkState']>;
+    type NetworkStateContext = Parameters<NetworkStateTask['task']>[0];
+    type NetworkStateTaskWrapper = Parameters<NetworkStateTask['task']>[1];
+
+    const runCheckNetworkState = async (numberOfConsensusNodes?: number): Promise<NetworkStateContext> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
+      const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+      sinon.stub(remoteConfig, 'populateFromExisting').resolves();
+      sinon.stub(remoteConfig, 'configuration').get(() => ({
+        ledger: {phase: LedgerPhase.UNINITIALIZED},
+        state: {consensusNodes: {node1: {}}},
+      }));
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const context: NetworkStateContext = {
+        config: {deployment: deploymentName, numberOfConsensusNodes, quiet: true, namespace},
+      } as unknown as NetworkStateContext;
+
+      await deploymentCommand.checkNetworkState().task(context, {} as NetworkStateTaskWrapper);
+      return context;
+    };
+
+    it('should default to zero consensus nodes when --num-consensus-nodes is omitted in quiet mode', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState();
+
+      expect(context.config.numberOfConsensusNodes).to.equal(0);
+      expect(context.config.nodeAliases).to.deep.equal([]);
+    });
+
+    it('should accept an explicit --num-consensus-nodes 0 in quiet mode', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState(0);
+
+      expect(context.config.numberOfConsensusNodes).to.equal(0);
+      expect(context.config.nodeAliases).to.deep.equal([]);
+    });
+
+    it('should number new consensus nodes after the existing ones', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState(2);
+
+      expect(context.config.nodeAliases).to.deep.equal(['node2', 'node3']);
     });
   });
 });

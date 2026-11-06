@@ -1,0 +1,5 @@
+# Expose block-node-1 through a static MetalLB address so pods in the other Kind cluster can reach it
+# (see the link-clusters task in the Taskfile).
+loadBalancer:
+  enabled: true
+  loadBalancerIP: '172.19.1.10'
