@@ -2821,13 +2821,15 @@ export class Flags {
 
   // --------------- One Shot --------------- //
 
-  // A minimal setup deployment with 1 consensus node and 1 mirror node
+  // A minimal setup deploys only the consensus node(s) and mirror node, skipping the relay and explorer.
   // Using this flag will enable one-shot to be used in a test workflow running on a default linux GitHub runner
   public static readonly minimalSetup: CommandFlag = {
     constName: 'minimalSetup',
     name: 'minimal-setup',
     definition: {
-      describe: 'Create a deployment with minimal setup. Only includes a single consensus node and mirror node',
+      describe:
+        'Create a deployment with minimal setup. Only includes the consensus node(s) and mirror node, ' +
+        'without the JSON-RPC relay or explorer',
       defaultValue: false,
       type: 'boolean',
     },

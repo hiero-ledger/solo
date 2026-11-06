@@ -150,18 +150,21 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         expect(content).to.include(`contracts.chainId=${options.chainId}`);
       }).timeout(Duration.ofMinutes(2).toMillis());
 
-      it('should report the same chainId through the relay', async (): Promise<void> => {
-        const response: Response = await fetch(
-          `http://${constants.LOCAL_HOST}:${constants.JSON_RPC_RELAY_LOCAL_PORT}`,
-          {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
-          },
-        );
-        const body: {result?: string} = (await response.json()) as {result?: string};
-        expect(body.result).to.equal(`0x${options.chainId.toString(16)}`);
-      }).timeout(Duration.ofMinutes(2).toMillis());
+      // A minimal setup deploys no relay, so there is nothing to query.
+      if (!minimalSetup) {
+        it('should report the same chainId through the relay', async (): Promise<void> => {
+          const response: Response = await fetch(
+            `http://${constants.LOCAL_HOST}:${constants.JSON_RPC_RELAY_LOCAL_PORT}`,
+            {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
+            },
+          );
+          const body: {result?: string} = (await response.json()) as {result?: string};
+          expect(body.result).to.equal(`0x${options.chainId.toString(16)}`);
+        }).timeout(Duration.ofMinutes(2).toMillis());
+      }
 
       it('Should write log metrics', async (): Promise<void> => {
         if (minimalSetup) {
