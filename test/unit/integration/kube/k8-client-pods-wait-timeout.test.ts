@@ -7,6 +7,7 @@ import {K8ClientPods} from '../../../../src/integration/kube/k8-client/resources
 import {KubePodNotFoundError} from '../../../../src/integration/kube/errors/kube-pod-not-found-error.js';
 import {KubePodNotReadyError} from '../../../../src/integration/kube/errors/kube-pod-not-ready-error.js';
 import {KubePodReadinessFailedError} from '../../../../src/integration/kube/errors/kube-pod-readiness-failed-error.js';
+import {KubePodCreationFailedError} from '../../../../src/integration/kube/errors/kube-pod-creation-failed-error.js';
 import {KubeErrorTranslator} from '../../../../src/core/errors/kube-error-translator.js';
 import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
 import {type SoloError} from '../../../../src/core/errors/solo-error.js';
@@ -199,6 +200,40 @@ describe('K8ClientPods wait timeout errors', (): void => {
     expect(translated.message).to.include('relay-1-x');
     expect(translated.message).to.include('phase: Running');
     expect(translated.message).to.include('waiting: CrashLoopBackOff');
+  });
+
+  it('KubePodNotReadyError names why a container is waiting, not just the reason', (): void => {
+    const kubeError: KubePodNotReadyError = new KubePodNotReadyError(
+      'labels:app=block-node',
+      'block-node-0',
+      'Pending',
+      [
+        {
+          name: 'block-node',
+          ready: false,
+          waitingReason: 'ImagePullBackOff',
+          waitingMessage: 'tls: failed to verify certificate: x509: certificate signed by unknown authority',
+        },
+      ],
+    );
+
+    expect(kubeError.message).to.include('waiting: ImagePullBackOff');
+    expect(kubeError.message).to.include('certificate signed by unknown authority');
+  });
+
+  it('KubeErrorTranslator reports a readiness failure caused by a fatal container state as pod-creation-failed', (): void => {
+    const diagnostic: string =
+      'Pod "block-node-0" container "block-node" cannot pull its image because the registry certificate was rejected';
+    const readinessError: KubePodReadinessFailedError = new KubePodReadinessFailedError(
+      'one-shot',
+      ['app=block-node'],
+      new KubePodCreationFailedError(diagnostic),
+    );
+
+    const translated: SoloError | undefined = KubeErrorTranslator.tryTranslate(readinessError);
+
+    expect(translated).to.be.instanceOf(SoloErrors.system.podCreationFailed);
+    expect(translated.message).to.include(diagnostic);
   });
 
   it('KubeErrorTranslator forwards the volume mount diagnostic to PodNotReadySoloError', (): void => {

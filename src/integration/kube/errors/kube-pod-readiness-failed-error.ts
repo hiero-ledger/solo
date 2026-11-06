@@ -12,6 +12,7 @@ export class KubePodReadinessFailedError extends KubeError {
   public readonly phase: string | undefined;
   public readonly containerSummary: string | undefined;
   public readonly volumeMountDiagnostic: string | undefined;
+  public readonly podCreationFailure: unknown;
 
   public constructor(namespace: string, labels: string[], cause?: Error | unknown) {
     const causeError: Error | undefined = cause instanceof Error ? cause : undefined;
@@ -55,6 +56,9 @@ export class KubePodReadinessFailedError extends KubeError {
     // troubleshooting steps without having to unwrap the cause.
     if (cause instanceof KubePodNotReadyError || cause instanceof KubePodNotFoundError) {
       this.volumeMountDiagnostic = cause.volumeMountDiagnostic;
+    }
+    if (cause instanceof KubePodCreationFailedError) {
+      this.podCreationFailure = cause.result;
     }
   }
 }

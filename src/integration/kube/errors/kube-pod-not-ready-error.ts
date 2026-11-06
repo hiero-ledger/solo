@@ -50,7 +50,7 @@ export class KubePodNotReadyError extends KubeError {
           details.push(`restarts: ${status.restartCount}`);
         }
         if (status.waitingReason) {
-          details.push(`waiting: ${status.waitingReason}`);
+          details.push(`waiting: ${status.waitingReason}${status.waitingMessage ? ` - ${status.waitingMessage}` : ''}`);
         }
         if (status.terminatedReason || status.terminatedExitCode !== undefined) {
           details.push(`terminated: ${status.terminatedReason ?? 'Unknown'}, exit ${status.terminatedExitCode}`);

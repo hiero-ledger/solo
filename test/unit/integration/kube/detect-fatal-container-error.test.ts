@@ -306,6 +306,59 @@ describe('detectFatalContainerError', (): void => {
     });
   });
 
+  describe('registry trust failure (TLS-inspecting proxy)', (): void => {
+    const trustMessages: string[] = [
+      'failed to pull and unpack image "ghcr.io/hiero-ledger/hiero-block-node:0.44.3": failed to resolve reference: ' +
+        'tls: failed to verify certificate: x509: certificate signed by unknown authority',
+      'Get "https://ghcr.io/v2/": proxyconnect tcp: dial tcp 127.0.0.1:9000: connect: connection refused',
+      'Get "https://ghcr.io/v2/": http: server gave HTTP response to HTTPS client',
+    ];
+
+    for (const message of trustMessages) {
+      it(`detects a rejected registry certificate: ${message.slice(0, 48)}…`, (): void => {
+        const pod: Pod = buildPod([buildWaiting('test-container', 'ErrImagePull', message)]);
+        const result: string | undefined = podsClient.detectFatalContainerError(pod);
+        expect(result).to.include('registry certificate was rejected');
+        expect(result).to.include(message);
+        expect(result).to.include('"test-pod"');
+        expect(result).to.include('"test-container"');
+      });
+    }
+
+    for (const message of [
+      'Back-off pulling image "ghcr.io/hiero-ledger/hiero-block-node:0.44.3"',
+      'Get "https://ghcr.io/v2/": dial tcp: lookup ghcr.io: no such host',
+      'Get "https://ghcr.io/v2/": net/http: TLS handshake timeout',
+      'Get "https://ghcr.io/v2/": dial tcp 140.82.121.33:443: i/o timeout',
+    ]) {
+      it(`leaves a transient pull failure recoverable: ${message.slice(0, 48)}…`, (): void => {
+        const pod: Pod = buildPod([buildWaiting('test-container', 'ImagePullBackOff', message)]);
+        expect(podsClient.detectFatalContainerError(pod)).to.be.undefined;
+      });
+    }
+
+    it('waitForRunningPhase rejects on the first attempt', async (): Promise<void> => {
+      const pod: RawPodFixture = buildRawPodWithContainerStatus(
+        buildWaitingRawContainerStatus('ErrImagePull', trustMessages[0]),
+      );
+      pod.status.phase = 'Pending';
+
+      const listNamespacedPodStub: SinonStub = sinon.stub().resolves({items: [pod]});
+      const pods: K8ClientPods = new K8ClientPods({listNamespacedPod: listNamespacedPodStub} as never, {} as never, '');
+
+      try {
+        await pods.waitForRunningPhase(NamespaceName.of('test-namespace'), ['app=test'], 900, 0);
+        expect.fail('Expected waitForRunningPhase to reject');
+      } catch (error: Error | unknown) {
+        expect(error).to.be.instanceOf(KubePodCreationFailedError);
+        // the diagnostic reaches the message, not only meta, since the error box never renders meta
+        expect((error as KubePodCreationFailedError).message).to.include('certificate signed by unknown authority');
+      }
+
+      expect(listNamespacedPodStub).to.have.callCount(1);
+    });
+  });
+
   it('waitForRunningPhase rejects quickly for ErrImageNeverPull after fatal threshold', async (): Promise<void> => {
     const pod: RawPodFixture = buildRawPodWithContainerStatus(
       buildWaitingRawContainerStatus(
