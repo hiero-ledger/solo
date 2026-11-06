@@ -48,6 +48,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   NETWORK_ALREADY_DEPLOYED: 'SOLO-2033',
   GRAFANA_ALLOY_INSTALL_FAILED: 'SOLO-2034',
   LOKI_INSTALL_FAILED: 'SOLO-2035',
+  RUSTFS_INSTALL_FAILED: 'SOLO-2036',
 
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
   NODE_TRANSACTION_FAILED: 'SOLO-3001',
