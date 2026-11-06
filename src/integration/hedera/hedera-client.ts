@@ -47,6 +47,9 @@ export interface HederaClient {
    */
   ping(accountId: AccountId): Promise<void>;
 
+  /** Checks network health with a free cost query, allowing retries across configured consensus nodes. */
+  checkHealth(): Promise<void>;
+
   /** Closes the connections of the client */
   close(): void;
 
