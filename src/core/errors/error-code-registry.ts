@@ -146,6 +146,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   RELAY_OPERATOR_SECRET_CREATION_FAILED: 'SOLO-3095',
   MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3096',
   NODE_RESTORE_STATUS_MISMATCH: 'SOLO-3097',
+  NODE_ADMIN_KEY_SAVE_FAILED: 'SOLO-3098',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',

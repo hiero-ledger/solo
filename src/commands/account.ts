@@ -13,7 +13,7 @@ import {type AccountManager} from '../core/account-manager.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {AccountId, AccountInfo, Hbar, HbarUnit, PrivateKey, ReceiptStatusError, Status} from '@hiero-ledger/sdk';
 import {type HederaTransactionStatus} from '../integration/hedera/hedera-transaction-status.js';
-import {type ArgvStruct, type NodeAliases, NodeId} from '../types/aliases.js';
+import {type ArgvStruct, type NodeAlias, type NodeAliases, NodeId} from '../types/aliases.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {
@@ -86,6 +86,11 @@ export class AccountCommand extends BaseCommand {
     '- privateKey: the hex-encoded private key which is used to sign transactions with in the Hiero SDKs\n' +
     '- privateKeyRaw: the Ethereum compatible private key, without the `0x` prefix\n' +
     '- for more information see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures';
+
+  private static readonly NODE_ADMIN_KEY_SAVE_MAX_ATTEMPTS: number = 5;
+
+  /** Base delay between attempts to save a rotated node admin key; attempt n waits n times this. */
+  private static readonly NODE_ADMIN_KEY_SAVE_RETRY_DELAY_MILLIS: number = 1000;
 
   private accountInfo:
     | {
@@ -302,9 +307,8 @@ export class AccountCommand extends BaseCommand {
         },
       );
 
+      const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
       try {
-        const newPrivateKey: PrivateKey = PrivateKey.generateED25519();
-
         const nodeUpdateStatus: HederaTransactionStatus = await this.accountManager.hederaClient!.updateNodeAdminKey(
           nodeId,
           newPrivateKey,
@@ -312,19 +316,6 @@ export class AccountCommand extends BaseCommand {
         );
 
         this.logger.debug(`NodeUpdate status ${nodeUpdateStatus.status} for node ${nodeAlias}`);
-
-        // save new key in k8s secret
-        const data: {privateKey: string; publicKey: string} = {
-          privateKey: Base64.encode(newPrivateKey.toString()),
-          publicKey: Base64.encode(newPrivateKey.publicKey.toString()),
-        };
-        // replace, not create: the node may already have an admin key secret holding the key just replaced
-        await this.k8Factory
-          .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
-          .secrets()
-          .createOrReplace(namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
-            'solo.hedera.com/node-admin-key': 'true',
-          });
       } catch (error) {
         if (error instanceof ReceiptStatusError && error.status === Status.InvalidSignature) {
           // Solo holds no key that can sign for this node, so it keeps its current admin key
@@ -338,7 +329,64 @@ export class AccountCommand extends BaseCommand {
         }
         throw new SoloErrors.component.nodeAccessConfigFailed(error);
       }
+
+      // the network now requires the new key, so it is saved outside the try: a failure here is not a failed update
+      await this.saveNodeAdminKey(
+        namespace,
+        nodeAlias,
+        extractContextFromConsensusNodes(nodeAlias, consensusNodes),
+        newPrivateKey,
+      );
     }
+  }
+
+  /**
+   * Saves a node's newly rotated admin key in the node's admin key secret, retrying on failure. The network already
+   * requires this key and the secret is the only place it is kept, so if every attempt fails the thrown error carries
+   * the key and the commands to recreate the secret by hand.
+   */
+  private async saveNodeAdminKey(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context: string,
+    newPrivateKey: PrivateKey,
+  ): Promise<void> {
+    const secretName: string = Templates.renderNodeAdminKeyName(nodeAlias);
+    const data: {privateKey: string; publicKey: string} = {
+      privateKey: Base64.encode(newPrivateKey.toStringDer()),
+      publicKey: Base64.encode(newPrivateKey.publicKey.toStringDer()),
+    };
+
+    let lastError: Error;
+    for (let attempt: number = 1; attempt <= AccountCommand.NODE_ADMIN_KEY_SAVE_MAX_ATTEMPTS; attempt++) {
+      try {
+        // replace, not create: the node may already have an admin key secret holding the key just replaced
+        await this.k8Factory
+          .getK8(context)
+          .secrets()
+          .createOrReplace(namespace, secretName, SecretType.OPAQUE, data, {'solo.hedera.com/node-admin-key': 'true'});
+        return;
+      } catch (error) {
+        lastError = error;
+        this.logger.debug(
+          `Saving the admin key of ${nodeAlias} in secret ${secretName} failed ` +
+            `(attempt ${attempt}/${AccountCommand.NODE_ADMIN_KEY_SAVE_MAX_ATTEMPTS}): ${error.message}`,
+        );
+        if (attempt < AccountCommand.NODE_ADMIN_KEY_SAVE_MAX_ATTEMPTS) {
+          await sleep(Duration.ofMillis(AccountCommand.NODE_ADMIN_KEY_SAVE_RETRY_DELAY_MILLIS * attempt));
+        }
+      }
+    }
+
+    throw new SoloErrors.component.nodeAdminKeySaveFailed(
+      nodeAlias,
+      secretName,
+      namespace.name,
+      context,
+      newPrivateKey.toStringDer(),
+      newPrivateKey.publicKey.toStringDer(),
+      lastError,
+    );
   }
 
   public async init(argv: ArgvStruct): Promise<boolean> {

@@ -3,7 +3,7 @@
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 import {Base64} from 'js-base64';
-import sinon, {type SinonStub} from 'sinon';
+import sinon, {type SinonFakeTimers, type SinonStub} from 'sinon';
 import {
   AccountId,
   PrivateKey,
@@ -16,6 +16,7 @@ import {AccountCommand} from '../../../src/commands/account.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Templates} from '../../../src/core/templates.js';
 import {NodeAccessConfigFailedSoloError} from '../../../src/core/errors/classes/component/node-access-config-failed-solo-error.js';
+import {NodeAdminKeySaveFailedSoloError} from '../../../src/core/errors/classes/component/node-admin-key-save-failed-solo-error.js';
 import {type DeploymentName} from '../../../src/types/index.js';
 import {type NodeAlias, type NodeAliases} from '../../../src/types/aliases.js';
 
@@ -146,5 +147,52 @@ describe('AccountCommand node admin key update', (): void => {
     );
     expect(logger.showUser.called).to.be.false;
     expect(createOrReplace.called).to.be.false;
+  });
+
+  describe('saving the rotated key', (): void => {
+    let clock: SinonFakeTimers;
+
+    beforeEach((): void => {
+      clock = sinon.useFakeTimers();
+    });
+
+    afterEach((): void => {
+      clock.restore();
+    });
+
+    it('retries a failed secret write until it succeeds', async (): Promise<void> => {
+      createOrReplace.onFirstCall().rejects(new Error('etcdserver: request timed out'));
+      createOrReplace.onSecondCall().rejects(new Error('etcdserver: request timed out'));
+
+      const rotation: Promise<void> = updateNodeAdminKeys(namespace, deployment, ['node1']);
+      await clock.runAllAsync();
+      await rotation;
+
+      expect(createOrReplace.callCount).to.equal(3);
+      // every attempt saves the key the network was told to use, in the node's own context
+      const newKey: PrivateKey = updateNodeAdminKey.firstCall.args[1];
+      for (const call of createOrReplace.getCalls()) {
+        expect(Base64.decode(call.args[3].privateKey)).to.equal(newKey.toStringDer());
+      }
+      expect(getK8.alwaysCalledWithExactly('context-1')).to.be.true;
+    });
+
+    it('fails with the new key in the error once every attempt to save it has failed', async (): Promise<void> => {
+      createOrReplace.rejects(new Error('secrets is forbidden'));
+
+      const rotation: Promise<void> = updateNodeAdminKeys(namespace, deployment, nodeAliases);
+      const assertion: Promise<NodeAdminKeySaveFailedSoloError> = expect(rotation).to.be.rejectedWith(
+        NodeAdminKeySaveFailedSoloError,
+      ) as unknown as Promise<NodeAdminKeySaveFailedSoloError>;
+      await clock.runAllAsync();
+      const error: NodeAdminKeySaveFailedSoloError = await assertion;
+
+      expect(createOrReplace.callCount).to.equal(5);
+      expect(updateNodeAdminKey.calledOnce, 'no further node should be rotated').to.be.true;
+      // the error is the only remaining copy of the key the network now requires
+      const newKey: PrivateKey = updateNodeAdminKey.firstCall.args[1];
+      expect(error.message).to.include('node1').and.to.include(newKey.toStringDer());
+      expect(error.cause).to.be.instanceOf(Error).with.property('message', 'secrets is forbidden');
+    });
   });
 });
