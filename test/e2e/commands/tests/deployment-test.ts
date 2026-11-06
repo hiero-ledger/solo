@@ -307,7 +307,8 @@ export class DeploymentTest extends BaseCommandTest {
   }
 
   public static verifyDeploymentConfigPorts(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, clusterReferenceNameArray, namespace, testCacheDirectory} = options;
+    const {testName, testLogger, deployment, clusterReferenceNameArray, namespace, testCacheDirectory, chainId} =
+      options;
     const {soloDeploymentConfigPortsArgv, runMainAndCaptureOutputToJson, assertPortsFile} = DeploymentTest;
 
     it(`${testName}: verify deployment config ports output`, async (): Promise<void> => {
@@ -343,6 +344,7 @@ export class DeploymentTest extends BaseCommandTest {
       expect(wideResult.stdout).to.contain('Cluster:');
       expect(wideResult.stdout).to.contain(clusterReference);
       expect(wideResult.stdout).to.contain('Namespace:');
+      expect(wideResult.stdout).to.contain(`Chain ID: ${chainId}`);
       // When one-shot created the Kind cluster itself, the consensus node gRPC, mirror node REST
       // API, relay, and explorer are served via stable Kind NodePort mappings and no port-forwards
       // are registered in the remote config. When the cluster pre-existed (e.g. CI creates it via
@@ -386,7 +388,7 @@ export class DeploymentTest extends BaseCommandTest {
       expect(jsonResult.stdout).to.contain('"explorer"');
       expect(jsonResult.stdout).to.contain('"blockNode"');
 
-      await assertPortsFile(jsonPortsFile, 'json', deployment, clusterReference);
+      await assertPortsFile(jsonPortsFile, 'json', deployment, clusterReference, chainId);
 
       const yamlResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
         soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'yaml', testCacheDirectory),
@@ -415,7 +417,7 @@ export class DeploymentTest extends BaseCommandTest {
       expect(yamlResult.stdout).to.contain('explorer:');
       expect(yamlResult.stdout).to.contain('blockNode:');
 
-      await assertPortsFile(yamlPortsFile, 'yaml', deployment, clusterReference);
+      await assertPortsFile(yamlPortsFile, 'yaml', deployment, clusterReference, chainId);
 
       testLogger.info(`${testName}: deployment config ports wide output saved to ${wideResult.outputFilePath}`);
       testLogger.info(`${testName}: deployment config ports json output saved to ${jsonResult.outputFilePath}`);
@@ -504,12 +506,14 @@ export class DeploymentTest extends BaseCommandTest {
     format: 'json' | 'yaml',
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
+    chainId: number,
   ): Promise<void> {
     const raw: string = await fs.readFile(filePath, 'utf8');
     const parsed: AnyObject = format === 'json' ? JSON.parse(raw) : yaml.parse(raw);
 
     expect(parsed.deployment).to.equal(deployment);
     expect(parsed.clusterReference).to.equal(clusterReference);
+    expect(parsed.chainId).to.equal(chainId);
 
     expect(parsed.services).to.be.an('object');
     expect(parsed.services).to.have.property('consensusNodeGrpc').that.is.an('array');

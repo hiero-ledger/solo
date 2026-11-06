@@ -419,6 +419,11 @@ describe('buildDeploymentCreateArgv', (): void => {
     expect(argv).to.include(optionFromFlag(Flags.namespace));
     expect(argv).to.include('test-ns');
   });
+
+  it('passes the resolved chain ID so the deployment records the chain ID one-shot deploys', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildDeploymentCreateArgv(makeConfig({chainId: '1234'}));
+    expect(argv[argv.indexOf(optionFromFlag(Flags.chainId)) + 1]).to.equal('1234');
+  });
 });
 
 describe('buildDeploymentAttachArgv', (): void => {

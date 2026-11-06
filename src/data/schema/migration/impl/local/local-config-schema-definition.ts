@@ -11,6 +11,7 @@ import {type ObjectMapper} from '../../../../mapper/api/object-mapper.js';
 import {SchemaDefinitionBase} from '../../api/schema-definition-base.js';
 import {LocalConfigV1Migration} from './local-config-v1-migration.js';
 import {LocalConfigV2Migration} from './local-config-v2-migration.js';
+import {LocalConfigV3Migration} from './local-config-v3-migration.js';
 
 @injectable()
 export class LocalConfigSchemaDefinition
@@ -34,6 +35,6 @@ export class LocalConfigSchemaDefinition
   }
 
   public get migrations(): SchemaMigration[] {
-    return [new LocalConfigV1Migration(), new LocalConfigV2Migration()];
+    return [new LocalConfigV1Migration(), new LocalConfigV2Migration(), new LocalConfigV3Migration()];
   }
 }
