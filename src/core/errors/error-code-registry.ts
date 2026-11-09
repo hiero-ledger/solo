@@ -245,6 +245,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CHAIN_ID_MISMATCH: 'SOLO-4095',
   STORAGE_CLASS_NAME_CONFLICT: 'SOLO-4096',
   STORAGE_CLASS_INSTALL_FORBIDDEN: 'SOLO-4097',
+  NO_CONSENSUS_NODES_FOR_NODE_ADD: 'SOLO-4098',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
