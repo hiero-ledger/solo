@@ -21,16 +21,11 @@ import {SoloErrors} from './errors/solo-errors.js';
  * Loads the operator's Solo config file and applies its
  * `subprocess.additionalEnvironmentVariables` setting to {@link SubprocessEnvironment}.
  *
- * This is a separate startup step rather than part of the `ConfigProvider` factory for two
- * reasons. Config sources load asynchronously, so a value read inside the synchronous factory
- * resolves to the schema default and the setting silently does nothing. And the merged config
- * cannot simply be refreshed there: `LayeredConfig.refresh()` refreshes *every* source, which
- * would newly activate bundled resource files that currently never load, changing unrelated
- * behaviour as a side effect of this feature.
+ * `main()` runs this before it refreshes the layered config, so an untrusted file is refused before
+ * anything parses it, and the setting comes from the read whose file descriptor was checked.
  *
- * The setting is read from the config file source alone, which is exactly its documented
- * contract: `subprocess.*` is config-file only and deliberately cannot be supplied by the
- * environment.
+ * The setting is read from the config file alone, which is exactly its documented contract:
+ * `subprocess.*` is config-file only and deliberately cannot be supplied by the environment.
  */
 export class SubprocessEnvironmentBootstrap {
   /**

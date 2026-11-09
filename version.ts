@@ -66,6 +66,14 @@ export const PROMETHEUS_OPERATOR_CRDS_VERSION: string =
 export const REDIS_IMAGE_VERSION: string = constants.getEnvironmentVariable('REDIS_IMAGE_VERSION') || '8.2.2';
 export const REDIS_SENTINEL_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('REDIS_SENTINEL_IMAGE_VERSION') || '8.2.2';
+// Bitnami publishes free PostgreSQL images only under the floating 'latest' tag (versioned tags are
+// frozen in bitnamilegacy at 17.6.0), and the postgresql chart used by solo-shared-resources defaults
+// to it. Pin a digest of 'latest' instead so every deploy runs the same image: PostgreSQL 18.6.0
+// (2026-11-02). Move the pin forward with
+// `docker buildx imagetools inspect docker.io/bitnami/postgresql:latest`.
+export const POSTGRES_IMAGE_DIGEST: string =
+  constants.getEnvironmentVariable('POSTGRES_IMAGE_DIGEST') ||
+  'b418fd5f001c272aad93ac1febf783f543ee45d8e359d58bd5afc3d2a9b62290';
 
 // Image versions embedded in the solo-deployment Helm chart (SOLO_CHART_VERSION).
 // These must stay in sync with charts/solo-deployment/values.yaml whenever SOLO_CHART_VERSION bumps.

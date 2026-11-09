@@ -13,16 +13,18 @@ export class HelmRepoSetupFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
-  public constructor(cause: Error) {
+  public constructor(cause: Error, repositoryNames: readonly string[] = []) {
+    const repositories: string = repositoryNames.length > 0 ? ` [${repositoryNames.join(', ')}]` : '';
     super(
       {
-        message: `Failed to set up Helm chart repositories: ${cause.message}`,
+        message: `Failed to set up Helm chart repositories${repositories}: ${cause.message}`,
         code: ErrorCodeRegistry.HELM_REPO_SETUP_FAILED,
         troubleshootingSteps:
           'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
           'List configured Helm repositories: helm repo list\n' +
           'Verify network connectivity to chart repository URLs\n' +
-          'Update Helm repositories: helm repo update',
+          'Remove a stale repository entry: helm repo remove <name>\n' +
+          'Re-run the command; solo re-adds the repositories it manages',
       },
       cause,
     );
