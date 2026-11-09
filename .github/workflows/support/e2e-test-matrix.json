@@ -132,7 +132,7 @@
     "kubectl-install": false,
     "kubectl-version": "1.27.3",
     "helm-install": true,
-    "helm-version": "4.3.1",
+    "helm-version": "3.22.1",
     "node-version": "22.22.0"
   },
   {

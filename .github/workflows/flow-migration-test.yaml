@@ -84,11 +84,13 @@ jobs:
         with:
           node-version: 24
 
+      # Deliberately older than the minimum Helm of both the prior release (3.14.2) and this branch (4.3.1), so that
+      # neither of them picks the global Helm and each provisions its own into ~/.solo/bin, as for a real user upgrade.
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: "v4.3.1" # helm version
+          version: "v3.12.3" # helm version
 
       - name: Setup Kind
         uses: $/.github/actions/setup-kind
@@ -145,6 +147,22 @@ jobs:
         with:
           operation: restore
           key-suffix: ${{ hashFiles('version.ts') }}
+
+      # The bin cache is keyed on version.ts, so it holds Helm 4 and the prior release would pick that up. Replace it with
+      # the Helm 3 the prior release provisions itself; this branch then has to download Helm 4 over it.
+      - name: Provision Helm 3 for the Prior Release
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          HELM3_VERSION="v3.14.2"
+          HELM3_ARCHIVE="helm-${HELM3_VERSION}-linux-amd64.tar.gz"
+          HELM3_SHA256="0885a501d586c1e949e9b113bf3fb3290b0bbf74db9444a1d8c2723a143006a5"
+
+          mkdir -p ~/.solo/bin
+          rm -f ~/.solo/bin/helm
+          curl -fsSL "https://get.helm.sh/${HELM3_ARCHIVE}" -o "${RUNNER_TEMP}/${HELM3_ARCHIVE}"
+          echo "${HELM3_SHA256}  ${RUNNER_TEMP}/${HELM3_ARCHIVE}" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/${HELM3_ARCHIVE}" -C ~/.solo/bin --strip-components=1 linux-amd64/helm
+          ~/.solo/bin/helm version --short
 
       - name: Restore Solo Image Cache
         id: solo-image-cache
