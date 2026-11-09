@@ -19,6 +19,8 @@ import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NodeSubcommandType} from '../../../../src/core/enumerations.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {Templates} from '../../../../src/core/templates.js';
+import {SdkHederaClient} from '../../../../src/integration/hedera/impl/sdk-hedera-client.js';
+import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {SoloError} from '../../../../src/core/errors/solo-error.js';
 import * as constants from '../../../../src/core/constants.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../src/types/index.js';
@@ -75,6 +77,8 @@ function createTasks(
           ]),
         ),
       loadNodeClient: async (): Promise<Client> => client,
+      hederaClientFor: (sdkClient: Client): SdkHederaClient =>
+        new SdkHederaClient(sdkClient, logger as unknown as SoloLogger),
     },
     remoteConfig: {
       getClusterRefs: (): Record<string, string> => ({}),
