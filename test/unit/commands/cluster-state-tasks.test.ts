@@ -120,6 +120,23 @@ describe('ClusterCommandTasks state scoping', (): void => {
     expect(output).to.contain('someone-elses: running (someone-elses-control-plane) [not managed by Solo]');
   });
 
+  it('lists a Solo cluster whose Kind container is missing as not-found in info', async (): Promise<void> => {
+    await writeClusterReferences({solo: 'kind-solo-e2e', gone: 'kind-deleted-cluster'});
+
+    await runTask(tasks.showClusterStateInfo());
+
+    expect(showUserStub.lastCall.args[0]).to.contain('  - deleted-cluster: not-found [cluster-ref: gone]');
+  });
+
+  it('names the Solo cluster without a Kind container when stop finds nothing to stop', async (): Promise<void> => {
+    await writeClusterReferences({gone: 'kind-deleted-cluster'});
+
+    await expect(runTask(tasks.stopClusterState())).to.be.rejectedWith(
+      /No Kind container was found for the Solo cluster\(s\) deleted-cluster \[cluster-ref: gone\]/,
+    );
+    expect(stopContainersStub.called).to.be.false;
+  });
+
   it('reports unknown Kind containers in info when the engine is stopped', async (): Promise<void> => {
     (ClusterStateService.prototype.getEngineState as SinonStub).resolves({engineName: 'docker', running: false});
 

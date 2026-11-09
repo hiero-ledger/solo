@@ -48,7 +48,6 @@ import {Helpers} from '../../core/helpers.js';
 
 @injectable()
 export class ClusterCommandTasks {
-  /** Prefix Kind gives the kube context it writes for a cluster: `kind-<clusterName>`. */
   // Grafana datasource provisioning payload pointing at the namespace-local Loki Service
   // installed alongside it by `cluster-ref config setup --grafana-alloy`.
   private static readonly LOKI_GRAFANA_DATASOURCE_CONTENT: string =
@@ -412,23 +411,20 @@ export class ClusterCommandTasks {
             engineState.engineName,
             [...clusterReferences.keys()],
           );
-          lines.push(
-            'Kind cluster containers:',
-            containers.length === 0
-              ? '  - not-found'
-              : containers
-                  .map((container): string => {
-                    const clusterReference: string | undefined = clusterReferences.get(container.clusterName);
-                    const ownership: string = clusterReference
-                      ? `cluster-ref: ${clusterReference}`
-                      : 'not managed by Solo';
-                    return (
-                      `  - ${container.clusterName}: ${container.running ? 'running' : 'stopped'} ` +
-                      `(${container.containerName}) [${ownership}]`
-                    );
-                  })
-                  .join('\n'),
-          );
+          const containerLines: string[] = containers.map((container): string => {
+            const clusterReference: string | undefined = clusterReferences.get(container.clusterName);
+            const ownership: string = clusterReference ? `cluster-ref: ${clusterReference}` : 'not managed by Solo';
+            return (
+              `  - ${container.clusterName}: ${container.running ? 'running' : 'stopped'} ` +
+              `(${container.containerName}) [${ownership}]`
+            );
+          });
+          for (const [clusterName, clusterReference] of clusterReferences) {
+            if (!containers.some((container): boolean => container.clusterName === clusterName)) {
+              containerLines.push(`  - ${clusterName}: not-found [cluster-ref: ${clusterReference}]`);
+            }
+          }
+          lines.push('Kind cluster containers:', containerLines.join('\n') || '  - not-found');
         } else {
           lines.push('Kind cluster containers: unknown (start the container engine to detect them)');
         }
@@ -466,21 +462,26 @@ export class ClusterCommandTasks {
     const containers: KindClusterContainer[] = await this.clusterStateService.listKindClusterContainers(engineName, [
       ...clusterReferences.keys(),
     ]);
-    if (containers.length === 0) {
-      throw new SoloErrors.system.kindClusterContainerNotFound();
-    }
-
     const soloContainers: KindClusterContainer[] = containers.filter((container): boolean =>
       clusterReferences.has(container.clusterName),
     );
 
     if (soloContainers.length === 0) {
+      // every mapped cluster is missing here, so name both sides of the mismatch
+      const reasons: string[] = [];
       const detectedClusters: string = [...new Set(containers.map((container): string => container.clusterName))].join(
         ', ',
       );
-      throw new SoloErrors.system.kindClusterContainerNotFound(
-        `None of the detected Kind clusters (${detectedClusters}) are mapped to a Solo cluster reference`,
-      );
+      if (detectedClusters) {
+        reasons.push(`None of the detected Kind clusters (${detectedClusters}) are mapped to a Solo cluster reference`);
+      }
+      const missingClusters: string = [...clusterReferences]
+        .map(([clusterName, clusterReference]): string => `${clusterName} [cluster-ref: ${clusterReference}]`)
+        .join(', ');
+      if (missingClusters) {
+        reasons.push(`No Kind container was found for the Solo cluster(s) ${missingClusters}`);
+      }
+      throw new SoloErrors.system.kindClusterContainerNotFound(reasons.join('; ') || undefined);
     }
     return soloContainers;
   }

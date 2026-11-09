@@ -13,6 +13,7 @@ import {type ContainerEngineCommand} from '../../../../src/integration/container
 import {OperatingSystem} from '../../../../src/business/utils/operating-system.js';
 import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
 import {SubprocessCommandProfile} from '../../../../src/core/subprocess-command-profile.js';
+import {KindProviderResolver} from '../../../../src/integration/container-engine/kind-provider-resolver.js';
 
 const DOCKER_COMMAND: ContainerEngineCommand = {executable: 'docker', argumentsPrefix: []};
 const SUDO_PODMAN_COMMAND: ContainerEngineCommand = {executable: 'sudo', argumentsPrefix: ['-n', 'env', 'podman']};
@@ -45,10 +46,12 @@ const buildService: () => ClusterStateService = (): ClusterStateService =>
 describe('ClusterStateService', (): void => {
   let sandbox: SinonSandbox;
   let shellRunnerRunStub: SinonStub;
+  let kindProviderStub: SinonStub;
 
   beforeEach((): void => {
     sandbox = sinon.createSandbox();
     shellRunnerRunStub = sandbox.stub(ShellRunner.prototype, 'run');
+    kindProviderStub = sandbox.stub(KindProviderResolver, 'current').returns('docker');
     clusterNodeCommands = {};
   });
 
@@ -71,6 +74,17 @@ describe('ClusterStateService', (): void => {
     const state: ContainerEngineState = await buildService().getEngineState();
 
     expect(state).to.deep.equal({engineName: 'podman', running: true});
+  });
+
+  it('probes podman before docker when the kind provider is podman', async (): Promise<void> => {
+    kindProviderStub.returns('podman');
+    shellRunnerRunStub.withArgs('podman', ['info'], sinon.match.object).resolves([]);
+    shellRunnerRunStub.withArgs('docker', ['info'], sinon.match.object).resolves([]);
+
+    const state: ContainerEngineState = await buildService().getEngineState();
+
+    expect(state).to.deep.equal({engineName: 'podman', running: true});
+    expect(shellRunnerRunStub.calledWith('docker', ['info'], sinon.match.object)).to.be.false;
   });
 
   it('reports docker installed but stopped when only the docker CLI responds', async (): Promise<void> => {
