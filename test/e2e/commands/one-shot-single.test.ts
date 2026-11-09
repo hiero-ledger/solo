@@ -152,51 +152,54 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         expect(content).to.include(`contracts.chainId=${options.chainId}`);
       }).timeout(Duration.ofMinutes(2).toMillis());
 
-      it('should report the same chainId through the relay', async (): Promise<void> => {
-        const k8: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).default();
-        const oneShotNamespace: NamespaceName = NamespaceName.of('one-shot');
-        const relayPods: Pod[] = await k8.pods().list(oneShotNamespace, Templates.renderRelayLabels(1));
-        expect(relayPods).to.have.lengthOf(1);
+      // A minimal setup deploys no relay, so there is nothing to query.
+      if (!minimalSetup) {
+        it('should report the same chainId through the relay', async (): Promise<void> => {
+          const k8: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).default();
+          const oneShotNamespace: NamespaceName = NamespaceName.of('one-shot');
+          const relayPods: Pod[] = await k8.pods().list(oneShotNamespace, Templates.renderRelayLabels(1));
+          expect(relayPods).to.have.lengthOf(1);
 
-        const relayPod: Pod = k8.pods().readByReference(relayPods[0].podReference);
-        const localPort: number = await relayPod.portForward(
-          constants.JSON_RPC_RELAY_LOCAL_PORT,
-          constants.JSON_RPC_RELAY_PORT,
-          false,
-        );
+          const relayPod: Pod = k8.pods().readByReference(relayPods[0].podReference);
+          const localPort: number = await relayPod.portForward(
+            constants.JSON_RPC_RELAY_LOCAL_PORT,
+            constants.JSON_RPC_RELAY_PORT,
+            false,
+          );
 
-        try {
-          let response: Response;
-          for (let attempt: number = 1; attempt <= 5; attempt++) {
-            try {
-              response = await fetch(`http://${constants.LOCAL_HOST}:${localPort}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
-                signal: AbortSignal.timeout(Duration.ofSeconds(10).toMillis()),
-              });
-              break;
-            } catch (error) {
-              if (
-                attempt === 5 ||
-                !(error instanceof TypeError) ||
-                typeof error.cause !== 'object' ||
-                !error.cause ||
-                !('code' in error.cause) ||
-                error.cause.code !== 'ECONNREFUSED'
-              ) {
-                throw error;
+          try {
+            let response: Response;
+            for (let attempt: number = 1; attempt <= 5; attempt++) {
+              try {
+                response = await fetch(`http://${constants.LOCAL_HOST}:${localPort}`, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({jsonrpc: '2.0', method: 'eth_chainId', params: [], id: 1}),
+                  signal: AbortSignal.timeout(Duration.ofSeconds(10).toMillis()),
+                });
+                break;
+              } catch (error) {
+                if (
+                  attempt === 5 ||
+                  !(error instanceof TypeError) ||
+                  typeof error.cause !== 'object' ||
+                  !error.cause ||
+                  !('code' in error.cause) ||
+                  error.cause.code !== 'ECONNREFUSED'
+                ) {
+                  throw error;
+                }
+                // The detached port-forward may not be listening yet; retry only its startup connection refusal.
+                await sleep(Duration.ofSeconds(2));
               }
-              // The detached port-forward may not be listening yet; retry only its startup connection refusal.
-              await sleep(Duration.ofSeconds(2));
             }
+            const body: {result?: string} = (await response.json()) as {result?: string};
+            expect(body.result).to.equal(`0x${options.chainId.toString(16)}`);
+          } finally {
+            await relayPod.stopPortForward(localPort);
           }
-          const body: {result?: string} = (await response.json()) as {result?: string};
-          expect(body.result).to.equal(`0x${options.chainId.toString(16)}`);
-        } finally {
-          await relayPod.stopPortForward(localPort);
-        }
-      }).timeout(Duration.ofMinutes(2).toMillis());
+        }).timeout(Duration.ofMinutes(2).toMillis());
+      }
 
       it('Should write log metrics', async (): Promise<void> => {
         if (minimalSetup) {

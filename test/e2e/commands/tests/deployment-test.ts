@@ -355,8 +355,14 @@ export class DeploymentTest extends BaseCommandTest {
       } else {
         expect(wideResult.stdout).to.contain('Consensus node gRPC');
         expect(wideResult.stdout).to.contain('Mirror node REST');
-        expect(wideResult.stdout).to.contain('JSON-RPC relay');
-        expect(wideResult.stdout).to.contain('Explorer');
+        // A minimal setup deploys neither the relay nor the explorer.
+        if (options.minimalSetup) {
+          expect(wideResult.stdout).to.not.contain('JSON-RPC relay');
+          expect(wideResult.stdout).to.not.contain('Explorer');
+        } else {
+          expect(wideResult.stdout).to.contain('JSON-RPC relay');
+          expect(wideResult.stdout).to.contain('Explorer');
+        }
       }
 
       const jsonResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
