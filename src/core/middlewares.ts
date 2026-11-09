@@ -425,6 +425,16 @@ export class Middlewares {
       const outputFormat: string = configManager.getFlag<string>(flags.output) || '';
       const isMachineReadable: boolean = ['json', 'yaml', 'wide'].includes(outputFormat);
 
+      // Always record a structured start marker (unlike the header below, also in machine-readable and nested
+      // modes) and bind deployment/namespace so every later entry in solo.ndjson carries them. The diagnostics
+      // analyzer uses both to split solo.ndjson into invocations and scope them to one deployment.
+      const deploymentName: string = configManager.getFlag<string>(flags.deployment) || '';
+      const namespaceName: string = configManager.getFlag<NamespaceName>(flags.namespace)?.name || '';
+      logger.addLogBindings({deployment: deploymentName, namespace: namespaceName});
+      logger.info(`Solo invocation started: ${commandData}`, {
+        soloInvocation: {version: configManager.getVersion(), command: currentCommand, pid: process.pid},
+      });
+
       if (this.taskList.parentTaskListMap.size === 0 && !isMachineReadable) {
         // Display command header (skip in machine-readable output modes)
         logger.showUser(

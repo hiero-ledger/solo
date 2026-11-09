@@ -817,4 +817,89 @@ containers:
     expect(reportText).to.include('MIRROR_NODE_HTTP_KEEP_ALIVE = true');
     expect(reportText).to.include('POST /api/v1/contracts/call in 228 ms : 200 Success');
   });
+
+  describe('stale findings from previous runs', (): void => {
+    const hoursAgo: (hours: number) => number = (hours: number): number => Date.now() - hours * 3_600_000;
+
+    const entry: (traceId: string, time: number, message: string, level?: number, namespace?: string) => string = (
+      traceId: string,
+      time: number,
+      message: string,
+      level: number = 30,
+      namespace: string = 'one-shot',
+    ): string => JSON.stringify({level, time, traceId, namespace, msg: message});
+
+    const writeNdjson: (lines: string[]) => void = (lines: string[]): void => {
+      fs.writeFileSync(path.join(temporaryDirectory, 'solo.ndjson'), lines.join('\n'), 'utf8');
+      fs.writeFileSync(path.join(temporaryDirectory, 'solo.log'), '[10:00:00.000] ERROR: old text-log error\n', 'utf8');
+    };
+
+    const analyze: (namespaceName?: string) => string = (namespaceName: string = 'one-shot'): string => {
+      new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, namespaceName);
+      return fs.readFileSync(path.join(temporaryDirectory, 'diagnostics-analysis.txt'), 'utf8');
+    };
+
+    it('analyzes only the latest pod log snapshot', (): void => {
+      const oldSnapshot: string = path.join(temporaryDirectory, '2026-10-07T10-00-00-000Z', 'ctx');
+      const newSnapshot: string = path.join(temporaryDirectory, '2026-11-06T13-00-00-000Z', 'ctx');
+      fs.mkdirSync(oldSnapshot, {recursive: true});
+      fs.mkdirSync(newSnapshot, {recursive: true});
+      const describe: string =
+        'Name: mirror-1\nStatus: Running\nReady: False\nLast State: Terminated\n Reason: OOMKilled\n';
+      fs.writeFileSync(path.join(oldSnapshot, 'old-pod.describe.txt'), describe, 'utf8');
+      fs.writeFileSync(path.join(newSnapshot, 'new-pod.describe.txt'), 'Name: new-pod\nStatus: Running\n', 'utf8');
+
+      const reportText: string = analyze();
+
+      expect(reportText).to.not.include('old-pod');
+    });
+
+    it('anchors on the latest deployment creation and skips older invocations and diagnostics runs', (): void => {
+      writeNdjson([
+        entry('t-old', hoursAgo(900), 'Solo invocation started: one-shot single deploy --foo'),
+        entry('t-old', hoursAgo(899), 'October failure', 50),
+        entry('t-new', hoursAgo(5), 'Solo invocation started: one-shot single deploy --foo'),
+        entry('t-new', hoursAgo(4), 'November failure', 50),
+        entry('t-other', hoursAgo(3), 'unrelated namespace failure', 50, 'other-ns'),
+        entry('t-diag', hoursAgo(1), 'Discovering Hiero components from remote configuration...'),
+        entry('t-diag', hoursAgo(1), 'diagnostics own failure', 50),
+      ]);
+
+      const reportText: string = analyze();
+
+      expect(reportText).to.include('November failure');
+      expect(reportText).to.include('log: invocations of namespace one-shot');
+      expect(reportText).to.not.include('October failure');
+      expect(reportText).to.not.include('unrelated namespace failure');
+      expect(reportText).to.not.include('diagnostics own failure');
+      expect(reportText).to.not.include('old text-log error');
+    });
+
+    it('keeps concurrent invocations separate and labels each', (): void => {
+      writeNdjson([
+        entry('t-a', hoursAgo(5), 'Solo invocation started: one-shot single deploy'),
+        entry('t-b', hoursAgo(4), 'Solo invocation started: network deploy'),
+        entry('t-a', hoursAgo(3), 'failure in a', 50),
+        entry('t-b', hoursAgo(3), 'failure in b', 50),
+      ]);
+
+      const reportText: string = analyze();
+
+      expect(reportText).to.include('ERROR detected in solo.log: one-shot single deploy');
+      expect(reportText).to.include('ERROR detected in solo.log: network deploy');
+    });
+
+    it('falls back to the last 24 hours and says so when no deployment creation is logged', (): void => {
+      writeNdjson([
+        entry('t-old', hoursAgo(900), 'ancient failure', 50),
+        entry('t-recent', hoursAgo(2), 'recent failure', 50),
+      ]);
+
+      const reportText: string = analyze();
+
+      expect(reportText).to.include('recent failure');
+      expect(reportText).to.include('fallback: invocations from the last 24 hours');
+      expect(reportText).to.not.include('ancient failure');
+    });
+  });
 });
