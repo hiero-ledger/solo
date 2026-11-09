@@ -4,12 +4,9 @@ import {after, before, describe, it} from 'mocha';
 import {expect} from 'chai';
 
 import {
-  AccountCreateTransaction,
   AccountId,
   type AccountInfo,
   Client,
-  Hbar,
-  HbarUnit,
   type Key,
   Logger,
   LogLevel,
@@ -173,7 +170,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
         for (const [start, end] of testSystemAccounts) {
           for (let index: number = start; index <= end; index++) {
             it(`account ${index} should not have genesis key`, async (): Promise<void> => {
-              expect(accountManager._nodeClient).not.to.be.undefined;
+              expect(accountManager.hederaClient).not.to.be.undefined;
 
               const accountId: string = entityId(shard, realm, index);
               testLogger.info(`Fetching account keys: accountId ${accountId}`);
@@ -415,15 +412,9 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
           const privateKey: PrivateKey = PrivateKey.generate();
           const amount: number = 100;
 
-          const newAccount: TransactionResponse = await new AccountCreateTransaction()
-            .setKey(privateKey)
-            .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-            .execute(accountManager._nodeClient);
-
-          // Get the new account ID
-          const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+          const newAccountId: AccountId = await accountManager.hederaClient.createAccount(privateKey, amount, false);
           accountInfo = {
-            accountId: getReceipt.accountId.toString(),
+            accountId: newAccountId.toString(),
             privateKey: privateKey.toString(),
             publicKey: privateKey.publicKey.toString(),
             balance: amount,
@@ -454,10 +445,10 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
               argv.getArg<DeploymentName>(flags.deployment),
               argv.getArg<boolean>(flags.forcePortForward),
             );
-            const clientNetwork: Record<string, string | AccountId> = accountManager._nodeClient.network;
+            const clientNetwork: Record<string, string> = accountManager.hederaClient.network;
             const networkConfig: Record<string, AccountId> = {};
             for (const endpoint of Object.keys(clientNetwork)) {
-              networkConfig[endpoint] = AccountId.fromString(clientNetwork[endpoint].toString());
+              networkConfig[endpoint] = AccountId.fromString(clientNetwork[endpoint]);
             }
 
             // Instantiate SDK client

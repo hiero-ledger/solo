@@ -29,17 +29,7 @@ import {Templates} from '../../../../src/core/templates.js';
 import * as constants from '../../../../src/core/constants.js';
 import {type NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type AccountManager} from '../../../../src/core/account-manager.js';
-import {
-  AccountCreateTransaction,
-  AccountId,
-  AccountInfoQuery,
-  Hbar,
-  HbarUnit,
-  PrivateKey,
-  type AccountInfo,
-  type TransactionReceipt,
-  type TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {AccountId, PrivateKey, type AccountInfo} from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
 
 import {KeysTest} from './keys-test.js';
@@ -586,19 +576,13 @@ export class ConsensusNodeTest extends BaseCommandTest {
     const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
     try {
       await accountManager.refreshNodeClient(namespace, clusterReferences, deployment);
-      expect(accountManager._nodeClient).not.to.be.undefined;
+      expect(accountManager.hederaClient).not.to.be.undefined;
       const privateKey: PrivateKey = PrivateKey.generate();
       const amount: number = 777;
 
-      const newAccount: TransactionResponse = await new AccountCreateTransaction()
-        .setKeyWithoutAlias(privateKey)
-        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-        .execute(accountManager._nodeClient);
-
-      // Get the new account ID
-      const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+      const newAccountId: AccountId = await accountManager.hederaClient.createAccount(privateKey, amount, false);
       const accountInfo: {accountId: string; privateKey: string; balance: number; publicKey: string} = {
-        accountId: getReceipt.accountId.toString(),
+        accountId: newAccountId.toString(),
         privateKey: privateKey.toString(),
         publicKey: privateKey.publicKey.toString(),
         balance: amount,
@@ -789,14 +773,14 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       await createAccount(accountManager, namespace, remoteConfig, logger);
 
-      const accountInfo1: AccountInfo = await new AccountInfoQuery()
-        .setAccountId(new AccountId(shard, realm, 1001))
-        .execute(accountManager._nodeClient);
+      const accountInfo1: AccountInfo = await accountManager.hederaClient.getAccountInfo(
+        new AccountId(shard, realm, 1001),
+      );
       expect(accountInfo1).not.to.be.null;
 
-      const accountInfo2: AccountInfo = await new AccountInfoQuery()
-        .setAccountId(new AccountId(shard, realm, 1002))
-        .execute(accountManager._nodeClient);
+      const accountInfo2: AccountInfo = await accountManager.hederaClient.getAccountInfo(
+        new AccountId(shard, realm, 1002),
+      );
       expect(accountInfo2).not.to.be.null;
     }).timeout(Duration.ofMinutes(10).toMillis());
   }

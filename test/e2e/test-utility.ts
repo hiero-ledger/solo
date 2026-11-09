@@ -14,17 +14,7 @@ import {type NetworkCommand} from '../../src/commands/network.js';
 import {type NodeCommand} from '../../src/commands/node/index.js';
 import {type DependencyManager} from '../../src/core/dependency-managers/index.js';
 import {sleep} from '../../src/core/helpers.js';
-import {
-  AccountCreateTransaction,
-  type AccountId,
-  type AccountInfo,
-  AccountInfoQuery,
-  Hbar,
-  HbarUnit,
-  PrivateKey,
-  type TransactionReceipt,
-  type TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {type AccountId, type AccountInfo, PrivateKey} from '@hiero-ledger/sdk';
 import * as constants from '../../src/core/constants.js';
 import {NODE_LOG_FAILURE_MSG, ROOT_CONTAINER, SOLO_LOGS_DIR} from '../../src/core/constants.js';
 import crypto from 'node:crypto';
@@ -409,7 +399,7 @@ export async function queryBalance(
   skipNodeAlias?: NodeAlias,
 ): Promise<void> {
   const argv: Argv = Argv.getDefaultArgv(namespace);
-  expect(accountManager._nodeClient).to.be.undefined;
+  expect(accountManager.hederaClient).to.be.undefined;
 
   await accountManager.refreshNodeClient(
     namespace,
@@ -418,11 +408,11 @@ export async function queryBalance(
     undefined,
     {type: 'all', skipNodeAlias},
   );
-  expect(accountManager._nodeClient).to.not.be.undefined;
+  expect(accountManager.hederaClient).to.not.be.undefined;
 
-  const accountInfo: AccountInfo = await new AccountInfoQuery()
-    .setAccountId(accountManager._nodeClient.getOperator().accountId)
-    .execute(accountManager._nodeClient);
+  const accountInfo: AccountInfo = await accountManager.hederaClient.getAccountInfo(
+    accountManager.hederaClient.operatorAccountId,
+  );
 
   expect(accountInfo.balance).to.not.be.null;
   await sleep(Duration.ofSeconds(1));
@@ -456,23 +446,17 @@ export async function createAccount(
     undefined,
     {type: 'all', skipNodeAlias},
   );
-  expect(accountManager._nodeClient).not.to.be.undefined;
+  expect(accountManager.hederaClient).not.to.be.undefined;
   const privateKey: PrivateKey = PrivateKey.generate();
   const amount: number = 100;
-  const newAccount: TransactionResponse = await new AccountCreateTransaction()
-    .setKey(privateKey)
-    .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-    .execute(accountManager._nodeClient);
-
-  // Get the new account ID
-  const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+  const newAccountId: AccountId = await accountManager.hederaClient.createAccount(privateKey, amount, false);
   const accountInfo: {
     accountId: string;
     privateKey: string;
     publicKey: string;
     balance: number;
   } = {
-    accountId: getReceipt.accountId.toString(),
+    accountId: newAccountId.toString(),
     privateKey: privateKey.toString(),
     publicKey: privateKey.publicKey.toString(),
     balance: amount,
