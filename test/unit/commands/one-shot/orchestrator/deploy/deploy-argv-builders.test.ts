@@ -901,11 +901,67 @@ describe('buildComponentVersionTuple', (): void => {
     ).to.deep.equal({[ComponentTypes.ConsensusNode]: 'v0.79.0'});
   });
 
-  it('includes the relay and explorer in a minimal setup', (): void => {
-    const tuple: object = DeployArgvBuilders.buildComponentVersionTuple(
-      makeConfig({versions, deployRelay: false, deployExplorer: false, minimalSetup: true}),
-    );
+  it('leaves out the relay and explorer in a minimal setup', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      versions,
+      deployRelay: undefined,
+      deployExplorer: undefined,
+      minimalSetup: true,
+    });
+    DeployArgvBuilders.resolveComponentSelection(config);
 
-    expect(tuple).to.include.keys(ComponentTypes.RelayNodes, ComponentTypes.Explorer);
+    expect(DeployArgvBuilders.buildComponentVersionTuple(config)).to.deep.equal({
+      [ComponentTypes.ConsensusNode]: 'v0.79.0',
+      [ComponentTypes.MirrorNode]: 'v0.165.0',
+    });
+  });
+});
+
+describe('resolveComponentSelection', (): void => {
+  it('deploys every optional component by default', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      deployMirrorNode: undefined,
+      deployExplorer: undefined,
+      deployRelay: undefined,
+      pinger: undefined,
+    });
+
+    DeployArgvBuilders.resolveComponentSelection(config);
+
+    expect(config.deployMirrorNode).to.be.true;
+    expect(config.deployExplorer).to.be.true;
+    expect(config.deployRelay).to.be.true;
+    expect(config.pinger).to.be.true;
+  });
+
+  it('keeps components the caller explicitly disabled', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      deployMirrorNode: false,
+      deployExplorer: false,
+      deployRelay: false,
+      pinger: false,
+    });
+
+    DeployArgvBuilders.resolveComponentSelection(config);
+
+    expect(config.deployMirrorNode).to.be.false;
+    expect(config.deployExplorer).to.be.false;
+    expect(config.deployRelay).to.be.false;
+    expect(config.pinger).to.be.false;
+  });
+
+  it('turns off the explorer and relay in a minimal setup, keeping the mirror node', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      deployMirrorNode: undefined,
+      deployExplorer: true,
+      deployRelay: true,
+      minimalSetup: true,
+    });
+
+    DeployArgvBuilders.resolveComponentSelection(config);
+
+    expect(config.deployMirrorNode).to.be.true;
+    expect(config.deployExplorer).to.be.false;
+    expect(config.deployRelay).to.be.false;
   });
 });
