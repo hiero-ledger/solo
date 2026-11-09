@@ -90,7 +90,11 @@ import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {ComponentCompatibility} from '../../../../business/compatibility/component-compatibility.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
-import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
+import {
+  MINIMUM_CN_VERSION_FOR_EMBEDDED_WRAPS_PARAMETERS,
+  MINIMUM_CN_VERSION_FOR_SMALL_MEMORY,
+  MINIMUM_CN_VERSION_FOR_STATE_ON_DISK,
+} from '../../../../../version.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 import {MessageLevel} from '../../../../core/logging/message-level.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
@@ -225,17 +229,23 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             // Quiet mode bypasses the confirmation prompt.
             await this.confirmNonKindContext(config, task);
 
-            // Ensure release tag is set in network configuration so subcommands use the correct version
+            // Ensure release tag is set in network configuration so subcommands use the correct version.
+            // Values files written by older `falcon prepare` releases carry the version only in the
+            // deprecated --release-tag key and leave --consensus-node-version empty, so that key is
+            // honoured before falling back to the resolved default.
             const releaseTagKey: string = flags.getFormattedFlagKey(flags.consensusNodeVersion);
+            const legacyReleaseTagKey: string = flags.getFormattedFlagKey(flags.releaseTag);
             const soloChartVersionKey: string = flags.getFormattedFlagKey(flags.soloChartVersion);
             if (!config.networkConfiguration[releaseTagKey]) {
-              config.networkConfiguration[releaseTagKey] = versions.consensus;
+              config.networkConfiguration[releaseTagKey] =
+                (config.networkConfiguration[legacyReleaseTagKey] as string) || versions.consensus;
             }
             if (!config.networkConfiguration[soloChartVersionKey]) {
               config.networkConfiguration[soloChartVersionKey] = versions.soloChart;
             }
             if (!config.setupConfiguration[releaseTagKey]) {
-              config.setupConfiguration[releaseTagKey] = versions.consensus;
+              config.setupConfiguration[releaseTagKey] =
+                (config.setupConfiguration[legacyReleaseTagKey] as string) || versions.consensus;
             }
 
             this.reconcileEffectiveVersions(config);
@@ -316,12 +326,16 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               }
 
               // Cap MinIO's tenant pool memory (hiero-ledger/solo#5602) unconditionally, and — for CN
-              // >= 0.73.0 — also cap K8s container memory at 1Gi to prevent unbounded mmap'd
-              // state-on-disk page cache growth. Both live in the same --values-file, comma-joined
-              // per cluster-ref, since Helm merges multiple -f files in order.
+              // >= 0.73.0 — also cap K8s container memory to prevent unbounded mmap'd state-on-disk
+              // page cache growth. A TSS-Nova CN builds its WRAPS proof in-node and needs that cap
+              // raised, so its override is appended last. All live in the same --values-file,
+              // comma-joined per cluster-ref, since Helm merges multiple -f files in order.
               const helmOverrideFiles: string[] = [PathEx.join(overridesDirectory, 'minio-resources.yaml')];
               if (useStateOnDisk) {
                 helmOverrideFiles.push(PathEx.join(stateOnDiskDirectory, 'helm-overrides.yaml'));
+              }
+              if (cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_EMBEDDED_WRAPS_PARAMETERS)) {
+                helmOverrideFiles.push(PathEx.join(stateOnDiskDirectory, 'helm-overrides-wraps-proving.yaml'));
               }
               const existingHelmOverrideFiles: string[] = helmOverrideFiles.filter((file: string): boolean =>
                 fs.existsSync(file),
@@ -1382,26 +1396,32 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
    * The per-component sections of a values file (network, blockNode, mirrorNode, explorerNode,
    * relayNode) can override a component's version independently of the `config.versions` resolved
    * from argv/defaults. Reconciles config.versions with those overrides, mirroring the same
-   * override precedence the deploy argv builders use, so the "Versions Used" summary reflects what
-   * is actually deployed.
+   * override precedence the deploy argv builders use, so the "Versions Used" summary and the
+   * compatibility check reflect what is actually deployed. A generated values file lists every flag,
+   * so an empty value means "not set" rather than "no version", and the deprecated keys it still
+   * carries (--chart-version, --relay-release) are honoured after the current ones.
    */
   private reconcileEffectiveVersions(config: OneShotSingleDeployConfigClass): void {
-    const releaseTagKey: string = flags.getFormattedFlagKey(flags.consensusNodeVersion);
-    const soloChartVersionKey: string = flags.getFormattedFlagKey(flags.soloChartVersion);
-    const blockNodeVersionKey: string = flags.getFormattedFlagKey(flags.blockNodeVersion);
-    const mirrorNodeVersionKey: string = flags.getFormattedFlagKey(flags.mirrorNodeVersion);
-    const explorerVersionKey: string = flags.getFormattedFlagKey(flags.explorerVersion);
-    const relayVersionKey: string = flags.getFormattedFlagKey(flags.relayVersion);
+    const valueOf: (section: Record<string, unknown>, ...keyFlags: CommandFlag[]) => string = (
+      section: Record<string, unknown>,
+      ...keyFlags: CommandFlag[]
+    ): string =>
+      keyFlags
+        .map((keyFlag: CommandFlag): string => (section[flags.getFormattedFlagKey(keyFlag)] as string) || '')
+        .find((value: string): boolean => value !== '') ?? '';
 
-    config.versions.consensus = (config.networkConfiguration[releaseTagKey] as string) ?? config.versions.consensus;
+    config.versions.consensus =
+      valueOf(config.networkConfiguration, flags.consensusNodeVersion) || config.versions.consensus;
     config.versions.soloChart =
-      (config.networkConfiguration[soloChartVersionKey] as string) ?? config.versions.soloChart;
+      valueOf(config.networkConfiguration, flags.soloChartVersion) || config.versions.soloChart;
     config.versions.blockNode =
-      (config.blockNodeConfiguration[blockNodeVersionKey] as string) ?? config.versions.blockNode;
-    config.versions.mirror = (config.mirrorNodeConfiguration[mirrorNodeVersionKey] as string) ?? config.versions.mirror;
+      valueOf(config.blockNodeConfiguration, flags.blockNodeVersion, flags.blockNodeChartVersion) ||
+      config.versions.blockNode;
+    config.versions.mirror = valueOf(config.mirrorNodeConfiguration, flags.mirrorNodeVersion) || config.versions.mirror;
     config.versions.explorer =
-      (config.explorerNodeConfiguration[explorerVersionKey] as string) ?? config.versions.explorer;
-    config.versions.relay = (config.relayNodeConfiguration[relayVersionKey] as string) ?? config.versions.relay;
+      valueOf(config.explorerNodeConfiguration, flags.explorerVersion) || config.versions.explorer;
+    config.versions.relay =
+      valueOf(config.relayNodeConfiguration, flags.relayVersion, flags.relayReleaseTag) || config.versions.relay;
   }
 
   private async confirmNonKindContext(

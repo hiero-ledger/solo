@@ -53,6 +53,19 @@ export class ComponentCompatibility {
       },
       reason: 'the consensus node hashes blocks and state with SHA-256',
     },
+    // Block node 0.45+ rejects SHA-384 block hashes, so SHA-256 is a matched pair like the 16-slot proof above. The
+    // mirror node is not: mirror node 0.165+ still ingests blocks from an older consensus node.
+    {
+      when: {
+        component: ComponentTypes.BlockNode,
+        minimumVersion: versions.MINIMUM_BLOCK_NODE_VERSION_FOR_SHA256_HASHING,
+      },
+      requires: {
+        component: ComponentTypes.ConsensusNode,
+        minimumVersion: versions.MINIMUM_CN_VERSION_FOR_SHA256_HASHING,
+      },
+      reason: 'the block node only accepts SHA-256 block hashes, which older consensus nodes do not produce',
+    },
     {
       when: {component: ComponentTypes.ConsensusNode, minimumVersion: versions.MINIMUM_CN_VERSION_FOR_SHA256_HASHING},
       requires: {

@@ -1305,6 +1305,7 @@ export class MirrorNodeCommand extends BaseCommand {
         await this.postgresSharedResource.initializeMirrorNode(
           context_.config.namespace,
           context_.config.clusterContext,
+          context_.config.mirrorNodeVersion,
           MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX,
           context_.config.resourceNames,
         );

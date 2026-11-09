@@ -37,6 +37,8 @@ sections:
       load-balancer: ${config.loadBalancerEnabled}
       pvcs: ${default}
       release-tag: ${config.releaseTag}
+      # The deploy reads the version from this key; an empty one falls back to Solo's default version.
+      consensus-node-version: ${config.releaseTag}
       service-monitor: ${default}
       pod-log: ${default}
     # Legacy key kept for backward compatibility when release-tag is not in the flag-list.
@@ -48,6 +50,7 @@ sections:
     flagsFrom: node.setup
     overrides:
       release-tag: ${config.releaseTag}
+      consensus-node-version: ${config.releaseTag}
       local-build-path: ${config.localBuildPath}
       debug: ${config.enableDevChartMode}
     extraKeys:
@@ -86,6 +89,7 @@ sections:
     flagsFrom: block.add
     overrides:
       chart-version: ${config.chartVersion}
+      block-node-version: ${config.chartVersion}
       enable-ingress: ${default}
       debug: ${config.enableDevChartMode}
     extraKeys:
