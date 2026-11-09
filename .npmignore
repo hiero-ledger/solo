@@ -25,6 +25,9 @@ examples/
 images/
 solo-compose/
 
+# Solo TCK shares Solo's release; its action source is fetched from GitHub
+tck/
+
 # Configs
 .c8rc.json
 .codacy.yaml

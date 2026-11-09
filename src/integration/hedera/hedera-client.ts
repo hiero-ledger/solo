@@ -1,7 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type AccountId, type AccountInfo, type Client, type FileId, type PrivateKey} from '@hiero-ledger/sdk';
+import {
+  type AccountId,
+  type AccountInfo,
+  type Client,
+  type FileId,
+  type PrivateKey,
+  type TopicId,
+} from '@hiero-ledger/sdk';
 import {type HederaFileInfo} from './hedera-file-info.js';
+import {type HederaFreezeOptions} from './hedera-freeze-options.js';
+import {type HederaNodeCreateOptions} from './hedera-node-create-options.js';
+import {type HederaNodeUpdateOptions} from './hedera-node-update-options.js';
+import {type HederaFreezeResult} from './hedera-freeze-result.js';
 import {type HederaFileTransactionResult} from './hedera-file-transaction-result.js';
 import {type HederaSubmittedTransaction} from './hedera-submitted-transaction.js';
 import {type HederaTransactionStatus} from './hedera-transaction-status.js';
@@ -29,7 +40,7 @@ export interface HederaClient {
    * @param accountId - the operator account id
    * @param privateKey - the operator private key
    */
-  setOperator(accountId: string, privateKey: string): void;
+  setOperator(accountId: AccountId | string, privateKey: PrivateKey | string): void;
 
   /**
    * Pings a consensus node over gRPC
@@ -59,6 +70,18 @@ export interface HederaClient {
     newPrivateKey: PrivateKey,
     oldPrivateKey: PrivateKey,
   ): Promise<boolean>;
+
+  /**
+   * Stakes an account to a consensus node, signing with the given key in addition to the operator
+   * @param accountId - the account
+   * @param nodeId - the id of the node to stake to
+   * @param signerPrivateKey - the key of the account
+   */
+  updateAccountStakedNode(
+    accountId: AccountId | string,
+    nodeId: number,
+    signerPrivateKey: PrivateKey,
+  ): Promise<HederaTransactionStatus>;
 
   /**
    * Creates an account, retrying when the network answers DUPLICATE_TRANSACTION
@@ -105,6 +128,57 @@ export interface HederaClient {
     newAdminKey: PrivateKey,
     currentAdminKey: PrivateKey,
   ): Promise<HederaTransactionStatus>;
+
+  /**
+   * Updates a consensus node. Execution and receipt failures are thrown as the SDK raises them, so callers can map
+   * the network status.
+   * @param options - the node and the fields to change, and the keys that sign
+   * @returns the receipt status
+   */
+  updateNode(options: HederaNodeUpdateOptions): Promise<HederaTransactionStatus>;
+
+  /**
+   * Creates a consensus node
+   * @param options - the fields of the node and the keys that sign
+   * @returns the receipt status
+   */
+  createNode(options: HederaNodeCreateOptions): Promise<HederaTransactionStatus>;
+
+  /**
+   * Deletes a consensus node
+   * @param nodeId - the id of the node
+   * @param adminKey - the admin key of the node, which signs the transaction
+   * @returns the receipt status
+   */
+  deleteNode(nodeId: number, adminKey: PrivateKey): Promise<HederaTransactionStatus>;
+
+  /**
+   * Writes a chunk of a file, signed by the operator only
+   * @param fileId - the file
+   * @param contents - the chunk
+   * @param mode - 'update' replaces the contents of the file, 'append' adds to them
+   */
+  writeFileChunk(fileId: FileId, contents: Uint8Array, mode: 'update' | 'append'): Promise<HederaFileTransactionResult>;
+
+  /**
+   * Sends a network freeze transaction, signed by the operator, which has to be the freeze admin account
+   * @param options - the kind of freeze and its parameters
+   */
+  freeze(options: HederaFreezeOptions): Promise<HederaFreezeResult>;
+
+  /**
+   * Checks whether a topic exists
+   * @param topicId - the topic
+   * @returns false when the network answers INVALID_TOPIC_ID
+   * @throws for any other failure
+   */
+  topicExists(topicId: TopicId): Promise<boolean>;
+
+  /**
+   * Creates a topic and returns once the network has accepted the transaction, without waiting for its receipt
+   * @param memo - the memo of the topic
+   */
+  createTopic(memo: string): Promise<void>;
 
   /**
    * Reads the contents of a file

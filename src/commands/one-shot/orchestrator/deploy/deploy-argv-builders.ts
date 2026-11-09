@@ -66,6 +66,18 @@ export class DeployArgvBuilders {
   }
 
   /**
+   * Fills in which optional components this one-shot run deploys. Components default to deployed; a minimal setup
+   * (`--minimal-setup`) deploys only the consensus and mirror nodes, so it turns the explorer and relay off regardless
+   * of their own flags. Every later stage reads `deployExplorer` / `deployRelay` alone.
+   */
+  public static resolveComponentSelection(config: OneShotSingleDeployConfigClass): void {
+    config.deployMirrorNode = config.deployMirrorNode ?? true;
+    config.deployExplorer = !config.minimalSetup && (config.deployExplorer ?? true);
+    config.deployRelay = !config.minimalSetup && (config.deployRelay ?? true);
+    config.pinger = config.pinger ?? true;
+  }
+
+  /**
    * The versions of the components this one-shot run will deploy together. The sub-commands each check compatibility
    * against what remote config records when they run, which in this pipeline can be before the other components have
    * recorded their versions, so one-shot validates the whole set up front.
@@ -78,10 +90,10 @@ export class DeployArgvBuilders {
     if (config.deployMirrorNode) {
       tuple[ComponentTypes.MirrorNode] = config.versions.mirror;
     }
-    if (config.deployRelay || config.minimalSetup) {
+    if (config.deployRelay) {
       tuple[ComponentTypes.RelayNodes] = config.versions.relay;
     }
-    if (config.deployExplorer || config.minimalSetup) {
+    if (config.deployExplorer) {
       tuple[ComponentTypes.Explorer] = config.versions.explorer;
     }
     return tuple;
@@ -157,9 +169,7 @@ export class DeployArgvBuilders {
     delete blockNodeConfiguration.consensusNodeVersion;
     delete blockNodeConfiguration['consensus-node-version'];
 
-    // Build a local copy with the dev image values file appended, without mutating
-    // config.blockNodeConfiguration — it may be an alias for another section's object
-    // (e.g. via YAML anchors), causing the values file to leak into other commands.
+    // Local copy so the values file never leaks into config.blockNodeConfiguration (it may be a shared YAML anchor).
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     // WRB/RSA blocks require the block node's RSA address book before block 0 is verified.
     // Mirror can provide it later, but block-node startup must be seeded to avoid BAD_BLOCK_PROOF
@@ -170,11 +180,7 @@ export class DeployArgvBuilders {
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...blockNodeConfiguration,
-      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [
-        blockExistingValuesFile,
-        rsaBootstrapValuesFile,
-        constants.BLOCK_NODE_SOLO_DEV_FILE,
-      ]
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [blockExistingValuesFile, rsaBootstrapValuesFile]
         .filter(Boolean)
         .join(','),
     };
@@ -395,6 +401,7 @@ export class DeployArgvBuilders {
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
       ...config.relayNodeConfiguration,
+      [optionFromFlag(Flags.chainId)]: config.chainId,
     });
     return argvPushGlobalFlags(argv);
   }
@@ -408,9 +415,7 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.soloChartVersion),
       config.versions.soloChart,
     );
-    if (config.networkConfiguration) {
-      appendConfigToArgv(argv, config.networkConfiguration);
-    }
+    appendConfigToArgv(argv, {...config.networkConfiguration, [optionFromFlag(Flags.chainId)]: config.chainId});
     if (this.isBlockNodeEnvironmentEnabled()) {
       argv.push(optionFromFlag(Flags.tssEnabled));
     }

@@ -16,6 +16,35 @@ plugins:
   names:
 
 blockNode:
+  # Pin the init container image: the chart default is the floating `busybox` tag (pulled on every
+  # deploy). Helm replaces list values entirely, so the full chart entry is repeated here and must
+  # be kept in sync with the chart's default `blockNode.initContainers`. The RSA bootstrap values
+  # file and user --values-file overrides are applied after this file and take precedence.
+  initContainers:
+    - name: init-storage-dirs
+      image: busybox:1.36.1
+      command:
+        - sh
+        - -c
+        - |
+          mkdir -p /application-state-pvc && \
+          chown 2000:2000 /application-state-pvc && \
+          chmod 700 /application-state-pvc && \
+          mkdir -p /archive-pvc/archive-data && \
+          chown 2000:2000 /archive-pvc/archive-data && \
+          chmod 700 /archive-pvc/archive-data && \
+          mkdir -p /live-pvc/live-data && \
+          chown 2000:2000 /live-pvc/live-data && \
+          chmod 700 /live-pvc/live-data
+      volumeMounts:
+        - name: application-state-storage
+          mountPath: /application-state-pvc
+        - name: archive-storage
+          mountPath: /archive-pvc
+        - name: live-storage
+          mountPath: /live-pvc
+        - name: logging-storage
+          mountPath: /logging-pvc
   # NOTE: for Block Node logging, see this link:
   #  https://github.com/hiero-ledger/hiero-block-node/blob/v0.11.0/charts/block-node-server/values.yaml#L141-L168
   # The logging configuration is mapped to this ConfigMap:

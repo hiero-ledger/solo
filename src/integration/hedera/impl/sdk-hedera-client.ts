@@ -14,20 +14,34 @@ import {
   type FileInfo,
   FileInfoQuery,
   FileUpdateTransaction,
+  FreezeTransaction,
+  FreezeType,
   Hbar,
   HbarUnit,
   Long,
+  NodeCreateTransaction,
+  NodeDeleteTransaction,
   NodeUpdateTransaction,
   PrecheckStatusError,
   type PrivateKey,
   Status,
   StatusError,
+  type Transaction,
   type TransactionReceipt,
+  TopicCreateTransaction,
+  Timestamp,
+  type TopicId,
+  TopicInfoQuery,
   type TransactionResponse,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
 import {type HederaClient} from '../hedera-client.js';
 import {type HederaFileInfo} from '../hedera-file-info.js';
+import {type HederaFreezeOptions} from '../hedera-freeze-options.js';
+import {type HederaNodeCreateOptions} from '../hedera-node-create-options.js';
+import {type HederaNodeUpdateOptions} from '../hedera-node-update-options.js';
+import {type HederaFreezeResult} from '../hedera-freeze-result.js';
+import {type HederaFreezeType} from '../hedera-freeze-type.js';
 import {type HederaFileTransactionResult} from '../hedera-file-transaction-result.js';
 import {type HederaSubmittedTransaction} from '../hedera-submitted-transaction.js';
 import {type HederaTransactionStatus} from '../hedera-transaction-status.js';
@@ -43,6 +57,11 @@ export class SdkHederaClient implements HederaClient {
   private static readonly FILE_CONTENTS_MAX_ATTEMPTS: number = 5;
   private static readonly FILE_CONTENTS_RETRY_DELAY_MS: number = 5000;
   private static readonly FILE_TRANSACTION_MAX_FEE_HBAR: number = 100;
+  private static readonly FREEZE_TYPES: Record<HederaFreezeType, FreezeType> = {
+    'prepare-upgrade': FreezeType.PrepareUpgrade,
+    'freeze-upgrade': FreezeType.FreezeUpgrade,
+    'freeze-only': FreezeType.FreezeOnly,
+  };
 
   public constructor(
     public readonly sdkClient: Client,
@@ -57,7 +76,7 @@ export class SdkHederaClient implements HederaClient {
     return this.sdkClient.operatorAccountId;
   }
 
-  public setOperator(accountId: string, privateKey: string): void {
+  public setOperator(accountId: AccountId | string, privateKey: PrivateKey | string): void {
     this.sdkClient.setOperator(accountId, privateKey);
   }
 
@@ -99,6 +118,24 @@ export class SdkHederaClient implements HederaClient {
     const receipt: TransactionReceipt = await txResponse.getReceipt(this.sdkClient);
 
     return receipt.status === Status.Success;
+  }
+
+  public async updateAccountStakedNode(
+    accountId: AccountId | string,
+    nodeId: number,
+    signerPrivateKey: PrivateKey,
+  ): Promise<HederaTransactionStatus> {
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
+      .setAccountId(accountId)
+      .setStakedNodeId(nodeId)
+      .freezeWith(this.sdkClient);
+
+    const signedTransaction: AccountUpdateTransaction = await transaction.sign(signerPrivateKey);
+
+    const response: TransactionResponse = await signedTransaction.execute(this.sdkClient);
+    const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
+
+    return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
   }
 
   public async createAccount(
@@ -186,17 +223,122 @@ export class SdkHederaClient implements HederaClient {
     newAdminKey: PrivateKey,
     currentAdminKey: PrivateKey,
   ): Promise<HederaTransactionStatus> {
-    let transaction: NodeUpdateTransaction = new NodeUpdateTransaction()
-      .setNodeId(new Long(nodeId))
-      .setAdminKey(newAdminKey.publicKey)
-      .freezeWith(this.sdkClient);
-    transaction = await transaction.sign(newAdminKey);
-    transaction = await transaction.sign(currentAdminKey);
+    return await this.updateNode({
+      nodeId,
+      adminKey: newAdminKey.publicKey,
+      signingKeys: [newAdminKey, currentAdminKey],
+    });
+  }
 
-    const response: TransactionResponse = await transaction.execute(this.sdkClient);
+  public async updateNode(options: HederaNodeUpdateOptions): Promise<HederaTransactionStatus> {
+    const transaction: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(new Long(options.nodeId));
+
+    if (options.adminKey) {
+      transaction.setAdminKey(options.adminKey);
+    }
+    if (options.accountId) {
+      transaction.setAccountId(options.accountId);
+    }
+    if (options.gossipEndpoints) {
+      transaction.setGossipEndpoints(options.gossipEndpoints);
+    }
+    if (options.serviceEndpoints) {
+      transaction.setServiceEndpoints(options.serviceEndpoints);
+    }
+    if (options.grpcWebProxyEndpoint) {
+      transaction.setGrpcWebProxyEndpoint(options.grpcWebProxyEndpoint);
+    }
+    if (options.certificateHash) {
+      transaction.setCertificateHash(options.certificateHash);
+    }
+    if (options.gossipCaCertificate) {
+      transaction.setGossipCaCertificate(options.gossipCaCertificate);
+    }
+
+    return await this.signAndExecute(transaction, options.signingKeys);
+  }
+
+  public async createNode(options: HederaNodeCreateOptions): Promise<HederaTransactionStatus> {
+    const transaction: NodeCreateTransaction = new NodeCreateTransaction()
+      .setAccountId(options.accountId)
+      .setGossipEndpoints(options.gossipEndpoints)
+      .setServiceEndpoints(options.serviceEndpoints)
+      .setGossipCaCertificate(options.gossipCaCertificate)
+      .setCertificateHash(options.certificateHash)
+      .setAdminKey(options.adminKey);
+
+    return await this.signAndExecute(transaction, options.signingKeys);
+  }
+
+  public async deleteNode(nodeId: number, adminKey: PrivateKey): Promise<HederaTransactionStatus> {
+    const transaction: NodeDeleteTransaction = new NodeDeleteTransaction().setNodeId(new Long(nodeId));
+
+    return await this.signAndExecute(transaction, [adminKey]);
+  }
+
+  private async signAndExecute(transaction: Transaction, signingKeys: PrivateKey[]): Promise<HederaTransactionStatus> {
+    let signedTransaction: Transaction = transaction.freezeWith(this.sdkClient);
+    for (const signingKey of signingKeys) {
+      signedTransaction = await signedTransaction.sign(signingKey);
+    }
+
+    const response: TransactionResponse = await signedTransaction.execute(this.sdkClient);
     const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
 
     return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
+  }
+
+  public async writeFileChunk(
+    fileId: FileId,
+    contents: Uint8Array,
+    mode: 'update' | 'append',
+  ): Promise<HederaFileTransactionResult> {
+    const transaction: FileUpdateTransaction | FileAppendTransaction =
+      mode === 'update'
+        ? new FileUpdateTransaction().setFileId(fileId).setContents(contents)
+        : new FileAppendTransaction().setFileId(fileId).setContents(contents);
+
+    return await this.executeFileTransaction(transaction);
+  }
+
+  public async freeze(options: HederaFreezeOptions): Promise<HederaFreezeResult> {
+    const transaction: FreezeTransaction = new FreezeTransaction().setFreezeType(
+      SdkHederaClient.FREEZE_TYPES[options.type],
+    );
+    if (options.startTime) {
+      transaction.setStartTimestamp(Timestamp.fromDate(options.startTime));
+    }
+    if (options.fileId) {
+      transaction.setFileId(options.fileId);
+    }
+    if (options.fileHash) {
+      transaction.setFileHash(options.fileHash);
+    }
+
+    const response: TransactionResponse = await transaction.freezeWith(this.sdkClient).execute(this.sdkClient);
+    const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
+
+    return {
+      isSuccess: receipt.status === Status.Success,
+      status: receipt.status.toString(),
+      transactionId: response.transactionId.toString(),
+    };
+  }
+
+  public async topicExists(topicId: TopicId): Promise<boolean> {
+    try {
+      await new TopicInfoQuery().setTopicId(topicId).execute(this.sdkClient);
+      return true;
+    } catch (error) {
+      if (error instanceof StatusError && error.status === Status.InvalidTopicId) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  public async createTopic(memo: string): Promise<void> {
+    await new TopicCreateTransaction().setTopicMemo(memo).execute(this.sdkClient);
   }
 
   public async getFileContents(fileId: FileId, retryInvalidNodeAccount: boolean = false): Promise<Uint8Array> {
