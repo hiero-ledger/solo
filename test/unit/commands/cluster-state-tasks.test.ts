@@ -13,16 +13,19 @@ import {StringFacade} from '../../../src/business/runtime-state/facade/string-fa
 import {type AnyListrContext} from '../../../src/types/aliases.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../src/types/index.js';
 import {type KindClusterContainer} from '../../../src/integration/container-engine/kind-cluster-container.js';
+import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 
 const SOLO_CONTAINER: KindClusterContainer = {
   containerName: 'solo-e2e-control-plane',
   clusterName: 'solo-e2e',
   running: true,
+  engineCommand: {executable: 'docker', argumentsPrefix: []},
 };
 const FOREIGN_CONTAINER: KindClusterContainer = {
   containerName: 'someone-elses-control-plane',
   clusterName: 'someone-elses',
   running: true,
+  engineCommand: {executable: 'docker', argumentsPrefix: []},
 };
 
 const runTask: (task: SoloListrTask<AnyListrContext>) => Promise<void> = async (
@@ -49,6 +52,10 @@ const writeClusterReferences: (references: Record<string, string>) => Promise<vo
 describe('ClusterCommandTasks state scoping', (): void => {
   let sandbox: SinonSandbox;
   let stopContainersStub: SinonStub;
+  let startContainersStub: SinonStub;
+  let startEngineStub: SinonStub;
+  let listContainersStub: SinonStub;
+  let showUserStub: SinonStub;
   let tasks: ClusterCommandTasks;
 
   beforeEach((): void => {
@@ -56,12 +63,17 @@ describe('ClusterCommandTasks state scoping', (): void => {
     sandbox = sinon.createSandbox();
 
     sandbox.stub(ClusterStateService.prototype, 'getEngineState').resolves({engineName: 'docker', running: true});
-    sandbox
+    listContainersStub = sandbox
       .stub(ClusterStateService.prototype, 'listKindClusterContainers')
       .resolves([SOLO_CONTAINER, FOREIGN_CONTAINER]);
     stopContainersStub = sandbox.stub(ClusterStateService.prototype, 'stopContainers').resolves();
+    startContainersStub = sandbox.stub(ClusterStateService.prototype, 'startContainers').resolves();
+    startEngineStub = sandbox
+      .stub(ClusterStateService.prototype, 'startEngine')
+      .resolves({engineName: 'docker', running: true});
 
     tasks = container.resolve(ClusterCommandTasks);
+    showUserStub = sandbox.stub((tasks as unknown as {logger: SoloLogger}).logger, 'showUser');
   });
 
   afterEach((): void => {
@@ -73,7 +85,48 @@ describe('ClusterCommandTasks state scoping', (): void => {
 
     await runTask(tasks.stopClusterState());
 
-    expect(stopContainersStub.calledOnceWith('docker', [SOLO_CONTAINER.containerName])).to.be.true;
+    expect(stopContainersStub.calledOnceWith([SOLO_CONTAINER])).to.be.true;
+    expect(listContainersStub.calledOnceWith('docker', ['solo-e2e'])).to.be.true;
+  });
+
+  it('starts the engine, then only the stopped Kind containers of Solo cluster references', async (): Promise<void> => {
+    await writeClusterReferences({solo: 'kind-solo-e2e'});
+    const stoppedSoloContainer: KindClusterContainer = {...SOLO_CONTAINER, running: false};
+    listContainersStub.resolves([stoppedSoloContainer, {...FOREIGN_CONTAINER, running: false}]);
+
+    await runTask(tasks.startClusterState());
+
+    expect(startEngineStub.calledOnce).to.be.true;
+    expect(startContainersStub.calledOnceWith([stoppedSoloContainer])).to.be.true;
+  });
+
+  it('starts nothing when the Solo Kind containers are already running', async (): Promise<void> => {
+    await writeClusterReferences({solo: 'kind-solo-e2e'});
+
+    await runTask(tasks.startClusterState());
+
+    expect(startContainersStub.called).to.be.false;
+    expect(showUserStub.calledWithMatch(/already running/)).to.be.true;
+  });
+
+  it('reports every Kind cluster in info and marks which ones Solo manages', async (): Promise<void> => {
+    await writeClusterReferences({solo: 'kind-solo-e2e'});
+
+    await runTask(tasks.showClusterStateInfo());
+
+    const output: string = showUserStub.lastCall.args[0];
+    expect(output).to.contain('Container engine state:  running');
+    expect(output).to.contain('solo-e2e: running (solo-e2e-control-plane) [cluster-ref: solo]');
+    expect(output).to.contain('someone-elses: running (someone-elses-control-plane) [not managed by Solo]');
+  });
+
+  it('reports unknown Kind containers in info when the engine is stopped', async (): Promise<void> => {
+    (ClusterStateService.prototype.getEngineState as SinonStub).resolves({engineName: 'docker', running: false});
+
+    await runTask(tasks.showClusterStateInfo());
+
+    expect(showUserStub.lastCall.args[0]).to.contain('Container engine state:  stopped');
+    expect(listContainersStub.called).to.be.false;
   });
 
   it('fails without stopping anything when no Kind cluster is mapped to a Solo cluster reference', async (): Promise<void> => {

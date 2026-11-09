@@ -44,11 +44,11 @@ import {type ClusterStateService} from '../../integration/container-engine/clust
 import {type ContainerEngineState} from '../../integration/container-engine/container-engine-state.js';
 import {type KindClusterContainer} from '../../integration/container-engine/kind-cluster-container.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
+import {Helpers} from '../../core/helpers.js';
 
 @injectable()
 export class ClusterCommandTasks {
   /** Prefix Kind gives the kube context it writes for a cluster: `kind-<clusterName>`. */
-  private static readonly KIND_CONTEXT_PREFIX: string = 'kind-';
   // Grafana datasource provisioning payload pointing at the namespace-local Loki Service
   // installed alongside it by `cluster-ref config setup --grafana-alloy`.
   private static readonly LOKI_GRAFANA_DATASOURCE_CONTENT: string =
@@ -348,10 +348,7 @@ export class ClusterCommandTasks {
           return;
         }
 
-        await this.clusterStateService.startContainers(
-          engineState.engineName,
-          stoppedContainers.map((container): string => container.containerName),
-        );
+        await this.clusterStateService.startContainers(stoppedContainers);
         this.logger.showUser(
           `✅ Started Kind cluster container(s): ${ClusterCommandTasks.describeContainers(stoppedContainers)}`,
         );
@@ -384,10 +381,7 @@ export class ClusterCommandTasks {
           return;
         }
 
-        await this.clusterStateService.stopContainers(
-          engineState.engineName,
-          runningContainers.map((container): string => container.containerName),
-        );
+        await this.clusterStateService.stopContainers(runningContainers);
         this.logger.showUser(
           `✅ Stopped Kind cluster container(s): ${ClusterCommandTasks.describeContainers(runningContainers)}`,
         );
@@ -413,10 +407,11 @@ export class ClusterCommandTasks {
         if (engineState.running) {
           // info deliberately lists every Kind cluster on the machine, including ones Solo does not
           // manage, so orphaned clusters are surfaced; each line states which side it falls on
+          const clusterReferences: Map<string, string> = await this.soloKindClusterReferences();
           const containers: KindClusterContainer[] = await this.clusterStateService.listKindClusterContainers(
             engineState.engineName,
+            [...clusterReferences.keys()],
           );
-          const clusterReferences: Map<string, string> = await this.soloKindClusterReferences();
           lines.push(
             'Kind cluster containers:',
             containers.length === 0
@@ -453,12 +448,9 @@ export class ClusterCommandTasks {
 
     const clusterReferencesByClusterName: Map<string, string> = new Map<string, string>();
     for (const [clusterReference, context] of this.localConfig.configuration.clusterRefs.entries()) {
-      const contextName: string = context.toString();
-      if (contextName.startsWith(ClusterCommandTasks.KIND_CONTEXT_PREFIX)) {
-        clusterReferencesByClusterName.set(
-          contextName.slice(ClusterCommandTasks.KIND_CONTEXT_PREFIX.length),
-          clusterReference,
-        );
+      const kindClusterName: string | undefined = Helpers.kindClusterNameForContext(context.toString(), this.k8Factory);
+      if (kindClusterName) {
+        clusterReferencesByClusterName.set(kindClusterName, clusterReference);
       }
     }
     return clusterReferencesByClusterName;
@@ -470,12 +462,14 @@ export class ClusterCommandTasks {
    * another project's cluster.
    */
   private async listSoloKindClusterContainers(engineName: string): Promise<KindClusterContainer[]> {
-    const containers: KindClusterContainer[] = await this.clusterStateService.listKindClusterContainers(engineName);
+    const clusterReferences: Map<string, string> = await this.soloKindClusterReferences();
+    const containers: KindClusterContainer[] = await this.clusterStateService.listKindClusterContainers(engineName, [
+      ...clusterReferences.keys(),
+    ]);
     if (containers.length === 0) {
       throw new SoloErrors.system.kindClusterContainerNotFound();
     }
 
-    const clusterReferences: Map<string, string> = await this.soloKindClusterReferences();
     const soloContainers: KindClusterContainer[] = containers.filter((container): boolean =>
       clusterReferences.has(container.clusterName),
     );
