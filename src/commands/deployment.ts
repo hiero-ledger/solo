@@ -1378,22 +1378,10 @@ export class DeploymentCommand extends BaseCommand {
 
         context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, existingNodesCount);
 
-        // If ledgerPhase is pre-genesis and user can't be prompted for the '--num-consensus-nodes' fail
-        if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined && quiet) {
-          throw new SoloErrors.validation.consensusNodeCountRequired(
-            flags.numberOfConsensusNodes.name,
-            LedgerPhase.UNINITIALIZED,
-          );
-        }
-
-        // If ledgerPhase is pre-genesis prompt the user for the '--num-consensus-nodes'
-        else if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined) {
-          await this.configManager.executePrompt(task, [flags.numberOfConsensusNodes]);
-          context_.config.numberOfConsensusNodes = this.configManager.getFlag<number>(flags.numberOfConsensusNodes);
-          context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(
-            context_.config.numberOfConsensusNodes,
-            existingNodesCount,
-          );
+        // An additional cluster defaults to zero consensus nodes, so it can host only other components
+        // (e.g. a mirror node or block node) when '--num-consensus-nodes' is omitted
+        if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined) {
+          context_.config.numberOfConsensusNodes = 0;
         }
 
         // if the ledgerPhase is post-genesis and '--num-consensus-nodes' is specified throw

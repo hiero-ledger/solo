@@ -27,7 +27,6 @@ import {PodReference} from '../../../src/integration/kube/resources/pod/pod-refe
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import * as constants from '../../../src/core/constants.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
-import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {LedgerPhase} from '../../../src/data/schema/model/remote/ledger-phase.js';
 
 describe('DeploymentCommand unit tests', (): void => {
