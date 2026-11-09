@@ -77,7 +77,9 @@ function createTasks(
             },
           ]),
         ),
-      loadNodeClient: async (): Promise<SdkHederaClient> => hederaClient,
+      loadNodeClient: async (): Promise<Client> => client,
+      hederaClientFor: (sdkClient: Client): SdkHederaClient =>
+        new SdkHederaClient(sdkClient, logger as unknown as SoloLogger),
     },
     remoteConfig: {
       getClusterRefs: (): Record<string, string> => ({}),
