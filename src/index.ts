@@ -21,6 +21,7 @@ import {VersionUpdateNotifier} from './core/version-update-notifier.js';
 import {SubprocessEnvironmentBootstrap} from './core/subprocess-environment-bootstrap.js';
 import {HomebrewDeprecationNotifier} from './core/homebrew-deprecation-notifier.js';
 import {VersionBanner} from './core/version-banner.js';
+import {type ConfigProvider} from './data/configuration/api/config-provider.js';
 import {ImageCacheWarmUp} from './core/image-cache-warm-up.js';
 import {hideBin} from 'yargs/helpers';
 
@@ -101,14 +102,19 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
   }
 
   const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
-
-  // Config sources load asynchronously, so this cannot happen inside the container factory.
-  await SubprocessEnvironmentBootstrap.configureFromUserConfig(logger);
-
   if (context) {
     // save the logger so that solo.ts can use it to properly flush the logs and exit
     context.logger = logger;
   }
+
+  // Refuses an untrusted solo-config.yaml before the refresh below parses it for every other setting.
+  await SubprocessEnvironmentBootstrap.configureFromUserConfig(logger);
+
+  // Sources are constructed empty and an unloaded one answers null, which SoloConfig silently degrades
+  // into schema defaults. Must precede ArgumentProcessor.process(): BaseCommand snapshots config in its
+  // constructor, which DI runs while building the command tree.
+  await container.resolve<ConfigProvider>(InjectTokens.ConfigProvider).config().refresh();
+
   registerFatalErrorHandlers(logger);
 
   logger.debug('Initializing Solo CLI');
