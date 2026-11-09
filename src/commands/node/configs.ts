@@ -408,6 +408,11 @@ export class NodeCommandConfigs {
 
     config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
+    // adding a node submits a transaction to a running network, so at least one consensus node must already exist
+    if (Object.keys(this.remoteConfig.configuration.state.consensusNodes).length === 0) {
+      throw new SoloErrors.validation.noConsensusNodesForNodeAdd(config.deployment);
+    }
+
     context_.adminKey = argv[flags.adminKey?.name]
       ? PrivateKey.fromStringED25519(argv[flags.adminKey?.name])
       : await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), config.namespace);

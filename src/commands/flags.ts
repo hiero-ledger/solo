@@ -2642,19 +2642,20 @@ export class Flags {
     definition: {
       describe: 'Used to specify desired number of consensus nodes for pre-genesis deployments',
       type: 'number',
-      promptText: 'Enter number of consensus nodes to add to the provided cluster (must be a positive number):',
+      promptText: 'Enter number of consensus nodes to add to the provided cluster (must be zero or a positive number):',
     },
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: number): Promise<number> {
       const promptForInput: () => Promise<number> = (): Promise<number> =>
         Flags.prompt('number', task, input, Flags.numberOfConsensusNodes);
 
       input = await promptForInput();
-      while (!input) {
+      while (input === undefined) {
         input = await promptForInput();
       }
 
       return input;
     },
+    rules: [FlagRules.integer, FlagRules.atLeast(0)],
   };
 
   public static readonly dnsBaseDomain: CommandFlag = {
