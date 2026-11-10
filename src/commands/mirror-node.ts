@@ -1315,13 +1315,17 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /**
-   * The importer reads `uploader-mirror-secrets` through an envFrom reference, but the secret is only created by
-   * the consensus network chart (`solo-deployment`), which is not installed in a cluster that has no consensus
-   * nodes. Create an empty secret there so the importer container can start; the storage credentials it would
-   * hold are only needed to read from a cloud bucket.
+   * The importer reads `uploader-mirror-secrets` through an envFrom reference. Solo creates that secret only for the
+   * contexts of consensus nodes (`NetworkCommand.prepareStreamUploaderSecrets`, or the `solo-deployment` chart when
+   * it generates the minio secrets), so a cluster that has no consensus nodes lacks it. Create an empty secret there
+   * so the importer container can start.
    *
-   * A cluster that hosts consensus nodes is skipped: the chart installs the secret later and Helm refuses to adopt
-   * one that already exists without its ownership metadata.
+   * A cluster that hosts consensus nodes is skipped: the chart may install the secret later, and Helm refuses to
+   * adopt one that already exists without its ownership metadata.
+   *
+   * Limitation: the empty secret carries no storage credentials, so a cluster without consensus nodes supports only
+   * the `block-node` mirror source. Reading from a cloud bucket there fails at download time, and the secret is not
+   * removed by `consensus network destroy`, which only cleans the consensus contexts.
    */
   private ensureUploaderSecretTask(): SoloListrTask<AnyListrContext> {
     return {

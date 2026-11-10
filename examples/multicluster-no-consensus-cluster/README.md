@@ -46,3 +46,9 @@ task destroy    # clean up
   cluster. This example does it with a CoreDNS `hosts` entry pointing at the block node's LoadBalancer IP.
 - The mirror node of cluster 2 reads from `block-node-2`, so it only receives data if `block-node-2` is fed,
   either by `node1` (secondary) or by backfilling from `block-node-1`.
+
+## Limitation
+
+The cluster without consensus nodes has no storage credentials, so Solo creates an empty `uploader-mirror-secrets`
+for its mirror node importer. Use `--mirror-node-source block-node` there, as this example does. Reading record
+streams from a cloud bucket in such a cluster is not supported.
