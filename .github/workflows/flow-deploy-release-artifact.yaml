@@ -277,7 +277,7 @@ jobs:
           path: /home/runner/.npm/_logs
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@1a84ddcff2d475751d8392ef6d7ecb478a7cfe53 # v5.3.1
+        uses: jfrog/setup-jfrog-cli@066952a56c7d70e2ce4ed081329109166c2e53c9 # v5.3.3
         env:
           JF_URL: ${{ vars.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
