@@ -1,0 +1,6 @@
+# User-supplied mirror node values set only at install time. The upgrade step does NOT pass this file,
+# so they survive only if Solo carries the existing release values across the v0.157.0 chart boundary
+# (https://github.com/hiero-ledger/solo/issues/6411).
+importer:
+  podAnnotations:
+    solo.hiero.org/version-upgrade-test: preserved

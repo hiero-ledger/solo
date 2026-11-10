@@ -6,6 +6,7 @@ import {type UpgradeChartOptions} from './model/upgrade/upgrade-chart-options.js
 import {type Release} from './model/chart/release.js';
 import {type Repository} from './model/repository.js';
 import {type ReleaseItem} from './model/release/release-item.js';
+import {type ReleaseValues} from './model/release/release-values.js';
 import {type TestChartOptions} from './model/test/test-chart-options.js';
 import {type UnInstallChartOptions} from './model/install/un-install-chart-options.js';
 import {type AddRepoOptions} from './model/add/add-repo-options.js';
@@ -108,6 +109,9 @@ export interface HelmClient {
    *
    * @param chartName the name of the chart to update.
    */
+  /** Reads the user-supplied values of a deployed release (`helm get values`). */
+  getValues(releaseName: string, namespace: string, kubeContext?: string): Promise<ReleaseValues>;
+
   dependencyUpdate(chartName: string): Promise<void>;
 
   /**

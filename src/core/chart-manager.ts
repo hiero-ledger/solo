@@ -224,6 +224,25 @@ export class ChartManager {
     }
   }
 
+  /**
+   * Reads the user-supplied values of a deployed release.
+   *
+   * @returns the release values, or an empty object when they cannot be read
+   */
+  public async getReleaseValues(
+    namespaceName: NamespaceName,
+    chartReleaseName: string,
+    kubeContext: string,
+  ): Promise<Record<string, unknown>> {
+    try {
+      return {...(await this.helm.getValues(chartReleaseName, namespaceName.name, kubeContext))};
+    } catch (error) {
+      // best-effort: callers fall back to the values they generate when the release values are unavailable
+      this.logger.warn(`Unable to read values of release '${chartReleaseName}': ${error?.message}`);
+      return {};
+    }
+  }
+
   public async install(
     namespaceName: NamespaceName,
     chartReleaseName: string,
