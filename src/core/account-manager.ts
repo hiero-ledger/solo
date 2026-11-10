@@ -41,6 +41,7 @@ import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {ResourceNotFoundError} from '../integration/kube/errors/resource-operation-errors.js';
 import {Address} from '../business/address/address.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {type NetworkNodes} from './network-nodes.js';
@@ -163,23 +164,29 @@ export class AccountManager {
    * @param nodeAlias - the node whose admin key we want
    * @param namespace - the namespace storing the secret
    * @param consensusNodes - the deployment's consensus nodes, used to find the node's cluster context
+   * @throws any error reading the secret other than it not existing
    */
   public async getNodeAdminKey(
     nodeAlias: NodeAlias,
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
   ): Promise<PrivateKey> {
+    let keyFromK8: Secret;
     try {
-      const keyFromK8: Secret = await this.k8Factory
+      keyFromK8 = await this.k8Factory
         .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
         .secrets()
         .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
-      return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
     } catch (error) {
+      // any failure other than a missing secret (API error, RBAC denial, wrong context) is real and must surface
+      if (!(error instanceof ResourceNotFoundError)) {
+        throw error;
+      }
       // a node without an admin key secret still has the genesis key it was created with
-      this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
+      this.logger.debug(`Node ${nodeAlias} has no admin key secret, using the genesis key`);
       return await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
     }
+    return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
   }
 
   /**

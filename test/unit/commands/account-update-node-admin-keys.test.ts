@@ -3,6 +3,9 @@
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 import {Base64} from 'js-base64';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import sinon, {type SinonFakeTimers, type SinonStub} from 'sinon';
 import {
   AccountId,
@@ -46,6 +49,18 @@ function receiptStatusError(status: Status): ReceiptStatusError {
   });
 }
 
+function expectKeyNotLogged(error: NodeAdminKeySaveFailedSoloError, logger: FakeLogger, key: PrivateKey): void {
+  // the error and every debug line are written to solo.log
+  const loggedText: string[] = [
+    error.message,
+    ...error.getTroubleshootingSteps(),
+    ...logger.debug.args.flat().map(String),
+  ];
+  for (const text of loggedText) {
+    expect(text).to.not.include(key.toStringDer()).and.to.not.include(Base64.encode(key.toStringDer()));
+  }
+}
+
 describe('AccountCommand node admin key update', (): void => {
   const currentAdminKeys: Record<NodeAlias, PrivateKey> = {
     node1: PrivateKey.generateED25519(),
@@ -57,8 +72,10 @@ describe('AccountCommand node admin key update', (): void => {
   let createOrReplace: SinonStub;
   let getK8: SinonStub;
   let updateNodeAdminKeys: UpdateNodeAdminKeys;
+  let recoveryDirectory: string;
 
   beforeEach((): void => {
+    recoveryDirectory = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'solo-node-admin-keys-')), 'node-admin-keys');
     logger = {debug: sinon.stub(), showUser: sinon.stub()};
     updateNodeAdminKey = sinon.stub().resolves({isSuccess: true, status: Status.Success.toString()});
     createOrReplace = sinon.stub().resolves(true);
@@ -68,6 +85,7 @@ describe('AccountCommand node admin key update', (): void => {
     Object.assign(command, {
       logger,
       k8Factory: {getK8},
+      nodeAdminKeyRecoveryDirectory: recoveryDirectory,
       remoteConfig: {
         getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
         getClusterRefs: (): Record<string, string> => ({}),
@@ -87,6 +105,7 @@ describe('AccountCommand node admin key update', (): void => {
 
   afterEach((): void => {
     sinon.restore();
+    fs.rmSync(path.dirname(recoveryDirectory), {recursive: true, force: true});
   });
 
   it('warns and moves on to the next node when the network rejects the rotation with INVALID_SIGNATURE', async (): Promise<void> => {
@@ -177,22 +196,70 @@ describe('AccountCommand node admin key update', (): void => {
       expect(getK8.alwaysCalledWithExactly('context-1')).to.be.true;
     });
 
-    it('fails with the new key in the error once every attempt to save it has failed', async (): Promise<void> => {
-      createOrReplace.rejects(new Error('secrets is forbidden'));
-
+    async function failedRotation(): Promise<NodeAdminKeySaveFailedSoloError> {
       const rotation: Promise<void> = updateNodeAdminKeys(namespace, deployment, nodeAliases);
       const assertion: Promise<NodeAdminKeySaveFailedSoloError> = expect(rotation).to.be.rejectedWith(
         NodeAdminKeySaveFailedSoloError,
       ) as unknown as Promise<NodeAdminKeySaveFailedSoloError>;
       await clock.runAllAsync();
-      const error: NodeAdminKeySaveFailedSoloError = await assertion;
+      return await assertion;
+    }
+
+    it('writes the new key to a recovery manifest, not the error, once every attempt to save it has failed', async (): Promise<void> => {
+      createOrReplace.rejects(new Error('secrets is forbidden'));
+
+      const error: NodeAdminKeySaveFailedSoloError = await failedRotation();
 
       expect(createOrReplace.callCount).to.equal(5);
       expect(updateNodeAdminKey.calledOnce, 'no further node should be rotated').to.be.true;
-      // the error is the only remaining copy of the key the network now requires
-      const newKey: PrivateKey = updateNodeAdminKey.firstCall.args[1];
-      expect(error.message).to.include('node1').and.to.include(newKey.toStringDer());
       expect(error.cause).to.be.instanceOf(Error).with.property('message', 'secrets is forbidden');
+
+      const newKey: PrivateKey = updateNodeAdminKey.firstCall.args[1];
+      const secretName: string = Templates.renderNodeAdminKeyName('node1');
+      const recoveryFile: string = path.join(recoveryDirectory, `${namespace.name}-${secretName}.json`);
+      expect(error.message).to.include('node1').and.to.include(recoveryFile);
+      expect(error.getTroubleshootingSteps()).to.include(
+        `Recreate the secret: kubectl --context context-1 apply -f ${recoveryFile}`,
+      );
+      expectKeyNotLogged(error, logger, newKey);
+
+      // the manifest recreates the exact secret the save would have written
+      const manifest: {
+        kind: string;
+        metadata: {name: string; namespace: string; labels: Record<string, string>};
+        data: {privateKey: string; publicKey: string};
+      } = JSON.parse(fs.readFileSync(recoveryFile, 'utf8'));
+      expect(manifest.kind).to.equal('Secret');
+      expect(manifest.metadata).to.deep.equal({
+        name: secretName,
+        namespace: namespace.name,
+        labels: {'solo.hedera.com/node-admin-key': 'true'},
+      });
+      expect(manifest.data).to.deep.equal(createOrReplace.firstCall.args[3]);
+      expect(Base64.decode(manifest.data.privateKey)).to.equal(newKey.toStringDer());
+      if (process.platform !== 'win32') {
+        expect(fs.statSync(recoveryFile).mode & 0o777).to.equal(0o600);
+      }
+    });
+
+    it('prints the new key to standard error only when the recovery manifest cannot be written', async (): Promise<void> => {
+      createOrReplace.rejects(new Error('secrets is forbidden'));
+      // a regular file where the recovery directory should be makes creating the directory fail
+      fs.writeFileSync(recoveryDirectory, '');
+      const standardError: SinonStub = sinon.stub(process.stderr, 'write').returns(true);
+
+      let error: NodeAdminKeySaveFailedSoloError;
+      try {
+        error = await failedRotation();
+      } finally {
+        standardError.restore();
+      }
+
+      const newKey: PrivateKey = updateNodeAdminKey.firstCall.args[1];
+      expect(standardError.calledOnce).to.be.true;
+      expect(standardError.firstCall.args[0]).to.include(Base64.encode(newKey.toStringDer()));
+      expect(error.message).to.include('printed above');
+      expectKeyNotLogged(error, logger, newKey);
     });
   });
 });

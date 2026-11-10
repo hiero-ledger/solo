@@ -35,6 +35,8 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {CommandFlags} from '../types/flag-types.js';
 import {Duration} from '../core/time/duration.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {
   type CreatedPredefinedAccount,
   type PredefinedAccount,
@@ -91,6 +93,11 @@ export class AccountCommand extends BaseCommand {
 
   /** Base delay between attempts to save a rotated node admin key; attempt n waits n times this. */
   private static readonly NODE_ADMIN_KEY_SAVE_RETRY_DELAY_MILLIS: number = 1000;
+
+  private static readonly NODE_ADMIN_KEY_LABELS: Record<string, string> = {'solo.hedera.com/node-admin-key': 'true'};
+
+  /** Where a rotated node admin key that could not be saved in its secret is written, for the user to recover. */
+  private readonly nodeAdminKeyRecoveryDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'node-admin-keys');
 
   private accountInfo:
     | {
@@ -342,8 +349,8 @@ export class AccountCommand extends BaseCommand {
 
   /**
    * Saves a node's newly rotated admin key in the node's admin key secret, retrying on failure. The network already
-   * requires this key and the secret is the only place it is kept, so if every attempt fails the thrown error carries
-   * the key and the commands to recreate the secret by hand.
+   * requires this key and the secret is the only place it is kept, so if every attempt fails the secret is written to a
+   * recovery file and the thrown error says how to apply it. The key itself never goes into the error, which is logged.
    */
   private async saveNodeAdminKey(
     namespace: NamespaceName,
@@ -364,7 +371,7 @@ export class AccountCommand extends BaseCommand {
         await this.k8Factory
           .getK8(context)
           .secrets()
-          .createOrReplace(namespace, secretName, SecretType.OPAQUE, data, {'solo.hedera.com/node-admin-key': 'true'});
+          .createOrReplace(namespace, secretName, SecretType.OPAQUE, data, AccountCommand.NODE_ADMIN_KEY_LABELS);
         return;
       } catch (error) {
         lastError = error;
@@ -381,12 +388,50 @@ export class AccountCommand extends BaseCommand {
     throw new SoloErrors.component.nodeAdminKeySaveFailed(
       nodeAlias,
       secretName,
-      namespace.name,
       context,
-      newPrivateKey.toStringDer(),
-      newPrivateKey.publicKey.toStringDer(),
+      this.writeNodeAdminKeyRecoveryFile(namespace, secretName, data),
       lastError,
     );
+  }
+
+  /**
+   * Writes a node admin key secret that could not be saved to the cluster as an owner-only Kubernetes manifest, so the
+   * key survives without passing through the logs and `kubectl apply -f` recreates the secret from it. If the file
+   * cannot be written either, the manifest is printed to standard error, which unlike the logger is not persisted.
+   * @returns the manifest file, or undefined when it was printed instead
+   */
+  private writeNodeAdminKeyRecoveryFile(
+    namespace: NamespaceName,
+    secretName: string,
+    data: Record<string, string>,
+  ): string | undefined {
+    const manifest: string = JSON.stringify(
+      {
+        apiVersion: 'v1',
+        kind: 'Secret',
+        type: SecretType.OPAQUE,
+        metadata: {name: secretName, namespace: namespace.name, labels: AccountCommand.NODE_ADMIN_KEY_LABELS},
+        data,
+      },
+      undefined,
+      2,
+    );
+    const recoveryFile: string = PathEx.join(
+      this.nodeAdminKeyRecoveryDirectory,
+      `${namespace.name}-${secretName}.json`,
+    );
+    try {
+      fs.mkdirSync(this.nodeAdminKeyRecoveryDirectory, {recursive: true, mode: 0o700});
+      fs.writeFileSync(recoveryFile, manifest, {mode: 0o600});
+      // the mode only applies to a new file; a recovery file left by an earlier failure is restricted here
+      FilePermissions.restrictToOwner(recoveryFile, false);
+      return recoveryFile;
+    } catch (error) {
+      // the key must not be lost, so the failure is reported and the manifest is printed instead of being rethrown
+      this.logger.debug(`Writing the node admin key recovery file ${recoveryFile} failed: ${error.message}`);
+      process.stderr.write(`\nSecret ${secretName}, holding the only copy of the node's new admin key:\n${manifest}\n`);
+      return undefined;
+    }
   }
 
   public async init(argv: ArgvStruct): Promise<boolean> {

@@ -21,6 +21,9 @@ import {type NodeAlias} from '../../../src/types/aliases.js';
 import * as Base64 from 'js-base64';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {type NetworkNodeServices} from '../../../src/core/network-node-services.js';
+import {ResourceNotFoundError} from '../../../src/integration/kube/errors/resource-operation-errors.js';
+import {ResourceOperation} from '../../../src/integration/kube/resources/resource-operation.js';
+import {ResourceType} from '../../../src/integration/kube/resources/resource-type.js';
 
 type MockK8Factory = {
   getK8: sinon.SinonStub;
@@ -130,6 +133,10 @@ describe('AccountManager createNewAccount', (): void => {
   });
 });
 
+function secretNotFound(): ResourceNotFoundError {
+  return new ResourceNotFoundError(ResourceOperation.READ, ResourceType.SECRET, NamespaceName.of('solo'), 'secret');
+}
+
 function adminKeySecret(privateKey: PrivateKey): {data: Record<string, string>} {
   return {data: {privateKey: Base64.encode(privateKey.toStringDer())}};
 }
@@ -151,7 +158,7 @@ describe('AccountManager getNodeAdminKey', (): void => {
     secretsByContext = new Map(
       ['context-1', 'context-2'].map((context: string): [string, FakeSecrets] => [
         context,
-        {read: sinon.stub().rejects(new Error('secret not found')), exists: sinon.stub().resolves(false)},
+        {read: sinon.stub().rejects(secretNotFound()), exists: sinon.stub().resolves(false)},
       ]),
     );
     getK8 = sinon.stub().callsFake((context: string): {secrets: () => FakeSecrets} => ({
@@ -200,6 +207,19 @@ describe('AccountManager getNodeAdminKey', (): void => {
     const adminKey: PrivateKey = await accountManager.getNodeAdminKey('node1' as NodeAlias, namespace, consensusNodes);
 
     expect(adminKey.toStringDer()).to.equal(PrivateKey.fromStringED25519(constants.GENESIS_KEY).toStringDer());
+  });
+
+  it('rethrows a failure to read the admin key secret other than it not existing', async (): Promise<void> => {
+    const forbidden: Error = new Error('secrets "node1-admin" is forbidden');
+    secretsByContext
+      .get('context-1')
+      .read.withArgs(namespace, Templates.renderNodeAdminKeyName('node1'))
+      .rejects(forbidden);
+
+    await expect(accountManager.getNodeAdminKey('node1' as NodeAlias, namespace, consensusNodes)).to.be.rejectedWith(
+      forbidden,
+    );
+    expect(secretsByContext.get('context-1').exists.called, 'the genesis key should not be looked up').to.equal(false);
   });
 });
 

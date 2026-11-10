@@ -26,6 +26,9 @@ import {SoloError} from '../../../../src/core/errors/solo-error.js';
 import * as constants from '../../../../src/core/constants.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../src/types/index.js';
 import {type AnyListrContext, type NodeAlias} from '../../../../src/types/aliases.js';
+import {ResourceNotFoundError} from '../../../../src/integration/kube/errors/resource-operation-errors.js';
+import {ResourceOperation} from '../../../../src/integration/kube/resources/resource-operation.js';
+import {ResourceType} from '../../../../src/integration/kube/resources/resource-type.js';
 
 type FakeConsensusNode = {name: NodeAlias; nodeId: number; cluster: string; context: string};
 type FakeLogger = {debug: SinonStub; showUser: SinonStub};
@@ -53,7 +56,7 @@ function createTasks(
     read: async (secretNamespace: NamespaceName, name: string): Promise<{data: Record<string, string>}> => {
       const key: PrivateKey = adminKeySecrets[name];
       if (!key || secretNamespace.name !== namespace.name) {
-        throw new Error(`secret ${name} not found`);
+        throw new ResourceNotFoundError(ResourceOperation.READ, ResourceType.SECRET, secretNamespace, name);
       }
       return {data: {privateKey: Base64.encode(key.toString()), publicKey: Base64.encode(key.publicKey.toString())}};
     },
