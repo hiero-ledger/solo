@@ -71,5 +71,11 @@ describe('InstallChartOptionsBuilder Tests', (): void => {
     options.apply(builderMock);
 
     expect(builderMock.arguments).to.have.been.calledOnceWith(...options.valueArguments);
+
+    // Helm 4 renamed --atomic and --force; the deprecated names must not be emitted any more
+    expect(builderMock.flag).to.have.been.calledWith('--rollback-on-failure');
+    expect(builderMock.flag).to.have.been.calledWith('--force-replace');
+    expect(builderMock.flag).to.not.have.been.calledWith('--atomic');
+    expect(builderMock.flag).to.not.have.been.calledWith('--force');
   });
 });
