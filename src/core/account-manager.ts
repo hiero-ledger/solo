@@ -344,7 +344,7 @@ export class AccountManager {
       } else {
         try {
           if (!this.featureFlags.skipNodePing) {
-            await this._hederaClient.ping(this._hederaClient.operatorAccountId);
+            await this._hederaClient.checkHealth();
           }
         } catch {
           this.logger.debug('node client ping failed, refreshing node client');
@@ -512,7 +512,7 @@ export class AccountManager {
 
       // ping the node client to ensure it is working
       if (!this.featureFlags.skipNodePing) {
-        await hederaClient.ping(AccountId.fromString(operatorId));
+        await hederaClient.checkHealth();
       }
 
       return hederaClient.sdkClient;
