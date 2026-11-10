@@ -119,7 +119,7 @@ describe('AccountManager node client ping', (): void => {
       ['node1', {nodeAlias: 'node1', accountId: nodeAccountId} as unknown as NetworkNodeServices],
     ]);
 
-    const nodeClient: Client = await accountManager._getNodeClient(
+    const nodeClient: HederaClient = await accountManager._getNodeClient(
       NamespaceName.of('solo'),
       networkNodeServicesMap,
       operatorAccountId,
@@ -143,10 +143,8 @@ describe('AccountManager node client ping', (): void => {
     });
     nodeClient.setOperator(operatorAccountId, operatorKey);
     nodeClient.setMaxAttempts(3).setMinBackoff(1).setMaxBackoff(1).setGrpcDeadline(100).setRequestTimeout(1000);
-    (accountManager as unknown as {_hederaClient: HederaClient})._hederaClient = new SdkHederaClient(
-      nodeClient,
-      makeLogger(),
-    );
+    const hederaClient: HederaClient = new SdkHederaClient(nodeClient, makeLogger());
+    (accountManager as unknown as {_hederaClient: HederaClient})._hederaClient = hederaClient;
     const unavailableEndpoint: string = Object.keys(nodeClient.network)[0];
     const attemptedEndpoints: string[] = [];
     const refreshStub: sinon.SinonStub = sinon
@@ -176,13 +174,13 @@ describe('AccountManager node client ping', (): void => {
       );
 
     try {
-      const loadedClient: Client = await accountManager.loadNodeClient(
+      const loadedClient: HederaClient = await accountManager.loadNodeClient(
         NamespaceName.of('solo'),
         {} as never,
         'deployment' as never,
       );
 
-      expect(loadedClient).to.equal(nodeClient);
+      expect(loadedClient).to.equal(hederaClient);
       expect(attemptedEndpoints).to.have.length(2);
       expect(attemptedEndpoints[0]).to.equal(unavailableEndpoint);
       expect(attemptedEndpoints[1]).not.to.equal(unavailableEndpoint);
@@ -199,20 +197,18 @@ describe('AccountManager node client ping', (): void => {
       scheduleNetworkUpdate: false,
     });
     nodeClient.setOperator(operatorAccountId, operatorKey);
-    (accountManager as unknown as {_hederaClient: HederaClient})._hederaClient = new SdkHederaClient(
-      nodeClient,
-      makeLogger(),
-    );
+    const hederaClient: HederaClient = new SdkHederaClient(nodeClient, makeLogger());
+    (accountManager as unknown as {_hederaClient: HederaClient})._hederaClient = hederaClient;
     const costStub: sinon.SinonStub = sinon.stub(AccountInfoQuery.prototype, 'getCost').resolves(Hbar.fromTinybars(1));
     const refreshStub: sinon.SinonStub = sinon.stub(accountManager, 'refreshNodeClient');
 
-    const loadedClient: Client = await accountManager.loadNodeClient(
+    const loadedClient: HederaClient = await accountManager.loadNodeClient(
       NamespaceName.of('solo'),
       {} as never,
       'deployment' as never,
     );
 
-    expect(loadedClient).to.equal(nodeClient);
+    expect(loadedClient).to.equal(hederaClient);
     expect(costStub.callCount).to.equal(1);
     const query: AccountInfoQuery = costStub.firstCall.thisValue;
     expect(query.nodeAccountIds?.map((accountId: AccountId): string => accountId.toString())).to.deep.equal([
