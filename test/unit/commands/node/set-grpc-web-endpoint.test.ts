@@ -94,7 +94,7 @@ function createTasks(
       loadNodeClient: async (): Promise<Client> => client,
       hederaClientFor: (sdkClient: Client): SdkHederaClient =>
         new SdkHederaClient(sdkClient, logger as unknown as SoloLogger),
-    },
+    }),
     remoteConfig,
     logger,
   });
