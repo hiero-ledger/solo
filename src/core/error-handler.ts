@@ -10,6 +10,8 @@ import {KubeErrorTranslator} from './errors/kube-error-translator.js';
 import {CacheErrorTranslator} from './errors/cache-error-translator.js';
 import {HelmErrorTranslator} from './errors/helm-error-translator.js';
 import {SdkErrorTranslator} from './errors/sdk-error-translator.js';
+import {SoloError} from './errors/solo-error.js';
+import {ExitCode} from './exit-code.js';
 
 @injectable()
 export class ErrorHandler {
@@ -25,8 +27,21 @@ export class ErrorHandler {
       this.handleSilentBreak(error_);
     } else {
       this.handleError(error);
-      process.exitCode = 1;
+      process.exitCode = ErrorHandler.resolveExitCode(error);
     }
+  }
+
+  /** Resolves the exit code from the root cause: the deepest coded SoloError in the cause chain. */
+  private static resolveExitCode(error: unknown): ExitCode {
+    let rootCause: SoloError | undefined;
+    let current: unknown = error;
+    while (current instanceof Error) {
+      if (current instanceof SoloError && current.getFormattedCode()) {
+        rootCause = current;
+      }
+      current = current.cause;
+    }
+    return rootCause?.isInvalidInput() ? ExitCode.INVALID_INPUT : ExitCode.FAILURE;
   }
 
   private handleUserBreak(userBreak: UserBreak): void {
