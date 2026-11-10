@@ -38,11 +38,17 @@ vars:
 
   # Current versions to upgrade to
   CURRENT_CN_VERSION:
-    sh: sed -n "s/^export const HEDERA_PLATFORM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+    sh: |
+      awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' \
+        "$(git rev-parse --show-toplevel)/version.ts"
   CURRENT_MIRROR_VERSION:
-    sh: sed -n "s/^export const MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+    sh: |
+      awk -v RS=';' '/export const MIRROR_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' \
+        "$(git rev-parse --show-toplevel)/version.ts"
   CURRENT_BLOCK_VERSION:
-    sh: sed -n "s/^export const BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+    sh: |
+      awk -v RS=';' '/export const BLOCK_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' \
+        "$(git rev-parse --show-toplevel)/version.ts"
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
