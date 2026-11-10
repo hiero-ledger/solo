@@ -39,7 +39,7 @@ const installHelmAndVerify: () => Promise<void> = async (): Promise<void> => {
   }
 
   const actualVersion: SemanticVersion<string> = new SemanticVersion<string>(helmVersion);
-  const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>('3.12.0');
+  const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>('4.0.0');
   expect(actualVersion).to.not.be.null;
   expect(actualVersion.greaterThanOrEqual(minimumVersion.toString())).to.be.true;
 };

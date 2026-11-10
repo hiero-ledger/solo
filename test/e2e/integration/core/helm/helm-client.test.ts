@@ -115,8 +115,7 @@ describe('HelmClient Tests', (): void => {
     expect(helmVersion).to.not.be.null;
     expect(helmVersion).to.not.equal(SemanticVersion.ZERO);
 
-    expect(helmVersion.major).to.be.greaterThanOrEqual(3);
-    expect(helmVersion.minor).to.be.greaterThanOrEqual(12);
+    expect(helmVersion.major).to.be.greaterThanOrEqual(4);
     expect(helmVersion.patch).to.not.be.lessThan(0);
   });
 
