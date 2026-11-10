@@ -96,6 +96,7 @@ import {MessageLevel} from '../../../../core/logging/message-level.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 import {SpinnerListrOptions} from '../../../../core/spinner-listr-options.js';
 import {ClusterTaskManager} from '../../../../core/cluster-task-manager.js';
+import {type FeatureFlags} from '../../../../business/runtime-state/config/solo/feature-flags.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -119,6 +120,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.ContainerEngineResourceInspector)
     private readonly containerEngineResourceInspector: ContainerEngineResourceInspector,
     @inject(InjectTokens.ClusterTaskManager) private readonly clusterTaskManager: ClusterTaskManager,
+    @inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -139,6 +141,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       this.constructor.name,
     );
     this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, this.constructor.name);
+    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
   }
 
   public buildDeployPipeline(
@@ -330,10 +333,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               }
             }
 
-            config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
-            config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
-            config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
-            config.pinger = config.pinger === undefined ? true : config.pinger;
+            DeployArgvBuilders.resolveComponentSelection(config);
 
             ComponentCompatibility.assertCompatible(
               DeployArgvBuilders.buildComponentVersionTuple(config),
@@ -453,7 +453,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         true,
         undefined,
         // Skip the whole group when the image cache is disabled.
-        (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+        (): boolean => !this.featureFlags.enableImageCache,
         (getConfig: () => OneShotSingleDeployConfigClass): boolean => getConfig()?.parallelDeploy === true,
       ),
       OrchestratorPipelinePhase.composite(
@@ -697,7 +697,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 ExplorerCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployExplorer && !getConfig().minimalSetup,
+                (): boolean => !getConfig().deployExplorer,
               ),
           }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
           new OrchestratorPipelinePhase('Deploy JSON-RPC Relay', {
@@ -707,7 +707,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 RelayCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployRelay && !getConfig().minimalSetup,
+                (): boolean => !getConfig().deployRelay,
               ),
           })
             .withWaitCondition(
@@ -1088,7 +1088,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         serviceName: 'one-shot-consensus-grpc-nodeport',
       },
       {
-        deployed: config.deployExplorer || config.minimalSetup,
+        deployed: config.deployExplorer,
         hostPort: constants.ONE_SHOT_EXPLORER_HOST_PORT,
         label: 'Explorer',
         nodePort: constants.ONE_SHOT_EXPLORER_NODE_PORT,
@@ -1097,7 +1097,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         serviceName: 'one-shot-explorer-nodeport',
       },
       {
-        deployed: config.deployRelay || config.minimalSetup,
+        deployed: config.deployRelay,
         hostPort: constants.ONE_SHOT_RELAY_HOST_PORT,
         label: 'JSON RPC Relay',
         nodePort: constants.ONE_SHOT_RELAY_NODE_PORT,

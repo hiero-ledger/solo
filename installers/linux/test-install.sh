@@ -138,7 +138,7 @@ case "${1:-}" in
       case "$1" in
         --new-bundle-format) new_bundle_format='true' ;;
         --bundle) bundle="$2" && shift ;;
-        --certificate-identity-regexp | --certificate-oidc-issuer) shift ;;
+        --certificate-identity | --certificate-identity-regexp | --certificate-oidc-issuer) shift ;;
         *) echo "Error: unknown flag: $1" >&2 && exit 1 ;;
       esac
       shift
@@ -282,6 +282,7 @@ begin_case 'verifies the signature with cosign 2.4.2 or later'
 use_fake_cosign v2.4.2
 run_installer --version 5.5.5
 check 'signature is verified' contains "${HOME}/install.log" 'verified the signature of SHA256SUMS'
+check 'release signer is pinned exactly' contains "${FAKE_COSIGN_CALLS}" '--certificate-identity https://github.com/hiero-ledger/solo/.github/workflows/flow-sign-release-assets.yaml@refs/heads/main'
 check 'cosign is not given --new-bundle-format' is_equal "$(count_of "${FAKE_COSIGN_CALLS}" '--new-bundle-format')" '0'
 check 'binary is installed' test -x "${HOME}/.solo/bin/solo"
 
@@ -289,6 +290,7 @@ begin_case 'verifies the signature with cosign 2.4.1 through --new-bundle-format
 use_fake_cosign v2.4.1
 run_installer --version 5.5.5
 check 'signature is verified' contains "${HOME}/install.log" 'verified the signature of SHA256SUMS'
+check 'release signer is pinned exactly' contains "${FAKE_COSIGN_CALLS}" '--certificate-identity https://github.com/hiero-ledger/solo/.github/workflows/flow-sign-release-assets.yaml@refs/heads/main'
 check 'cosign is given --new-bundle-format' contains "${FAKE_COSIGN_CALLS}" '--new-bundle-format'
 check 'binary is installed' test -x "${HOME}/.solo/bin/solo"
 
@@ -303,6 +305,7 @@ begin_case 'verifies the signature when cosign reports no version number'
 use_fake_cosign devel
 run_installer --version 5.5.5
 check 'signature is verified' contains "${HOME}/install.log" 'verified the signature of SHA256SUMS'
+check 'release signer is pinned exactly' contains "${FAKE_COSIGN_CALLS}" '--certificate-identity https://github.com/hiero-ledger/solo/.github/workflows/flow-sign-release-assets.yaml@refs/heads/main'
 
 begin_case 'rejects a tampered SHA256SUMS'
 use_fake_cosign v3.0.6
