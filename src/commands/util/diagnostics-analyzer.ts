@@ -740,7 +740,8 @@ export class DiagnosticsAnalyzer {
       const message: string = typeof entry.msg === 'string' ? entry.msg : '';
       invocation.entries.push(entry);
       invocation.namespace ??= entry.namespace || undefined;
-      if (message.startsWith('Solo invocation started: ')) {
+      // a process can start nested commands (one-shot runs relay, mirror, ...); the first start record is the user's command
+      if (message.startsWith('Solo invocation started: ') && invocation.command === undefined) {
         invocation.command = message.slice('Solo invocation started: '.length);
         invocation.version = entry.soloInvocation?.version;
       }

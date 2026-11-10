@@ -875,6 +875,19 @@ containers:
       expect(reportText).to.not.include('old text-log error');
     });
 
+    it('labels an invocation by its first start record when nested commands start later', (): void => {
+      writeNdjson([
+        entry('t-a', hoursAgo(5), 'Solo invocation started: one-shot single deploy --foo'),
+        entry('t-a', hoursAgo(4), 'Solo invocation started: relay node add --bar'),
+        entry('t-a', hoursAgo(3), 'failure in a', 50),
+      ]);
+
+      const reportText: string = analyze();
+
+      expect(reportText).to.include('ERROR detected in solo.log: one-shot single deploy (');
+      expect(reportText).to.not.include('relay node add');
+    });
+
     it('keeps concurrent invocations separate and labels each', (): void => {
       writeNdjson([
         entry('t-a', hoursAgo(5), 'Solo invocation started: one-shot single deploy'),
