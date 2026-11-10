@@ -36,13 +36,14 @@ vars:
   PREV_BLOCK_VERSION:
     sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 
-  # Current versions to upgrade to
+  # Current versions to upgrade to. extract_version reads the whole declaration, so a value that Prettier wraps onto
+  # the next line of version.ts (e.g. a long pre-release tag) is still found.
   CURRENT_CN_VERSION:
-    sh: sed -n "s/^export const HEDERA_PLATFORM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+    sh: bash -c 'source "$0/.github/workflows/script/helper.sh" && extract_version HEDERA_PLATFORM_VERSION "$0/version.ts"' "$(git rev-parse --show-toplevel)"
   CURRENT_MIRROR_VERSION:
-    sh: sed -n "s/^export const MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+    sh: bash -c 'source "$0/.github/workflows/script/helper.sh" && extract_version MIRROR_NODE_VERSION "$0/version.ts"' "$(git rev-parse --show-toplevel)"
   CURRENT_BLOCK_VERSION:
-    sh: sed -n "s/^export const BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
+    sh: bash -c 'source "$0/.github/workflows/script/helper.sh" && extract_version BLOCK_NODE_VERSION "$0/version.ts"' "$(git rev-parse --show-toplevel)"
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel

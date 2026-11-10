@@ -134,6 +134,21 @@ function log_and_exit()
 # Examples:
 #   extract_version PREV_BLOCK_NODE_VERSION version-test.ts
 #   extract_version HEDERA_PLATFORM_VERSION version.ts
+# Writes a release tag into version.txt of the hiero-consensus-node checkout in the current directory, so a local
+# build reports the tag's version. Tags cut from main (the alphas) keep main's X.Y.0-SNAPSHOT, which the consensus node
+# orders above X.Y.0-alpha.N, so a node running such a build rejects the released artifact of the same tag as a
+# downgrade. A branch name is left alone.
+set_consensus_node_build_version() {
+  if [[ "$#" -ne 1 ]]; then
+    echo "Usage: set_consensus_node_build_version <VERSION>" >&2
+    return 1
+  fi
+
+  if [[ "$1" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    echo "${1#v}" > version.txt
+  fi
+}
+
 extract_version() {
   if [[ "$#" -ne 2 ]]; then
     echo "Usage: extract_version <TARGET> <SOURCE_FILE>" >&2
