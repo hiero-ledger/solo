@@ -939,12 +939,7 @@ export class MirrorNodeCommand extends BaseCommand {
     // Mirror node v0.157.0 changed block node importer properties from nodes[].host/port
     // to nodes[].endpoints[].host/port. Reusing values across this boundary preserves the
     // old env vars, and the importer fails strict binding with those stale keys.
-    if (
-      currentVersion.lessThan(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
-      targetSemanticVersion.greaterThanOrEqual(
-        MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
-      )
-    ) {
+    if (MirrorNodeCommand.crossesBlockNodeEndpointsBoundary(currentVersion, targetSemanticVersion)) {
       return false;
     }
 
@@ -964,10 +959,18 @@ export class MirrorNodeCommand extends BaseCommand {
       commandType === MirrorNodeCommandType.UPGRADE &&
       currentVersion !== null &&
       currentVersion.greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
+      MirrorNodeCommand.crossesBlockNodeEndpointsBoundary(currentVersion, new SemanticVersion<string>(targetVersion))
+    );
+  }
+
+  /** True when an upgrade goes from before to at-or-after the v0.157.0 block node endpoints schema change. */
+  private static crossesBlockNodeEndpointsBoundary(
+    currentVersion: SemanticVersion<string>,
+    targetVersion: SemanticVersion<string>,
+  ): boolean {
+    return (
       currentVersion.lessThan(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
-      new SemanticVersion<string>(targetVersion).greaterThanOrEqual(
-        MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
-      )
+      targetVersion.greaterThanOrEqual(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS)
     );
   }
 

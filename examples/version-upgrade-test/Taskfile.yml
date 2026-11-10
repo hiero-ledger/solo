@@ -127,7 +127,7 @@ tasks:
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
           --pinger --enable-ingress --mirror-node-version {{ .MIRROR_VERSION_BEFORE_BOUNDARY }} \
-          --values-file mirror-values.yaml
+          --values-file {{ .TASKFILE_DIR }}/mirror-values.yaml
 
       # Deploy relay with previous version
       - cmd: |

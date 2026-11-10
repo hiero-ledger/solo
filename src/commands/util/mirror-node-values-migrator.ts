@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import * as constants from '../../core/constants.js';
+
 type MutableRecord = Record<string, unknown>;
 
 /**
@@ -8,7 +10,6 @@ type MutableRecord = Record<string, unknown>;
  */
 export class MirrorNodeValuesMigrator {
   private static readonly CONFIGURATION_ROOTS: string[] = ['hiero', 'hedera'];
-  private static readonly DEFAULT_BLOCK_NODE_PORT: number = 40_840;
 
   // Solo generated these importer env vars before block node endpoints existed; the importer rejects them afterwards.
   private static readonly LEGACY_BLOCK_NODE_ENVIRONMENT_KEY: RegExp =
@@ -16,8 +17,11 @@ export class MirrorNodeValuesMigrator {
 
   /**
    * Mirror node v0.157.0 moved block node importer properties from `nodes[].host/port` to
-   * `nodes[].endpoints[].host/port`. Rewrites the old schema in place of the old keys and drops the importer
-   * env vars Solo generated for it.
+   * `nodes[].endpoints[].host/port`. Rewrites the old schema in place of the old keys, and drops the values Solo
+   * itself generates for block node integration (the importer env vars of the old schema, the `blocknode` Spring
+   * profile and the disabled downloaders). Solo generates them again on every upgrade that still resolves a block
+   * node, so dropping them keeps an upgrade without block node integration from running the `blocknode` profile with
+   * no nodes.
    *
    * @param values - release values as returned by `helm get values`; not modified
    * @returns a migrated copy of the values
@@ -32,31 +36,33 @@ export class MirrorNodeValuesMigrator {
 
     const configuration: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(importer['config']);
     for (const root of MirrorNodeValuesMigrator.CONFIGURATION_ROOTS) {
-      const mirror: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(configuration?.[root]);
-      const block: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(
-        MirrorNodeValuesMigrator.asRecord(MirrorNodeValuesMigrator.asRecord(mirror?.['mirror'])?.['importer'])?.[
-          'block'
+      const importerProperties: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(
+        MirrorNodeValuesMigrator.asRecord(MirrorNodeValuesMigrator.asRecord(configuration?.[root])?.['mirror'])?.[
+          'importer'
         ],
       );
-      const nodes: unknown = block?.['nodes'];
 
-      if (Array.isArray(nodes)) {
-        for (const node of nodes) {
-          MirrorNodeValuesMigrator.migrateBlockNode(MirrorNodeValuesMigrator.asRecord(node));
-        }
-      }
+      MirrorNodeValuesMigrator.migrateBlockNodes(MirrorNodeValuesMigrator.asRecord(importerProperties?.['block']));
+      MirrorNodeValuesMigrator.dropDisabledDownloaders(
+        MirrorNodeValuesMigrator.asRecord(importerProperties?.['downloader']),
+      );
     }
 
-    const environment: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(importer['env']);
-    if (environment) {
-      for (const key of Object.keys(environment)) {
-        if (MirrorNodeValuesMigrator.LEGACY_BLOCK_NODE_ENVIRONMENT_KEY.test(key)) {
-          delete environment[key];
-        }
-      }
-    }
+    MirrorNodeValuesMigrator.dropBlockNodeEnvironment(MirrorNodeValuesMigrator.asRecord(importer['env']));
 
     return migrated;
+  }
+
+  private static migrateBlockNodes(block: MutableRecord | undefined): void {
+    const nodes: unknown = block?.['nodes'];
+
+    if (!Array.isArray(nodes)) {
+      return;
+    }
+
+    for (const node of nodes) {
+      MirrorNodeValuesMigrator.migrateBlockNode(MirrorNodeValuesMigrator.asRecord(node));
+    }
   }
 
   private static migrateBlockNode(node: MutableRecord | undefined): void {
@@ -64,16 +70,45 @@ export class MirrorNodeValuesMigrator {
       return;
     }
 
-    node['endpoints'] = [
-      {
-        host: node['host'],
-        port: node['port'] ?? MirrorNodeValuesMigrator.DEFAULT_BLOCK_NODE_PORT,
-        requiresTls: node['requiresTls'] ?? false,
-      },
-    ];
+    // the importer defaults the port and requiresTls of an endpoint, so only carry over what the node sets
+    const endpoint: MutableRecord = {host: node['host']};
+    for (const key of ['port', 'requiresTls']) {
+      if (key in node) {
+        endpoint[key] = node[key];
+      }
+    }
+
+    node['endpoints'] = [endpoint];
     delete node['host'];
     delete node['port'];
     delete node['requiresTls'];
+  }
+
+  /** Solo disables the balance and record downloaders when it streams from a block node. */
+  private static dropDisabledDownloaders(downloader: MutableRecord | undefined): void {
+    for (const type of ['balance', 'record']) {
+      const settings: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(downloader?.[type]);
+
+      if (settings?.['enabled'] === false) {
+        delete settings['enabled'];
+      }
+    }
+  }
+
+  private static dropBlockNodeEnvironment(environment: MutableRecord | undefined): void {
+    if (!environment) {
+      return;
+    }
+
+    for (const key of Object.keys(environment)) {
+      if (MirrorNodeValuesMigrator.LEGACY_BLOCK_NODE_ENVIRONMENT_KEY.test(key)) {
+        delete environment[key];
+      }
+    }
+
+    if (environment['SPRING_PROFILES_ACTIVE'] === constants.SPRING_PROFILES_ACTIVE) {
+      delete environment['SPRING_PROFILES_ACTIVE'];
+    }
   }
 
   private static asRecord(value: unknown): MutableRecord | undefined {

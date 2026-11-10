@@ -227,7 +227,8 @@ export class ChartManager {
   /**
    * Reads the user-supplied values of a deployed release.
    *
-   * @returns the release values, or an empty object when they cannot be read
+   * @returns the release values
+   * @throws HelmReleaseValuesReadFailedSoloError when they cannot be read: continuing would silently drop them
    */
   public async getReleaseValues(
     namespaceName: NamespaceName,
@@ -237,9 +238,7 @@ export class ChartManager {
     try {
       return {...(await this.helm.getValues(chartReleaseName, namespaceName.name, kubeContext))};
     } catch (error) {
-      // best-effort: callers fall back to the values they generate when the release values are unavailable
-      this.logger.warn(`Unable to read values of release '${chartReleaseName}': ${error?.message}`);
-      return {};
+      throw new SoloErrors.system.helmReleaseValuesReadFailed(chartReleaseName, error);
     }
   }
 

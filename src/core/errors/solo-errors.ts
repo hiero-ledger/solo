@@ -279,6 +279,7 @@ import {TransplantRequiresStateFileSoloError} from './classes/validation/transpl
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
+import {HelmReleaseValuesReadFailedSoloError} from './classes/system/helm-release-values-read-failed-solo-error.js';
 import {HelmChartGenericInstallFailedSoloError} from './classes/system/helm-chart-generic-install-failed-solo-error.js';
 import {HelmChartUninstallFailedSoloError} from './classes/system/helm-chart-uninstall-failed-solo-error.js';
 import {HelmChartUpgradeFailedSoloError} from './classes/system/helm-chart-upgrade-failed-solo-error.js';
@@ -870,6 +871,7 @@ export class SoloErrors {
     readonly helmRepoSetupFailed: typeof HelmRepoSetupFailedSoloError;
     readonly helmRepoCheckFailed: typeof HelmRepoCheckFailedSoloError;
     readonly helmChartListFailed: typeof HelmChartListFailedSoloError;
+    readonly helmReleaseValuesReadFailed: typeof HelmReleaseValuesReadFailedSoloError;
     readonly helmChartGenericInstallFailed: typeof HelmChartGenericInstallFailedSoloError;
     readonly helmChartUninstallFailed: typeof HelmChartUninstallFailedSoloError;
     readonly helmChartUpgradeFailed: typeof HelmChartUpgradeFailedSoloError;
@@ -965,6 +967,7 @@ export class SoloErrors {
     helmRepoSetupFailed: HelmRepoSetupFailedSoloError,
     helmRepoCheckFailed: HelmRepoCheckFailedSoloError,
     helmChartListFailed: HelmChartListFailedSoloError,
+    helmReleaseValuesReadFailed: HelmReleaseValuesReadFailedSoloError,
     helmChartGenericInstallFailed: HelmChartGenericInstallFailedSoloError,
     helmChartUninstallFailed: HelmChartUninstallFailedSoloError,
     helmChartUpgradeFailed: HelmChartUpgradeFailedSoloError,

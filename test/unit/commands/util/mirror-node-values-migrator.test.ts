@@ -23,7 +23,7 @@ describe('MirrorNodeValuesMigrator', (): void => {
         {endpoints: [{host: 'bn-1', port: 1234, requiresTls: true}]},
       ]);
       expect(migrated.importer.config.hedera.mirror.importer.block.nodes).to.deep.equal([
-        {endpoints: [{host: 'bn-2', port: 40_840, requiresTls: false}]},
+        {endpoints: [{host: 'bn-2'}]},
       ]);
     });
 
@@ -69,6 +69,31 @@ describe('MirrorNodeValuesMigrator', (): void => {
       const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(values);
 
       expect(migrated.importer.env).to.deep.equal({SPRING_PROFILES_ACTIVE: 'kubernetes'});
+    });
+
+    it('drops the block node values Solo generates but keeps user-set ones', (): void => {
+      const values: Record<string, unknown> = {
+        importer: {
+          env: {SPRING_PROFILES_ACTIVE: 'blocknode', CUSTOM: 'kept'},
+          config: {hiero: {mirror: {importer: {downloader: {record: {enabled: false}, balance: {enabled: true}}}}}},
+        },
+      };
+
+      const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(values);
+
+      expect(migrated.importer.env).to.deep.equal({CUSTOM: 'kept'});
+      expect(migrated.importer.config.hiero.mirror.importer.downloader).to.deep.equal({
+        record: {},
+        balance: {enabled: true},
+      });
+    });
+
+    it('keeps a SPRING_PROFILES_ACTIVE the user chose', (): void => {
+      const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints({
+        importer: {env: {SPRING_PROFILES_ACTIVE: 'custom'}},
+      });
+
+      expect(migrated.importer.env).to.deep.equal({SPRING_PROFILES_ACTIVE: 'custom'});
     });
 
     it('returns values without an importer section unchanged', (): void => {

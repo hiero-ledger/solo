@@ -109,10 +109,10 @@ export interface HelmClient {
    *
    * @param chartName the name of the chart to update.
    */
+  dependencyUpdate(chartName: string): Promise<void>;
+
   /** Reads the user-supplied values of a deployed release (`helm get values`). */
   getValues(releaseName: string, namespace: string, kubeContext?: string): Promise<ReleaseValues>;
-
-  dependencyUpdate(chartName: string): Promise<void>;
 
   /**
    * @param chart - the chart to pull

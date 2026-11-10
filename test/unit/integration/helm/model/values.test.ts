@@ -25,6 +25,25 @@ describe('HelmChartValues', (): void => {
       expect(userIndex).to.be.greaterThan(soloIndexes[1]);
     });
 
+    it('inheritedFile() precedes every Solo-supplied and user-supplied argument so they all override it', (): void => {
+      const values: HelmChartValues = new HelmChartValues()
+        .file('/solo/defaults.yaml')
+        .set('key', 'computed')
+        .userFile('/user/override.yaml')
+        .inheritedFile('/release/existing.yaml');
+
+      expect(values.toArguments()).to.deep.equal([
+        '--values',
+        '/release/existing.yaml',
+        '--values',
+        '/solo/defaults.yaml',
+        '--set',
+        'key=computed',
+        '--values',
+        '/user/override.yaml',
+      ]);
+    });
+
     it('--set flags precede user files so they always win', (): void => {
       const values: HelmChartValues = new HelmChartValues().set('key', 'computed').userFile('/user/override.yaml');
 
