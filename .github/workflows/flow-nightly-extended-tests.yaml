@@ -224,17 +224,19 @@ jobs:
           operation: save
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
-      - name: Cleanup Kind Clusters
-        if: ${{ always() }}
+      - name: Collect Diagnostics on Failure
+        if: ${{ failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          echo "Cleaning up clusters for test: ${{ matrix.test.name }}"
-          for cluster in $(kind get clusters 2>/dev/null); do
-            echo "Deleting cluster: $cluster"
-            kind delete cluster -n "$cluster" || true
-          done
-          rm -rf ~/.solo
+          # Best-effort: the test script may already have collected richer diagnostics. This step
+          # covers scripts that do not, while the Kind cluster is still up.
+          DIAGNOSTICS_DIRECTORY="${HOME}/.solo/logs/workflow-diagnostics"
+          mkdir -p "${DIAGNOSTICS_DIRECTORY}"
+          kubectl get pods -A -o wide > "${DIAGNOSTICS_DIRECTORY}/pods.txt" 2>&1 || true
+          kubectl get events -A --sort-by=.lastTimestamp > "${DIAGNOSTICS_DIRECTORY}/events.txt" 2>&1 || true
+          npm run solo-test -- deployment diagnostics logs -q --dev > "${DIAGNOSTICS_DIRECTORY}/solo-diagnostics-logs.txt" 2>&1 || true
 
+      # Must run before 'Cleanup Kind Clusters', which deletes ~/.solo (and the logs in it).
       - name: Upload Logs to GitHub
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -247,6 +249,17 @@ jobs:
             /tmp/solo-jdwp-probe.log
             /tmp/solo-${{ matrix.test.name }}*.log
           if-no-files-found: ignore
+
+      - name: Cleanup Kind Clusters
+        if: ${{ always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "Cleaning up clusters for test: ${{ matrix.test.name }}"
+          for cluster in $(kind get clusters 2>/dev/null); do
+            echo "Deleting cluster: $cluster"
+            kind delete cluster -n "$cluster" || true
+          done
+          rm -rf ~/.solo
 
   one-shot-timing:
     name: Extended Test (one-shot-timing)
