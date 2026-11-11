@@ -347,10 +347,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               }
             }
 
-            config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
-            config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
-            config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
-            config.pinger = config.pinger === undefined ? true : config.pinger;
+            DeployArgvBuilders.resolveComponentSelection(config);
 
             ComponentCompatibility.assertCompatible(
               DeployArgvBuilders.buildComponentVersionTuple(config),
@@ -714,7 +711,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 ExplorerCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployExplorer && !getConfig().minimalSetup,
+                (): boolean => !getConfig().deployExplorer,
               ),
           }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
           new OrchestratorPipelinePhase('Deploy JSON-RPC Relay', {
@@ -724,7 +721,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 RelayCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployRelay && !getConfig().minimalSetup,
+                (): boolean => !getConfig().deployRelay,
               ),
           })
             .withWaitCondition(
@@ -1105,7 +1102,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         serviceName: 'one-shot-consensus-grpc-nodeport',
       },
       {
-        deployed: config.deployExplorer || config.minimalSetup,
+        deployed: config.deployExplorer,
         hostPort: constants.ONE_SHOT_EXPLORER_HOST_PORT,
         label: 'Explorer',
         nodePort: constants.ONE_SHOT_EXPLORER_NODE_PORT,
@@ -1114,7 +1111,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         serviceName: 'one-shot-explorer-nodeport',
       },
       {
-        deployed: config.deployRelay || config.minimalSetup,
+        deployed: config.deployRelay,
         hostPort: constants.ONE_SHOT_RELAY_HOST_PORT,
         label: 'JSON RPC Relay',
         nodePort: constants.ONE_SHOT_RELAY_NODE_PORT,

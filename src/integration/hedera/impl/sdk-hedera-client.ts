@@ -2,7 +2,7 @@
 
 import {
   AccountCreateTransaction,
-  type AccountId,
+  AccountId,
   type AccountInfo,
   AccountInfoQuery,
   AccountUpdateTransaction,
@@ -19,11 +19,14 @@ import {
   Hbar,
   HbarUnit,
   Long,
+  NodeCreateTransaction,
+  NodeDeleteTransaction,
   NodeUpdateTransaction,
   PrecheckStatusError,
   type PrivateKey,
   Status,
   StatusError,
+  type Transaction,
   type TransactionReceipt,
   TopicCreateTransaction,
   Timestamp,
@@ -35,6 +38,8 @@ import {
 import {type HederaClient} from '../hedera-client.js';
 import {type HederaFileInfo} from '../hedera-file-info.js';
 import {type HederaFreezeOptions} from '../hedera-freeze-options.js';
+import {type HederaNodeCreateOptions} from '../hedera-node-create-options.js';
+import {type HederaNodeUpdateOptions} from '../hedera-node-update-options.js';
 import {type HederaFreezeResult} from '../hedera-freeze-result.js';
 import {type HederaFreezeType} from '../hedera-freeze-type.js';
 import {type HederaFileTransactionResult} from '../hedera-file-transaction-result.js';
@@ -79,6 +84,16 @@ export class SdkHederaClient implements HederaClient {
     await this.sdkClient.ping(accountId);
   }
 
+  public async checkHealth(): Promise<void> {
+    const nodeAccountIds: AccountId[] = Object.values(this.sdkClient.network).map(
+      (accountId: string | AccountId): AccountId => AccountId.fromString(accountId.toString()),
+    );
+    await new AccountInfoQuery()
+      .setAccountId(new AccountId(this.sdkClient.shard, this.sdkClient.realm, 2))
+      .setNodeAccountIds(nodeAccountIds)
+      .getCost(this.sdkClient);
+  }
+
   public close(): void {
     this.sdkClient.close();
   }
@@ -113,6 +128,24 @@ export class SdkHederaClient implements HederaClient {
     const receipt: TransactionReceipt = await txResponse.getReceipt(this.sdkClient);
 
     return receipt.status === Status.Success;
+  }
+
+  public async updateAccountStakedNode(
+    accountId: AccountId | string,
+    nodeId: number,
+    signerPrivateKey: PrivateKey,
+  ): Promise<HederaTransactionStatus> {
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
+      .setAccountId(accountId)
+      .setStakedNodeId(nodeId)
+      .freezeWith(this.sdkClient);
+
+    const signedTransaction: AccountUpdateTransaction = await transaction.sign(signerPrivateKey);
+
+    const response: TransactionResponse = await signedTransaction.execute(this.sdkClient);
+    const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
+
+    return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};
   }
 
   public async createAccount(
@@ -200,14 +233,66 @@ export class SdkHederaClient implements HederaClient {
     newAdminKey: PrivateKey,
     currentAdminKey: PrivateKey,
   ): Promise<HederaTransactionStatus> {
-    let transaction: NodeUpdateTransaction = new NodeUpdateTransaction()
-      .setNodeId(new Long(nodeId))
-      .setAdminKey(newAdminKey.publicKey)
-      .freezeWith(this.sdkClient);
-    transaction = await transaction.sign(newAdminKey);
-    transaction = await transaction.sign(currentAdminKey);
+    return await this.updateNode({
+      nodeId,
+      adminKey: newAdminKey.publicKey,
+      signingKeys: [newAdminKey, currentAdminKey],
+    });
+  }
 
-    const response: TransactionResponse = await transaction.execute(this.sdkClient);
+  public async updateNode(options: HederaNodeUpdateOptions): Promise<HederaTransactionStatus> {
+    const transaction: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(new Long(options.nodeId));
+
+    if (options.adminKey) {
+      transaction.setAdminKey(options.adminKey);
+    }
+    if (options.accountId) {
+      transaction.setAccountId(options.accountId);
+    }
+    if (options.gossipEndpoints) {
+      transaction.setGossipEndpoints(options.gossipEndpoints);
+    }
+    if (options.serviceEndpoints) {
+      transaction.setServiceEndpoints(options.serviceEndpoints);
+    }
+    if (options.grpcWebProxyEndpoint) {
+      transaction.setGrpcWebProxyEndpoint(options.grpcWebProxyEndpoint);
+    }
+    if (options.certificateHash) {
+      transaction.setCertificateHash(options.certificateHash);
+    }
+    if (options.gossipCaCertificate) {
+      transaction.setGossipCaCertificate(options.gossipCaCertificate);
+    }
+
+    return await this.signAndExecute(transaction, options.signingKeys);
+  }
+
+  public async createNode(options: HederaNodeCreateOptions): Promise<HederaTransactionStatus> {
+    const transaction: NodeCreateTransaction = new NodeCreateTransaction()
+      .setAccountId(options.accountId)
+      .setGossipEndpoints(options.gossipEndpoints)
+      .setServiceEndpoints(options.serviceEndpoints)
+      .setGossipCaCertificate(options.gossipCaCertificate)
+      .setCertificateHash(options.certificateHash)
+      .setAdminKey(options.adminKey);
+
+    return await this.signAndExecute(transaction, options.signingKeys);
+  }
+
+  public async deleteNode(nodeId: number, adminKey: PrivateKey): Promise<HederaTransactionStatus> {
+    const transaction: NodeDeleteTransaction = new NodeDeleteTransaction().setNodeId(new Long(nodeId));
+
+    return await this.signAndExecute(transaction, [adminKey]);
+  }
+
+  private async signAndExecute(transaction: Transaction, signingKeys: PrivateKey[]): Promise<HederaTransactionStatus> {
+    let signedTransaction: Transaction = transaction.freezeWith(this.sdkClient);
+    for (const signingKey of signingKeys) {
+      signedTransaction = await signedTransaction.sign(signingKey);
+    }
+
+    const response: TransactionResponse = await signedTransaction.execute(this.sdkClient);
     const receipt: TransactionReceipt = await response.getReceipt(this.sdkClient);
 
     return {isSuccess: receipt.status === Status.Success, status: receipt.status.toString()};

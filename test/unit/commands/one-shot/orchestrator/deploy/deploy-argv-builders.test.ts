@@ -27,6 +27,14 @@ afterEach((): void => {
   delete process.env.BLOCK_STREAM_STREAM_MODE;
 });
 
+type FalconCandidateSection = {
+  name: string;
+  image: string;
+  archive: string;
+  configure: (section: Record<string, string>) => Partial<OneShotSingleDeployConfigClass>;
+  build: (config: OneShotSingleDeployConfigClass) => string[];
+};
+
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {
     deployment: 'test-deployment',
@@ -321,6 +329,73 @@ describe('buildRelayArgv', (): void => {
     );
     expect(argv[argv.indexOf(optionFromFlag(Flags.chainId)) + 1]).to.equal('1234');
   });
+});
+
+describe('component image flags in falcon sections', (): void => {
+  const componentImageFlag: string = optionFromFlag(Flags.componentImage);
+  const componentImageArchiveFlag: string = optionFromFlag(Flags.componentImageArchive);
+
+  const sections: FalconCandidateSection[] = [
+    {
+      name: 'blockNode',
+      image: 'ghcr.io/hiero-ledger/hiero-block-node-solo-dev:0.45.0-tck.1',
+      archive: '/candidates/block-node.tar',
+      configure: (section: Record<string, string>): Partial<OneShotSingleDeployConfigClass> => ({
+        blockNodeConfiguration: section,
+      }),
+      build: (config: OneShotSingleDeployConfigClass): string[] => DeployArgvBuilders.buildBlockNodeArgv(config),
+    },
+    {
+      name: 'mirrorNode',
+      image: 'gcr.io/mirrornode/hedera-mirror:0.166.0-tck.1',
+      archive: '/candidates/mirror-node.tar',
+      configure: (section: Record<string, string>): Partial<OneShotSingleDeployConfigClass> => ({
+        mirrorNodeConfiguration: section,
+      }),
+      build: (config: OneShotSingleDeployConfigClass): string[] => DeployArgvBuilders.buildMirrorNodeArgv(config),
+    },
+    {
+      name: 'explorerNode',
+      image: 'localhost:5000/hiero-mirror-node-explorer:26.0.0-tck.1',
+      archive: '/candidates/explorer.tar',
+      configure: (section: Record<string, string>): Partial<OneShotSingleDeployConfigClass> => ({
+        explorerNodeConfiguration: section,
+      }),
+      build: (config: OneShotSingleDeployConfigClass): string[] => DeployArgvBuilders.buildExplorerArgv(config),
+    },
+    {
+      name: 'relayNode',
+      image: 'ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.81.0-tck.1',
+      archive: '/candidates/relay.tar',
+      configure: (section: Record<string, string>): Partial<OneShotSingleDeployConfigClass> => ({
+        relayNodeConfiguration: section,
+      }),
+      build: (config: OneShotSingleDeployConfigClass): string[] => DeployArgvBuilders.buildRelayArgv(config),
+    },
+  ];
+
+  for (const section of sections) {
+    const config: OneShotSingleDeployConfigClass = makeConfig(
+      section.configure({[componentImageFlag]: section.image, [componentImageArchiveFlag]: section.archive}),
+    );
+
+    it(`passes the ${section.name} section image and archive to its own command unchanged`, (): void => {
+      const argv: string[] = section.build(config);
+      expect(argv[argv.indexOf(componentImageFlag) + 1]).to.equal(section.image);
+      expect(argv[argv.indexOf(componentImageArchiveFlag) + 1]).to.equal(section.archive);
+    });
+
+    it(`keeps the ${section.name} section image and archive out of the other component commands`, (): void => {
+      for (const other of sections) {
+        if (other.name === section.name) {
+          continue;
+        }
+        const argv: string[] = other.build(config);
+        expect(argv, `${other.name} command`).to.not.include(componentImageFlag);
+        expect(argv, `${other.name} command`).to.not.include(componentImageArchiveFlag);
+      }
+    });
+  }
 });
 
 describe('buildConsensusDeployArgv', (): void => {
@@ -901,11 +976,67 @@ describe('buildComponentVersionTuple', (): void => {
     ).to.deep.equal({[ComponentTypes.ConsensusNode]: 'v0.79.0'});
   });
 
-  it('includes the relay and explorer in a minimal setup', (): void => {
-    const tuple: object = DeployArgvBuilders.buildComponentVersionTuple(
-      makeConfig({versions, deployRelay: false, deployExplorer: false, minimalSetup: true}),
-    );
+  it('leaves out the relay and explorer in a minimal setup', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      versions,
+      deployRelay: undefined,
+      deployExplorer: undefined,
+      minimalSetup: true,
+    });
+    DeployArgvBuilders.resolveComponentSelection(config);
 
-    expect(tuple).to.include.keys(ComponentTypes.RelayNodes, ComponentTypes.Explorer);
+    expect(DeployArgvBuilders.buildComponentVersionTuple(config)).to.deep.equal({
+      [ComponentTypes.ConsensusNode]: 'v0.79.0',
+      [ComponentTypes.MirrorNode]: 'v0.165.0',
+    });
+  });
+});
+
+describe('resolveComponentSelection', (): void => {
+  it('deploys every optional component by default', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      deployMirrorNode: undefined,
+      deployExplorer: undefined,
+      deployRelay: undefined,
+      pinger: undefined,
+    });
+
+    DeployArgvBuilders.resolveComponentSelection(config);
+
+    expect(config.deployMirrorNode).to.be.true;
+    expect(config.deployExplorer).to.be.true;
+    expect(config.deployRelay).to.be.true;
+    expect(config.pinger).to.be.true;
+  });
+
+  it('keeps components the caller explicitly disabled', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      deployMirrorNode: false,
+      deployExplorer: false,
+      deployRelay: false,
+      pinger: false,
+    });
+
+    DeployArgvBuilders.resolveComponentSelection(config);
+
+    expect(config.deployMirrorNode).to.be.false;
+    expect(config.deployExplorer).to.be.false;
+    expect(config.deployRelay).to.be.false;
+    expect(config.pinger).to.be.false;
+  });
+
+  it('turns off the explorer and relay in a minimal setup, keeping the mirror node', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      deployMirrorNode: undefined,
+      deployExplorer: true,
+      deployRelay: true,
+      minimalSetup: true,
+    });
+
+    DeployArgvBuilders.resolveComponentSelection(config);
+
+    expect(config.deployMirrorNode).to.be.true;
+    expect(config.deployExplorer).to.be.false;
+    expect(config.deployRelay).to.be.false;
   });
 });

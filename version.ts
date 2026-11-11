@@ -13,7 +13,7 @@ import * as constants from './src/core/constants.js';
  */
 
 // Dependencies
-export const HELM_VERSION: string = 'v3.14.2';
+export const HELM_VERSION: string = 'v4.3.1';
 export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
@@ -29,7 +29,7 @@ export const HEDERA_PLATFORM_VERSION: string =
   constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.80.0-alpha.4';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.165.2-rc1';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.2.0';
-export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.80.1';
+export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.81.0';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
 // If this version changes, regenerate test/data/proto.zip (see test/data/get-block.sh for steps) —
