@@ -102,13 +102,16 @@ References must be immutable: an exact version tag or a digest, never a moving t
 ## 4. File Names
 
 The archive file name is `<image>__<platform>` with every `/` and `:` replaced by `__`, plus `.tar`.
-The hash file name is the archive file name plus `.sha256`.
+A digest-pinned image adds `__tagged` before `.tar`, because its archive also carries a tag name
+(§8); the archives published for it before that change cannot start in a cluster, and a published
+name is never reused for different bytes (§5). The hash file name is the archive file name plus
+`.sha256`.
 
 | Image                                          | Platform      | `tarFile`                                                           |
 | ---------------------------------------------- | ------------- | ------------------------------------------------------------------- |
 | `docker.io/library/busybox:1.36.1`             | `linux/amd64` | `docker.io__library__busybox__1.36.1__linux__amd64.tar`             |
 | `ghcr.io/hiero-ledger/hiero-block-node:0.43.0` | `linux/arm64` | `ghcr.io__hiero-ledger__hiero-block-node__0.43.0__linux__arm64.tar` |
-| `docker.io/pgsty/silo@sha256:<digest>`         | `linux/amd64` | `docker.io__pgsty__silo@sha256__<digest>__linux__amd64.tar`         |
+| `docker.io/pgsty/silo@sha256:<digest>`         | `linux/amd64` | `docker.io__pgsty__silo@sha256__<digest>__linux__amd64__tagged.tar` |
 
 The local cache holds one platform only, so the CLI names its copy without the platform suffix
 (`docker.io__library__busybox__1.36.1.tar`). Embedding the registry, path, version and platform
@@ -177,6 +180,14 @@ Produced by `.github/workflows/script/image_cache_export.sh` (A3,
 - The layout's manifest carries `io.containerd.image.name` set to the `image` reference. Without it
   containerd imports the image under a name the kubelet does not look up (for example
   `index.docker.io/…`), and the cluster pulls the image from its registry anyway.
+- A digest-pinned image's layout lists its manifest a second time, named
+  `<name>:solo-cache-<digest hex>`. `kind load image-archive` also imports every image as
+  `import-<date>@sha256:<manifest digest>`. An image with no tag is started from its alphabetically
+  first digest name, which for a name sorting after `docker.io/library/import-` (such as
+  `docker.io/pgsty/silo`) is that import name; containerd cannot find it under its normalized
+  `docker.io/library/import-…` form and the pod fails with `CreateContainerError`
+  ([#6420](https://github.com/hiero-ledger/solo/issues/6420)). A tag name is always used first, so
+  the image starts.
 - The tar is packed reproducibly (sorted entries, zero timestamps and owners, fixed modes), so the
   same image always produces the same hash (§5).
 
