@@ -92,7 +92,7 @@ export const MIRROR_NODE_EDGE_VERSION: string =
 export const EXPLORER_EDGE_VERSION: string =
   constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || EXPLORER_VERSION;
 export const HEDERA_JSON_RPC_RELAY_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || '0.80.1';
+  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || '0.81.0';
 export const BLOCK_NODE_EDGE_VERSION: string =
   constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || '0.45.0-rc5';
 
