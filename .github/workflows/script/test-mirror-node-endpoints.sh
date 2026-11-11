@@ -61,6 +61,47 @@ check_deps() {
   fi
 }
 
+# Collect cluster and Solo diagnostics on failure. The runner is ephemeral, so a preserved Kind
+# cluster is unreachable after the job ends; write everything under ~/.solo/logs, which the
+# workflow uploads as an artifact. Every command is bounded and best-effort so that diagnostics
+# can never mask the original failure.
+collect_failure_diagnostics() {
+  local out_dir="${HOME}/.solo/logs/mirror-endpoints-diagnostics"
+  mkdir -p "$out_dir" 2>/dev/null || return 0
+
+  echo "::group::Failure diagnostics"
+  info "Collecting failure diagnostics into $out_dir"
+
+  timeout 120 npm run solo-test -- deployment diagnostics all --deployment "$DEPLOYMENT" -q \
+    >"$out_dir/solo-diagnostics-all.log" 2>&1 || true
+
+  timeout 30 kubectl get pods -A -o wide >"$out_dir/pods.txt" 2>&1 || true
+  timeout 30 kubectl get events -A --sort-by=.lastTimestamp >"$out_dir/events.txt" 2>&1 || true
+  timeout 30 kubectl get pvc,pv -A >"$out_dir/storage.txt" 2>&1 || true
+  timeout 30 kubectl top pods -A >"$out_dir/top-pods.txt" 2>&1 || true
+  timeout 30 kubectl describe nodes >"$out_dir/describe-nodes.txt" 2>&1 || true
+
+  # describe + logs for every pod that is not Running/Completed or has a container that is not
+  # ready (e.g. the MinIO tenant pod that never became ready in #6422)
+  local pods pod_namespace pod_name
+  pods=$(timeout 30 kubectl get pods -A --no-headers 2>/dev/null |
+    awk '{split($3, ready, "/"); if (($4 != "Running" && $4 != "Completed") || ready[1] != ready[2]) print $1 "/" $2}') || true
+  for entry in $pods; do
+    pod_namespace="${entry%%/*}"
+    pod_name="${entry##*/}"
+    timeout 30 kubectl describe pod -n "$pod_namespace" "$pod_name" \
+      >"$out_dir/describe-${pod_namespace}-${pod_name}.txt" 2>&1 || true
+    timeout 30 kubectl logs -n "$pod_namespace" "$pod_name" --all-containers --tail=500 \
+      >"$out_dir/logs-${pod_namespace}-${pod_name}.txt" 2>&1 || true
+  done
+
+  # always capture the MinIO tenant, the component that stalled in #6422
+  timeout 30 kubectl describe pods -n "$NAMESPACE" -l v1.min.io/tenant=minio \
+    >"$out_dir/describe-minio-tenant.txt" 2>&1 || true
+
+  echo "::endgroup::"
+}
+
 cleanup() {
   local exit_code=$?
   echo
@@ -77,6 +118,7 @@ cleanup() {
     kind delete cluster --name "$SOLO_CLUSTER_NAME" 2>/dev/null || true
     /bin/rm -rf ~/.solo 2>/dev/null || true
   else
+    collect_failure_diagnostics || true
     info "Test failed - preserving cluster for debugging"
     info "Cluster: $SOLO_CLUSTER_NAME"
     info "Namespace: $NAMESPACE"
