@@ -36,74 +36,9 @@ permissions:
   contents: read
 
 jobs:
-  # TEMPORARY (#6420) — DO NOT MERGE. One-off run from this branch to remove the v0.97.0 Silo image cache
-  # archives from the CDN, then stop: every other job needs this one and is skipped when it fails.
-  # Containers created from these archives fail with CreateContainerError on containerd 1.7 Kind nodes. With the
-  # files gone, `solo cache image pull` reports Silo as a download failure and Kind pulls it from Docker Hub.
-  # Remove this job and the `needs` on prepare-release and docs-automation before merging.
-  remove-broken-silo-cache-archives:
-    name: Remove Broken Silo Cache Archives (#6420)
-    runs-on: hiero-solo-linux-medium
-    permissions:
-      contents: read
-      id-token: write # signs in to the image cache CDN bucket
-    env:
-      CDN_BUCKET: 'solo-cache-cdn-public'
-      SILO_ARCHIVES: >-
-        docker.io__pgsty__silo@sha256__635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46__linux__amd64.tar
-        docker.io__pgsty__silo@sha256__635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46__linux__amd64.tar.sha256
-        docker.io__pgsty__silo@sha256__635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46__linux__arm64.tar
-        docker.io__pgsty__silo@sha256__635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46__linux__arm64.tar.sha256
-    steps:
-      - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
-        with:
-          egress-policy: audit
-
-      - name: Authenticate to Google Cloud
-        uses: step-security/google-github-auth@775fc4c80760272ef389c9f9f8d98de7db0c170d # v3.0.2
-        with:
-          workload_identity_provider: 'projects/1074309218154/locations/global/workloadIdentityPools/solo-cdn-pool/providers/gh-provider'
-          service_account: 'solo-cdn-read-write-access@solo-cdn-production.iam.gserviceaccount.com'
-          # The audience the CDN provider is configured to accept, instead of the provider URL the action defaults to.
-          audience: 'api://AzureADTokenExchange'
-
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-
-      - name: Delete Silo Archives from CDN
-        run: |
-          set -euo pipefail
-          for file in ${SILO_ARCHIVES}; do
-            object="gs://${CDN_BUCKET}/${file}"
-            if gcloud storage objects describe "${object}" > /dev/null 2>&1; then
-              gcloud storage rm "${object}"
-              echo "Deleted ${object}"
-            else
-              echo "Already absent: ${object}"
-            fi
-          done
-
-          # Confirm none of them is left in the bucket. The CDN can keep serving a cached copy for up to an
-          # hour (cache-control: public,max-age=3600).
-          for file in ${SILO_ARCHIVES}; do
-            if gcloud storage objects describe "gs://${CDN_BUCKET}/${file}" > /dev/null 2>&1; then
-              echo "::error::gs://${CDN_BUCKET}/${file} is still in the bucket"
-              exit 1
-            fi
-          done
-          echo "All Silo archives are gone from gs://${CDN_BUCKET}"
-
-      - name: Stop Workflow
-        run: |
-          echo "::error::Stopped on purpose after removing the Silo cache archives (#6420); no release step runs in this run."
-          exit 1
-
   prepare-release:
     name: Prepare Workflow Run
     runs-on: hiero-solo-linux-medium
-    needs:
-      - remove-broken-silo-cache-archives # TEMPORARY (#6420) — remove before merging
     outputs:
       version: ${{ steps.set-outputs.outputs.version }}
       need-hl-release: ${{ steps.set-outputs.outputs.need-hl-release }}
@@ -768,8 +703,6 @@ jobs:
 
   docs-automation:
     name: Docs Automation
-    needs:
-      - remove-broken-silo-cache-archives # TEMPORARY (#6420) — remove before merging
     uses: $/.github/workflows/zxc-docs-automation.yaml
 
   setup:
