@@ -12,7 +12,7 @@ git checkout "${BRANCH_NAME}"
 # Dependencies Versions
 NODE_VERSION="22.0.0"
 KIND_VERSION="v0.22.0"
-HELM_VERSION="3.15.4"
+HELM_VERSION="4.3.1"
 
 echo "***** Setup *****"
 
