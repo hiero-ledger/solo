@@ -69,7 +69,6 @@ interface MirrorNodeCommandInternal {
   waitForMirrorNodeSchemaTask: () => SoloListrTask<MirrorNodeSchemaWaitTaskContext>;
   enableDebuggerPortForwardingTask: () => SoloListrTask<MirrorNodeDebuggerTaskContext>;
   k8Factory: {getK8: (context: string) => Record<string, unknown>};
-  chartManager: {getHelmMajorVersion: sinon.SinonStub};
   prepareBlockNodeIntegrationValues: (config: {
     cacheDir: string;
     clusterReference: string;
@@ -550,7 +549,6 @@ describe('MirrorNodeCommand unit tests', (): void => {
       const replacerStub: sinon.SinonStub = sinon
         .stub(HelmPostRenderer, 'replacer')
         .returns(new HelmChartValues().arguments('--post-renderer', '/cache/renderer.sh'));
-      mirrorNodeCommandInternal.chartManager = {getHelmMajorVersion: sinon.stub().resolves(3)};
       const secrets: {exists: sinon.SinonStub; read: sinon.SinonStub} = {
         exists: sinon.stub().resolves(false),
         read: sinon.stub(),
@@ -567,7 +565,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
       });
 
       const valueArguments: string[] = chartValues.toArguments();
-      expect(replacerStub).to.have.been.calledWith(sinon.match.string, 3, 'mirror-passwords', 'mirror-passwords-2');
+      expect(replacerStub).to.have.been.calledWith(sinon.match.string, 'mirror-passwords', 'mirror-passwords-2');
       expect(valueArguments.slice(valueArguments.indexOf('--post-renderer'))[1]).to.equal('/cache/renderer.sh');
       expect(valueArguments).to.include('db.owner.username=mirror_node_2');
       expect(valueArguments).to.include('importer.db.username=mirror_importer_2');
@@ -583,7 +581,6 @@ describe('MirrorNodeCommand unit tests', (): void => {
       sinon
         .stub(HelmPostRenderer, 'replacer')
         .returns(new HelmChartValues().arguments('--post-renderer', '/cache/renderer.sh'));
-      mirrorNodeCommandInternal.chartManager = {getHelmMajorVersion: sinon.stub().resolves(3)};
       const secrets: {exists: sinon.SinonStub; read: sinon.SinonStub} = {
         exists: sinon.stub().resolves(true),
         read: sinon.stub().resolves({data: {HIERO_MIRROR_WEB3_DB_PASSWORD: Base64.encode('kept-password')}}),
