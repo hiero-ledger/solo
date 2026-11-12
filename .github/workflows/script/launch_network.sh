@@ -735,6 +735,7 @@ add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIE
 
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
+CURRENT_RELAY_VERSION="$(extract_version HEDERA_JSON_RPC_RELAY_VERSION version.ts)"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
 
 # TEMPORARY WORKAROUND:
@@ -1090,7 +1091,12 @@ npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-a
 wait_for_mirror_block_count_progress "target deployment after component upgrades" "${target_block_before_final_wait}" 1 180 2 > /dev/null
 
 # Re-pass the relay override, see TEMP_SOURCE_RELAY_VALUES_FILE above.
-npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_SOURCE_RELAY_VALUES_FILE}" -q --dev
+# Pass --relay-version explicitly: without it, `relay node upgrade` keeps the version recorded in
+# remote config, so the final verification would still run against the prior release's relay.
+# Relays before 0.81.0 answer eth_getTransactionByHash with a synthetic transaction (r/s = "0x")
+# when mirror has the logs but not yet the contract result; hardhat-ethers cannot parse it and
+# the ERC-20 smoke test hangs until the mocha timeout (#6428).
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --relay-version "${CURRENT_RELAY_VERSION}" --values-file "${TEMP_SOURCE_RELAY_VALUES_FILE}" -q --dev
 # Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
 refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
 

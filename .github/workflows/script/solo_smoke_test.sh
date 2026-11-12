@@ -10,6 +10,8 @@ set -eo pipefail
 # Then run smart contract test, and also javascript sdk sample test to interact with solo network
 #
 export PATH=~/.solo/bin:${PATH}
+# Resolved up front: the script later changes to the parent directory before running the contract test.
+SMOKE_TEST_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source .github/workflows/script/helper.sh
 
 function clone_smart_contract_repo ()
@@ -102,6 +104,7 @@ function watch_contract_test_idle ()
 
 function start_contract_test ()
 {
+  local preload_script="${SMOKE_TEST_SCRIPT_DIR}/hardhat-tolerate-unparseable-transactions.cjs"
   cd hedera-smart-contracts
   echo "Show current port forward for debugging purpose"
   ps -ef | grep port-forward
@@ -114,7 +117,10 @@ function start_contract_test ()
   fi
   watch_contract_test_idle "${test_output}" &
   local watcher_pid=$!
-  npm run hh:test 2>&1 | tee "${test_output}" || result=$?
+  # The preload keeps hardhat-ethers polling instead of hanging when the relay returns a transaction
+  # it cannot parse; see the comment in the preload script and #6428.
+  NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--require \"${preload_script}\"" \
+    npm run hh:test 2>&1 | tee "${test_output}" || result=$?
   kill "${watcher_pid}" 2> /dev/null || true
   wait "${watcher_pid}" 2> /dev/null || true
   if [[ $result -ne 0 ]] && grep -q 'Timeout of' "${test_output}"; then
