@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {describe, it, beforeEach, afterEach} from 'mocha';
-import sinon from 'sinon';
+import sinon, {type SinonStub} from 'sinon';
 import {ErrorHandler} from '../../../src/core/error-handler.js';
 import {ExitCode} from '../../../src/core/exit-code.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
@@ -10,6 +10,9 @@ import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
 import {SilentBreak} from '../../../src/core/errors/silent-break.js';
 import {UserBreak} from '../../../src/core/errors/user-break.js';
+import {ErrorCodeRegistry} from '../../../src/core/errors/error-code-registry.js';
+import {CacheImageTemplateUnknownError} from '../../../src/integration/cache/errors/cache-image-template-unknown-error.js';
+import {CacheImageTemplateUndeclaredError} from '../../../src/integration/cache/errors/cache-image-template-undeclared-error.js';
 
 function incompatibleTuple(): SoloError {
   return new SoloErrors.validation.componentVersionIncompatible(
@@ -24,6 +27,7 @@ function chartInstallFailed(): SoloError {
 
 describe('ErrorHandler', (): void => {
   let errorHandler: ErrorHandler;
+  let showUserError: SinonStub;
   let originalExitCode: number | string | undefined;
 
   function exitCodeFor(error: unknown): number | string | undefined {
@@ -31,10 +35,15 @@ describe('ErrorHandler', (): void => {
     return process.exitCode;
   }
 
+  function shownErrorCode(): string | undefined {
+    return (showUserError.firstCall.args[0] as SoloError).getFormattedCode();
+  }
+
   beforeEach((): void => {
+    showUserError = sinon.stub();
     const logger: SoloLogger = {
       showUser: sinon.stub(),
-      showUserError: sinon.stub(),
+      showUserError,
       info: sinon.stub(),
     } as unknown as SoloLogger;
     errorHandler = new ErrorHandler(logger);
@@ -111,6 +120,18 @@ describe('ErrorHandler', (): void => {
       expect(exitCodeFor(new Error('boom'))).to.equal(ExitCode.FAILURE);
       expect(exitCodeFor(new SoloError('uncoded'))).to.equal(ExitCode.FAILURE);
       expect(exitCodeFor('not an error')).to.equal(ExitCode.FAILURE);
+    });
+  });
+
+  describe('translated errors', (): void => {
+    it('should exit with the invalid input code when the error is shown as a user-owned validation error', (): void => {
+      expect(exitCodeFor(new CacheImageTemplateUnknownError('CONSENSUS'))).to.equal(ExitCode.INVALID_INPUT);
+      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.CACHE_IMAGE_TEMPLATE_UNKNOWN);
+    });
+
+    it('should exit with the failure code when the error is shown as an error that is not invalid input', (): void => {
+      expect(exitCodeFor(new CacheImageTemplateUndeclaredError('CONSENSUS'))).to.equal(ExitCode.FAILURE);
+      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.CACHE_IMAGE_TEMPLATE_UNDECLARED);
     });
   });
 

@@ -26,8 +26,7 @@ export class ErrorHandler {
     } else if (error_ instanceof SilentBreak) {
       this.handleSilentBreak(error_);
     } else {
-      this.handleError(error);
-      process.exitCode = ErrorHandler.resolveExitCode(error);
+      process.exitCode = ErrorHandler.resolveExitCode(this.handleError(error));
     }
   }
 
@@ -52,7 +51,8 @@ export class ErrorHandler {
     this.logger.info(silentBreak.message);
   }
 
-  private handleError(error: unknown): void {
+  /** Shows the error to the user and returns it as shown, which is the translated error when a translator applies. */
+  private handleError(error: unknown): unknown {
     const translated: unknown =
       KubeErrorTranslator.tryTranslate(error) ??
       CacheErrorTranslator.tryTranslate(error) ??
@@ -66,6 +66,7 @@ export class ErrorHandler {
         'Or to collect logs and create a GitHub issue in one step:\n' +
         '   solo deployment diagnostics report\n',
     );
+    return translated;
   }
 
   /**
