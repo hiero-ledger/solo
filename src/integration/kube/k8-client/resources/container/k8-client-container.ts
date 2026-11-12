@@ -34,6 +34,8 @@ import eol from 'eol';
 import {ResumableCopySource} from '../../../resources/container/resumable-copy-source.js';
 
 export class K8ClientContainer implements Container {
+  private static readonly reportedKubectlBinaries: Set<string> = new Set<string>();
+
   private readonly logger: SoloLogger;
 
   public constructor(
@@ -98,8 +100,16 @@ export class K8ClientContainer implements Container {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
     const spawnPath: string = `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`;
+    const resolvedBinary: string = K8ClientContainer.resolveExecutable(constants.KUBECTL, spawnPath);
+    if (!K8ClientContainer.reportedKubectlBinaries.has(resolvedBinary)) {
+      // once per distinct binary at info, so the log shows which kubectl solo runs without one line per exec
+      K8ClientContainer.reportedKubectlBinaries.add(resolvedBinary);
+      this.logger.info(
+        `Using kubectl binary ${resolvedBinary} (solo install dir: ${this.kubectlInstallationDirectory}, searched first)`,
+      );
+    }
     this.logger.debug(
-      `Executing kubectl with arguments: ${fullArguments.join(' ')} [resolved binary: ${K8ClientContainer.resolveExecutable(constants.KUBECTL, spawnPath)}, own install dir: ${this.kubectlInstallationDirectory}]`,
+      `Executing kubectl with arguments: ${fullArguments.join(' ')} [resolved binary: ${resolvedBinary}]`,
     );
 
     return new Promise((resolve, reject): void => {

@@ -157,7 +157,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
     try {
       version = await this.getVersion(executableWithPath);
     } catch (error) {
-      this.logger.debug(
+      this.logger.info(
         `Failed to get version for ${this.executableName} at ${executableWithPath}, so it is treated as not meeting requirements: ${error instanceof Error ? error.message : error}`,
       );
       return false;
@@ -308,7 +308,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
     await this.preInstall();
 
     // If not installed, download and install
-    this.logger.debug(
+    this.logger.info(
       `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally ` +
         `[local ${this.localExecutableWithPath}: ${this.describeExecutable(this.localExecutableWithPath)}; ` +
         `global: ${this.allowGlobalInstallation() ? this.globalExecutablePath || 'not found in PATH' : 'not considered'}]. ` +
@@ -330,7 +330,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
 
     // In case there is an existing local installation, which did not meet the requirements - remove it
     if (this.isInstalledLocally()) {
-      this.logger.debug(
+      this.logger.info(
         `Replacing existing local ${this.executableName} at ${this.localExecutableWithPath} (it did not meet the requirements, see earlier log lines for the reason)`,
       );
     }
