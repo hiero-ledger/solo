@@ -176,11 +176,15 @@ jobs:
               },
               {
                 // Uploading logs and coverage goes through GitHub's artifact service, so a name
-                // that will not resolve fails the step after the toolkit's own five attempts.
+                // that will not resolve fails the step after the toolkit's own five attempts. A
+                // degraded service answers with an HTML error page instead of JSON, which the
+                // toolkit reports as `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`. The
+                // same outage can also lose an artifact the step created moments earlier, so
+                // finalizing it is refused with a 404 the toolkit treats as non-retryable.
                 description: 'artifact service could not be reached',
                 stepPrefixes: [],
                 required:
-                  /Failed to (Create|Finalize|Delete)Artifact[^\n]*after \d+ attempts[^\n]*(EAI_AGAIN|ENOTFOUND|ECONNRESET|ETIMEDOUT|socket hang up|502|503|504)/,
+                  /Failed to (Create|Finalize|Delete)Artifact[^\n]*after \d+ attempts[^\n]*(EAI_AGAIN|ENOTFOUND|ECONNRESET|ETIMEDOUT|socket hang up|502|503|504|is not valid JSON)|Failed to FinalizeArtifact: Received non-retryable error: Failed request: \(404\) Not Found: artifact not found/,
                 forbidden: /error TS\d{4}/,
               },
               {
@@ -258,6 +262,17 @@ jobs:
 
             const retryableStepPattern =
               /^(set up job|harden runner|checkout|set ?up|install|configure|bootstrap|restore|retry|build|compile|pack)\b/i;
+
+            // A step that uploads a report or an artifact only talks to GitHub, so running out of
+            // time is a stall on GitHub's side rather than a product hang - even when its name says
+            // "test", as in `Upload E2E Test Report`, which is why it bypasses the long running gate
+            // above. The artifact service rule cannot see this case: a degraded service holds each
+            // request for two minutes, so the toolkit's five attempts outlast the five minute step
+            // budget and the step is killed before it prints its final error (issue #6426). The
+            // toolkit's own retry line is required as well, so a timeout with no sign of the
+            // artifact service struggling is left alone.
+            const artifactUploadStepPattern = /^(upload|publish)\b/i;
+            const artifactServiceRetryPattern = /Attempt \d+ of \d+ failed with error: /;
 
             // Such a step can also fail for a settled reason no rerun will change - a bad ref or
             // credentials, an unresolvable action, a compile error - which vetoes a timeout retry.
@@ -369,7 +384,9 @@ jobs:
               const retryableSteps = failedSteps.filter(
                 step => retryableStepPattern.test(step.name) && !longRunningStepPattern.test(step.name));
 
-              if (candidates.length === 0 && retryableSteps.length === 0) {
+              const uploadSteps = failedSteps.filter(step => artifactUploadStepPattern.test(step.name));
+
+              if (candidates.length === 0 && retryableSteps.length === 0 && uploadSteps.length === 0) {
                 continue;
               }
 
@@ -381,6 +398,15 @@ jobs:
               const matched = candidates.find(rule => rule.required.test(log) && !rule.forbidden.test(log));
               if (matched) {
                 reasons.push(`${job.name}: ${matched.description}`);
+                continue;
+              }
+
+              const stalledUpload = uploadSteps.find(step => stepRanOutOfTime(step.name, log));
+              // No settled-failure veto here: those signatures describe checkout and compile
+              // failures that cannot occur in an upload, and `fatal:` also appears in every pino
+              // logger dump Solo prints, which vetoed the One Shot Single job in issue #6426.
+              if (stalledUpload && artifactServiceRetryPattern.test(log)) {
+                reasons.push(`${job.name}: '${stalledUpload.name}' stalled on the artifact service`);
                 continue;
               }
 
