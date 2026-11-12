@@ -63,11 +63,11 @@ export class ClassToObjectMapper implements ObjectMapper {
 
   public applyPropertyValue(object: object, key: string, value: Primitive | PrimitiveArray | object | object[]): void {
     if (!object) {
-      throw new SoloErrors.validation.illegalArgument('obj must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('obj must not be null or undefined');
     }
 
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     const normalizedKey: string = this.formatter.normalize(key);

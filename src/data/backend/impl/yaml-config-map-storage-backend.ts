@@ -42,7 +42,7 @@ export class YamlConfigMapStorageBackend extends ConfigMapStorageBackend impleme
 
   public async writeObject(key: string, data: object): Promise<void> {
     if (!data) {
-      throw new SoloErrors.validation.illegalArgument('data must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('data must not be null or undefined');
     }
 
     try {

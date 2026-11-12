@@ -25,13 +25,13 @@ export class Zippy {
    */
   public async zip(sourcePath: string, destinationPath: string): Promise<string> {
     if (!sourcePath) {
-      throw new SoloErrors.validation.missingArgument('srcPath is required');
+      throw new SoloErrors.internal.invalidArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new SoloErrors.validation.missingArgument('destPath is required');
+      throw new SoloErrors.internal.invalidArgument('destPath is required');
     }
     if (!destinationPath.endsWith('.zip')) {
-      throw new SoloErrors.validation.missingArgument('destPath must be a path to a zip file');
+      throw new SoloErrors.internal.invalidArgument('destPath must be a path to a zip file');
     }
 
     try {
@@ -61,10 +61,10 @@ export class Zippy {
 
   public unzip(sourcePath: string, destinationPath: string, verbose: boolean = false): string {
     if (!sourcePath) {
-      throw new SoloErrors.validation.missingArgument('srcPath is required');
+      throw new SoloErrors.internal.invalidArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new SoloErrors.validation.missingArgument('destPath is required');
+      throw new SoloErrors.internal.invalidArgument('destPath is required');
     }
 
     if (!fs.existsSync(sourcePath)) {
@@ -99,13 +99,13 @@ export class Zippy {
 
   public tar(sourcePath: string, destinationPath: string): string {
     if (!sourcePath) {
-      throw new SoloErrors.validation.missingArgument('srcPath is required');
+      throw new SoloErrors.internal.invalidArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new SoloErrors.validation.missingArgument('destPath is required');
+      throw new SoloErrors.internal.invalidArgument('destPath is required');
     }
     if (!destinationPath.endsWith('.tar.gz')) {
-      throw new SoloErrors.validation.missingArgument('destPath must be a path to a tar.gz file');
+      throw new SoloErrors.internal.invalidArgument('destPath must be a path to a tar.gz file');
     }
 
     if (!fs.existsSync(sourcePath)) {
@@ -129,10 +129,10 @@ export class Zippy {
 
   public untar(sourcePath: string, destinationPath: string): string {
     if (!sourcePath) {
-      throw new SoloErrors.validation.missingArgument('srcPath is required');
+      throw new SoloErrors.internal.invalidArgument('srcPath is required');
     }
     if (!destinationPath) {
-      throw new SoloErrors.validation.missingArgument('destPath is required');
+      throw new SoloErrors.internal.invalidArgument('destPath is required');
     }
 
     if (!fs.existsSync(sourcePath)) {

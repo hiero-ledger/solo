@@ -353,4 +353,5 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INJECTED_FAILURE: 'SOLO-9012',
   PIPELINE_CANCELLED: 'SOLO-9013',
   UNCAUGHT_FATAL_ERROR: 'SOLO-9014',
+  INVALID_ARGUMENT: 'SOLO-9015',
 } as const;

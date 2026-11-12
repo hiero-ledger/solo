@@ -76,10 +76,10 @@ export class KubeErrorTranslator {
       return new SoloErrors.system.ingressClassListFailed(error);
     }
     if (error instanceof KubeMissingArgumentError) {
-      return new SoloErrors.validation.missingArgument(error.argumentDescription);
+      return new SoloErrors.internal.invalidArgument(error.argumentDescription, undefined, error);
     }
     if (error instanceof KubeIllegalArgumentError) {
-      return new SoloErrors.validation.illegalArgument(error.reason);
+      return new SoloErrors.internal.invalidArgument(error.reason, undefined, error);
     }
     return undefined;
   }

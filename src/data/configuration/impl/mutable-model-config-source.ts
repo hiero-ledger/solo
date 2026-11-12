@@ -36,7 +36,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putObject<T>(key: string, value: T): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     this.mapper.applyPropertyValue(this.modelData, key, value as object);
@@ -45,7 +45,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putObjectArray<T>(key: string, value: T[]): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     this.mapper.applyPropertyValue(this.modelData, key, value);
@@ -54,7 +54,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putScalar(key: string, value: Primitive): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     if (!this.forest.has(key)) {
@@ -68,7 +68,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putScalarArray(key: string, value: Primitive[]): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     this.forest.addOrReplaceArray(key, value);

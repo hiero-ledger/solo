@@ -36,7 +36,7 @@ export class LayeredConfigProvider implements ConfigProvider {
 
   public register(config: Config): void {
     if (!config) {
-      throw new SoloErrors.validation.illegalArgument('config must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('config must not be null or undefined');
     }
 
     if (this._config) {

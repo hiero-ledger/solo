@@ -295,7 +295,7 @@ export class ConfigManager {
   public setFlag<T>(flag: CommandFlag, value: T): void {
     const activeConfig: AnyObject = this.getActiveConfig();
     if (!flag || !flag.name) {
-      throw new SoloErrors.validation.missingArgument('flag must have a name');
+      throw new SoloErrors.internal.invalidArgument('flag must have a name');
     }
     // if it is a namespace then convert it to NamespaceName
     if (flag.name === flags.namespace.name || flag.name === flags.clusterSetupNamespace.name) {

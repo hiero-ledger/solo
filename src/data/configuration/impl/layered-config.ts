@@ -33,7 +33,7 @@ export class LayeredConfig implements Config {
 
   public addSource(source: ConfigSource): void {
     if (!source) {
-      throw new SoloErrors.validation.illegalArgument('source cannot be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('source cannot be null or undefined');
     }
 
     if (this._sources.includes(source)) {
@@ -121,7 +121,7 @@ export class LayeredConfig implements Config {
         break;
       }
       default: {
-        throw new SoloErrors.validation.illegalArgument(`Unsupported scalar type: ${scalarType}`);
+        throw new SoloErrors.internal.invalidArgument(`Unsupported scalar type: ${scalarType}`);
       }
     }
 

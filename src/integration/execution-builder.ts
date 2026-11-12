@@ -15,10 +15,10 @@ export class ExecutionBuilder {
    */
   public flag(flag: string): this {
     if (!flag) {
-      throw new SoloErrors.validation.illegalArgument('flag must not be null', flag);
+      throw new SoloErrors.internal.invalidArgument('flag must not be null', flag);
     }
     if (!flag.startsWith('-')) {
-      throw new SoloErrors.validation.illegalArgument('flag must start with "-"', flag);
+      throw new SoloErrors.internal.invalidArgument('flag must start with "-"', flag);
     }
     this._flags.push(flag);
     return this;

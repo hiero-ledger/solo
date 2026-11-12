@@ -44,7 +44,7 @@ export class EnvironmentStorageBackend implements StorageBackend {
 
   public async readBytes(key: string): Promise<Buffer> {
     if (StringEx.isEmpty(key)) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined, or empty');
+      throw new SoloErrors.internal.invalidArgument('key must not be null, undefined, or empty');
     }
 
     const value: string | undefined = this.readRawValue(this.variableNameFor(key));

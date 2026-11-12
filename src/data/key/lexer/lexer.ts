@@ -56,13 +56,13 @@ export class Lexer {
 
   public nodeFor(key: string): Node {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     const segments: string[] = this.formatter.split(key);
 
     if (segments.length === 0 || segments[0].trim().length === 0) {
-      throw new SoloErrors.validation.illegalArgument('key must not be empty');
+      throw new SoloErrors.internal.invalidArgument('key must not be empty');
     }
 
     let currentNode: Node = this.tree.get(segments[0]);
@@ -93,7 +93,7 @@ export class Lexer {
 
   public addValue(key: string, value: string | null): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     const segments: string[] = this.formatter.split(this.formatter.normalize(key));
@@ -106,7 +106,7 @@ export class Lexer {
 
   public addOrReplaceObject(key: string, value: object | null): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     const normalizedKey: string = this.formatter.normalize(key);
@@ -124,7 +124,7 @@ export class Lexer {
 
   public addOrReplaceArray<T>(key: string, values: T[] | null): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     const normalizedKey: string = this.formatter.normalize(key);
@@ -169,7 +169,7 @@ export class Lexer {
 
   public addOrReplaceValue(key: string, value: string | null): void {
     if (!key) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     const node: Node = this.nodeFor(key);

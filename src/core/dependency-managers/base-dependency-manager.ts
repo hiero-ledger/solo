@@ -36,11 +36,11 @@ export abstract class BaseDependencyManager extends ShellRunner {
     super();
 
     if (!installationDirectory) {
-      throw new SoloErrors.validation.missingArgument('installation directory is required');
+      throw new SoloErrors.internal.invalidArgument('installation directory is required');
     }
 
     if (!downloader) {
-      throw new SoloErrors.validation.missingArgument('package downloader is required');
+      throw new SoloErrors.internal.invalidArgument('package downloader is required');
     }
 
     // Normalize architecture naming - many tools use 'amd64' instead of 'x64'

@@ -32,13 +32,13 @@ export class LockHolder {
    */
   private constructor(username: string, hostname: string, processId: number) {
     if (!username) {
-      throw new SoloErrors.validation.missingArgument('username is required');
+      throw new SoloErrors.internal.invalidArgument('username is required');
     }
     if (!hostname) {
-      throw new SoloErrors.validation.missingArgument('hostname is required');
+      throw new SoloErrors.internal.invalidArgument('hostname is required');
     }
     if (!processId) {
-      throw new SoloErrors.validation.missingArgument('pid is required');
+      throw new SoloErrors.internal.invalidArgument('pid is required');
     }
 
     this._username = username;

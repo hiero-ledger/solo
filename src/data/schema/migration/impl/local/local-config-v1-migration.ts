@@ -27,7 +27,7 @@ export class LocalConfigV1Migration implements SchemaMigration {
   public migrate(source: object): Promise<object> {
     if (!source) {
       // We should never pass null or undefined to this method, if this happens we should throw an error
-      throw new SoloErrors.validation.illegalArgument('source must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('source must not be null or undefined');
     }
 
     const clone: any = structuredClone(source);
