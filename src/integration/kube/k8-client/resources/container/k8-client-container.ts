@@ -45,6 +45,27 @@ export class K8ClientContainer implements Container {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
+  /**
+   * Finds the first directory on `searchPath` holding `executableName`, mirroring how the OS resolves the
+   * bare command that `spawn` is given. Used only for diagnostic logging.
+   */
+  private static resolveExecutable(executableName: string, searchPath: string): string {
+    const names: string[] =
+      platform === 'win32' ? [`${executableName}.exe`, `${executableName}.cmd`] : [executableName];
+    for (const directory of searchPath.split(path.delimiter).filter(Boolean)) {
+      for (const name of names) {
+        const candidate: string = path.join(directory, name);
+        try {
+          fs.accessSync(candidate, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK);
+          return candidate;
+        } catch {
+          // not present or not executable in this directory, so keep looking down PATH
+        }
+      }
+    }
+    return `${executableName} (not found in PATH)`;
+  }
+
   private async getContext(): Promise<string> {
     return this.kubeConfig.getCurrentContext();
   }
@@ -75,7 +96,10 @@ export class K8ClientContainer implements Container {
   ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
-    this.logger.debug(`Executing kubectl with arguments: ${fullArguments.join(' ')}`);
+    const spawnPath: string = `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`;
+    this.logger.debug(
+      `Executing kubectl with arguments: ${fullArguments.join(' ')} [resolved binary: ${K8ClientContainer.resolveExecutable(constants.KUBECTL, spawnPath)}, own install dir: ${this.kubectlInstallationDirectory}]`,
+    );
 
     return new Promise((resolve, reject): void => {
       const callMessage: string = `${constants.KUBECTL} ${fullArguments.join(' ')}`;
@@ -85,7 +109,7 @@ export class K8ClientContainer implements Container {
         {
           shell: false,
           env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL, {
-            PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`,
+            PATH: spawnPath,
           }),
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: os.platform() === 'win32',

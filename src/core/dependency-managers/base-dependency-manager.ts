@@ -150,22 +150,41 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Check if the given installation meets version requirements
    */
   public async installationMeetsRequirements(executableWithPath: string): Promise<boolean> {
+    this.logger.debug(
+      `Checking ${this.executableName} at ${executableWithPath} against required version >= ${this.getRequiredVersion()}: ${this.describeExecutable(executableWithPath)}`,
+    );
     let version: string;
     try {
       version = await this.getVersion(executableWithPath);
     } catch (error) {
       this.logger.debug(
-        `Failed to get version for ${this.executableName} at ${executableWithPath}: ${error instanceof Error ? error.message : error}`,
+        `Failed to get version for ${this.executableName} at ${executableWithPath}, so it is treated as not meeting requirements: ${error instanceof Error ? error.message : error}`,
       );
       return false;
     }
     if (new SemanticVersion<string>(version).greaterThanOrEqual(this.getRequiredVersion())) {
+      this.logger.debug(
+        `${this.executableName} at ${executableWithPath} is version ${version}, which meets the required version >= ${this.getRequiredVersion()}`,
+      );
       return true;
     }
     this.logger.info(
       `Found version ${version} of ${this.executableName} at ${executableWithPath}, which does not meet the required version ${this.getRequiredVersion()}`,
     );
     return false;
+  }
+
+  /**
+   * Describes a candidate executable (existence, symlink target, size, mode) for diagnostic logging.
+   */
+  private describeExecutable(executableWithPath: string): string {
+    try {
+      const stats: fs.Stats = fs.lstatSync(executableWithPath);
+      const target: string = stats.isSymbolicLink() ? `, symlink -> ${fs.realpathSync(executableWithPath)}` : '';
+      return `exists (size=${stats.size} bytes, mode=${(stats.mode & 0o777).toString(8)}${target})`;
+    } catch (error) {
+      return `not accessible (${error instanceof Error ? error.message : error})`;
+    }
   }
 
   /**
@@ -290,7 +309,9 @@ export abstract class BaseDependencyManager extends ShellRunner {
 
     // If not installed, download and install
     this.logger.debug(
-      `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally. ` +
+      `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally ` +
+        `[local ${this.localExecutableWithPath}: ${this.describeExecutable(this.localExecutableWithPath)}; ` +
+        `global: ${this.allowGlobalInstallation() ? this.globalExecutablePath || 'not found in PATH' : 'not considered'}]. ` +
         `Downloading and installing it into ${this.installationDirectory}...`,
     );
     this.logger.debug(`Downloading and installing ${this.executableName} executable...`);
@@ -308,6 +329,11 @@ export abstract class BaseDependencyManager extends ShellRunner {
     }
 
     // In case there is an existing local installation, which did not meet the requirements - remove it
+    if (this.isInstalledLocally()) {
+      this.logger.debug(
+        `Replacing existing local ${this.executableName} at ${this.localExecutableWithPath} (it did not meet the requirements, see earlier log lines for the reason)`,
+      );
+    }
     this.uninstallLocal();
 
     try {
