@@ -101,6 +101,10 @@ export class DockerClient implements ContainerEngineClient {
       .filter((line): boolean => !line.startsWith('import-'));
   }
 
+  public async getClusterNodeCommand(clusterName: string): Promise<ContainerEngineCommand | undefined> {
+    return this.resolveKindContainerCommand(`${clusterName}-control-plane`);
+  }
+
   private static dockerCommand(): ContainerEngineCommand {
     return {
       executable: constants.DOCKER,

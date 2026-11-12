@@ -168,6 +168,13 @@ show_service_ips() {
   kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 }
 
+# Prints how Helm applied the last revision of a release: "ssa" or "csa" (an empty value means client-side apply).
+helm_apply_method() {
+  local namespace="${1}"
+  local release="${2}"
+  helm get metadata "${release}" -n "${namespace}" --kube-context kind-solo-e2e -o json | jq -r '.applyMethod // "csa"'
+}
+
 get_latest_mirror_block_number() {
   local mirror_url="${1:-http://127.0.0.1:38081}"
   local response=""
@@ -800,6 +807,18 @@ solo one-shot falcon deploy \
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 
+echo "::group::Verify the source network was deployed with Helm 3"
+source_helm_version="$(helm version --short)"
+echo "Helm used by the prior release: ${source_helm_version}"
+if [[ "${source_helm_version}" != v3.* ]]; then
+  echo "Expected the prior release to deploy with Helm 3 but found ${source_helm_version}"
+  exit 1
+fi
+# Releases installed by Helm 3; after the upgrades below they must still be client-side apply.
+SOURCE_HELM_RELEASES="$(helm list -n "${SOLO_NAMESPACE}" --kube-context kind-solo-e2e -q)"
+echo "Releases deployed with Helm 3: ${SOURCE_HELM_RELEASES//$'\n'/ }"
+echo "::endgroup::"
+
 wait_for_mirror_block_progress "source deployment after one-shot" -1 1 90 2 > /dev/null
 source_block_after_one_shot="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before consensus upgrade: ${source_block_after_one_shot}"
@@ -1075,6 +1094,30 @@ npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMEN
 # Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
 refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
 
+echo "::endgroup::"
+
+echo "::group::Verify Helm 4 upgraded the Helm 3 releases"
+target_helm_version="$(helm version --short)"
+echo "Helm used by the current Solo: ${target_helm_version}"
+if [[ "${target_helm_version}" != v4.* ]]; then
+  echo "Expected the current Solo to provision Helm 4 but found ${target_helm_version}"
+  exit 1
+fi
+for release in ${SOURCE_HELM_RELEASES}; do
+  apply_method="$(helm_apply_method "${SOLO_NAMESPACE}" "${release}")"
+  echo "Release ${release}: ${apply_method}"
+  if [[ "${apply_method}" == "ssa" ]]; then
+    echo "Release ${release} was installed with Helm 3 and must stay on client-side apply after the Helm 4 upgrade"
+    exit 1
+  fi
+done
+# Components added by the current Solo use server-side apply, next to the client-side releases above.
+block_node_apply_method="$(helm_apply_method "${SOLO_NAMESPACE}" block-node-1)"
+echo "Release block-node-1: ${block_node_apply_method}"
+if [[ "${block_node_apply_method}" != "ssa" ]]; then
+  echo "Expected block-node-1, added with Helm 4, to use server-side apply but found ${block_node_apply_method}"
+  exit 1
+fi
 echo "::endgroup::"
 
 echo "::group::Final Verification"

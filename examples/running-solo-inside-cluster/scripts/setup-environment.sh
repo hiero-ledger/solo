@@ -17,8 +17,8 @@ export NVM_DIR="$HOME/.nvm"
 nvm install 22
 nvm use 22
 
-# Install Helm 3
-curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+# Install Helm 4
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
 chmod +x get_helm.sh
 ./get_helm.sh
 rm get_helm.sh

@@ -7,7 +7,7 @@ import {type Options} from '../options.js';
  * The options to be supplied to the helm install command.
  *
  * @param atomic           - if set, the installation process deletes the installation on failure. The --wait flag will
- *                         be set automatically if --atomic is used.
+ *                         be set automatically if --rollback-on-failure is used.
  * @param createNamespace  - create the release namespace if not present.
  * @param dependencyUpdate - update dependencies if they are missing before installing the chart.
  * @param description      - add a custom description.
@@ -34,7 +34,7 @@ export class InstallChartOptions implements Options {
   public constructor(
     /**
      * if set, the installation process deletes the installation on failure. The --wait flag will
-     * be set automatically if --atomic is used.
+     * be set automatically if --rollback-on-failure is used.
      */
     public readonly atomic: boolean,
 
@@ -177,7 +177,7 @@ export class InstallChartOptions implements Options {
 
   private applyFlags(builder: HelmExecutionBuilder): void {
     if (this.atomic) {
-      builder.flag('--atomic');
+      builder.flag('--rollback-on-failure');
     }
 
     if (this.createNamespace) {
@@ -193,7 +193,7 @@ export class InstallChartOptions implements Options {
     }
 
     if (this.force) {
-      builder.flag('--force');
+      builder.flag('--force-replace');
     }
 
     if (this.passCredentials) {

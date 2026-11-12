@@ -641,7 +641,6 @@ export class MirrorNodeCommand extends BaseCommand {
     chartValues.add(
       HelmPostRenderer.replacer(
         PathEx.join(constants.SOLO_CACHE_DIR, 'post-renderers'),
-        await this.chartManager.getHelmMajorVersion(),
         MirrorNodeResourceNames.CHART_PASSWORDS_SECRET_NAME,
         names.passwordsSecretName,
       ),

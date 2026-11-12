@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type ClusterNodeResumeOutcome} from './cluster-node-resume-outcome.js';
+import {type ContainerEngineCommand} from './container-engine-command.js';
 
 /**
  * Abstraction over local container engine operations.
@@ -32,6 +33,12 @@ export interface ContainerEngineClient {
    * handling a cluster failure can decide what to surface.
    */
   resumeStoppedClusterNode(clusterName: string): Promise<ClusterNodeResumeOutcome>;
+
+  /**
+   * Returns the engine command that can see the cluster's node container (for example `sudo podman` for
+   * rootful Podman on Linux), or undefined when no engine reports that container.
+   */
+  getClusterNodeCommand(clusterName: string): Promise<ContainerEngineCommand | undefined>;
 
   /**
    * Returns the Linux platform (`linux/amd64` or `linux/arm64`) of the container engine, which is the platform

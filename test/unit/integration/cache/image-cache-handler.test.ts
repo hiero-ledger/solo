@@ -76,6 +76,7 @@ function createEngine(overrides: Partial<ContainerEngineClient> = {}): Container
     listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
     getLinuxPlatform: async (): Promise<string> => 'linux/amd64',
+    getClusterNodeCommand: async (): Promise<undefined> => undefined,
     ...overrides,
   };
 }

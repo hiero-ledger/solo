@@ -42,6 +42,9 @@ set -euo pipefail
 #      come from the same image index, so they match the one that ran.
 #   3) Name the image in the archive with `io.containerd.image.name`; without
 #      it `kind load image-archive` imports an image the kubelet cannot find.
+#      A digest-pinned image is also given a tag name: without one, containerd
+#      creates its containers from the `import-<date>@sha256:…` name that
+#      `kind load` adds, which it then fails to find (CreateContainerError).
 #   4) Pack the tar deterministically, so an image that is unchanged between
 #      two releases produces the same bytes and the CDN upload can skip it.
 # ------------------------------------------------------------------------------
@@ -178,20 +181,44 @@ pull_layout() {
   "${crane}" pull --format oci --platform "${platform}" "${reference}" "${layout}"
 }
 
-# Point the layout's single manifest at the reference the cluster uses, and
-# confirm the image is built for the requested platform.
+# Tag name given to a digest-pinned image in its archive, next to its digest
+# name. `kind load image-archive` imports every image under an extra
+# `import-<date>@sha256:<manifest digest>` name as well. When an image has no
+# tag, containerd's CRI creates containers from its alphabetically first digest
+# name; for a repository that sorts after `docker.io/library/import-` (such as
+# `docker.io/pgsty/silo`) that is the import name, normalized to
+# `docker.io/library/import-…`, which containerd does not hold, so the pod
+# fails with CreateContainerError. A tag name is always used before any
+# digest name, so the image starts. Prints nothing for a tagged reference.
+digest_tag_name() {
+  local reference="$1" digest
+
+  if [[ "${reference}" != *@* ]]; then
+    return 0
+  fi
+  digest="${reference##*@}"
+  printf '%s:solo-cache-%s\n' "${reference%%@*}" "${digest#*:}"
+}
+
+# Point the layout's single manifest at the reference the cluster uses (and,
+# for a digest-pinned image, at a tag name as well), and confirm the image is
+# built for the requested platform.
 label_layout() {
-  local layout="$1" reference="$2" platform="$3" manifest_digest config_digest image_platform
+  local layout="$1" reference="$2" platform="$3" tag_name manifest_digest config_digest image_platform
 
   if [[ "$(jq '.manifests | length' "${layout}/index.json")" != "1" ]]; then
     echo "::error::${reference}: expected one manifest in the exported layout" >&2
     return 1
   fi
 
-  jq -c --arg name "${reference}" '
+  tag_name="$(digest_tag_name "${reference}")"
+  jq -c --arg name "${reference}" --arg tag_name "${tag_name}" '
     .manifests[0].annotations = ((.manifests[0].annotations // {})
       | del(.["org.opencontainers.image.ref.name"])
       + {"io.containerd.image.name": $name})
+    | if $tag_name == "" then .
+      else .manifests += [.manifests[0] | .annotations["io.containerd.image.name"] = $tag_name]
+      end
   ' "${layout}/index.json" > "${layout}/index.json.tmp"
   mv "${layout}/index.json.tmp" "${layout}/index.json"
 
@@ -272,7 +299,14 @@ while IFS= read -r reference; do
       continue
     fi
 
-    tar_file="$(printf '%s__%s' "${reference}" "${platform}" | sed -e 's#/#__#g' -e 's#:#__#g').tar"
+    tar_file="$(printf '%s__%s' "${reference}" "${platform}" | sed -e 's#/#__#g' -e 's#:#__#g')"
+    # Archives of digest-pinned images published before they carried a tag name
+    # cannot start in a cluster, and a published CDN file is never replaced, so
+    # the archives that carry one are published under a new name.
+    if [[ -n "$(digest_tag_name "${reference}")" ]]; then
+      tar_file="${tar_file}__tagged"
+    fi
+    tar_file="${tar_file}.tar"
     hash_file="${tar_file}.sha256"
 
     if ! with_sources "${repository}" "${digest}" pull_layout "${platform}" "${layout}"; then
