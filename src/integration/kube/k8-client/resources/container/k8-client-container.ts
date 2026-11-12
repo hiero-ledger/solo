@@ -93,6 +93,7 @@ export class K8ClientContainer implements Container {
     arguments_: string[],
     outputPassThroughStream?: stream.PassThrough,
     errorPassThroughStream?: stream.PassThrough,
+    timeoutMs?: number,
   ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
@@ -118,6 +119,29 @@ export class K8ClientContainer implements Container {
 
       let stdout: string = '';
       let stderr: string = '';
+      let settled: boolean = false;
+
+      // a kubectl call that never returns (dead API-server tunnel, stalled auth plugin) would otherwise block the caller forever
+      const timeoutHandle: ReturnType<typeof setTimeout> | undefined =
+        timeoutMs === undefined
+          ? undefined
+          : setTimeout((): void => {
+              if (settled) {
+                return;
+              }
+              settled = true;
+              childProcess.kill('SIGKILL');
+              const lastOutput: string = (stderr || stdout).trim();
+              reject(
+                new KubeContainerOperationFailedError(
+                  `container call: ${callMessage}, timed out`,
+                  new Error(
+                    `kubectl (pid ${childProcess.pid}) did not exit within ${timeoutMs}ms and was killed` +
+                      (lastOutput ? `; last output: ${lastOutput}` : '; it produced no output'),
+                  ),
+                ),
+              );
+            }, timeoutMs);
 
       childProcess.stdout.on('data', (chunk): void => {
         if (outputPassThroughStream) {
@@ -134,16 +158,26 @@ export class K8ClientContainer implements Container {
       });
 
       childProcess.on('error', (error): void => {
+        clearTimeout(timeoutHandle);
+        if (settled) {
+          return;
+        }
+        settled = true;
         reject(new KubeContainerOperationFailedError(`container call: ${callMessage}, failed to start`, error));
       });
 
-      childProcess.on('close', (code): void => {
+      childProcess.on('close', (code, signal): void => {
+        clearTimeout(timeoutHandle);
+        if (settled) {
+          return;
+        }
+        settled = true;
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
           reject(
             new KubeContainerOperationFailedError(
-              `container call: ${callMessage}, failed with code ${code}`,
+              `container call: ${callMessage}, failed with ${signal ? `signal ${signal}` : `code ${code}`}`,
               new Error(stderr || stdout),
             ),
           );
@@ -499,7 +533,12 @@ export class K8ClientContainer implements Container {
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await this.execKubectl(arguments_, outputPassThroughStream, errorPassThroughStream);
+        return await this.execKubectl(
+          arguments_,
+          outputPassThroughStream,
+          errorPassThroughStream,
+          constants.KUBECTL_EXEC_TIMEOUT_MS,
+        );
       } catch (error) {
         const message: string = error instanceof Error ? error.message : `${error}`;
 

@@ -160,6 +160,53 @@ describe('K8ClientContainer execContainer', (): void => {
     expect(execKubectlStub).to.have.been.calledOnce;
   });
 
+  describe('execKubectl timeout', (): void => {
+    let fakeKubectlDirectory: string;
+
+    beforeEach((): void => {
+      fakeKubectlDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'fake-kubectl-'));
+      fs.writeFileSync(
+        PathEx.join(fakeKubectlDirectory, 'kubectl'),
+        '#!/bin/sh\necho "dialing backend" >&2\nexec sleep 30\n',
+        {mode: 0o755},
+      );
+    });
+
+    afterEach((): void => {
+      fs.rmSync(fakeKubectlDirectory, {recursive: true, force: true});
+    });
+
+    // the fake kubectl is a POSIX shell script
+    const itPosix: typeof it | typeof it.skip = process.platform === 'win32' ? it.skip : it;
+
+    itPosix('kills a hung kubectl and reports the timeout cause with its last output', async (): Promise<void> => {
+      const pods: Pods = {waitForPodByReference: sinon.stub().resolves({})} as unknown as Pods;
+      const realClient: K8ClientContainer = new K8ClientContainer(
+        {getCurrentContext: (): string => 'test-context'} as never,
+        containerReference,
+        pods,
+        fakeKubectlDirectory,
+      );
+      const started: number = Date.now();
+
+      try {
+        await (realClient as never as {execKubectl: (...arguments_: unknown[]) => Promise<string>}).execKubectl(
+          ['exec', 'test-pod'],
+          undefined,
+          undefined,
+          1500,
+        );
+        expect.fail('Expected execKubectl to reject');
+      } catch (error) {
+        expect(error).to.be.instanceOf(KubeContainerOperationFailedError);
+        expect((error as Error).message).to.include('timed out');
+        expect((error as Error).message).to.include('did not exit within 1500ms');
+        expect((error as Error).message).to.include('dialing backend');
+      }
+      expect(Date.now() - started).to.be.lessThan(10_000);
+    });
+  });
+
   describe('hasDir', (): void => {
     it('returns true when the probe prints true', async (): Promise<void> => {
       execKubectlStub.resolves('true');
