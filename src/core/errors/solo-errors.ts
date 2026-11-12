@@ -179,6 +179,7 @@ import {AccountUpdateFailedSoloError} from './classes/component/account-update-f
 import {AccountSecretCreationFailedSoloError} from './classes/component/account-secret-creation-failed-solo-error.js';
 import {EvmAddressRetrievalFailedSoloError} from './classes/component/evm-address-retrieval-failed-solo-error.js';
 import {NodeAccessConfigFailedSoloError} from './classes/component/node-access-config-failed-solo-error.js';
+import {NodeAdminKeySaveFailedSoloError} from './classes/component/node-admin-key-save-failed-solo-error.js';
 import {NodeClientLoadFailedSoloError} from './classes/component/node-client-load-failed-solo-error.js';
 import {NodeClientRefreshFailedSoloError} from './classes/component/node-client-refresh-failed-solo-error.js';
 import {NodeClientSetupFailedSoloError} from './classes/component/node-client-setup-failed-solo-error.js';
@@ -502,6 +503,7 @@ export class SoloErrors {
     readonly accountSecretCreationFailed: typeof AccountSecretCreationFailedSoloError;
     readonly evmAddressRetrievalFailed: typeof EvmAddressRetrievalFailedSoloError;
     readonly nodeAccessConfigFailed: typeof NodeAccessConfigFailedSoloError;
+    readonly nodeAdminKeySaveFailed: typeof NodeAdminKeySaveFailedSoloError;
     readonly nodeClientLoadFailed: typeof NodeClientLoadFailedSoloError;
     readonly nodeClientRefreshFailed: typeof NodeClientRefreshFailedSoloError;
     readonly nodeClientSetupFailed: typeof NodeClientSetupFailedSoloError;
@@ -598,6 +600,7 @@ export class SoloErrors {
     accountSecretCreationFailed: AccountSecretCreationFailedSoloError,
     evmAddressRetrievalFailed: EvmAddressRetrievalFailedSoloError,
     nodeAccessConfigFailed: NodeAccessConfigFailedSoloError,
+    nodeAdminKeySaveFailed: NodeAdminKeySaveFailedSoloError,
     nodeClientLoadFailed: NodeClientLoadFailedSoloError,
     nodeClientRefreshFailed: NodeClientRefreshFailedSoloError,
     nodeClientSetupFailed: NodeClientSetupFailedSoloError,
