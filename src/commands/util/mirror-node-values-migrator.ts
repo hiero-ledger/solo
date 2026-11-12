@@ -18,10 +18,10 @@ export class MirrorNodeValuesMigrator {
   /**
    * Mirror node v0.157.0 moved block node importer properties from `nodes[].host/port` to
    * `nodes[].endpoints[].host/port`. Rewrites the old schema in place of the old keys, and drops the values Solo
-   * itself generates for block node integration (the importer env vars of the old schema, the `blocknode` Spring
-   * profile and the disabled downloaders). Solo generates them again on every upgrade that still resolves a block
-   * node, so dropping them keeps an upgrade without block node integration from running the `blocknode` profile with
-   * no nodes.
+   * itself generates for block node integration (the importer env vars of the old schema and the `blocknode` Spring
+   * profile). Solo generates them again on every upgrade that still resolves a block node, so dropping them keeps an
+   * upgrade without block node integration from running the `blocknode` profile with no nodes. Downloader settings
+   * are intentionally preserved: Helm does not retain whether `enabled: false` came from Solo or a user values file.
    *
    * @param values - release values as returned by `helm get values`; not modified
    * @returns a migrated copy of the values
@@ -43,9 +43,6 @@ export class MirrorNodeValuesMigrator {
       );
 
       MirrorNodeValuesMigrator.migrateBlockNodes(MirrorNodeValuesMigrator.asRecord(importerProperties?.['block']));
-      MirrorNodeValuesMigrator.dropDisabledDownloaders(
-        MirrorNodeValuesMigrator.asRecord(importerProperties?.['downloader']),
-      );
     }
 
     MirrorNodeValuesMigrator.dropBlockNodeEnvironment(MirrorNodeValuesMigrator.asRecord(importer['env']));
@@ -82,17 +79,6 @@ export class MirrorNodeValuesMigrator {
     delete node['host'];
     delete node['port'];
     delete node['requiresTls'];
-  }
-
-  /** Solo disables the balance and record downloaders when it streams from a block node. */
-  private static dropDisabledDownloaders(downloader: MutableRecord | undefined): void {
-    for (const type of ['balance', 'record']) {
-      const settings: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(downloader?.[type]);
-
-      if (settings?.['enabled'] === false) {
-        delete settings['enabled'];
-      }
-    }
   }
 
   private static dropBlockNodeEnvironment(environment: MutableRecord | undefined): void {
