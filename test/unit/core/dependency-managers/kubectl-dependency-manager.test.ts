@@ -21,6 +21,10 @@ describe('KubectlDependencyManager installationMeetsRequirements', (): void => {
   let installationDirectory: string;
   let manager: KubectlDependencyManager;
   let debugSpy: sinon.SinonSpy;
+  let infoSpy: sinon.SinonSpy;
+
+  const loggedLines: () => string = (): string =>
+    [...debugSpy.getCalls(), ...infoSpy.getCalls()].map((call): string => String(call.args[0])).join('\n');
 
   const writeWrapper: (body: string) => string = (body: string): string => {
     const wrapperPath: string = PathEx.join(installationDirectory, 'kubectl');
@@ -37,7 +41,9 @@ describe('KubectlDependencyManager installationMeetsRequirements', (): void => {
       'amd64',
       'v1.32.2',
     );
-    debugSpy = sinon.spy(container.resolve<SoloLogger>(InjectTokens.SoloLogger), 'debug');
+    const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
+    debugSpy = sinon.spy(logger, 'debug');
+    infoSpy = sinon.spy(logger, 'info');
   });
 
   afterEach((): void => {
@@ -49,10 +55,7 @@ describe('KubectlDependencyManager installationMeetsRequirements', (): void => {
     const wrapperPath: string = writeWrapper('echo "Client Version: v1.35.0"; echo "Kustomize Version: v5.5.0"');
 
     expect(await manager.installationMeetsRequirements(wrapperPath)).to.be.true;
-    const logged: string = debugSpy
-      .getCalls()
-      .map((call): string => String(call.args[0]))
-      .join('\n');
+    const logged: string = loggedLines();
     expect(logged).to.include(`Checking kubectl at ${wrapperPath}`);
     expect(logged).to.include('is version 1.35.0, which meets the required version');
   });
@@ -63,10 +66,7 @@ describe('KubectlDependencyManager installationMeetsRequirements', (): void => {
       const wrapperPath: string = writeWrapper('echo "v1.35.0"');
 
       expect(await manager.installationMeetsRequirements(wrapperPath)).to.be.false;
-      const logged: string = debugSpy
-        .getCalls()
-        .map((call): string => String(call.args[0]))
-        .join('\n');
+      const logged: string = loggedLines();
       expect(logged).to.include("no 'Client Version: <x.y.z>' line was found");
       expect(logged).to.include('treated as not meeting requirements');
     },
@@ -76,10 +76,7 @@ describe('KubectlDependencyManager installationMeetsRequirements', (): void => {
     const wrapperPath: string = writeWrapper('echo "wrapper refused" >&2; exit 3');
 
     expect(await manager.installationMeetsRequirements(wrapperPath)).to.be.false;
-    const logged: string = debugSpy
-      .getCalls()
-      .map((call): string => String(call.args[0]))
-      .join('\n');
+    const logged: string = loggedLines();
     expect(logged).to.include("version --client' failed");
   });
 });
