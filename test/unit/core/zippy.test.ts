@@ -6,7 +6,7 @@ import {expect} from 'chai';
 import {describe, it} from 'mocha';
 
 import {SoloError} from '../../../src/core/errors/solo-error.js';
-import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
+import {InvalidArgumentSoloError} from '../../../src/core/errors/classes/internal/invalid-argument-solo-error.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import os from 'node:os';
 import fs from 'node:fs';
@@ -20,11 +20,11 @@ describe('Zippy', (): void => {
 
   describe('unzip', (): void => {
     it('should fail if source file is missing', (): void => {
-      expect((): string => zippy.unzip('', '')).to.throw(MissingArgumentError);
+      expect((): string => zippy.unzip('', '')).to.throw(InvalidArgumentSoloError);
     });
 
     it('should fail if destination file is missing', (): void => {
-      expect((): string => zippy.unzip('test/data/test.zip', '')).to.throw(MissingArgumentError);
+      expect((): string => zippy.unzip('test/data/test.zip', '')).to.throw(InvalidArgumentSoloError);
     });
 
     it('should fail if source file is invalid', (): void => {
@@ -51,11 +51,11 @@ describe('Zippy', (): void => {
 
   describe('untar', (): void => {
     it('should fail if source file is missing', (): void => {
-      expect((): string => zippy.untar('', '')).to.throw(MissingArgumentError);
+      expect((): string => zippy.untar('', '')).to.throw(InvalidArgumentSoloError);
     });
 
     it('should fail if destination file is missing', (): void => {
-      expect((): string => zippy.untar('test/data/test.tar', '')).to.throw(MissingArgumentError);
+      expect((): string => zippy.untar('test/data/test.tar', '')).to.throw(InvalidArgumentSoloError);
     });
 
     it('should fail if source file is invalid', (): void => {

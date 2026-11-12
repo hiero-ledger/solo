@@ -20,12 +20,12 @@ export class FileStorageBackend implements StorageBackend {
    * All directory entries are ignored.
    *
    * @param basePath - The base path to use for all file operations.
-   * @throws IllegalArgumentError if the base path is null, undefined, or empty.
+   * @throws InvalidArgumentSoloError if the base path is null, undefined, or empty.
    * @throws StorageBackendError if the base path does not exist or is not a directory.
    */
   public constructor(public readonly basePath: string) {
     if (!basePath || basePath.trim().length === 0) {
-      throw new SoloErrors.validation.illegalArgument('basePath must not be null, undefined or empty');
+      throw new SoloErrors.internal.invalidArgument('basePath must not be null, undefined or empty');
     }
 
     let stats: Stats;
@@ -70,7 +70,7 @@ export class FileStorageBackend implements StorageBackend {
 
   public async readBytes(key: string): Promise<Buffer> {
     if (!key || key.trim().length === 0) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined or empty');
+      throw new SoloErrors.internal.invalidArgument('key must not be null, undefined or empty');
     }
 
     const filePath: string = PathEx.join(this.basePath, key);
@@ -83,11 +83,11 @@ export class FileStorageBackend implements StorageBackend {
 
   public async writeBytes(key: string, data: Buffer): Promise<void> {
     if (!key || key.trim().length === 0) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined or empty');
+      throw new SoloErrors.internal.invalidArgument('key must not be null, undefined or empty');
     }
 
     if (!data) {
-      throw new SoloErrors.validation.illegalArgument('data must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('data must not be null or undefined');
     }
 
     const filePath: string = PathEx.join(this.basePath, key);
@@ -114,7 +114,7 @@ export class FileStorageBackend implements StorageBackend {
 
   public async delete(key: string): Promise<void> {
     if (!key || key.trim().length === 0) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined or empty');
+      throw new SoloErrors.internal.invalidArgument('key must not be null, undefined or empty');
     }
 
     const filePath: string = PathEx.join(this.basePath, key);

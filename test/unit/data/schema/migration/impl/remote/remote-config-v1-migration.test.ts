@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {RemoteConfigV1Migration} from '../../../../../../../src/data/schema/migration/impl/remote/remote-config-v1-migration.js';
-import {IllegalArgumentError} from '../../../../../../../src/core/errors/classes/validation/illegal-argument-error.js';
+import {InvalidArgumentSoloError} from '../../../../../../../src/core/errors/classes/internal/invalid-argument-solo-error.js';
 import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/migration/api/invalid-schema-version-error.js';
 import sinon from 'sinon';
 import * as fs from 'node:fs';
@@ -117,24 +117,24 @@ describe('RemoteConfigV1Migration', (): void => {
       expect(result.metadata).to.not.have.property('deploymentName');
     });
 
-    it('should throw IllegalArgumentError when source is null', async (): Promise<void> => {
+    it('should throw InvalidArgumentSoloError when source is null', async (): Promise<void> => {
       try {
         await migration.migrate(undefined as unknown as object);
         // Should not reach here
-        expect.fail('Expected to throw IllegalArgumentError');
+        expect.fail('Expected to throw InvalidArgumentSoloError');
       } catch (error) {
-        expect(error).to.be.instanceOf(IllegalArgumentError);
+        expect(error).to.be.instanceOf(InvalidArgumentSoloError);
         expect(error.message).to.equal('source must not be null or undefined');
       }
     });
 
-    it('should throw IllegalArgumentError when source is undefined', async (): Promise<void> => {
+    it('should throw InvalidArgumentSoloError when source is undefined', async (): Promise<void> => {
       try {
         await migration.migrate(undefined as unknown as object);
         // Should not reach here
-        expect.fail('Expected to throw IllegalArgumentError');
+        expect.fail('Expected to throw InvalidArgumentSoloError');
       } catch (error) {
-        expect(error).to.be.instanceOf(IllegalArgumentError);
+        expect(error).to.be.instanceOf(InvalidArgumentSoloError);
         expect(error.message).to.equal('source must not be null or undefined');
       }
     });

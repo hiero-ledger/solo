@@ -56,7 +56,7 @@ export class PlatformInstaller {
 
   public validatePlatformReleaseDir(releaseDirectory: string): void {
     if (!releaseDirectory) {
-      throw new SoloErrors.validation.missingArgument('releaseDirectory is required');
+      throw new SoloErrors.internal.invalidArgument('releaseDirectory is required');
     }
     if (!fs.existsSync(releaseDirectory)) {
       throw new SoloErrors.validation.illegalArgument('releaseDirectory does not exists', releaseDirectory);
@@ -110,7 +110,7 @@ export class PlatformInstaller {
 
   public async getPlatformRelease(stagingDirectory: string, tag: string): Promise<string[]> {
     if (!tag) {
-      throw new SoloErrors.validation.missingArgument('tag is required');
+      throw new SoloErrors.internal.invalidArgument('tag is required');
     }
 
     // Download the platform zip client-side into {stagingDir}/build/
@@ -135,16 +135,16 @@ export class PlatformInstaller {
     context?: string,
   ) {
     if (!podReference) {
-      throw new SoloErrors.validation.missingArgument('podReference is required');
+      throw new SoloErrors.internal.invalidArgument('podReference is required');
     }
     if (!tag) {
-      throw new SoloErrors.validation.missingArgument('tag is required');
+      throw new SoloErrors.internal.invalidArgument('tag is required');
     }
     if (!zipPath) {
-      throw new SoloErrors.validation.illegalArgument('zipPath is required');
+      throw new SoloErrors.internal.invalidArgument('zipPath is required');
     }
     if (!checksumPath) {
-      throw new SoloErrors.validation.illegalArgument('checksumPath is required');
+      throw new SoloErrors.internal.invalidArgument('checksumPath is required');
     }
 
     try {
@@ -269,10 +269,10 @@ export class PlatformInstaller {
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
     if (!consensusNode) {
-      throw new SoloErrors.validation.missingArgument('consensusNode is required');
+      throw new SoloErrors.internal.invalidArgument('consensusNode is required');
     }
     if (!keysDirectory) {
-      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
+      throw new SoloErrors.internal.invalidArgument('keysDirectory is required');
     }
     if (!consensusNodes || consensusNodes.length <= 0) {
       throw new SoloErrors.validation.missingArgument('consensusNodes cannot be empty');
@@ -340,7 +340,7 @@ export class PlatformInstaller {
       throw new SoloErrors.validation.missingArgument('consensusNodes cannot be empty');
     }
     if (!keysDirectory) {
-      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
+      throw new SoloErrors.internal.invalidArgument('keysDirectory is required');
     }
 
     try {
@@ -393,10 +393,10 @@ export class PlatformInstaller {
     context?: string,
   ): Promise<boolean> {
     if (!podReference) {
-      throw new SoloErrors.validation.missingArgument('podReference is required');
+      throw new SoloErrors.internal.invalidArgument('podReference is required');
     }
     if (!destinationPath) {
-      throw new SoloErrors.validation.missingArgument('destPath is required');
+      throw new SoloErrors.internal.invalidArgument('destPath is required');
     }
     const containerReference: ContainerReference = ContainerReference.of(podReference, container);
 
@@ -416,7 +416,7 @@ export class PlatformInstaller {
 
   public async setPlatformDirPermissions(podReference: PodReference, context?: string): Promise<boolean> {
     if (!podReference) {
-      throw new SoloErrors.validation.missingArgument('podReference is required');
+      throw new SoloErrors.internal.invalidArgument('podReference is required');
     }
 
     try {

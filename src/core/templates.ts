@@ -144,7 +144,7 @@ export class Templates {
 
   public static prepareReleasePrefix(tag: string): string {
     if (!tag) {
-      throw new SoloErrors.validation.missingArgument('tag cannot be empty');
+      throw new SoloErrors.internal.invalidArgument('tag cannot be empty');
     }
 
     const parsed: string[] = tag.split('.');
@@ -198,7 +198,7 @@ export class Templates {
   public static renderStagingDir(cacheDirectory: string, releaseTagOverride: string): string {
     let releaseTag: string = releaseTagOverride;
     if (!cacheDirectory) {
-      throw new SoloErrors.validation.illegalArgument('cacheDirectory cannot be empty');
+      throw new SoloErrors.internal.invalidArgument('cacheDirectory cannot be empty');
     }
 
     if (!releaseTag) {
@@ -207,7 +207,7 @@ export class Templates {
 
     const releasePrefix: string = this.prepareReleasePrefix(releaseTag);
     if (!releasePrefix) {
-      throw new SoloErrors.validation.illegalArgument('releasePrefix cannot be empty');
+      throw new SoloErrors.internal.invalidArgument('releasePrefix cannot be empty');
     }
 
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));

@@ -13,7 +13,7 @@ import {StorageBackendError} from '../api/storage-backend-error.js';
 export class ConfigMapStorageBackend implements StorageBackend {
   public constructor(protected readonly configMap: ConfigMap) {
     if (!this.configMap) {
-      throw new SoloErrors.validation.missingArgument('ConfigMapStorageBackend is missing the configMap argument');
+      throw new SoloErrors.internal.invalidArgument('ConfigMapStorageBackend is missing the configMap argument');
     }
   }
 

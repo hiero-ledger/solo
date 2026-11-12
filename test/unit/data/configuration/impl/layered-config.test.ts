@@ -4,7 +4,7 @@ import {type ConfigSource} from '../../../../../src/data/configuration/spi/confi
 import {SimpleConfigSourceFixture} from '../../../fixtures/simple-config-source.fixture.js';
 import {LayeredConfig} from '../../../../../src/data/configuration/impl/layered-config.js';
 import {expect} from 'chai';
-import {IllegalArgumentError} from '../../../../../src/core/errors/classes/validation/illegal-argument-error.js';
+import {InvalidArgumentSoloError} from '../../../../../src/core/errors/classes/internal/invalid-argument-solo-error.js';
 import {DuplicateConfigSourceError} from '../../../../../src/data/configuration/api/duplicate-config-source-error.js';
 
 class SimpleObject {
@@ -71,12 +71,12 @@ describe('LayeredConfig', (): void => {
     ]);
   });
 
-  it('addSource should throw IllegalArgumentError if source is null', (): void => {
+  it('addSource should throw InvalidArgumentSoloError if source is null', (): void => {
     // eslint-disable-next-line unicorn/no-null
-    expect((): void => layeredConfig.addSource(null)).to.throw(IllegalArgumentError);
+    expect((): void => layeredConfig.addSource(null)).to.throw(InvalidArgumentSoloError);
 
     // eslint-disable-next-line unicorn/no-useless-undefined
-    expect((): void => layeredConfig.addSource(undefined)).to.throw(IllegalArgumentError);
+    expect((): void => layeredConfig.addSource(undefined)).to.throw(InvalidArgumentSoloError);
   });
 
   it('addSource should throw DuplicateConfigSourceError if source is already present', (): void => {
@@ -175,7 +175,7 @@ describe('LayeredConfig', (): void => {
     expect(simpleObjectArray[0].properties4).to.eql(['properties4']);
   });
 
-  it('primitiveScalar should throw IllegalArgumentError', (): void => {
+  it('primitiveScalar should throw InvalidArgumentSoloError', (): void => {
     // @ts-expect-error - testing private method
     // eslint-disable-next-line unicorn/no-null
     expect((): string => layeredConfig.primitiveScalar<string>(layeredConfig.asString, 'key3', null)).to.throw(

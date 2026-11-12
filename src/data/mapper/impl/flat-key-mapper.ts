@@ -8,7 +8,7 @@ import {ObjectMappingError} from '../api/object-mapping-error.js';
 export class FlatKeyMapper {
   public constructor(private readonly formatter: KeyFormatter = ConfigKeyFormatter.instance()) {
     if (!formatter) {
-      throw new SoloErrors.validation.illegalArgument('formatter must be provided');
+      throw new SoloErrors.internal.invalidArgument('formatter must be provided');
     }
   }
 

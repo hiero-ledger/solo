@@ -13,7 +13,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
-import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
+import {InvalidArgumentSoloError} from '../../../src/core/errors/classes/internal/invalid-argument-solo-error.js';
 import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/resource-not-found-error.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
@@ -411,7 +411,7 @@ describe('PackageDownloader', (): void => {
         throw new Error('fetchPlatform should have thrown an error for missing platform release tag');
       } catch (error) {
         expect(error.cause).not.to.be.null;
-        expect(error).to.be.instanceof(MissingArgumentError);
+        expect(error).to.be.instanceof(InvalidArgumentSoloError);
       }
     });
     it('should fail if platform release artifact is not found', async (): Promise<void> => {

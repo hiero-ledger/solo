@@ -9,10 +9,16 @@ import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/res
 import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {DataValidationError} from '../../../src/core/errors/classes/internal/data-validation-error.js';
+import {InvalidArgumentSoloError} from '../../../src/core/errors/classes/internal/invalid-argument-solo-error.js';
 import {RemoteConfigUnsupportedComponentError} from '../../../src/core/errors/classes/internal/remote-config-unsupported-component-error.js';
 import {SdkPingFailedSoloError} from '../../../src/core/errors/classes/component/sdk-ping-failed-solo-error.js';
 import {SdkClientNoHealthyNodesSoloError} from '../../../src/core/errors/classes/component/sdk-client-no-healthy-nodes-solo-error.js';
 import {SdkErrorTranslator} from '../../../src/core/errors/sdk-error-translator.js';
+import {KubeErrorTranslator} from '../../../src/core/errors/kube-error-translator.js';
+import {ErrorCodeRegistry} from '../../../src/core/errors/error-code-registry.js';
+import {type KubeError} from '../../../src/integration/kube/errors/kube-error.js';
+import {KubeMissingArgumentError} from '../../../src/integration/kube/errors/kube-missing-argument-error.js';
+import {KubeIllegalArgumentError} from '../../../src/integration/kube/errors/kube-illegal-argument-error.js';
 import {SoloLogsDirectoryNotWritableSoloError} from '../../../src/core/errors/classes/system/solo-logs-directory-not-writable-solo-error.js';
 import {ClusterAddFailedError} from '../../../src/core/errors/classes/deployment/cluster-add-failed-error.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
@@ -58,6 +64,31 @@ describe('Errors', (): void => {
     expect(error.message).to.equal(message);
     expect(error.cause).to.deep.equal({});
     expect(error.meta).to.deep.equal({value});
+  });
+
+  it('should construct correct InvalidArgumentSoloError', (): void => {
+    const value: string = 'invalid argument';
+    const error: InvalidArgumentSoloError = new InvalidArgumentSoloError(message, value, cause);
+    expect(error).to.be.instanceof(SoloError);
+    expect(error.name).to.equal('InvalidArgumentSoloError');
+    expect(error.message).to.equal(message);
+    expect(error.getFormattedCode()).to.equal(ErrorCodeRegistry.INVALID_ARGUMENT);
+    expect(error.isInvalidInput()).to.be.false;
+    expect(error.cause).to.equal(cause);
+    expect(error.meta).to.deep.equal({value});
+  });
+
+  it('should translate kube argument errors into an internal error that keeps the kube error as its cause', (): void => {
+    const kubeErrors: KubeError[] = [
+      new KubeMissingArgumentError('filters are required'),
+      new KubeIllegalArgumentError('metadata is required'),
+    ];
+    for (const kubeError of kubeErrors) {
+      const translated: SoloError | undefined = KubeErrorTranslator.tryTranslate(kubeError);
+      expect(translated).to.be.instanceof(InvalidArgumentSoloError);
+      expect(translated.message).to.equal(kubeError.message);
+      expect(translated.cause).to.equal(kubeError);
+    }
   });
 
   it('should construct correct DataValidationError', (): void => {

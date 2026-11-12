@@ -260,9 +260,7 @@ export class PodmanDependencyManager extends GitHubReleaseDependencyManager {
 
     if (this.mode === PodmanMode.ROOTFUL) {
       if (!runtimeBinaryDirectory) {
-        throw new SoloErrors.validation.missingArgument(
-          'runtimeBinaryDirectory is required to configure rootful podman',
-        );
+        throw new SoloErrors.internal.invalidArgument('runtimeBinaryDirectory is required to configure rootful podman');
       }
 
       const templatePath: string = PathEx.join(templatesDirectory, 'podman', 'containers-rootful.conf');

@@ -523,7 +523,7 @@ export class SubprocessEnvironment {
    */
   public static setSessionVariable(name: string, value: string): void {
     if (name.toLowerCase() === 'path') {
-      throw new SoloErrors.validation.illegalArgument(
+      throw new SoloErrors.internal.invalidArgument(
         'PATH must be registered with prependSessionPath/appendSessionPath',
         name,
       );

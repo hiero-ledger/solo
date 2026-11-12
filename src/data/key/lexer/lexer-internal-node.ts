@@ -35,7 +35,7 @@ export class LexerInternalNode extends LexerNode {
 
   public add(child: Node): void {
     if (!child) {
-      throw new SoloErrors.validation.illegalArgument('child must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('child must not be null or undefined');
     }
 
     if (!this._children.has(child.name)) {
@@ -45,7 +45,7 @@ export class LexerInternalNode extends LexerNode {
 
   public remove(child: Node): void {
     if (!child) {
-      throw new SoloErrors.validation.illegalArgument('child must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('child must not be null or undefined');
     }
 
     if (!this._children.has(child.name)) {
@@ -61,7 +61,7 @@ export class LexerInternalNode extends LexerNode {
 
   public replaceValue(child: Node, value: string): void {
     if (!child) {
-      throw new SoloErrors.validation.illegalArgument('child must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('child must not be null or undefined');
     }
 
     if (!this._children.has(child.name)) {

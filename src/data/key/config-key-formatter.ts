@@ -33,7 +33,7 @@ export class ConfigKeyFormatter implements KeyFormatter {
 
   public split(key: string): string[] {
     if (!key || key.trim().length === 0) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
     }
 
     return key.split(this.separator);

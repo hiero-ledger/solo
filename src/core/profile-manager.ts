@@ -876,7 +876,7 @@ export class ProfileManager {
     gossipFqdnRestricted: boolean = true,
   ): Promise<string> {
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
-      throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
+      throw new SoloErrors.internal.invalidArgument('nodeAccountMap the map of node IDs to account IDs is required');
     }
 
     if (!fs.existsSync(destinationPath)) {

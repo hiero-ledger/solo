@@ -13,6 +13,8 @@ import {UserBreak} from '../../../src/core/errors/user-break.js';
 import {ErrorCodeRegistry} from '../../../src/core/errors/error-code-registry.js';
 import {CacheImageTemplateUnknownError} from '../../../src/integration/cache/errors/cache-image-template-unknown-error.js';
 import {CacheImageTemplateUndeclaredError} from '../../../src/integration/cache/errors/cache-image-template-undeclared-error.js';
+import {KubeMissingArgumentError} from '../../../src/integration/kube/errors/kube-missing-argument-error.js';
+import {KubeIllegalArgumentError} from '../../../src/integration/kube/errors/kube-illegal-argument-error.js';
 
 function incompatibleTuple(): SoloError {
   return new SoloErrors.validation.componentVersionIncompatible(
@@ -86,6 +88,16 @@ describe('ErrorHandler', (): void => {
       const error: SoloError = new SoloErrors.validation.flagInputFailed('namespace', new SoloError('no prompt'));
       expect(exitCodeFor(error)).to.equal(ExitCode.INVALID_INPUT);
     });
+
+    it('should exit with the invalid input code for an argument that the user left out', (): void => {
+      const error: SoloError = new SoloErrors.validation.missingArgument('deployment is required');
+      expect(exitCodeFor(error)).to.equal(ExitCode.INVALID_INPUT);
+    });
+
+    it('should exit with the invalid input code for an argument value that the user supplied', (): void => {
+      const error: SoloError = new SoloErrors.validation.illegalArgument('Invalid image tag: 1:2', '1:2');
+      expect(exitCodeFor(error)).to.equal(ExitCode.INVALID_INPUT);
+    });
   });
 
   describe('failure', (): void => {
@@ -103,6 +115,11 @@ describe('ErrorHandler', (): void => {
 
     it('should exit with the failure code for a validation error that the user does not own', (): void => {
       const error: SoloError = new SoloErrors.validation.unknownTemplateDependency('unknown');
+      expect(exitCodeFor(error)).to.equal(ExitCode.FAILURE);
+    });
+
+    it('should exit with the failure code for a tripped internal guard', (): void => {
+      const error: SoloError = new SoloErrors.internal.invalidArgument('srcPath is required');
       expect(exitCodeFor(error)).to.equal(ExitCode.FAILURE);
     });
 
@@ -132,6 +149,18 @@ describe('ErrorHandler', (): void => {
     it('should exit with the failure code when the error is shown as an error that is not invalid input', (): void => {
       expect(exitCodeFor(new CacheImageTemplateUndeclaredError('CONSENSUS'))).to.equal(ExitCode.FAILURE);
       expect(shownErrorCode()).to.equal(ErrorCodeRegistry.CACHE_IMAGE_TEMPLATE_UNDECLARED);
+    });
+  });
+
+  describe('translated guards', (): void => {
+    it('should exit with the failure code when a kube missing argument error is shown as a tripped guard', (): void => {
+      expect(exitCodeFor(new KubeMissingArgumentError('filters are required'))).to.equal(ExitCode.FAILURE);
+      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.INVALID_ARGUMENT);
+    });
+
+    it('should exit with the failure code when a kube illegal argument error is shown as a tripped guard', (): void => {
+      expect(exitCodeFor(new KubeIllegalArgumentError('metadata is required'))).to.equal(ExitCode.FAILURE);
+      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.INVALID_ARGUMENT);
     });
   });
 
