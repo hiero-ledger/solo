@@ -71,7 +71,7 @@ describe('MirrorNodeValuesMigrator', (): void => {
       expect(migrated.importer.env).to.deep.equal({SPRING_PROFILES_ACTIVE: 'kubernetes'});
     });
 
-    it('preserves downloader settings because Helm does not retain their source', (): void => {
+    it('preserves downloader settings when block-node integration is enabled', (): void => {
       const values: Record<string, unknown> = {
         importer: {
           env: {SPRING_PROFILES_ACTIVE: 'blocknode', CUSTOM: 'kept'},
@@ -92,6 +92,24 @@ describe('MirrorNodeValuesMigrator', (): void => {
         record: {enabled: false},
         balance: {enabled: false},
       });
+    });
+
+    it('drops generated downloader settings when block-node integration is disabled', (): void => {
+      const values: Record<string, unknown> = {
+        importer: {
+          config: {
+            hiero: {
+              mirror: {
+                importer: {downloader: {record: {enabled: false}, balance: {enabled: false}}},
+              },
+            },
+          },
+        },
+      };
+
+      const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(values, true);
+
+      expect(migrated.importer.config.hiero.mirror.importer.downloader).to.deep.equal({record: {}, balance: {}});
     });
 
     it('keeps a SPRING_PROFILES_ACTIVE the user chose', (): void => {

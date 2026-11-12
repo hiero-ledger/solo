@@ -18,15 +18,17 @@ export class MirrorNodeValuesMigrator {
   /**
    * Mirror node v0.157.0 moved block node importer properties from `nodes[].host/port` to
    * `nodes[].endpoints[].host/port`. Rewrites the old schema in place of the old keys, and drops the values Solo
-   * itself generates for block node integration (the importer env vars of the old schema and the `blocknode` Spring
-   * profile). Solo generates them again on every upgrade that still resolves a block node, so dropping them keeps an
-   * upgrade without block node integration from running the `blocknode` profile with no nodes. Downloader settings
-   * are intentionally preserved: Helm does not retain whether `enabled: false` came from Solo or a user values file.
+   * itself generates for block node integration (the importer env vars of the old schema, the `blocknode` Spring
+   * profile, and disabled downloaders). Solo-generated downloader settings are removed only when the current upgrade
+   * does not use block-node integration; user-supplied values files are applied later and still take precedence.
    *
    * @param values - release values as returned by `helm get values`; not modified
    * @returns a migrated copy of the values
    */
-  public static migrateBlockNodeEndpoints(values: Record<string, unknown>): Record<string, unknown> {
+  public static migrateBlockNodeEndpoints(
+    values: Record<string, unknown>,
+    removeGeneratedDownloaderSettings: boolean = false,
+  ): Record<string, unknown> {
     const migrated: MutableRecord = structuredClone(values);
     const importer: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(migrated['importer']);
 
@@ -43,6 +45,11 @@ export class MirrorNodeValuesMigrator {
       );
 
       MirrorNodeValuesMigrator.migrateBlockNodes(MirrorNodeValuesMigrator.asRecord(importerProperties?.['block']));
+      if (removeGeneratedDownloaderSettings) {
+        MirrorNodeValuesMigrator.dropDisabledDownloaders(
+          MirrorNodeValuesMigrator.asRecord(importerProperties?.['downloader']),
+        );
+      }
     }
 
     MirrorNodeValuesMigrator.dropBlockNodeEnvironment(MirrorNodeValuesMigrator.asRecord(importer['env']));
@@ -79,6 +86,17 @@ export class MirrorNodeValuesMigrator {
     delete node['host'];
     delete node['port'];
     delete node['requiresTls'];
+  }
+
+  /** Removes downloader settings that Solo generated for block-node integration. */
+  private static dropDisabledDownloaders(downloader: MutableRecord | undefined): void {
+    for (const type of ['balance', 'record']) {
+      const settings: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(downloader?.[type]);
+
+      if (settings?.['enabled'] === false) {
+        delete settings['enabled'];
+      }
+    }
   }
 
   private static dropBlockNodeEnvironment(environment: MutableRecord | undefined): void {

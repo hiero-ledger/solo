@@ -99,6 +99,7 @@ interface MirrorNodeDeployConfigClass {
   mirrorStaticIp: string;
   valuesFile: string;
   chartValues: HelmChartValues;
+  usesBlockNodeIntegration?: boolean;
   quiet: boolean;
   mirrorNodeVersion: string;
   force: boolean;
@@ -156,6 +157,7 @@ interface MirrorNodeUpgradeConfigClass {
   mirrorStaticIp: string;
   valuesFile: string;
   chartValues: HelmChartValues;
+  usesBlockNodeIntegration?: boolean;
   quiet: boolean;
   mirrorNodeVersion: string;
   force: boolean;
@@ -820,7 +822,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
     chartValues.add(await this.prepareResourceNameChartValues(config));
 
-    chartValues.add(this.prepareBlockNodeIntegrationValues(config));
+    const blockNodeIntegrationValues: HelmChartValues = this.prepareBlockNodeIntegrationValues(config);
+    config.usesBlockNodeIntegration = !blockNodeIntegrationValues.isEmpty();
+    chartValues.add(blockNodeIntegrationValues);
 
     // The flag only accepts `importer` for now, and the overlay is importer-only.
     if (config.debugMirrorNodeComponent === 'importer') {
@@ -988,7 +992,12 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     const valuesFilePath: string = PathEx.join(config.cacheDir, 'mirror-release-values.yaml');
-    fs.writeFileSync(valuesFilePath, yaml.stringify(MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(releaseValues)));
+    fs.writeFileSync(
+      valuesFilePath,
+      yaml.stringify(
+        MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(releaseValues, !config.usesBlockNodeIntegration),
+      ),
+    );
     config.chartValues.inheritedFile(valuesFilePath);
   }
 
