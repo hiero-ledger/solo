@@ -41,6 +41,10 @@ on:
       - 'Install Validation'
       - 'Install Validation (Podman Runtime)'
       - 'Performance Test Solo Deployment'
+      - 'Build Application'
+      - 'Build SEA Binaries'
+      - 'Deploy Hugo Build and Deploy Site to Pages'
+      - 'Installer E2E'
       - 'CodeQL'
     # `completed` is the only usable activity type here: a workflow_run trigger fires regardless
     # of the upstream conclusion and GitHub offers no conclusion filter, so the failure check has
@@ -113,7 +117,10 @@ jobs:
                 // first as "Unexpected HTTP response" and helm as "failed to fetch ...: 504 Gateway
                 // Timeout"; the second surfaces as a resolver or socket error, as in `getaddrinfo
                 // EAI_AGAIN get.helm.sh`. APT reports the same transient condition as "Connection
-                // timed out" or "Connection failed", while npm reports `code ECONNRESET` followed
+                // timed out" or "Connection failed", or, when the runner's resolver is down, as
+                // `W: Failed to fetch http://archive.ubuntu.com/...  Could not resolve
+                // 'archive.ubuntu.com'` (the `Bootstrap Container` step of Install Validation),
+                // while npm reports `code ECONNRESET` followed
                 // by a separate `network` line. `step-security/retry` and the setup actions have
                 // usually already spent their own attempts by then. A 404 is deliberately not matched,
                 // since a version that does not exist is a settled failure. Gated to steps that
@@ -152,7 +159,7 @@ jobs:
                   'run gcs test script',
                 ],
                 required:
-                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)|(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)[^\n]*(?:fetch|download|install|request)|npm (?:ERR!|error) code (?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)[\s\S]{0,500}npm (?:ERR!|error) network\b|failed to do request:[^\n]*dial tcp:?[^\n]*(i\/o timeout|server misbehaving)|is not a valid chart repository or cannot be reached: Get "[^"\n]*": dial tcp: lookup [^\n]*: no such host/i,
+                  /Unexpected HTTP response: (429|5\d\d)|failed to fetch [^\n]*: (429|5\d\d) |failed to fetch [^\n]*(?:could not resolve|temporary failure resolving) '|getaddrinfo (EAI_AGAIN|ENOTFOUND)|(?:fetch|download|install|request)[^\n]*(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)|(?:ECONNRESET|ETIMEDOUT|socket hang up|connection timed out|connection failed)[^\n]*(?:fetch|download|install|request)|npm (?:ERR!|error) code (?:ECONNRESET|ETIMEDOUT|EAI_AGAIN)[\s\S]{0,500}npm (?:ERR!|error) network\b|failed to do request:[^\n]*dial tcp:?[^\n]*(i\/o timeout|server misbehaving)|is not a valid chart repository or cannot be reached: Get "[^"\n]*": dial tcp: lookup [^\n]*: no such host/i,
                 forbidden: /error TS\d{4}/,
               },
               {
@@ -177,10 +184,13 @@ jobs:
               {
                 // Uploading logs and coverage goes through GitHub's artifact service, so a name
                 // that will not resolve fails the step after the toolkit's own five attempts.
+                // The toolkit only sometimes says "after N attempts" (`Failed to CreateArtifact:
+                // Unable to make request: ETIMEDOUT` has no such suffix), and either way the message is
+                // printed once its retries are spent, so the attempt count is not required.
                 description: 'artifact service could not be reached',
                 stepPrefixes: [],
                 required:
-                  /Failed to (Create|Finalize|Delete)Artifact[^\n]*after \d+ attempts[^\n]*(EAI_AGAIN|ENOTFOUND|ECONNRESET|ETIMEDOUT|socket hang up|502|503|504)/,
+                  /Failed to (Create|Finalize|Delete)Artifact[^\n]*(EAI_AGAIN|ENOTFOUND|ECONNRESET|ETIMEDOUT|socket hang up|502|503|504)/,
                 forbidden: /error TS\d{4}/,
               },
               {
@@ -231,6 +241,27 @@ jobs:
                 required: /Failed to retrieve new repository metadata|Access to requested URL is forbidden|Curl error \(22\)/,
                 forbidden: /error TS\d{4}|Failed to run task "build:compile"/,
               },
+              {
+                // apt downloads from an index it fetched earlier, so when the Ubuntu mirror rotates a
+                // package out of `pool/` before the index catches up, the download answers 404 for
+                // a file that was listed a moment ago. Only the `pool/` path of an Ubuntu mirror is
+                // matched, so a 404 for a tool version or a chart stays a settled failure.
+                description: 'Ubuntu mirror dropped a package its index still listed',
+                stepPrefixes: [...setupStepPrefixes, 'run example test', 'run e2e tests'],
+                required: /E: Failed to fetch https?:\/\/[^\s]*ubuntu\.com\/ubuntu\/pool\/[^\n]*404\s+Not Found/i,
+                forbidden: /error TS\d{4}/,
+              },
+              {
+                // `actions/deploy-pages` polls the deployment until GitHub finishes syncing files and
+                // gives up with "Timeout reached", or is refused while another deployment is still
+                // in progress. Both come from the Pages service, not from the site that was built.
+                // A rerun is only safe for the branch head; the stale-push check before the rerun
+                // below keeps an older build from replacing newer docs.
+                description: 'GitHub Pages deployment did not complete',
+                stepPrefixes: ['deploy to github pages'],
+                required: /Timeout reached, aborting!|Deployment request failed for [^\n]* due to in progress deployment/,
+                forbidden: /error TS\d{4}/,
+              },
             ];
 
             // A step killed by its own `timeout-minutes` budget reports a generic error naming the
@@ -257,7 +288,16 @@ jobs:
             const longRunningStepPattern = /\b(start|serve|run|test|deploy|destroy|launch|migrate)\b/i;
 
             const retryableStepPattern =
-              /^(set up job|harden runner|checkout|set ?up|install|configure|bootstrap|restore|retry|build|compile|pack)\b/i;
+              /^(set up job|harden runner|checkout|set ?up|install|configure|bootstrap|restore|retry|build|compile|pack|upload)\b/i;
+
+            // Log and coverage uploads go through GitHub's artifact service and stall on its side
+            // (`The action 'Upload E2E Logs to GitHub' has timed out after 5 minutes.`). They run
+            // after the test step even when it failed, so a stalled upload is only a transient
+            // cause when no other step failed: otherwise the genuine failure would be rerun and hidden.
+            const uploadStepPattern = /^upload\b/i;
+
+            const mayRetryStep = (step, failedSteps) =>
+              !uploadStepPattern.test(step.name) || failedSteps.every(failed => uploadStepPattern.test(failed.name));
 
             // Such a step can also fail for a settled reason no rerun will change - a bad ref or
             // credentials, an unresolvable action, a compile error - which vetoes a timeout retry.
@@ -345,21 +385,23 @@ jobs:
             const reasons = [];
 
             for (const job of failedJobs) {
+              // Rule prefixes compare lower case, but the timeout error quotes the step name
+              // exactly as written, so the original casing has to survive.
+              const failedSteps = (job.steps ?? []).filter(step => step.conclusion === 'failure');
+
               // Same step gate as a timeout: a runner lost while Solo runs may have been starved by Solo itself.
               const interruptedStep = (job.steps ?? []).find(step => step.status === 'in_progress');
               if (
                 interruptedStep &&
                 retryableStepPattern.test(interruptedStep.name) &&
                 !longRunningStepPattern.test(interruptedStep.name) &&
+                mayRetryStep(interruptedStep, failedSteps) &&
                 (await runnerWasLost(job.id))
               ) {
                 reasons.push(`${job.name}: the hosted runner was lost during '${interruptedStep.name}'`);
                 continue;
               }
 
-              // Rule prefixes compare lower case, but the timeout error quotes the step name
-              // exactly as written, so the original casing has to survive.
-              const failedSteps = (job.steps ?? []).filter(step => step.conclusion === 'failure');
               const failedStepNames = failedSteps.map(step => step.name.toLowerCase());
 
               const candidates = rules.filter(rule =>
@@ -367,7 +409,10 @@ jobs:
                 failedStepNames.some(name => rule.stepPrefixes.some(prefix => name.startsWith(prefix))));
 
               const retryableSteps = failedSteps.filter(
-                step => retryableStepPattern.test(step.name) && !longRunningStepPattern.test(step.name));
+                step =>
+                  retryableStepPattern.test(step.name) &&
+                  !longRunningStepPattern.test(step.name) &&
+                  mayRetryStep(step, failedSteps));
 
               if (candidates.length === 0 && retryableSteps.length === 0) {
                 continue;
@@ -438,6 +483,21 @@ jobs:
                 'Another retry handler may already be processing it; leaving the run alone.'
               );
               return;
+            }
+
+            // A push run that is no longer at the branch head has been superseded: the newer commit
+            // has its own run, and rerunning the old one could redeploy older output over newer.
+            if (run.event === 'push') {
+              const branchHead = await github.rest.repos
+                .getBranch({ owner, repo, branch: run.head_branch })
+                .then(response => response.data.commit.sha, () => undefined);
+              if (branchHead !== run.head_sha) {
+                core.info(
+                  `Run ${run.id} was for ${run.head_sha}, but '${run.head_branch}' is now at ` +
+                  `${branchHead ?? 'an unreadable state'}. The run is superseded; leaving it alone.`
+                );
+                return;
+              }
             }
 
             try {
