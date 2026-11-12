@@ -37,6 +37,8 @@ export class MirrorNodeValuesMigrator {
     }
 
     const configuration: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(importer['config']);
+    const environment: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(importer['env']);
+    const hasLegacyBlockNodeEnvironment: boolean = MirrorNodeValuesMigrator.hasLegacyBlockNodeEnvironment(environment);
     for (const root of MirrorNodeValuesMigrator.CONFIGURATION_ROOTS) {
       const importerProperties: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(
         MirrorNodeValuesMigrator.asRecord(MirrorNodeValuesMigrator.asRecord(configuration?.[root])?.['mirror'])?.[
@@ -47,14 +49,14 @@ export class MirrorNodeValuesMigrator {
       const block: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(importerProperties?.['block']);
       const hasLegacyBlockNodeValues: boolean = MirrorNodeValuesMigrator.hasLegacyBlockNodeValues(block);
       MirrorNodeValuesMigrator.migrateBlockNodes(block);
-      if (removeGeneratedDownloaderSettings && hasLegacyBlockNodeValues) {
+      if (removeGeneratedDownloaderSettings && (hasLegacyBlockNodeValues || hasLegacyBlockNodeEnvironment)) {
         MirrorNodeValuesMigrator.dropDisabledDownloaders(
           MirrorNodeValuesMigrator.asRecord(importerProperties?.['downloader']),
         );
       }
     }
 
-    MirrorNodeValuesMigrator.dropBlockNodeEnvironment(MirrorNodeValuesMigrator.asRecord(importer['env']));
+    MirrorNodeValuesMigrator.dropBlockNodeEnvironment(environment);
 
     return migrated;
   }
@@ -98,6 +100,15 @@ export class MirrorNodeValuesMigrator {
         const blockNode: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(node);
         return blockNode !== undefined && 'host' in blockNode;
       })
+    );
+  }
+
+  private static hasLegacyBlockNodeEnvironment(environment: MutableRecord | undefined): boolean {
+    return (
+      environment !== undefined &&
+      Object.keys(environment).some((key: string): boolean =>
+        MirrorNodeValuesMigrator.LEGACY_BLOCK_NODE_ENVIRONMENT_KEY.test(key),
+      )
     );
   }
 

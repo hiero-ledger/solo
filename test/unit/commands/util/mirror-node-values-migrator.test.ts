@@ -136,6 +136,25 @@ describe('MirrorNodeValuesMigrator', (): void => {
       });
     });
 
+    it('drops generated downloader settings when legacy block-node environment values identify them', (): void => {
+      const values: Record<string, unknown> = {
+        importer: {
+          env: {HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: 'legacy-block-node'},
+          config: {
+            hiero: {
+              mirror: {
+                importer: {downloader: {record: {enabled: false}, balance: {enabled: false}}},
+              },
+            },
+          },
+        },
+      };
+
+      const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(values, true);
+
+      expect(migrated.importer.config.hiero.mirror.importer.downloader).to.deep.equal({record: {}, balance: {}});
+    });
+
     it('keeps a SPRING_PROFILES_ACTIVE the user chose', (): void => {
       const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints({
         importer: {env: {SPRING_PROFILES_ACTIVE: 'custom'}},
