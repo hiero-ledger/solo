@@ -431,9 +431,11 @@ export class Middlewares {
       const deploymentName: string = configManager.getFlag<string>(flags.deployment) || '';
       const namespaceName: string = configManager.getFlag<NamespaceName>(flags.namespace)?.name || '';
       logger.addLogBindings({deployment: deploymentName, namespace: namespaceName});
-      logger.info(`Solo invocation started: ${commandData}`, {
-        soloInvocation: {version: configManager.getVersion(), command: currentCommand, pid: process.pid},
-      });
+      // the object goes first so pino records soloInvocation as a field instead of formatting it into the message
+      logger.info(
+        {soloInvocation: {version: configManager.getVersion(), command: currentCommand, pid: process.pid}},
+        `Solo invocation started: ${commandData}`,
+      );
 
       if (this.taskList.parentTaskListMap.size === 0 && !isMachineReadable) {
         // Display command header (skip in machine-readable output modes)

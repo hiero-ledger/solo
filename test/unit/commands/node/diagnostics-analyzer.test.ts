@@ -902,6 +902,46 @@ containers:
       expect(reportText).to.include('ERROR detected in solo.log: network deploy');
     });
 
+    it('includes later commands that carry only the deployment name, not the namespace', (): void => {
+      const deploymentEntry: (traceId: string, time: number, message: string, level: number) => string = (
+        traceId: string,
+        time: number,
+        message: string,
+        level: number,
+      ): string => JSON.stringify({level, time, traceId, deployment: 'one-shot', msg: message});
+      writeNdjson([
+        entry('t-create', hoursAgo(5), 'Solo invocation started: deployment config create'),
+        JSON.stringify({
+          level: 30,
+          time: hoursAgo(5),
+          traceId: 't-create',
+          namespace: 'one-shot',
+          deployment: 'one-shot',
+          msg: 'bound',
+        }),
+        deploymentEntry('t-start', hoursAgo(4), 'Solo invocation started: consensus node start', 30),
+        deploymentEntry('t-start', hoursAgo(3), 'node start failure', 50),
+        deploymentEntry('t-early', hoursAgo(6), 'before creation failure', 50),
+      ]);
+
+      const reportText: string = analyze();
+
+      expect(reportText).to.include('node start failure');
+      expect(reportText).to.not.include('before creation failure');
+    });
+
+    it('measures the fallback window from the newest entry when analyzing an old collection', (): void => {
+      writeNdjson([
+        entry('t-1', hoursAgo(1000), 'failure in old collection', 50),
+        entry('t-2', hoursAgo(1030), 'older failure outside the window', 50),
+      ]);
+      // analyze without a namespace, like `deployment diagnostics analyze --input-dir`
+      const reportText: string = analyze('');
+
+      expect(reportText).to.include('failure in old collection');
+      expect(reportText).to.not.include('older failure outside the window');
+    });
+
     it('falls back to the last 24 hours and says so when no deployment creation is logged', (): void => {
       writeNdjson([
         entry('t-old', hoursAgo(900), 'ancient failure', 50),

@@ -771,15 +771,31 @@ export class DiagnosticsAnalyzer {
       }
     }
     if (creationIndex === -1) {
-      const cutoff: number = Date.now() - DiagnosticsAnalyzer.SOLO_LOG_FALLBACK_WINDOW_MS;
+      // measured back from the newest entry, not from now, so a collection analyzed days later still has a window
+      const newestEntryTime: number = Math.max(
+        ...[...invocations.values()].map((invocation: SoloLogInvocation): number => invocation.entries.at(-1).time),
+      );
+      const cutoff: number = newestEntryTime - DiagnosticsAnalyzer.SOLO_LOG_FALLBACK_WINDOW_MS;
       selected = candidates.filter(
         (invocation: SoloLogInvocation): boolean => invocation.entries.at(-1).time >= cutoff,
       );
       anchorDescription =
-        'fallback: invocations from the last 24 hours (no deployment creation found in the log; this is a guess)';
+        'fallback: invocations from the last 24 hours of logged activity (no deployment creation found in the log; this is a guess)';
     } else {
-      selected = scoped.slice(creationIndex);
-      anchorDescription = `log: invocations of namespace ${namespaceName} since its latest deployment creation (${this.describeInvocation(scoped[creationIndex])})`;
+      const creation: SoloLogInvocation = scoped[creationIndex];
+      // only commands given --namespace bind one; the commands that follow carry just the deployment name
+      const deploymentName: string | undefined = creation.entries.find(
+        (entry: SoloLogEntry): boolean => !!entry.deployment,
+      )?.deployment;
+      selected = candidates.filter(
+        (invocation: SoloLogInvocation): boolean =>
+          invocation.entries[0].time >= creation.entries[0].time &&
+          (invocation.namespace === namespaceName ||
+            (!invocation.namespace &&
+              !!deploymentName &&
+              invocation.entries.some((entry: SoloLogEntry): boolean => entry.deployment === deploymentName))),
+      );
+      anchorDescription = `log: invocations of namespace ${namespaceName} since its latest deployment creation (${this.describeInvocation(creation)})`;
     }
     this.logger.showUser(`  solo.ndjson session anchor — ${anchorDescription}`);
 
