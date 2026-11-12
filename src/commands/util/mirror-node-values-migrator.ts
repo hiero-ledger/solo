@@ -44,8 +44,10 @@ export class MirrorNodeValuesMigrator {
         ],
       );
 
-      MirrorNodeValuesMigrator.migrateBlockNodes(MirrorNodeValuesMigrator.asRecord(importerProperties?.['block']));
-      if (removeGeneratedDownloaderSettings) {
+      const block: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(importerProperties?.['block']);
+      const hasLegacyBlockNodeValues: boolean = MirrorNodeValuesMigrator.hasLegacyBlockNodeValues(block);
+      MirrorNodeValuesMigrator.migrateBlockNodes(block);
+      if (removeGeneratedDownloaderSettings && hasLegacyBlockNodeValues) {
         MirrorNodeValuesMigrator.dropDisabledDownloaders(
           MirrorNodeValuesMigrator.asRecord(importerProperties?.['downloader']),
         );
@@ -86,6 +88,17 @@ export class MirrorNodeValuesMigrator {
     delete node['host'];
     delete node['port'];
     delete node['requiresTls'];
+  }
+
+  private static hasLegacyBlockNodeValues(block: MutableRecord | undefined): boolean {
+    const nodes: unknown = block?.['nodes'];
+    return (
+      Array.isArray(nodes) &&
+      nodes.some((node: unknown): boolean => {
+        const blockNode: MutableRecord | undefined = MirrorNodeValuesMigrator.asRecord(node);
+        return blockNode !== undefined && 'host' in blockNode;
+      })
+    );
   }
 
   /** Removes downloader settings that Solo generated for block-node integration. */

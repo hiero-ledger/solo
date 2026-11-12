@@ -100,7 +100,10 @@ describe('MirrorNodeValuesMigrator', (): void => {
           config: {
             hiero: {
               mirror: {
-                importer: {downloader: {record: {enabled: false}, balance: {enabled: false}}},
+                importer: {
+                  block: {nodes: [{host: 'legacy-block-node'}]},
+                  downloader: {record: {enabled: false}, balance: {enabled: false}},
+                },
               },
             },
           },
@@ -110,6 +113,27 @@ describe('MirrorNodeValuesMigrator', (): void => {
       const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(values, true);
 
       expect(migrated.importer.config.hiero.mirror.importer.downloader).to.deep.equal({record: {}, balance: {}});
+    });
+
+    it('keeps downloader settings when no legacy block-node values identify them as generated', (): void => {
+      const values: Record<string, unknown> = {
+        importer: {
+          config: {
+            hiero: {
+              mirror: {
+                importer: {downloader: {record: {enabled: false}, balance: {enabled: false}}},
+              },
+            },
+          },
+        },
+      };
+
+      const migrated: any = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(values, true);
+
+      expect(migrated.importer.config.hiero.mirror.importer.downloader).to.deep.equal({
+        record: {enabled: false},
+        balance: {enabled: false},
+      });
     });
 
     it('keeps a SPRING_PROFILES_ACTIVE the user chose', (): void => {
