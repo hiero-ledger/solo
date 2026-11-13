@@ -269,8 +269,8 @@ export class DiagnosticsAnalyzer {
     /Failed to download block node log files from .*copy verification failed: expected size \d+ but found \d+ at .*blocknode-\d+\.log/i,
   ];
 
-  /** Name of the manifest written into every pod-log snapshot folder. */
-  public static readonly MANIFEST_FILE_NAME: string = 'manifest.json';
+  /** Number of pod-log snapshot folders kept after a collection. */
+  private static readonly SNAPSHOTS_TO_KEEP: number = 3;
 
   /** Window of solo.ndjson activity analyzed when no deployment creation can be anchored in the log. */
   private static readonly SOLO_LOG_FALLBACK_WINDOW_MS: number = 24 * 60 * 60 * 1000;
@@ -293,24 +293,41 @@ export class DiagnosticsAnalyzer {
 
   public constructor(private readonly logger: SoloLogger) {}
 
+  /** Names of the timestamped snapshot folders under `rootDirectory`, oldest first (ISO-8601 names sort chronologically). */
+  private static listSnapshotNames(rootDirectory: string): string[] {
+    if (!fs.existsSync(rootDirectory)) {
+      return [];
+    }
+    return (
+      fs
+        .readdirSync(rootDirectory, {withFileTypes: true})
+        .filter(
+          (entry: fs.Dirent): boolean =>
+            entry.isDirectory() && DiagnosticsAnalyzer.SNAPSHOT_DIRECTORY_PATTERN.test(entry.name),
+        )
+        .map((entry: fs.Dirent): string => entry.name)
+        // eslint-disable-next-line unicorn/no-array-sort
+        .sort()
+    );
+  }
+
+  /** Deletes all but the newest {@link SNAPSHOTS_TO_KEEP} snapshot folders under `rootDirectory`. */
+  public static pruneOldSnapshots(rootDirectory: string): void {
+    const stale: string[] = DiagnosticsAnalyzer.listSnapshotNames(rootDirectory).slice(
+      0,
+      -DiagnosticsAnalyzer.SNAPSHOTS_TO_KEEP,
+    );
+    for (const name of stale) {
+      fs.rmSync(PathEx.join(rootDirectory, name), {recursive: true, force: true});
+    }
+  }
+
   /**
    * Returns the directory holding the pod files of the latest collection: the newest timestamped snapshot
    * folder under `rootDirectory`, or `rootDirectory` itself for output written before snapshots existed.
    */
   private resolveLatestSnapshotDirectory(rootDirectory: string): string {
-    if (!fs.existsSync(rootDirectory)) {
-      return rootDirectory;
-    }
-    const snapshots: string[] = fs
-      .readdirSync(rootDirectory, {withFileTypes: true})
-      .filter(
-        (entry: fs.Dirent): boolean =>
-          entry.isDirectory() && DiagnosticsAnalyzer.SNAPSHOT_DIRECTORY_PATTERN.test(entry.name),
-      )
-      .map((entry: fs.Dirent): string => entry.name)
-      // ISO-8601 names sort chronologically
-      // eslint-disable-next-line unicorn/no-array-sort
-      .sort();
+    const snapshots: string[] = DiagnosticsAnalyzer.listSnapshotNames(rootDirectory);
     if (snapshots.length === 0) {
       return rootDirectory;
     }

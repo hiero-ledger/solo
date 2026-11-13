@@ -191,7 +191,6 @@ import {type ConfigProvider} from '../../data/configuration/api/config-provider.
 import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
 import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
-import {type DiagnosticsSnapshotManifest} from '../util/diagnostics-snapshot-manifest.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
@@ -5762,22 +5761,8 @@ export class NodeCommandTasks {
           await this.downloadPodLogs(podInfo, snapshotDirectory);
         }
 
-        // The manifest lets the analyzer attribute every file to a deployment instance and a point in time.
-        const manifest: DiagnosticsSnapshotManifest = {
-          collectedAt: collectedAt.toISOString(),
-          deployment: context_?.config?.deployment ?? undefined,
-          pods: allPods.map((podInfo): DiagnosticsSnapshotManifest['pods'][number] => ({
-            name: podInfo.pod.podReference.name.name,
-            namespace: podInfo.namespace.name,
-            context: podInfo.context,
-            creationTimestamp: podInfo.pod.creationTimestamp?.toISOString(),
-          })),
-        };
-        fs.writeFileSync(
-          PathEx.join(snapshotDirectory, DiagnosticsAnalyzer.MANIFEST_FILE_NAME),
-          JSON.stringify(manifest, undefined, 2),
-          'utf8',
-        );
+        // Older snapshots are never analyzed and `debug` zips the whole logs directory, so keep only the last few.
+        DiagnosticsAnalyzer.pruneOldSnapshots(outputDirectory);
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },

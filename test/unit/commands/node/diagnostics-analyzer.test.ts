@@ -839,6 +839,20 @@ containers:
       return fs.readFileSync(path.join(temporaryDirectory, 'diagnostics-analysis.txt'), 'utf8');
     };
 
+    it('keeps only the newest three snapshot folders and leaves other folders alone', (): void => {
+      const names: string[] = [1, 2, 3, 4, 5].map((day: number): string => `2026-11-0${day}T10-00-00-000Z`);
+      for (const name of [...names, 'kind-solo-cluster']) {
+        fs.mkdirSync(path.join(temporaryDirectory, name));
+      }
+
+      DiagnosticsAnalyzer.pruneOldSnapshots(temporaryDirectory);
+
+      const remaining: string[] = fs.readdirSync(temporaryDirectory);
+      const expected: string[] = [...names.slice(2), 'kind-solo-cluster'];
+      expect(remaining).to.have.members(expected);
+      expect(remaining).to.have.lengthOf(expected.length);
+    });
+
     it('analyzes only the latest pod log snapshot', (): void => {
       const oldSnapshot: string = path.join(temporaryDirectory, '2026-10-07T10-00-00-000Z', 'ctx');
       const newSnapshot: string = path.join(temporaryDirectory, '2026-11-06T13-00-00-000Z', 'ctx');
