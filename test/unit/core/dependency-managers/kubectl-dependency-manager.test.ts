@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon from 'sinon';
 import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import {container} from 'tsyringe-neo';
 
 import {resetForTest} from '../../../test-container.js';
@@ -78,5 +79,34 @@ describe('KubectlDependencyManager installationMeetsRequirements', (): void => {
     expect(await manager.installationMeetsRequirements(wrapperPath)).to.be.false;
     const logged: string = loggedLines();
     expect(logged).to.include("version --client' failed");
+  });
+
+  itPosix('reports newer kubectl installs shadowed by an older first match on PATH', async (): Promise<void> => {
+    const oldDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kubectl-old-'));
+    const newDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'kubectl-new-'));
+    const originalPath: string | undefined = process.env.PATH;
+    try {
+      fs.writeFileSync(PathEx.join(oldDirectory, 'kubectl'), '#!/bin/sh\necho "Client Version: v1.31.4"\n', {
+        mode: 0o755,
+      });
+      fs.writeFileSync(PathEx.join(newDirectory, 'kubectl'), '#!/bin/sh\necho "Client Version: v1.35.0"\n', {
+        mode: 0o755,
+      });
+      process.env.PATH = `${oldDirectory}${path.delimiter}${newDirectory}${path.delimiter}${originalPath ?? ''}`;
+
+      const compatible: boolean = await (
+        manager as never as {isInstalledGloballyAndMeetsRequirements: () => Promise<boolean>}
+      ).isInstalledGloballyAndMeetsRequirements();
+
+      // behaviour is unchanged: only the first match on PATH is considered, and it is too old
+      expect(compatible).to.be.false;
+      const logged: string = loggedLines();
+      expect(logged).to.include(`kubectl at ${PathEx.join(oldDirectory, 'kubectl')} is first on PATH and was rejected`);
+      expect(logged).to.include(`${PathEx.join(newDirectory, 'kubectl')} (1.35.0)`);
+    } finally {
+      process.env.PATH = originalPath;
+      fs.rmSync(oldDirectory, {recursive: true, force: true});
+      fs.rmSync(newDirectory, {recursive: true, force: true});
+    }
   });
 });

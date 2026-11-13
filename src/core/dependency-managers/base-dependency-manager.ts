@@ -119,13 +119,31 @@ export abstract class BaseDependencyManager extends ShellRunner {
       return this.globalExecutablePath;
     }
 
+    const pathDirectories: string[] = SubprocessEnvironment.currentPath().split(path.delimiter).filter(Boolean);
+    this.logger.debug(`Searching PATH for ${this.executableName}: [${pathDirectories.join(', ')}]`);
+
+    const [firstCandidate]: string[] = this.findExecutablesOnPath(pathDirectories, true);
+    if (firstCandidate) {
+      this.logger.debug(`Found ${this.executableName} at ${firstCandidate}`);
+      this.globalExecutablePath = firstCandidate;
+      return firstCandidate;
+    }
+
+    this.logger.warn(`${this.executableName} was not found in PATH`);
+    return false;
+  }
+
+  /**
+   * Lists the executables named like this dependency in the given PATH directories, in PATH order.
+   * @param pathDirectories - the directories to scan
+   * @param stopAtFirst - return as soon as one is found
+   */
+  private findExecutablesOnPath(pathDirectories: string[], stopAtFirst: boolean = false): string[] {
     const executableNames: string[] = OperatingSystem.isWin32()
       ? [`${this.executableName}.exe`, `${this.executableName}.cmd`, this.executableName]
       : [this.executableName];
 
-    const pathDirectories: string[] = SubprocessEnvironment.currentPath().split(path.delimiter).filter(Boolean);
-    this.logger.debug(`Searching PATH for ${this.executableName}: [${pathDirectories.join(', ')}]`);
-
+    const found: string[] = [];
     for (const directory of pathDirectories) {
       for (const name of executableNames) {
         const candidate: string = path.join(directory, name);
@@ -133,17 +151,47 @@ export abstract class BaseDependencyManager extends ShellRunner {
           // On Windows X_OK is not supported and silently degrades to F_OK;
           // executability is determined by file extension (.exe/.cmd) already.
           fs.accessSync(candidate, OperatingSystem.isWin32() ? fs.constants.F_OK : fs.constants.X_OK);
-          this.logger.debug(`Found ${this.executableName} at ${candidate}`);
-          this.globalExecutablePath = candidate;
-          return candidate;
+          found.push(candidate);
+          if (stopAtFirst) {
+            return found;
+          }
         } catch {
           // not found or not executable in this directory — continue
         }
       }
     }
+    return found;
+  }
 
-    this.logger.warn(`${this.executableName} was not found in PATH`);
-    return false;
+  /**
+   * Explains a rejected PATH candidate: solo only considers the first match on PATH (that is what the
+   * bare command name resolves to), so a later, newer install is shadowed. Logs those shadowed installs
+   * with their versions so the cause is visible. Purely informational; never changes which binary is used.
+   */
+  private async logShadowedPathCandidates(rejectedCandidate: string): Promise<void> {
+    const pathDirectories: string[] = SubprocessEnvironment.currentPath().split(path.delimiter).filter(Boolean);
+    const shadowed: string[] = this.findExecutablesOnPath(pathDirectories).filter(
+      (candidate: string): boolean => candidate !== rejectedCandidate,
+    );
+    if (shadowed.length === 0) {
+      return;
+    }
+
+    const described: string[] = await Promise.all(
+      shadowed.map(async (candidate: string): Promise<string> => {
+        try {
+          return `${candidate} (${await this.getVersion(candidate)})`;
+        } catch {
+          // informational only: an unrunnable shadowed candidate is reported without a version
+          return `${candidate} (version unknown)`;
+        }
+      }),
+    );
+    this.logger.info(
+      `${this.executableName} at ${rejectedCandidate} is first on PATH and was rejected; solo does not look past it. ` +
+        `Other ${this.executableName} installs further down PATH: ${described.join(', ')}. ` +
+        `Put the one you want first on PATH (or in ${this.installationDirectory}) to use it.`,
+    );
   }
 
   /**
@@ -197,6 +245,9 @@ export abstract class BaseDependencyManager extends ShellRunner {
         return true;
       } else {
         this.logger.info(`${this.executableName}${path ? ` at ${path}` : ''} is not a compatible global installation`);
+        if (path) {
+          await this.logShadowedPathCandidates(path);
+        }
       }
     } catch (error) {
       this.logger.debug(
