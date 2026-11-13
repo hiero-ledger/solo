@@ -10,6 +10,7 @@ import {type SoloLogger} from './core/logging/solo-logger.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
 import {type AnyObject} from './types/aliases.js';
+import {ExitCode} from './core/exit-code.js';
 
 export class ArgumentProcessor {
   public static async process(argv: string[]): Promise<AnyObject> {
@@ -79,7 +80,7 @@ export class ArgumentProcessor {
         // Throw to propagate through async call chains when given an invalid argument
         if (!rootCmd.parsed.argv.help) {
           // Set exit code but don't exit immediately - allows I/O buffers to flush
-          process.exitCode = 1;
+          process.exitCode = ExitCode.INVALID_INPUT;
           throw new SilentBreak(message);
         }
       }
