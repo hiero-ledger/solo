@@ -34,6 +34,8 @@ import eol from 'eol';
 import {ResumableCopySource} from '../../../resources/container/resumable-copy-source.js';
 
 export class K8ClientContainer implements Container {
+  private static readonly reportedKubectlBinaries: Set<string> = new Set<string>();
+
   private readonly logger: SoloLogger;
 
   public constructor(
@@ -43,6 +45,27 @@ export class K8ClientContainer implements Container {
     private readonly kubectlInstallationDirectory: string,
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
+  }
+
+  /**
+   * Finds the first directory on `searchPath` holding `executableName`, mirroring how the OS resolves the
+   * bare command that `spawn` is given. Used only for diagnostic logging.
+   */
+  private static resolveExecutable(executableName: string, searchPath: string): string {
+    const names: string[] =
+      platform === 'win32' ? [`${executableName}.exe`, `${executableName}.cmd`] : [executableName];
+    for (const directory of searchPath.split(path.delimiter).filter(Boolean)) {
+      for (const name of names) {
+        const candidate: string = path.join(directory, name);
+        try {
+          fs.accessSync(candidate, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK);
+          return candidate;
+        } catch {
+          // not present or not executable in this directory, so keep looking down PATH
+        }
+      }
+    }
+    return `${executableName} (not found in PATH)`;
   }
 
   private async getContext(): Promise<string> {
@@ -72,10 +95,22 @@ export class K8ClientContainer implements Container {
     arguments_: string[],
     outputPassThroughStream?: stream.PassThrough,
     errorPassThroughStream?: stream.PassThrough,
+    timeoutMs?: number,
   ): Promise<string> {
     const context: Context = await this.getContext();
     const fullArguments: string[] = ['--context', context, ...arguments_];
-    this.logger.debug(`Executing kubectl with arguments: ${fullArguments.join(' ')}`);
+    const spawnPath: string = `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`;
+    const resolvedBinary: string = K8ClientContainer.resolveExecutable(constants.KUBECTL, spawnPath);
+    if (!K8ClientContainer.reportedKubectlBinaries.has(resolvedBinary)) {
+      // once per distinct binary at info, so the log shows which kubectl solo runs without one line per exec
+      K8ClientContainer.reportedKubectlBinaries.add(resolvedBinary);
+      this.logger.info(
+        `Using kubectl binary ${resolvedBinary} (solo install dir: ${this.kubectlInstallationDirectory}, searched first)`,
+      );
+    }
+    this.logger.debug(
+      `Executing kubectl with arguments: ${fullArguments.join(' ')} [resolved binary: ${resolvedBinary}]`,
+    );
 
     return new Promise((resolve, reject): void => {
       const callMessage: string = `${constants.KUBECTL} ${fullArguments.join(' ')}`;
@@ -85,7 +120,7 @@ export class K8ClientContainer implements Container {
         {
           shell: false,
           env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL, {
-            PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${SubprocessEnvironment.currentPath()}`,
+            PATH: spawnPath,
           }),
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: os.platform() === 'win32',
@@ -94,6 +129,29 @@ export class K8ClientContainer implements Container {
 
       let stdout: string = '';
       let stderr: string = '';
+      let settled: boolean = false;
+
+      // a kubectl call that never returns (dead API-server tunnel, stalled auth plugin) would otherwise block the caller forever
+      const timeoutHandle: ReturnType<typeof setTimeout> | undefined =
+        timeoutMs === undefined
+          ? undefined
+          : setTimeout((): void => {
+              if (settled) {
+                return;
+              }
+              settled = true;
+              childProcess.kill('SIGKILL');
+              const lastOutput: string = (stderr || stdout).trim();
+              reject(
+                new KubeContainerOperationFailedError(
+                  `container call: ${callMessage}, timed out`,
+                  new Error(
+                    `kubectl (pid ${childProcess.pid}) did not exit within ${timeoutMs}ms and was killed` +
+                      (lastOutput ? `; last output: ${lastOutput}` : '; it produced no output'),
+                  ),
+                ),
+              );
+            }, timeoutMs);
 
       childProcess.stdout.on('data', (chunk): void => {
         if (outputPassThroughStream) {
@@ -110,16 +168,26 @@ export class K8ClientContainer implements Container {
       });
 
       childProcess.on('error', (error): void => {
+        clearTimeout(timeoutHandle);
+        if (settled) {
+          return;
+        }
+        settled = true;
         reject(new KubeContainerOperationFailedError(`container call: ${callMessage}, failed to start`, error));
       });
 
-      childProcess.on('close', (code): void => {
+      childProcess.on('close', (code, signal): void => {
+        clearTimeout(timeoutHandle);
+        if (settled) {
+          return;
+        }
+        settled = true;
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
           reject(
             new KubeContainerOperationFailedError(
-              `container call: ${callMessage}, failed with code ${code}`,
+              `container call: ${callMessage}, failed with ${signal ? `signal ${signal}` : `code ${code}`}`,
               new Error(stderr || stdout),
             ),
           );
@@ -475,7 +543,12 @@ export class K8ClientContainer implements Container {
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await this.execKubectl(arguments_, outputPassThroughStream, errorPassThroughStream);
+        return await this.execKubectl(
+          arguments_,
+          outputPassThroughStream,
+          errorPassThroughStream,
+          constants.KUBECTL_EXEC_TIMEOUT_MS,
+        );
       } catch (error) {
         const message: string = error instanceof Error ? error.message : `${error}`;
 

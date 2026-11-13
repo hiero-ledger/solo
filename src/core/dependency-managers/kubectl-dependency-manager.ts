@@ -74,8 +74,14 @@ export class KubectlDependencyManager extends BaseDependencyManager {
         }
       }
     } catch (error) {
+      this.logger.debug(
+        `'${executableWithPath} version --client' failed: ${error instanceof Error ? error.message : error}`,
+      );
       throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl', error);
     }
+    this.logger.info(
+      `'${executableWithPath} version --client' exited successfully but no 'Client Version: <x.y.z>' line was found in its stdout`,
+    );
     throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl');
   }
 
