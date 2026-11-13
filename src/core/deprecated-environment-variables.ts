@@ -14,7 +14,7 @@ export class DeprecatedEnvironmentVariables {
   private static readonly WRAPS_PROVING_KEY: Deprecation = {
     since: '0.94.0',
     removalIssue: 6174,
-    reason: 'Consensus node v0.79.0 and later embed the WRAPS proving parameters, so it has no effect on them.',
+    reason: 'Consensus node v0.79.1 and later embed the WRAPS proving parameters, so it has no effect on them.',
   };
 
   public static readonly ALL: ReadonlyMap<string, Deprecation> = new Map<string, Deprecation>([

@@ -225,12 +225,15 @@ describe('Helpers', (): void => {
   describe('shouldProvisionWraps', (): void => {
     it('provisions WRAPS for a consensus node that predates the embedded proving parameters', (): void => {
       expect(Helpers.shouldProvisionWraps(true, 'v0.78.2')).to.be.true;
+      // v0.79.0 still ships the pre-Nova TSS library, which reads the proving key from TSS_LIB_WRAPS_ARTIFACTS_PATH
+      expect(Helpers.shouldProvisionWraps(true, 'v0.79.0')).to.be.true;
+      expect(Helpers.shouldProvisionWraps(true, 'v0.79.0-alpha.2')).to.be.true;
     });
 
     it('does not provision WRAPS from the release that embeds the proving parameters', (): void => {
-      expect(Helpers.shouldProvisionWraps(true, 'v0.79.0')).to.be.false;
-      expect(Helpers.shouldProvisionWraps(true, 'v0.79.0-rc.1')).to.be.false;
-      expect(Helpers.shouldProvisionWraps(true, 'v0.80.0')).to.be.false;
+      expect(Helpers.shouldProvisionWraps(true, 'v0.79.1')).to.be.false;
+      expect(Helpers.shouldProvisionWraps(true, 'v0.79.1-rc.1')).to.be.false;
+      expect(Helpers.shouldProvisionWraps(true, 'v0.80.0-alpha.4')).to.be.false;
     });
 
     it('does not provision WRAPS when it is disabled', (): void => {

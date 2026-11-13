@@ -16,7 +16,6 @@ import {ContainerName} from '../../integration/kube/resources/container/containe
 import * as constants from '../../core/constants.js';
 import fs from 'node:fs';
 import {SOLO_CACHE_DIR} from '../constants.js';
-import {MIRROR_NODE_VERSION} from '../../../version.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {PassThrough} from 'node:stream';
 import {SoloErrors} from '../errors/solo-errors.js';
@@ -108,15 +107,21 @@ export class PostgresSharedResource {
     return patchedPath;
   }
 
+  /**
+   * Creates the mirror node database, users and roles with the init script of `mirrorNodeVersion`. The script
+   * is version specific, so it must come from the mirror node release that will use the database rather than
+   * from Solo's default mirror node version.
+   */
   public async initializeMirrorNode(
     namespace: NamespaceName,
     context: string,
+    mirrorNodeVersion: string,
     prefix: string = 'HIERO',
     names: MirrorNodeResourceNames = MirrorNodeResourceNames.primary(),
   ): Promise<void> {
     const containerReference: ContainerReference = await this.resolveContainerReference(namespace, context);
     const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-    const tag: string = PostgresSharedResource.getMirrorNodeReleaseTag(MIRROR_NODE_VERSION);
+    const tag: string = PostgresSharedResource.getMirrorNodeReleaseTag(mirrorNodeVersion);
 
     // check if path exists recursive PathEx.join(constants.SOLO_CACHE_DIR, 'mirror-node', mirrorRelease, 'init-script.sh')
     if (!fs.existsSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', tag))) {

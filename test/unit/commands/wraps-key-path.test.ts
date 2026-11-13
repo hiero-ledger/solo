@@ -180,8 +180,17 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     expect((listrTask.skip as () => boolean)()).to.be.false;
   });
 
-  it('is skipped from the consensus node release that embeds the proving parameters', (): void => {
+  // v0.79.0 still ships the pre-Nova TSS library and reads the proving key from TSS_LIB_WRAPS_ARTIFACTS_PATH
+  it('runs for consensus node v0.79.0, which predates the TSS-Nova library', (): void => {
     remoteConfigStub.configuration.versions.consensusNode = 'v0.79.0';
+
+    const listrTask: SoloListrTask<{config: NodeCommonConfigClass}> = nodeCommandTasks.addWrapsLib();
+
+    expect((listrTask.skip as () => boolean)()).to.be.false;
+  });
+
+  it('is skipped from the consensus node release that embeds the proving parameters', (): void => {
+    remoteConfigStub.configuration.versions.consensusNode = 'v0.79.1';
 
     const listrTask: SoloListrTask<{config: NodeCommonConfigClass}> = nodeCommandTasks.addWrapsLib();
 

@@ -817,6 +817,40 @@ describe('DefaultOneShotDeployOrchestrator reconcileEffectiveVersions', (): void
     expect(config.versions.explorer).to.equal('26.2.0');
     expect(config.versions.relay).to.equal('0.78.0');
   });
+
+  // A generated falcon values file lists every flag: the current version keys can be empty while the version
+  // sits in a deprecated key. An empty value must not blank the version out of the compatibility check.
+  it('treats empty keys as unset and falls back to the deprecated version keys', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      networkConfiguration: {[releaseTagKey]: '', [soloChartVersionKey]: ''},
+      blockNodeConfiguration: {
+        [blockNodeVersionKey]: '',
+        [Flags.getFormattedFlagKey(Flags.blockNodeChartVersion)]: '0.45.0-rc5',
+      },
+      mirrorNodeConfiguration: {[mirrorNodeVersionKey]: ''},
+      explorerNodeConfiguration: {[explorerVersionKey]: ''},
+      relayNodeConfiguration: {[relayVersionKey]: '', [Flags.getFormattedFlagKey(Flags.relayReleaseTag)]: '0.80.1'},
+      versions: {
+        soloChart: '0.64.0',
+        consensus: 'v0.74.0',
+        mirror: 'v0.158.0',
+        explorer: '26.1.0',
+        relay: '0.77.0',
+        blockNode: '0.38.0',
+      },
+    });
+
+    // @ts-expect-error - to access private method
+    orchestrator.reconcileEffectiveVersions(config);
+
+    expect(config.versions.consensus).to.equal('v0.74.0');
+    expect(config.versions.soloChart).to.equal('0.64.0');
+    expect(config.versions.blockNode).to.equal('0.45.0-rc5');
+    expect(config.versions.mirror).to.equal('v0.158.0');
+    expect(config.versions.explorer).to.equal('26.1.0');
+    expect(config.versions.relay).to.equal('0.80.1');
+  });
 });
 
 function invokeApplyValuesFileOverrides(config: OneShotSingleDeployConfigClass): void {
