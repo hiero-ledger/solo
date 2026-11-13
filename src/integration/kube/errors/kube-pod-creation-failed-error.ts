@@ -6,7 +6,11 @@ export class KubePodCreationFailedError extends KubeError {
   public readonly result: unknown;
 
   public constructor(result?: unknown) {
-    super('Failed to create Kubernetes pod', undefined, result === undefined ? undefined : {result});
+    super(
+      `Failed to create Kubernetes pod${typeof result === 'string' ? `: ${result}` : ''}`,
+      undefined,
+      result === undefined ? undefined : {result},
+    );
     this.result = result;
   }
 }

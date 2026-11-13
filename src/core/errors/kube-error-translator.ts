@@ -29,6 +29,9 @@ export class KubeErrorTranslator {
     // needs its own branch: without one the readiness path returned undefined here and the pod
     // diagnostics (including the volume mount diagnostic) never reached the user.
     if (error instanceof KubePodReadinessFailedError) {
+      if (error.podCreationFailure !== undefined) {
+        return new SoloErrors.system.podCreationFailed(error.podCreationFailure);
+      }
       if (error.podName) {
         return new SoloErrors.system.podNotReady(
           error.podName,

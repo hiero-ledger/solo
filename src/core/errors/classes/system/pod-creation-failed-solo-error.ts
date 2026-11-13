@@ -16,7 +16,7 @@ export class PodCreationFailedSoloError extends SoloError {
   public constructor(result?: unknown) {
     super(
       {
-        message: 'Failed to create Kubernetes pod',
+        message: `Failed to create Kubernetes pod${typeof result === 'string' ? ` [${result}]` : ''}`,
         code: ErrorCodeRegistry.POD_CREATION_FAILED,
         troubleshootingSteps:
           'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
