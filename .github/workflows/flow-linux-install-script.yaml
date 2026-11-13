@@ -14,11 +14,11 @@
 # limitations under the License.
 ##
 
-# Tests the Linux install script (installers/linux/install.sh) on every supported distribution:
-# the script-logic harness with a stand-in binary, then a real install of the SEA binary built in
-# this run for the runner's architecture and libc, served from a local release directory over file://.
-# Tracked by hiero-ledger/solo#5725.
-name: 'Linux Install Script'
+# Tests the install script (installers/linux/install.sh) on every supported Linux distribution and on
+# macOS: the script-logic harness with a stand-in binary, then a real install of the SEA binary built in
+# this run for the runner's platform, architecture and libc, served from a local release directory over
+# file://. Tracked by hiero-ledger/solo#5725 (Linux) and #5724 (macOS).
+name: 'Install Script'
 
 on:
   workflow_dispatch:
@@ -43,7 +43,7 @@ concurrency:
 
 jobs:
   build-sea:
-    name: "Build SEA (linux-${{ matrix.arch }}${{ matrix.libc == 'musl' && '-musl' || '' }})"
+    name: "Build SEA (${{ matrix.platform || 'linux' }}-${{ matrix.arch }}${{ matrix.libc == 'musl' && '-musl' || '' }})"
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -59,8 +59,14 @@ jobs:
           - runner: ubuntu-24.04-arm
             arch: arm64
             libc: musl
+          - runner: macos-latest
+            arch: arm64
+            platform: darwin
+          - runner: macos-15-intel
+            arch: x64
+            platform: darwin
     env:
-      SEA_ASSET: solo-linux-${{ matrix.arch }}${{ matrix.libc == 'musl' && '-musl' || '' }}
+      SEA_ASSET: solo-${{ matrix.platform || 'linux' }}-${{ matrix.arch }}${{ matrix.libc == 'musl' && '-musl' || '' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -430,3 +436,86 @@ jobs:
           name: linux-installer-one-shot-logs
           path: ~/.solo/logs/*
           if-no-files-found: warn
+
+  install-script-macos:
+    name: 'Install Script (macos, ${{ matrix.arch }})'
+    needs: build-sea
+    runs-on: ${{ matrix.runner }}
+    env:
+      SEA_ASSET: solo-darwin-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    defaults:
+      run:
+        # The script under test is POSIX sh, which is bash 3.2 in POSIX mode on macOS.
+        shell: sh
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test Install Script Logic
+        run: sh installers/linux/test-install.sh
+
+      - name: Download SEA Binary
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ env.SEA_ASSET }}
+          path: sea-binary
+
+      - name: Stage Local Release
+        run: |
+          set -eu
+          release_directory="${RUNNER_TEMP}/release/latest/download"
+          mkdir -p "${release_directory}"
+          cp "sea-binary/${SEA_ASSET}" "${release_directory}/${SEA_ASSET}"
+          cd "${release_directory}"
+          shasum -a 256 "${SEA_ASSET}" >SHA256SUMS
+
+      - name: Install SEA Binary
+        env:
+          # zsh is the default login shell on macOS.
+          SHELL: /bin/zsh
+        run: |
+          set -eu
+          sh installers/linux/install.sh --base-url "file://${RUNNER_TEMP}/release"
+          grep -qF '# >>> solo installer >>>' "${HOME}/.zshrc"
+          expected_version="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json)"
+          actual_version="$("${HOME}/.solo/bin/solo" --version)"
+          echo "installed: ${actual_version}"
+          echo "${actual_version}" | grep -qF "${expected_version}"
+
+      # Reinstalling must replace the binary by rename: rewriting the bytes of a signed binary in place
+      # makes macOS kill its next launch with "Killed: 9".
+      - name: Reinstall Over the Existing Binary
+        run: |
+          set -eu
+          sh installers/linux/install.sh --base-url "file://${RUNNER_TEMP}/release"
+          "${HOME}/.solo/bin/solo" --version
+
+      # Only the arm64 binary is staged, so the install fails unless the script sees through Rosetta.
+      - name: Install From a Shell Running Under Rosetta
+        if: ${{ matrix.arch == 'arm64' }}
+        run: |
+          set -eu
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo '::notice::Rosetta is not installed on this runner; skipping the Rosetta install check'
+            exit 0
+          fi
+          rm -rf "${HOME}/.solo/bin"
+          arch -x86_64 /bin/sh installers/linux/install.sh --base-url "file://${RUNNER_TEMP}/release" 2>&1 |
+            tee "${RUNNER_TEMP}/rosetta-install.log"
+          grep -qF 'downloading solo-darwin-arm64 ' "${RUNNER_TEMP}/rosetta-install.log"
+          "${HOME}/.solo/bin/solo" --version

@@ -24,6 +24,7 @@ import {VersionBanner} from './core/version-banner.js';
 import {type ConfigProvider} from './data/configuration/api/config-provider.js';
 import {ImageCacheWarmUp} from './core/image-cache-warm-up.js';
 import {hideBin} from 'yargs/helpers';
+import {ExitCode} from './core/exit-code.js';
 
 // Re-exported so the SEA bootstrap (sea/sea-main.template.cjs) can reach it from the bundled
 // entry point without a separate import path — it shares this same entrypoint tail with solo.ts.
@@ -89,7 +90,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
         : new SoloErrors.system.initSystemFilesFailed(
             incomingError instanceof Error ? incomingError : new Error(String(incomingError)),
           );
-    process.exitCode = 1;
+    process.exitCode = ExitCode.FAILURE;
     if (context?.logger) {
       context.logger.showUserError(error);
     } else {
