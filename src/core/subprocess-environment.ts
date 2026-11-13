@@ -59,7 +59,7 @@ import {SoloErrors} from './errors/solo-errors.js';
  * `forCommand()` takes an optional diagnostic callback receiving the *names* of every withheld
  * variable (never values), which `ShellRunner` and `HelmExecutionBuilder` log at **info** level,
  * once per command profile per run. Info rather than debug is deliberate: `solo.log` is written
- * at `SOLO_LOG_LEVEL`, which defaults to `debug`, so a user can answer "was my environment
+ * at `SOLO_LOG_LEVEL`, which defaults to `info`, so a user can answer "was my environment
  * variable filtered out?" by searching the log they already have, instead of having to know to
  * re-run with `--debug`. The list is unfiltered for the same reason — reporting only names that
  * look "interesting" would hide exactly the user-defined variable someone is searching for.
