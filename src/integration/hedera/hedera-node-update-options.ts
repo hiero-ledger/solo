@@ -9,6 +9,9 @@ export interface HederaNodeUpdateOptions {
   /** the new admin key of the node */
   adminKey?: PublicKey;
 
+  /** the new description of the node */
+  description?: string;
+
   /** the new account of the node */
   accountId?: AccountId | string;
 

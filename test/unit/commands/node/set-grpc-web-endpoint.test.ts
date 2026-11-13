@@ -50,6 +50,7 @@ function createTasks(
   logger: FakeLogger,
 ): NodeCommandTasks {
   const tasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+  const hederaClient: SdkHederaClient = new SdkHederaClient(client, logger as unknown as SoloLogger);
 
   // Only the per-node admin key secrets exist; there is no stored genesis key secret, so the default key applies.
   const secrets: {read: unknown; exists: unknown} = {
@@ -94,9 +95,7 @@ function createTasks(
             },
           ]),
         ),
-      loadNodeClient: async (): Promise<Client> => client,
-      hederaClientFor: (sdkClient: Client): SdkHederaClient =>
-        new SdkHederaClient(sdkClient, logger as unknown as SoloLogger),
+      loadNodeClient: async (): Promise<SdkHederaClient> => hederaClient,
     }),
     remoteConfig,
     logger,
