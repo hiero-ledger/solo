@@ -1322,13 +1322,14 @@ export class DeploymentCommand extends BaseCommand {
    * Checks the ledger phase:
    * - if remote config is found check's the ledgerPhase field to see if it's pre or post genesis.
    *   - pre genesis:
-   *     - prompts user if needed.
-   *     - generates node aliases based on '--number-of-consensus-nodes'
+   *     - defaults '--num-consensus-nodes' to zero when omitted, so the additional cluster can host only other
+   *       components (e.g. a mirror node or block node).
+   *     - generates node aliases based on '--num-consensus-nodes'
    *   - post genesis:
-   *     - throws if '--number-of-consensus-nodes' is passed
-   * - if remote config is not found:
-   *   - prompts user if needed.
-   *   - generates node aliases based on '--number-of-consensus-nodes'.
+   *     - throws if '--num-consensus-nodes' is passed
+   * - if remote config is not found (the first cluster of the deployment):
+   *   - throws in quiet mode when '--num-consensus-nodes' is omitted, otherwise prompts for it.
+   *   - generates node aliases based on '--num-consensus-nodes'.
    */
   public checkNetworkState(): SoloListrTask<DeploymentAddClusterContext> {
     return {

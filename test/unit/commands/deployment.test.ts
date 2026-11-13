@@ -736,9 +736,16 @@ describe('DeploymentCommand unit tests', (): void => {
     type NetworkStateContext = Parameters<NetworkStateTask['task']>[0];
     type NetworkStateTaskWrapper = Parameters<NetworkStateTask['task']>[1];
 
-    const runCheckNetworkState = async (numberOfConsensusNodes?: number): Promise<NetworkStateContext> => {
+    const runCheckNetworkState = async (
+      numberOfConsensusNodes?: number,
+      isFirstCluster: boolean = false,
+    ): Promise<NetworkStateContext> => {
       const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
       await localConfig.load();
+      if (isFirstCluster) {
+        // a deployment with no attached cluster has no remote config to read
+        sinon.stub(localConfig, 'configuration').get(() => ({deploymentByName: () => ({clusters: []})}));
+      }
       const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
       sinon.stub(remoteConfig, 'populateFromExisting').resolves();
       sinon.stub(remoteConfig, 'configuration').get(() => ({
@@ -766,6 +773,23 @@ describe('DeploymentCommand unit tests', (): void => {
       const context: NetworkStateContext = await runCheckNetworkState(0);
 
       expect(context.config.numberOfConsensusNodes).to.equal(0);
+      expect(context.config.nodeAliases).to.deep.equal([]);
+    });
+
+    it('should still require --num-consensus-nodes for the first cluster in quiet mode', async (): Promise<void> => {
+      let thrown: unknown;
+      try {
+        await runCheckNetworkState(undefined, true);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect((thrown as SoloError)?.constructor.name).to.equal('ConsensusNodeCountRequiredError');
+    });
+
+    it('should accept an explicit --num-consensus-nodes 0 for the first cluster in quiet mode', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState(0, true);
+
       expect(context.config.nodeAliases).to.deep.equal([]);
     });
 
