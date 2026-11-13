@@ -26,17 +26,22 @@ export class DeploymentSchema {
   @Expose()
   public shard: Shard;
 
+  @Expose()
+  public chainId: number;
+
   public constructor(
     name?: DeploymentName,
     namespace?: NamespaceNameAsString,
     clusters?: ClusterReferenceName[],
     realm?: Realm,
     shard?: Shard,
+    chainId?: number,
   ) {
     this.name = name ?? '';
     this.namespace = namespace ?? '';
     this.clusters = clusters ?? [];
     this.realm = realm ?? 0;
     this.shard = shard ?? 0;
+    this.chainId = chainId;
   }
 }

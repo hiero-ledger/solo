@@ -260,6 +260,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         ledgerPhase,
         Number(this.localConfig.configuration.realmForDeployment(deploymentName)),
         Number(this.localConfig.configuration.shardForDeployment(deploymentName)),
+        this.localConfig.configuration.chainIdForDeployment(deploymentName),
       ),
     );
 

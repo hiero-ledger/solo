@@ -16,7 +16,7 @@ export class RemoteConfigSchema implements RemoteConfigStructure {
    * The current version of the remote configuration schema. This must always match the version produced by the newest
    * migration registered in RemoteConfigSchemaDefinition.
    */
-  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(9);
+  public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(10);
 
   @Expose()
   public schemaVersion: number;
