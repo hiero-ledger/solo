@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ErrorOwnership} from './error-ownership.js';
+import {ErrorOwnership} from './error-ownership.js';
 
 type SoloErrorInit = {
   message: string;
@@ -73,13 +73,23 @@ export class SoloError extends Error {
     if (!this.code) {
       return undefined;
     }
-    const rangeDigit: string | undefined = this.code.match(/SOLO-(\d)/)?.[1];
-    const category: string | undefined = rangeDigit ? SoloError.DOC_CATEGORY_BY_RANGE[rangeDigit] : undefined;
+    const category: string | undefined = this.getCategory();
     return category ? `${SoloError.DOC_BASE}/${category}/${this.code}/` : `${SoloError.DOC_BASE}/${this.code}/`;
   }
 
   /** Returns the formatted error code label (e.g. "SOLO-1001"), or undefined if not defined. */
   public getFormattedCode(): string | undefined {
     return this.code;
+  }
+
+  /** Returns true when the user must correct the input: a validation error (SOLO-4xxx) owned by the user. */
+  public isInvalidInput(): boolean {
+    return this.ownership === ErrorOwnership.User && this.getCategory() === 'validation';
+  }
+
+  /** Returns the category slug of this error's code range (e.g. "validation" for SOLO-4xxx), or undefined. */
+  private getCategory(): string | undefined {
+    const rangeDigit: string | undefined = this.code?.match(/SOLO-(\d)/)?.[1];
+    return rangeDigit ? SoloError.DOC_CATEGORY_BY_RANGE[rangeDigit] : undefined;
   }
 }

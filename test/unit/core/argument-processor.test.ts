@@ -8,6 +8,7 @@ import {container} from 'tsyringe-neo';
 import * as constants from '../../../src/core/constants.js';
 import {ArgumentProcessor} from '../../../src/argument-processor.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
+import {ExitCode} from '../../../src/core/exit-code.js';
 
 describe('ArgumentProcessor', (): void => {
   let originalExit: (code?: string | number | null) => never;
@@ -77,7 +78,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('consensus');
       expect(output).to.include('Commands:');
       expect(output).to.include('Options:');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
   });
 
@@ -114,7 +115,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('consensus network');
       expect(output).to.include('Commands:');
       expect(output).to.include('Options:');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
   });
 
@@ -192,7 +193,7 @@ describe('ArgumentProcessor', (): void => {
 
       const output: string = consoleOutput.join('\n');
       expect(output).to.include('Missing required argument: deployment');
-      expect(process.exitCode).to.equal(1);
+      expect(process.exitCode).to.equal(ExitCode.INVALID_INPUT);
     });
 
     it('should throw SilentBreak for a missing required argument so no internal error is displayed', async (): Promise<void> => {
@@ -209,7 +210,7 @@ describe('ArgumentProcessor', (): void => {
 
       const output: string = consoleOutput.join('\n');
       expect(output).to.not.include('SOLO-9007');
-      expect(process.exitCode).to.equal(1);
+      expect(process.exitCode).to.equal(ExitCode.INVALID_INPUT);
     });
   });
 
@@ -254,7 +255,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('Unknown argument');
       expect(output).to.not.include('SOLO-9007');
       expect(output).to.not.include('File a bug report');
-      expect(process.exitCode).to.equal(1);
+      expect(process.exitCode).to.equal(ExitCode.INVALID_INPUT);
     });
 
     it('should throw SilentBreak for an unknown flag so no internal error is displayed', async (): Promise<void> => {
@@ -277,7 +278,7 @@ describe('ArgumentProcessor', (): void => {
         expect((error as Error).constructor.name).to.equal('SilentBreak');
       }
 
-      expect(process.exitCode).to.equal(1);
+      expect(process.exitCode).to.equal(ExitCode.INVALID_INPUT);
     });
   });
 
@@ -310,7 +311,7 @@ describe('ArgumentProcessor', (): void => {
       const output: string = consoleOutput.join('\n');
       expect(output).to.include('consensus network destroy');
       expect(output).to.not.include('Missing required argument');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
 
     it('should show clean help for --help on action command with required args', async (): Promise<void> => {
@@ -327,7 +328,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('block node add');
       expect(output).to.include('Options:');
       expect(output).to.not.include('Missing required argument');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
 
     it('should accept deprecated --release-tag for block node add and still show help', async (): Promise<void> => {
@@ -344,7 +345,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('block node add');
       expect(output).to.include('--release-tag');
       expect(output).to.not.include('Unknown arguments');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
 
     it('should show clean help for --help on consensus action command', async (): Promise<void> => {
@@ -361,7 +362,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('consensus network destroy');
       expect(output).to.include('Options:');
       expect(output).to.not.include('Missing required argument');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
 
     it('should exit cleanly and show subgroup commands/options for consensus network help', async (): Promise<void> => {
@@ -379,7 +380,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('Commands:');
       expect(output).to.include('Options:');
       expect(output).to.not.include('Missing required argument');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
 
     it('should exit cleanly and show subcommands/options for consensus help', async (): Promise<void> => {
@@ -397,7 +398,7 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('Commands:');
       expect(output).to.include('Options:');
       expect(output).to.not.include('Missing required argument');
-      expect(process.exitCode).to.not.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
   });
 
@@ -492,7 +493,7 @@ describe('ArgumentProcessor', (): void => {
       }
 
       // Exit code should not be set to error (1) for help display
-      expect(process.exitCode).not.to.equal(1);
+      expect(process.exitCode).to.be.undefined;
     });
 
     it('should set error exit code for missing required arguments', async (): Promise<void> => {
@@ -506,7 +507,7 @@ describe('ArgumentProcessor', (): void => {
       }
 
       // Exit code should be set to error (1) for actual errors
-      expect(process.exitCode).to.equal(1);
+      expect(process.exitCode).to.equal(ExitCode.INVALID_INPUT);
     });
 
     it('should set error exit code for unknown arguments', async (): Promise<void> => {
@@ -529,7 +530,7 @@ describe('ArgumentProcessor', (): void => {
       }
 
       // Exit code should be set to error (1) for unknown arguments
-      expect(process.exitCode).to.equal(1);
+      expect(process.exitCode).to.equal(ExitCode.INVALID_INPUT);
     });
   });
 });
