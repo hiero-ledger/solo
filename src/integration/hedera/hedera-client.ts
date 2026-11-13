@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  type AccountId,
-  type AccountInfo,
-  type Client,
-  type FileId,
-  type PrivateKey,
-  type TopicId,
-} from '@hiero-ledger/sdk';
+import {type AccountId, type AccountInfo, type FileId, type PrivateKey, type TopicId} from '@hiero-ledger/sdk';
 import {type HederaFileInfo} from './hedera-file-info.js';
 import {type HederaFreezeOptions} from './hedera-freeze-options.js';
 import {type HederaNodeCreateOptions} from './hedera-node-create-options.js';
@@ -23,12 +16,8 @@ import {type HederaTransactionStatus} from './hedera-transaction-status.js';
  * transaction and query classes.
  */
 export interface HederaClient {
-  /**
-   * The underlying SDK client.
-   * @deprecated transitional seam for callers that still build SDK transactions and queries themselves; add a method
-   * to this interface instead of using it.
-   */
-  readonly sdkClient: Client;
+  /** the network the client talks to, as network endpoint to node account id */
+  readonly network: Record<string, string>;
 
   readonly isShutDown: boolean;
 

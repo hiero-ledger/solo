@@ -60,6 +60,15 @@ describe('SdkHederaClient', (): void => {
     sinon.restore();
   });
 
+  describe('network', (): void => {
+    it('maps each endpoint to the node account id as a string', (): void => {
+      const logger: SoloLogger = {warn: sinon.stub(), debug: sinon.stub()} as unknown as SoloLogger;
+      const sdkClient: Client = {network: {'127.0.0.1:50211': new AccountId(0, 0, 3)}} as unknown as Client;
+
+      expect(new SdkHederaClient(sdkClient, logger).network).to.deep.equal({'127.0.0.1:50211': '0.0.3'});
+    });
+  });
+
   describe('createAccount', (): void => {
     it('retries once when account creation hits DUPLICATE_TRANSACTION precheck', async (): Promise<void> => {
       const {client, logger}: {client: SdkHederaClient; logger: SoloLogger} = makeClient();
