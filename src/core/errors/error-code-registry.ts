@@ -341,6 +341,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CONTAINER_ENGINE_NOT_FOUND: 'SOLO-5093',
   CONTAINER_ENGINE_START_FAILED: 'SOLO-5094',
   KIND_CLUSTER_CONTAINER_NOT_FOUND: 'SOLO-5095',
+  HELM_RELEASE_VALUES_READ_FAILED: 'SOLO-5096',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

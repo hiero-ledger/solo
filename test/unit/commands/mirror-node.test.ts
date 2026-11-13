@@ -81,6 +81,11 @@ interface MirrorNodeCommandInternal {
     targetVersion: string,
     commandType: string,
   ) => boolean;
+  shouldMigrateValuesOnUpgrade: (
+    currentVersion: SemanticVersion<string> | null,
+    targetVersion: string,
+    commandType: string,
+  ) => boolean;
   prepareHelmChartValues: (config: Record<string, unknown>) => Promise<HelmChartValues>;
   prepareResourceNameChartValues: (config: Record<string, unknown>) => Promise<HelmChartValues>;
   hasOtherMirrorNodes: (id: number, clusterReference: string, namespace: NamespaceName) => boolean;
@@ -985,6 +990,41 @@ describe('MirrorNodeCommand unit tests', (): void => {
     );
 
     expect(shouldReuseValues).to.equal(true);
+  });
+
+  describe('shouldMigrateValuesOnUpgrade', (): void => {
+    const shouldMigrate: (current: string | null, target: string, commandType?: string) => boolean = (
+      current: string | null,
+      target: string,
+      commandType: string = 'upgrade',
+    ): boolean =>
+      (mirrorNodeCommand as unknown as MirrorNodeCommandInternal).shouldMigrateValuesOnUpgrade(
+        current === null ? null : new SemanticVersion<string>(current),
+        target,
+        commandType,
+      );
+
+    it('migrates when only the block node endpoints boundary is crossed', (): void => {
+      expect(shouldMigrate('0.152.0', '0.157.0')).to.equal(true);
+      expect(shouldMigrate('0.156.0', '0.164.2')).to.equal(true);
+    });
+
+    it('does not migrate when the upgrade starts before the shared-resources boundary', (): void => {
+      expect(shouldMigrate('0.151.0', '0.164.2')).to.equal(false);
+    });
+
+    it('does not migrate when the current version is already at or after v0.157.0', (): void => {
+      expect(shouldMigrate('0.157.0', '0.164.2')).to.equal(false);
+    });
+
+    it('does not migrate when the target stays before v0.157.0', (): void => {
+      expect(shouldMigrate('0.152.0', '0.156.0')).to.equal(false);
+    });
+
+    it('does not migrate on add or when the current version is unknown', (): void => {
+      expect(shouldMigrate('0.156.0', '0.164.2', 'add')).to.equal(false);
+      expect(shouldMigrate(null, '0.164.2')).to.equal(false);
+    });
   });
 
   it('should run shared postgres initialization when shared resources already exist', (): void => {

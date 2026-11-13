@@ -83,6 +83,7 @@ import {type MirrorNodeModuleImageReference} from './mirror-node-module-image-re
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
 import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
+import {MirrorNodeValuesMigrator} from './util/mirror-node-values-migrator.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -98,6 +99,7 @@ interface MirrorNodeDeployConfigClass {
   mirrorStaticIp: string;
   valuesFile: string;
   chartValues: HelmChartValues;
+  usesBlockNodeIntegration?: boolean;
   quiet: boolean;
   mirrorNodeVersion: string;
   force: boolean;
@@ -155,6 +157,7 @@ interface MirrorNodeUpgradeConfigClass {
   mirrorStaticIp: string;
   valuesFile: string;
   chartValues: HelmChartValues;
+  usesBlockNodeIntegration?: boolean;
   quiet: boolean;
   mirrorNodeVersion: string;
   force: boolean;
@@ -819,7 +822,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
     chartValues.add(await this.prepareResourceNameChartValues(config));
 
-    chartValues.add(this.prepareBlockNodeIntegrationValues(config));
+    const blockNodeIntegrationValues: HelmChartValues = this.prepareBlockNodeIntegrationValues(config);
+    config.usesBlockNodeIntegration = !blockNodeIntegrationValues.isEmpty();
+    chartValues.add(blockNodeIntegrationValues);
 
     // The flag only accepts `importer` for now, and the overlay is importer-only.
     if (config.debugMirrorNodeComponent === 'importer') {
@@ -937,16 +942,63 @@ export class MirrorNodeCommand extends BaseCommand {
     // Mirror node v0.157.0 changed block node importer properties from nodes[].host/port
     // to nodes[].endpoints[].host/port. Reusing values across this boundary preserves the
     // old env vars, and the importer fails strict binding with those stale keys.
-    if (
-      currentVersion.lessThan(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
-      targetSemanticVersion.greaterThanOrEqual(
-        MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
-      )
-    ) {
+    if (MirrorNodeCommand.crossesBlockNodeEndpointsBoundary(currentVersion, targetSemanticVersion)) {
       return false;
     }
 
     return true;
+  }
+
+  /**
+   * True when an upgrade only crosses the block node endpoints boundary (v0.157.0), so the existing release values can
+   * be migrated and carried over. Crossing the earlier shared-resources boundary still starts from fresh values.
+   */
+  private shouldMigrateValuesOnUpgrade(
+    currentVersion: SemanticVersion<string> | null,
+    targetVersion: string,
+    commandType: MirrorNodeCommandType,
+  ): boolean {
+    return (
+      commandType === MirrorNodeCommandType.UPGRADE &&
+      currentVersion !== null &&
+      currentVersion.greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
+      MirrorNodeCommand.crossesBlockNodeEndpointsBoundary(currentVersion, new SemanticVersion<string>(targetVersion))
+    );
+  }
+
+  /** True when an upgrade goes from before to at-or-after the v0.157.0 block node endpoints schema change. */
+  private static crossesBlockNodeEndpointsBoundary(
+    currentVersion: SemanticVersion<string>,
+    targetVersion: SemanticVersion<string>,
+  ): boolean {
+    return (
+      currentVersion.lessThan(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
+      targetVersion.greaterThanOrEqual(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS)
+    );
+  }
+
+  /** Writes the migrated values of the deployed release to a file that Helm reads before every other values file. */
+  private async inheritMigratedReleaseValues(
+    config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass,
+  ): Promise<void> {
+    const releaseValues: Record<string, unknown> = await this.chartManager.getReleaseValues(
+      config.namespace,
+      config.releaseName,
+      config.clusterContext,
+    );
+
+    if (Object.keys(releaseValues).length === 0) {
+      return;
+    }
+
+    const valuesFilePath: string = PathEx.join(config.cacheDir, 'mirror-release-values.yaml');
+    fs.writeFileSync(
+      valuesFilePath,
+      yaml.stringify(
+        MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(releaseValues, !config.usesBlockNodeIntegration),
+      ),
+    );
+    config.chartValues.inheritedFile(valuesFilePath);
   }
 
   /** Upgrades the mirror node chart with bounded retries to ride out transient API server outages. */
@@ -1014,6 +1066,10 @@ export class MirrorNodeCommand extends BaseCommand {
       config.componentImageArchive,
       config.clusterContext,
     );
+
+    if (this.shouldMigrateValuesOnUpgrade(currentVersion, config.mirrorNodeVersion, commandType)) {
+      await this.inheritMigratedReleaseValues(config);
+    }
 
     await this.upgradeMirrorNodeChart(config, shouldReuseValues);
 

@@ -12,6 +12,7 @@ import {Release} from '../model/chart/release.js';
 import {type InstallChartOptions} from '../model/install/install-chart-options.js';
 import {type UpgradeChartOptions} from '../model/upgrade/upgrade-chart-options.js';
 import {ReleaseItem} from '../model/release/release-item.js';
+import {ReleaseValues} from '../model/release/release-values.js';
 import {type TestChartOptions} from '../model/test/test-chart-options.js';
 import {type HelmRequest} from '../request/helm-request.js';
 import {ChartDependencyUpdateRequest} from '../request/chart/chart-dependency-update-request.js';
@@ -21,6 +22,7 @@ import {ChartUninstallRequest} from '../request/chart/chart-uninstall-request.js
 import {ChartUpgradeRequest} from '../request/chart/chart-upgrade-request.js';
 import {VersionRequest} from '../request/common/version-request.js';
 import {ReleaseListRequest} from '../request/release/release-list-request.js';
+import {ReleaseGetValuesRequest} from '../request/release/release-get-values-request.js';
 import {RepositoryAddRequest} from '../request/repository/repository-add-request.js';
 import {RepositoryListRequest} from '../request/repository/repository-list-request.js';
 import {RepositoryRemoveRequest} from '../request/repository/repository-remove-request.js';
@@ -115,6 +117,10 @@ export class DefaultHelmClient implements HelmClient {
 
   public async listReleases(allNamespaces: boolean, namespace?: string, kubeContext?: string): Promise<ReleaseItem[]> {
     return this.executeAsList(new ReleaseListRequest(allNamespaces, namespace, kubeContext), ReleaseItem);
+  }
+
+  public async getValues(releaseName: string, namespace: string, kubeContext?: string): Promise<ReleaseValues> {
+    return this.executeAsync(new ReleaseGetValuesRequest(releaseName, namespace, kubeContext), ReleaseValues);
   }
 
   public async dependencyUpdate(chartName: string): Promise<void> {

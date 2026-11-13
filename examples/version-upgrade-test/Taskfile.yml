@@ -27,14 +27,16 @@ vars:
   # Previous versions (current minus one)
   PREV_CN_VERSION:
     sh: sed -n "s/.*TEST_UPGRADE_FROM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
-  PREV_MIRROR_VERSION:
-    sh: sed -n "s/.*PREV_MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
   PREV_EXPLORER_VERSION:
     sh: sed -n "s/.*PREV_EXPLORER_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
   PREV_RELAY_VERSION:
     sh: sed -n "s/.*PREV_RELAY_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
   PREV_BLOCK_VERSION:
     sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+
+  # Mirror node starts below v0.157.0 (block node endpoints schema change) so the upgrade crosses a chart
+  # boundary where Solo cannot use --reuse-values; the install-time values must still survive (issue #6411).
+  MIRROR_VERSION_BEFORE_BOUNDARY: 'v0.156.0'
 
   # Current versions to upgrade to
   CURRENT_CN_VERSION:
@@ -124,7 +126,8 @@ tasks:
       # Deploy mirror node with previous version
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
-          --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }}
+          --pinger --enable-ingress --mirror-node-version {{ .MIRROR_VERSION_BEFORE_BOUNDARY }} \
+          --values-file {{ .TASKFILE_DIR }}/mirror-values.yaml
 
       # Deploy relay with previous version
       - cmd: |
@@ -147,6 +150,13 @@ tasks:
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
           --mirror-node-version {{ .CURRENT_MIRROR_VERSION }} \
           --pinger
+
+      # The upgrade crossed mirror v0.157.0, where Solo cannot reuse values: the install-time
+      # --values-file (not passed above) must have been carried over from the existing release.
+      - cmd: |
+          helm get values mirror-1 --namespace {{ .NAMESPACE }} --kube-context {{ .CONTEXT }} --output json \
+            | jq -e '.importer.podAnnotations["solo.hiero.org/version-upgrade-test"] == "preserved"' \
+            || { echo "FAIL: mirror install-time values were dropped by the upgrade (issue #6411)"; exit 1; }
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Stage the network upgrade to main with local build path, but leave the consensus nodes

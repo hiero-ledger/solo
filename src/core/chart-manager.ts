@@ -223,6 +223,24 @@ export class ChartManager {
     }
   }
 
+  /**
+   * Reads the user-supplied values of a deployed release.
+   *
+   * @returns the release values
+   * @throws HelmReleaseValuesReadFailedSoloError when they cannot be read: continuing would silently drop them
+   */
+  public async getReleaseValues(
+    namespaceName: NamespaceName,
+    chartReleaseName: string,
+    kubeContext: string,
+  ): Promise<Record<string, unknown>> {
+    try {
+      return {...(await this.helm.getValues(chartReleaseName, namespaceName.name, kubeContext))};
+    } catch (error) {
+      throw new SoloErrors.system.helmReleaseValuesReadFailed(chartReleaseName, error);
+    }
+  }
+
   public async install(
     namespaceName: NamespaceName,
     chartReleaseName: string,
