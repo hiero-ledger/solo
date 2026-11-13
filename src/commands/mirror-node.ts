@@ -11,6 +11,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {entityId, showVersionBanner, sleep} from '../core/helpers.js';
+import {type StorageClassHelper} from '../core/storage-class-helper.js';
 import {Duration} from '../core/time/duration.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
@@ -100,6 +101,7 @@ interface MirrorNodeDeployConfigClass {
   chartValues: HelmChartValues;
   quiet: boolean;
   mirrorNodeVersion: string;
+  pvcStorageClass: string;
   force: boolean;
   componentImage: string;
   componentImageArchive: string;
@@ -157,6 +159,7 @@ interface MirrorNodeUpgradeConfigClass {
   chartValues: HelmChartValues;
   quiet: boolean;
   mirrorNodeVersion: string;
+  pvcStorageClass: string;
   force: boolean;
   componentImage: string;
   componentImageArchive: string;
@@ -252,6 +255,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
+    @inject(InjectTokens.StorageClassHelper) private readonly storageClassHelper: StorageClassHelper,
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus?: SoloEventBus,
   ) {
@@ -268,6 +272,7 @@ export class MirrorNodeCommand extends BaseCommand {
       InjectTokens.SharedResourceManager,
       this.constructor.name,
     );
+    this.storageClassHelper = patchInject(storageClassHelper, InjectTokens.StorageClassHelper, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -336,6 +341,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.mirrorNodeSource,
       flags.parallelDeploy,
       flags.force,
+      flags.pvcStorageClass,
     ],
   };
 
@@ -380,6 +386,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
       flags.mirrorNodeSource,
       flags.force,
+      flags.pvcStorageClass,
     ],
   };
 
@@ -1197,12 +1204,26 @@ export class MirrorNodeCommand extends BaseCommand {
 
               this.sharedResourceManager.enableRedis();
               this.sharedResourceManager.setSchedulingChartValues(context_.config.chartValues);
+              // The class only matters when the chart is installed here. Resolving it for an existing install could
+              // install a provisioner, or reject --pvc-storage-class, for nothing.
+              const isAlreadyInstalled: boolean = await this.chartManager.isChartInstalled(
+                context_.config.namespace,
+                constants.SOLO_SHARED_RESOURCES_CHART,
+                context_.config.clusterContext,
+              );
+              const resolvedStorageClass: string = isAlreadyInstalled
+                ? ''
+                : await this.storageClassHelper.resolveStorageClass(
+                    context_.config.clusterContext,
+                    context_.config.pvcStorageClass,
+                  );
               context_.config.installSharedResources = await this.sharedResourceManager.installChart(
                 context_.config.namespace,
                 context_.config.chartDirectory,
                 context_.config.soloChartVersion,
                 context_.config.clusterContext,
                 {
+                  'global.storageClass': resolvedStorageClass,
                   'redis.host': constants.REDIS_HOST,
                   'redis.image.registry': constants.REDIS_IMAGE_REGISTRY,
                   'redis.image.repository': constants.REDIS_IMAGE_REPOSITORY,

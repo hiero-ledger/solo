@@ -289,6 +289,37 @@ function integrationValues(
   });
 }
 
+interface SharedResourcesInstallContext {
+  config: {
+    useExternalDatabase: boolean;
+    chartValues: HelmChartValues;
+    namespace: NamespaceName;
+    clusterContext: string;
+    chartDirectory: string;
+    soloChartVersion: string;
+    pvcStorageClass: string;
+    installSharedResources?: boolean;
+  };
+}
+
+interface SharedResourcesTaskWrapper {
+  newListr: (
+    subTasks: SoloListrTask<SharedResourcesInstallContext>[],
+  ) => SoloListrTask<SharedResourcesInstallContext>[];
+}
+
+interface MirrorNodeSharedResourcesInstallInternal {
+  chartManager: {isChartInstalled: sinon.SinonStub};
+  storageClassHelper: {resolveStorageClass: sinon.SinonStub};
+  sharedResourceManager: {
+    enablePostgres: sinon.SinonStub;
+    enableRedis: sinon.SinonStub;
+    setSchedulingChartValues: sinon.SinonStub;
+    installChart: sinon.SinonStub;
+  };
+  enableSharedResourcesTask: () => SoloListrTask<SharedResourcesInstallContext>;
+}
+
 describe('MirrorNodeCommand unit tests', (): void => {
   let mirrorNodeCommand: MirrorNodeCommand;
 
@@ -654,6 +685,88 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
       withMirrorNodes(mirrorNodeCommandInternal, [{metadata: {id: 1, cluster: 'cluster-a', namespace: 'solo'}}]);
       expect(skip({config: {id: 1, clusterReference: 'cluster-a', namespace}})).to.be.false;
+    });
+  });
+
+  describe('--pvc-storage-class', (): void => {
+    const namespace: NamespaceName = NamespaceName.of('solo');
+
+    function configWith(pvcStorageClass: string): SharedResourcesInstallContext['config'] {
+      return {
+        useExternalDatabase: false,
+        chartValues: new HelmChartValues(),
+        namespace,
+        clusterContext: 'kind-a',
+        chartDirectory: '',
+        soloChartVersion: '0.0.0',
+        pvcStorageClass,
+      };
+    }
+
+    function stubInternal(isAlreadyInstalled: boolean): MirrorNodeSharedResourcesInstallInternal {
+      const internal: MirrorNodeSharedResourcesInstallInternal =
+        mirrorNodeCommand as unknown as MirrorNodeSharedResourcesInstallInternal;
+      internal.chartManager = {isChartInstalled: sinon.stub().resolves(isAlreadyInstalled)};
+      internal.storageClassHelper = {resolveStorageClass: sinon.stub().resolves('fast-ssd')};
+      internal.sharedResourceManager = {
+        enablePostgres: sinon.stub(),
+        enableRedis: sinon.stub(),
+        setSchedulingChartValues: sinon.stub(),
+        installChart: sinon.stub().resolves(!isAlreadyInstalled),
+      };
+      return internal;
+    }
+
+    async function runInstallSubtask(
+      internal: MirrorNodeSharedResourcesInstallInternal,
+      config: SharedResourcesInstallContext['config'],
+    ): Promise<void> {
+      const wrapper: SharedResourcesTaskWrapper = {
+        newListr: (
+          subTasks: SoloListrTask<SharedResourcesInstallContext>[],
+        ): SoloListrTask<SharedResourcesInstallContext>[] => subTasks,
+      };
+      const subTasks: SoloListrTask<SharedResourcesInstallContext>[] = await (
+        internal.enableSharedResourcesTask().task as unknown as (
+          context: unknown,
+          task: SharedResourcesTaskWrapper,
+        ) => Promise<SoloListrTask<SharedResourcesInstallContext>[]>
+      )({}, wrapper);
+      const install: SoloListrTask<SharedResourcesInstallContext> = subTasks.find(
+        (subTask: SoloListrTask<SharedResourcesInstallContext>): boolean =>
+          subTask.title === 'Install Shared Resources chart',
+      );
+      await (install.task as (context: SharedResourcesInstallContext) => Promise<void>)({config});
+    }
+
+    it('is accepted by mirror node add and upgrade', (): void => {
+      expect(MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional).to.include(Flags.pvcStorageClass);
+      expect(MirrorNodeCommand.UPGRADE_FLAGS_LIST.optional).to.include(Flags.pvcStorageClass);
+    });
+
+    it('selects the StorageClass for the shared resources chart that is installed', async (): Promise<void> => {
+      const internal: MirrorNodeSharedResourcesInstallInternal = stubInternal(false);
+      const config: SharedResourcesInstallContext['config'] = configWith('fast-ssd');
+
+      await runInstallSubtask(internal, config);
+
+      expect(internal.storageClassHelper.resolveStorageClass.calledOnceWithExactly('kind-a', 'fast-ssd')).to.equal(
+        true,
+      );
+      const chartValues: Record<string, unknown> = internal.sharedResourceManager.installChart.firstCall
+        .args[4] as Record<string, unknown>;
+      expect(chartValues['global.storageClass']).to.equal('fast-ssd');
+      expect(config.installSharedResources).to.equal(true);
+    });
+
+    it('does not resolve a StorageClass when the shared resources chart is already installed', async (): Promise<void> => {
+      const internal: MirrorNodeSharedResourcesInstallInternal = stubInternal(true);
+      const config: SharedResourcesInstallContext['config'] = configWith('fast-ssd');
+
+      await runInstallSubtask(internal, config);
+
+      expect(internal.storageClassHelper.resolveStorageClass.called).to.equal(false);
+      expect(config.installSharedResources).to.equal(false);
     });
   });
 
