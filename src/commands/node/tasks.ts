@@ -5696,6 +5696,15 @@ export class NodeCommandTasks {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
 
+        // Every collection gets its own timestamped snapshot folder so pod files left by earlier runs are never
+        // mistaken for this deployment's. The analyzer reads the latest snapshot by default.
+        const collectedAt: Date = new Date();
+        const snapshotDirectory: string = PathEx.join(
+          outputDirectory,
+          collectedAt.toISOString().replaceAll(':', '-').replaceAll('.', '-'),
+        );
+        fs.mkdirSync(snapshotDirectory, {recursive: true});
+
         for (const context of contextList) {
           const k8: K8 = this.k8Factory.getK8(context);
 
@@ -5719,7 +5728,7 @@ export class NodeCommandTasks {
                 allPods.push(newPodInfo);
                 // If it is block node pod, download *.log files from '/opt/hiero/block-node/logs'
                 if ('block node' === config.name) {
-                  await this.downloadBlockNodeLogFiles(newPodInfo, outputDirectory);
+                  await this.downloadBlockNodeLogFiles(newPodInfo, snapshotDirectory);
                 }
               }
             }
@@ -5728,12 +5737,15 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.info(`Logs will be saved to: ${outputDirectory}`);
+        this.logger.info(`Logs will be saved to: ${snapshotDirectory}`);
         this.logger.info(`Found ${allPods.length} Hiero component pods`);
         // Download logs from each pod
         for (const podInfo of allPods) {
-          await this.downloadPodLogs(podInfo, outputDirectory);
+          await this.downloadPodLogs(podInfo, snapshotDirectory);
         }
+
+        // Older snapshots are never analyzed and `debug` zips the whole logs directory, so keep only the last few.
+        DiagnosticsAnalyzer.pruneOldSnapshots(outputDirectory);
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },

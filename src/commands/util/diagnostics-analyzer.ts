@@ -7,6 +7,8 @@ import chalk from 'chalk';
 import * as constants from '../../core/constants.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {type SoloLogEntry} from './solo-log-entry.js';
+import {type SoloLogInvocation} from './solo-log-invocation.js';
 import {ResourceSnapshotCollector} from './resource-snapshot-collector.js';
 import {type DiagnosticsFinding, type DiagnosticsFindingCategory} from './diagnostics-finding.js';
 
@@ -267,7 +269,72 @@ export class DiagnosticsAnalyzer {
     /Failed to download block node log files from .*copy verification failed: expected size \d+ but found \d+ at .*blocknode-\d+\.log/i,
   ];
 
+  /** Number of pod-log snapshot folders kept after a collection. */
+  private static readonly SNAPSHOTS_TO_KEEP: number = 3;
+
+  /** Window of solo.ndjson activity analyzed when no deployment creation can be anchored in the log. */
+  private static readonly SOLO_LOG_FALLBACK_WINDOW_MS: number = 24 * 60 * 60 * 1000;
+
+  private static readonly SOLO_LOG_MAX_ERRORS_PER_INVOCATION: number = 3;
+
+  /** Matches a snapshot folder name such as `2026-11-06T13-02-11-123Z`. */
+  private static readonly SNAPSHOT_DIRECTORY_PATTERN: RegExp = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+
+  /** Entries that only the diagnostics commands write; an invocation containing one is not the failing run. */
+  private static readonly DIAGNOSTICS_INVOCATION_MARKERS: readonly RegExp[] = [
+    /^Discovering Hiero components from remote configuration/,
+    /^Solo invocation started: (?:deployment diagnostics|node diagnostics|diagnostics) /,
+    /^Solo invocation started: (?:deployment diagnostics|diagnostics)$/,
+  ];
+
+  /** Start markers of the invocation that created a deployment. */
+  private static readonly DEPLOYMENT_CREATION_PATTERN: RegExp =
+    /^Solo invocation started: (?:deployment config create|one-shot \S+ deploy)\b/;
+
   public constructor(private readonly logger: SoloLogger) {}
+
+  /** Names of the timestamped snapshot folders under `rootDirectory`, oldest first (ISO-8601 names sort chronologically). */
+  private static listSnapshotNames(rootDirectory: string): string[] {
+    if (!fs.existsSync(rootDirectory)) {
+      return [];
+    }
+    return (
+      fs
+        .readdirSync(rootDirectory, {withFileTypes: true})
+        .filter(
+          (entry: fs.Dirent): boolean =>
+            entry.isDirectory() && DiagnosticsAnalyzer.SNAPSHOT_DIRECTORY_PATTERN.test(entry.name),
+        )
+        .map((entry: fs.Dirent): string => entry.name)
+        // eslint-disable-next-line unicorn/no-array-sort
+        .sort()
+    );
+  }
+
+  /** Deletes all but the newest {@link SNAPSHOTS_TO_KEEP} snapshot folders under `rootDirectory`. */
+  public static pruneOldSnapshots(rootDirectory: string): void {
+    const stale: string[] = DiagnosticsAnalyzer.listSnapshotNames(rootDirectory).slice(
+      0,
+      -DiagnosticsAnalyzer.SNAPSHOTS_TO_KEEP,
+    );
+    for (const name of stale) {
+      fs.rmSync(PathEx.join(rootDirectory, name), {recursive: true, force: true});
+    }
+  }
+
+  /**
+   * Returns the directory holding the pod files of the latest collection: the newest timestamped snapshot
+   * folder under `rootDirectory`, or `rootDirectory` itself for output written before snapshots existed.
+   */
+  private resolveLatestSnapshotDirectory(rootDirectory: string): string {
+    const snapshots: string[] = DiagnosticsAnalyzer.listSnapshotNames(rootDirectory);
+    if (snapshots.length === 0) {
+      return rootDirectory;
+    }
+    const latest: string = PathEx.join(rootDirectory, snapshots.at(-1));
+    this.logger.showUser(`  Analyzing latest pod log snapshot: ${snapshots.at(-1)}`);
+    return latest;
+  }
 
   /**
    * Run the full analysis against `customOutputDirectory` (or the default
@@ -285,8 +352,10 @@ export class DiagnosticsAnalyzer {
 
     this.logger.showUser(`Scanning directory: ${hieroOutputDirectory}`);
 
+    const podFilesDirectory: string = this.resolveLatestSnapshotDirectory(hieroOutputDirectory);
+
     if (fs.existsSync(hieroOutputDirectory)) {
-      this.analyzeDescribeFiles(hieroOutputDirectory, findings);
+      this.analyzeDescribeFiles(podFilesDirectory, findings);
     } else {
       this.logger.showUser(yellow(`  Pod describe directory not found, skipping: ${hieroOutputDirectory}`));
     }
@@ -304,12 +373,12 @@ export class DiagnosticsAnalyzer {
     }
 
     if (fs.existsSync(hieroOutputDirectory)) {
-      this.analyzePodLogFiles(hieroOutputDirectory, findings);
-      this.analyzeRelayMirrorConnectivity(hieroOutputDirectory, findings);
+      this.analyzePodLogFiles(podFilesDirectory, findings);
+      this.analyzeRelayMirrorConnectivity(podFilesDirectory, findings);
     }
 
     if (fs.existsSync(hieroOutputDirectory)) {
-      this.analyzeSoloLogFiles(hieroOutputDirectory, customOutputDirectory, findings);
+      this.analyzeSoloLogFiles(hieroOutputDirectory, customOutputDirectory, namespaceName, findings);
     } else {
       this.logger.showUser(yellow(`  Diagnostics output directory not found, skipping: ${hieroOutputDirectory}`));
     }
@@ -581,6 +650,7 @@ export class DiagnosticsAnalyzer {
   private analyzeSoloLogFiles(
     hieroOutputDirectory: string,
     customOutputDirectory: string,
+    namespaceName: string | undefined,
     findings: DiagnosticsFinding[],
   ): void {
     const soloLogFiles: string[] = this.collectFilesRecursively(
@@ -611,6 +681,12 @@ export class DiagnosticsAnalyzer {
       const relativePath: string = path.relative(hieroOutputDirectory, soloLogFile);
       const sourceLabel: string = relativePath || path.basename(soloLogFile);
       this.logger.showUser(`  Reading: ${sourceLabel}`);
+      // solo.log carries no dates and is appended to across runs; its sibling solo.ndjson has per-invocation
+      // trace ids and epoch timestamps, so prefer it.
+      const ndjsonFile: string = PathEx.join(path.dirname(soloLogFile), 'solo.ndjson');
+      if (fs.existsSync(ndjsonFile) && this.analyzeSoloNdjson(ndjsonFile, sourceLabel, namespaceName, findings)) {
+        continue;
+      }
       let content: string;
       try {
         content = fs.readFileSync(soloLogFile, 'utf8');
@@ -638,6 +714,151 @@ export class DiagnosticsAnalyzer {
         evidence: errorScan.evidence,
       });
     }
+  }
+
+  /**
+   * Analyzes `solo.ndjson` per invocation (one `traceId` per Solo process) instead of reading the whole
+   * append-only log. Diagnostics invocations are excluded, then the session is selected by anchor:
+   *  - log: invocations in the deployment's namespace from the latest deployment-creating invocation onward
+   *  - fallback: invocations from the last 24 hours (a guess, which the report states)
+   *
+   * @returns false when the file has no usable entries, so the caller falls back to the plain-text log
+   */
+  private analyzeSoloNdjson(
+    ndjsonFile: string,
+    sourceLabel: string,
+    namespaceName: string | undefined,
+    findings: DiagnosticsFinding[],
+  ): boolean {
+    const invocations: Map<string, SoloLogInvocation> = new Map();
+    let content: string;
+    try {
+      content = fs.readFileSync(ndjsonFile, 'utf8');
+    } catch (error) {
+      this.logger.showUser(yellow(`  Unable to read ${ndjsonFile}: ${(error as Error).message}`));
+      return false;
+    }
+    for (const line of content.split('\n')) {
+      let entry: SoloLogEntry;
+      try {
+        entry = JSON.parse(line) as SoloLogEntry;
+      } catch {
+        // best-effort: skip blank or partially written lines
+        continue;
+      }
+      if (typeof entry?.traceId !== 'string' || typeof entry.time !== 'number') {
+        continue;
+      }
+      let invocation: SoloLogInvocation | undefined = invocations.get(entry.traceId);
+      if (!invocation) {
+        invocation = {traceId: entry.traceId, entries: [], diagnostics: false, creation: false};
+        invocations.set(entry.traceId, invocation);
+      }
+      const message: string = typeof entry.msg === 'string' ? entry.msg : '';
+      invocation.entries.push(entry);
+      invocation.namespace ??= entry.namespace || undefined;
+      // a process can start nested commands (one-shot runs relay, mirror, ...); the first start record is the user's command
+      if (message.startsWith('Solo invocation started: ') && invocation.command === undefined) {
+        invocation.command = message.slice('Solo invocation started: '.length);
+        invocation.version = entry.soloInvocation?.version;
+      }
+      invocation.diagnostics ||= DiagnosticsAnalyzer.DIAGNOSTICS_INVOCATION_MARKERS.some((pattern: RegExp): boolean =>
+        pattern.test(message),
+      );
+      invocation.creation ||= DiagnosticsAnalyzer.DEPLOYMENT_CREATION_PATTERN.test(message);
+    }
+    if (invocations.size === 0) {
+      return false;
+    }
+
+    const candidates: SoloLogInvocation[] = [...invocations.values()]
+      .filter((invocation: SoloLogInvocation): boolean => !invocation.diagnostics)
+      // eslint-disable-next-line unicorn/no-array-sort
+      .sort((a: SoloLogInvocation, b: SoloLogInvocation): number => a.entries[0].time - b.entries[0].time);
+
+    let selected: SoloLogInvocation[];
+    let anchorDescription: string;
+    const scoped: SoloLogInvocation[] = namespaceName
+      ? candidates.filter((invocation: SoloLogInvocation): boolean => invocation.namespace === namespaceName)
+      : [];
+    let creationIndex: number = -1;
+    for (const [index, invocation] of scoped.entries()) {
+      if (invocation.creation) {
+        creationIndex = index;
+      }
+    }
+    if (creationIndex === -1) {
+      // measured back from the newest entry, not from now, so a collection analyzed days later still has a window
+      const newestEntryTime: number = Math.max(
+        ...[...invocations.values()].map((invocation: SoloLogInvocation): number => invocation.entries.at(-1).time),
+      );
+      const cutoff: number = newestEntryTime - DiagnosticsAnalyzer.SOLO_LOG_FALLBACK_WINDOW_MS;
+      selected = candidates.filter(
+        (invocation: SoloLogInvocation): boolean => invocation.entries.at(-1).time >= cutoff,
+      );
+      anchorDescription =
+        'fallback: invocations from the last 24 hours of logged activity (no deployment creation found in the log; this is a guess)';
+    } else {
+      const creation: SoloLogInvocation = scoped[creationIndex];
+      // only commands given --namespace bind one; the commands that follow carry just the deployment name
+      const deploymentName: string | undefined = creation.entries.find(
+        (entry: SoloLogEntry): boolean => !!entry.deployment,
+      )?.deployment;
+      selected = candidates.filter(
+        (invocation: SoloLogInvocation): boolean =>
+          invocation.entries[0].time >= creation.entries[0].time &&
+          (invocation.namespace === namespaceName ||
+            (!invocation.namespace &&
+              !!deploymentName &&
+              invocation.entries.some((entry: SoloLogEntry): boolean => entry.deployment === deploymentName))),
+      );
+      anchorDescription = `log: invocations of namespace ${namespaceName} since its latest deployment creation (${this.describeInvocation(creation)})`;
+    }
+    this.logger.showUser(`  solo.ndjson session anchor — ${anchorDescription}`);
+
+    for (const invocation of selected) {
+      const errors: SoloLogEntry[] = invocation.entries.filter((entry: SoloLogEntry): boolean => entry.level >= 50);
+      const evidence: string[] = [];
+      let suppressed: number = 0;
+      for (const entry of errors.slice(-DiagnosticsAnalyzer.SOLO_LOG_MAX_ERRORS_PER_INVOCATION)) {
+        const text: string = [entry.msg, entry.err?.message, ...(entry.err?.stack?.split('\n').slice(0, 8) ?? [])]
+          .filter(Boolean)
+          .join('\n');
+        if (
+          DiagnosticsAnalyzer.SOLO_LOG_TRANSIENT_ERROR_PATTERNS.some((pattern: RegExp): boolean => pattern.test(text))
+        ) {
+          suppressed++;
+          continue;
+        }
+        evidence.push(
+          `${new Date(entry.time).toISOString()}: ${entry.msg}`,
+          ...text
+            .split('\n')
+            .slice(1)
+            .map((part: string): string => part.trim()),
+        );
+      }
+      if (suppressed > 0) {
+        this.logger.showUser(`  Suppressed ${suppressed} transient error line(s) in ${sourceLabel}`);
+      }
+      if (evidence.length === 0) {
+        continue;
+      }
+      this.addDiagnosticsFinding(findings, {
+        category: 'app-error',
+        title: `ERROR detected in solo.log: ${this.describeInvocation(invocation)}`,
+        source: sourceLabel,
+        evidence: [`session anchor — ${anchorDescription}`, ...evidence],
+      });
+    }
+    return true;
+  }
+
+  /** Renders e.g. `one-shot single deploy (v0.92.0, 13:02)`. */
+  private describeInvocation(invocation: SoloLogInvocation): string {
+    const start: string = new Date(invocation.entries[0].time).toISOString().slice(0, 16).replace('T', ' ');
+    const command: string = invocation.command?.split(' --', 1)[0] ?? `trace ${invocation.traceId.slice(0, 8)}`;
+    return `${command} (${invocation.version ? `v${invocation.version}, ` : ''}${start} UTC)`;
   }
 
   /**
@@ -880,11 +1101,11 @@ export class DiagnosticsAnalyzer {
     const errorPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]\s+ERROR:/;
     // New Pino log entries start with a bracketed timestamp, e.g. "[17:25:23.788]"
     const newEntryPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]/;
-    const evidence: string[] = [];
-    let blocksCollected: number = 0;
     let suppressed: number = 0;
 
-    for (let index: number = 0; index < lines.length && blocksCollected < maxBlocks; index++) {
+    // solo.log is append-only, so the newest blocks matter: scan from the top but keep only the last maxBlocks.
+    const blocks: string[][] = [];
+    for (let index: number = 0; index < lines.length; index++) {
       if (!errorPattern.test(lines[index])) {
         continue;
       }
@@ -914,11 +1135,11 @@ export class DiagnosticsAnalyzer {
         continue;
       }
 
-      evidence.push(...blockLines);
-      blocksCollected++;
+      blocks.push(blockLines);
       index = next - 1;
     }
 
+    const evidence: string[] = blocks.slice(-maxBlocks).flat();
     return {evidence, suppressed};
   }
 
