@@ -10,6 +10,7 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {MirrorNodeCommand} from '../../../src/commands/mirror-node.js';
 import * as constants from '../../../src/core/constants.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {SecretType} from '../../../src/integration/kube/resources/secret/secret-type.js';
 import {KubePodNotFoundError} from '../../../src/integration/kube/errors/kube-pod-not-found-error.js';
 import {KubePodNotReadyError} from '../../../src/integration/kube/errors/kube-pod-not-ready-error.js';
 import {KubePodReadinessFailedError} from '../../../src/integration/kube/errors/kube-pod-readiness-failed-error.js';
@@ -56,6 +57,7 @@ interface MirrorNodeCommandInternal {
     _remoteConfig?: MirrorNodeRemoteConfigTestState;
     phase?: 'loaded' | 'not_loaded';
     getContexts?: () => string[];
+    getConsensusNodes?: () => {cluster: string}[];
   };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
@@ -66,6 +68,7 @@ interface MirrorNodeCommandInternal {
   configManager: {wasFlagProvidedByUser: sinon.SinonStub};
   initializeSharedPostgresDatabaseTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   primePostgresSecretTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
+  ensureUploaderSecretTask: () => SoloListrTask<MirrorNodeUploaderSecretTaskContext>;
   waitForMirrorNodeSchemaTask: () => SoloListrTask<MirrorNodeSchemaWaitTaskContext>;
   enableDebuggerPortForwardingTask: () => SoloListrTask<MirrorNodeDebuggerTaskContext>;
   k8Factory: {getK8: (context: string) => Record<string, unknown>};
@@ -110,6 +113,14 @@ interface MirrorNodeDatabaseTaskContext {
   config: {
     useExternalDatabase: boolean;
     installSharedResources: boolean;
+  };
+}
+
+interface MirrorNodeUploaderSecretTaskContext {
+  config: {
+    namespace: NamespaceName;
+    clusterContext: string;
+    clusterReference: string;
   };
 }
 
@@ -1028,6 +1039,72 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
     expect(getSkipFunction(mirrorNodeCommandInternal.initializeSharedPostgresDatabaseTask())(context)).to.equal(true);
     expect(getSkipFunction(mirrorNodeCommandInternal.primePostgresSecretTask())(context)).to.equal(true);
+  });
+
+  describe('ensureUploaderSecretTask', (): void => {
+    const context: MirrorNodeUploaderSecretTaskContext = {
+      config: {
+        namespace: NamespaceName.of('test-namespace'),
+        clusterContext: 'test-context',
+        clusterReference: 'test-cluster',
+      },
+    };
+
+    const runTask = async (secretExists: boolean): Promise<{createOrReplace: sinon.SinonStub}> => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      const secrets: {exists: sinon.SinonStub; createOrReplace: sinon.SinonStub} = {
+        exists: sinon.stub().resolves(secretExists),
+        createOrReplace: sinon.stub().resolves(true),
+      };
+      sinon.stub(mirrorNodeCommandInternal.k8Factory, 'getK8').returns({secrets: (): typeof secrets => secrets});
+
+      await mirrorNodeCommandInternal.ensureUploaderSecretTask().task(context, {} as never);
+      return secrets;
+    };
+
+    it('should create an empty uploader secret when the cluster has none', async (): Promise<void> => {
+      const secrets: {createOrReplace: sinon.SinonStub} = await runTask(false);
+
+      expect(secrets.createOrReplace).to.have.been.calledOnceWith(
+        context.config.namespace,
+        constants.UPLOADER_SECRET_NAME,
+        SecretType.OPAQUE,
+        {},
+      );
+    });
+
+    it('should skip a cluster that hosts consensus nodes because the network chart creates the secret', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'test-cluster'}]);
+
+      const skip: (context: MirrorNodeUploaderSecretTaskContext) => boolean =
+        mirrorNodeCommandInternal.ensureUploaderSecretTask().skip as (
+          context: MirrorNodeUploaderSecretTaskContext,
+        ) => boolean;
+
+      expect(skip(context)).to.equal(true);
+    });
+
+    it('should not skip a cluster without consensus nodes', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'other-cluster'}]);
+
+      const skip: (context: MirrorNodeUploaderSecretTaskContext) => boolean =
+        mirrorNodeCommandInternal.ensureUploaderSecretTask().skip as (
+          context: MirrorNodeUploaderSecretTaskContext,
+        ) => boolean;
+
+      expect(skip(context)).to.equal(false);
+    });
+
+    it('should leave an existing uploader secret untouched', async (): Promise<void> => {
+      const secrets: {createOrReplace: sinon.SinonStub} = await runTask(true);
+
+      expect(secrets.createOrReplace).to.not.have.been.called;
+    });
   });
 
   it('should disable record and balance downloaders when block node integration is enabled', (): void => {

@@ -61,6 +61,7 @@ import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
+import {type Secrets} from '../integration/kube/resources/secret/secrets.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {PostgresStateSchema} from '../data/schema/model/remote/state/postgres-state-schema.js';
 import {RedisStateSchema} from '../data/schema/model/remote/state/redis-state-schema.js';
@@ -1313,6 +1314,49 @@ export class MirrorNodeCommand extends BaseCommand {
   }
 
   /**
+   * The importer reads `uploader-mirror-secrets` through an envFrom reference. Solo creates that secret only for the
+   * contexts of consensus nodes (`NetworkCommand.prepareStreamUploaderSecrets`, or the `solo-deployment` chart when
+   * it generates the minio secrets), so a cluster that has no consensus nodes lacks it. Create an empty secret there
+   * so the importer container can start.
+   *
+   * A cluster that hosts consensus nodes is skipped: the chart may install the secret later, and Helm refuses to
+   * adopt one that already exists without its ownership metadata.
+   *
+   * Limitation: the empty secret carries no storage credentials, so a cluster without consensus nodes supports only
+   * the `block-node` mirror source. Reading from a cloud bucket there fails at download time, and the secret is not
+   * removed by `consensus network destroy`, which only cleans the consensus contexts.
+   */
+  private ensureUploaderSecretTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Ensure mirror-node uploader secret',
+      skip: (context_): boolean =>
+        this.remoteConfig
+          .getConsensusNodes()
+          .some((consensusNode): boolean => consensusNode.cluster === context_.config.clusterReference),
+      task: async (context_): Promise<void> => {
+        const secrets: Secrets = this.k8Factory.getK8(context_.config.clusterContext).secrets();
+
+        if (await secrets.exists(context_.config.namespace, constants.UPLOADER_SECRET_NAME)) {
+          return;
+        }
+
+        const isCreated: boolean = await secrets.createOrReplace(
+          context_.config.namespace,
+          constants.UPLOADER_SECRET_NAME,
+          SecretType.OPAQUE,
+          {},
+        );
+
+        if (!isCreated) {
+          throw new SoloErrors.system.k8sSecretCreateFailed(
+            `failed to create secret ${constants.UPLOADER_SECRET_NAME} using context: ${context_.config.clusterContext}`,
+          );
+        }
+      },
+    };
+  }
+
+  /**
    * Deletes the `<release>-redis` secret so that the subsequent mirror chart install/upgrade
    * re-creates it cleanly.  This is necessary because Kubernetes strategic-merge-patch does not
    * remove keys — stale `SPRING_DATA_REDIS_SENTINEL_NODES` values written by a previous install
@@ -2073,6 +2117,7 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Deploy charts',
           task: (_, parentTask): SoloListr<AnyListrContext> => {
             const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+              this.ensureUploaderSecretTask(),
               this.enableSharedResourcesTask(),
               this.primePostgresSecretTask(), // creates mirror-passwords secret before init reads it
               this.deleteStaleRedisSecretTask(), // remove stale sentinel nodes left by a prior prime install
