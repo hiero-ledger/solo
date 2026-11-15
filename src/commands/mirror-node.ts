@@ -47,6 +47,7 @@ import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {KeyManager} from '../core/key-manager.js';
 import {UserInput} from '../core/user-input.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -980,7 +981,7 @@ export class MirrorNodeCommand extends BaseCommand {
   /** Writes the migrated values of the deployed release to a file that Helm reads before every other values file. */
   private async inheritMigratedReleaseValues(
     config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass,
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const releaseValues: Record<string, unknown> = await this.chartManager.getReleaseValues(
       config.namespace,
       config.releaseName,
@@ -988,17 +989,22 @@ export class MirrorNodeCommand extends BaseCommand {
     );
 
     if (Object.keys(releaseValues).length === 0) {
-      return;
+      return undefined;
     }
 
+    // the release values include secrets (database passwords, storage keys), so keep the file owner-only
     const valuesFilePath: string = PathEx.join(config.cacheDir, 'mirror-release-values.yaml');
     fs.writeFileSync(
       valuesFilePath,
       yaml.stringify(
         MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(releaseValues, !config.usesBlockNodeIntegration),
       ),
+      {mode: 0o600},
     );
+    FilePermissions.restrictToOwner(valuesFilePath, false);
     config.chartValues.inheritedFile(valuesFilePath);
+
+    return valuesFilePath;
   }
 
   /** Upgrades the mirror node chart with bounded retries to ride out transient API server outages. */
@@ -1067,11 +1073,22 @@ export class MirrorNodeCommand extends BaseCommand {
       config.clusterContext,
     );
 
-    if (this.shouldMigrateValuesOnUpgrade(currentVersion, config.mirrorNodeVersion, commandType)) {
-      await this.inheritMigratedReleaseValues(config);
-    }
+    const inheritedValuesFilePath: string | undefined = this.shouldMigrateValuesOnUpgrade(
+      currentVersion,
+      config.mirrorNodeVersion,
+      commandType,
+    )
+      ? await this.inheritMigratedReleaseValues(config)
+      : undefined;
 
-    await this.upgradeMirrorNodeChart(config, shouldReuseValues);
+    try {
+      await this.upgradeMirrorNodeChart(config, shouldReuseValues);
+    } finally {
+      if (inheritedValuesFilePath) {
+        // the file holds the release's secrets and is only needed while Helm reads it
+        fs.rmSync(inheritedValuesFilePath, {force: true});
+      }
+    }
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
 

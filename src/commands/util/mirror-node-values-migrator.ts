@@ -19,10 +19,14 @@ export class MirrorNodeValuesMigrator {
    * Mirror node v0.157.0 moved block node importer properties from `nodes[].host/port` to
    * `nodes[].endpoints[].host/port`. Rewrites the old schema in place of the old keys, and drops the values Solo
    * itself generates for block node integration (the importer env vars of the old schema, the `blocknode` Spring
-   * profile, and disabled downloaders). Solo-generated downloader settings are removed only when the current upgrade
-   * does not use block-node integration; user-supplied values files are applied later and still take precedence.
+   * profile, and disabled downloaders). Disabled downloader settings are removed only when both hold: the current
+   * upgrade does not use block-node integration (`removeGeneratedDownloaderSettings`), and the release shows
+   * legacy block-node evidence (`block.nodes[].host` values or legacy importer `HOST`/`PORT` env vars), so a
+   * `false` downloader setting without that evidence is kept. User-supplied values files are applied later and still
+   * take precedence.
    *
    * @param values - release values as returned by `helm get values`; not modified
+   * @param removeGeneratedDownloaderSettings - whether the upgrade does not use block-node integration
    * @returns a migrated copy of the values
    */
   public static migrateBlockNodeEndpoints(
