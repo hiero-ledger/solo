@@ -1073,11 +1073,9 @@ export class MirrorNodeCommand extends BaseCommand {
       config.clusterContext,
     );
 
-    const inheritedValuesFilePath: string | undefined = this.shouldMigrateValuesOnUpgrade(
-      currentVersion,
-      config.mirrorNodeVersion,
-      commandType,
-    )
+    const inheritedValuesFilePath: string | undefined =
+      config.isChartInstalled &&
+      this.shouldMigrateValuesOnUpgrade(currentVersion, config.mirrorNodeVersion, commandType)
       ? await this.inheritMigratedReleaseValues(config)
       : undefined;
 
