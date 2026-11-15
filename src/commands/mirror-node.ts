@@ -1076,8 +1076,8 @@ export class MirrorNodeCommand extends BaseCommand {
     const inheritedValuesFilePath: string | undefined =
       config.isChartInstalled &&
       this.shouldMigrateValuesOnUpgrade(currentVersion, config.mirrorNodeVersion, commandType)
-      ? await this.inheritMigratedReleaseValues(config)
-      : undefined;
+        ? await this.inheritMigratedReleaseValues(config)
+        : undefined;
 
     try {
       await this.upgradeMirrorNodeChart(config, shouldReuseValues);
