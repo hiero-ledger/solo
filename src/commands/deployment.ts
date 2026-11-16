@@ -287,7 +287,8 @@ export class DeploymentCommand extends BaseCommand {
               deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
               realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
               shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
-              chainId: DeploymentCommand.parseChainId(
+              chainId: FlagValidation.validatedNumber(
+                flags.chainId,
                 this.configManager.getFlag<string>(flags.chainId) || (flags.chainId.definition.defaultValue as string),
               ),
             } as Config;
@@ -935,8 +936,8 @@ export class DeploymentCommand extends BaseCommand {
   private async readLedgerSettingsFromConsensusNode(
     kubeContext: Context,
     namespace: NamespaceName,
-    remoteChainId: number,
-  ): Promise<{realm: Realm; shard: Shard; chainId: number}> {
+    remoteChainId: Optional<number>,
+  ): Promise<{realm: Realm; shard: Shard; chainId: Optional<number>}> {
     const defaultRealm: Realm = flags.realm.definition.defaultValue as Realm;
     const defaultShard: Shard = flags.shard.definition.defaultValue as Shard;
 
@@ -967,18 +968,14 @@ export class DeploymentCommand extends BaseCommand {
       this.logger.showUser(
         chalk.yellow(
           "Could not read the chain ID from the deployment's consensus nodes; " +
-            `using chain ID ${remoteChainId} from the remote config.`,
+            (remoteChainId === undefined
+              ? 'it is left unknown.'
+              : `using chain ID ${remoteChainId} from the remote config.`),
         ),
       );
     }
 
     return {realm: realm ?? defaultRealm, shard: shard ?? defaultShard, chainId: chainId ?? remoteChainId};
-  }
-
-  /** Parse a --chain-id value; the hex form the relay accepts (0x12a) is stored as its decimal value (298). */
-  private static parseChainId(value: string): number {
-    FlagValidation.assertAllValid([flags.chainId], {[flags.chainId.name]: value});
-    return Number(value);
   }
 
   /** Fetch application.properties from the first reachable consensus node pod, else from the shared data ConfigMap. */
@@ -1039,7 +1036,7 @@ export class DeploymentCommand extends BaseCommand {
       deployment: DeploymentName;
       clusterReference: ClusterReferenceName;
       namespace: string;
-      chainId: number;
+      chainId: Optional<number>;
       services: {
         consensusNodeGrpc: PortEntry[];
         mirrorNodeRest: PortEntry[];
@@ -1150,7 +1147,7 @@ export class DeploymentCommand extends BaseCommand {
               this.logger.showUser(chalk.cyan(`\n=== Port-forwards for deployment: ${deployment} ===`));
               this.logger.showUser(`Cluster: ${clusterReference}`);
               this.logger.showUser(`Namespace: ${namespace.name}`);
-              this.logger.showUser(`Chain ID: ${report.chainId}`);
+              this.logger.showUser(`Chain ID: ${report.chainId ?? 'unknown'}`);
 
               const serviceGroups: {title: string; entries: PortEntry[]}[] = [
                 {title: 'Consensus node gRPC', entries: report.services.consensusNodeGrpc},

@@ -4,9 +4,8 @@ import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
-import {HEDERA_CHAIN_ID} from '../../../../../core/constants.js';
 
-// Adds `ledger.chainId`, set to the default chain ID (SOLO_CHAIN_ID, else 298)
+// Adds the optional `ledger.chainId`, left unset because the chain ID of an existing deployment is not known
 export class RemoteConfigV10Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
     return VersionRange.fromIntegerVersion(9);
@@ -24,9 +23,6 @@ export class RemoteConfigV10Migration implements SchemaMigration {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const clone: Record<string, any> = structuredClone(source) as Record<string, any>;
-
-    clone.ledger ??= {};
-    clone.ledger.chainId ??= Number(HEDERA_CHAIN_ID);
 
     // Set the schema version to the new version
     clone.schemaVersion = this.version.major;

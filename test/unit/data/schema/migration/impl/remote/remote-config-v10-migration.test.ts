@@ -4,7 +4,6 @@ import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import {RemoteConfigV10Migration} from '../../../../../../../src/data/schema/migration/impl/remote/remote-config-v10-migration.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';
-import {HEDERA_CHAIN_ID} from '../../../../../../../src/core/constants.js';
 
 describe('RemoteConfigV10Migration', (): void => {
   const migration: RemoteConfigV10Migration = new RemoteConfigV10Migration();
@@ -15,14 +14,14 @@ describe('RemoteConfigV10Migration', (): void => {
     expect(migration.version.major).to.equal(10);
   });
 
-  it('should add the default chain ID to the ledger', async (): Promise<void> => {
+  it('should leave the ledger chain ID unset', async (): Promise<void> => {
     const source: object = {schemaVersion: 9, ledger: {phase: 'initialized', realm: 1, shard: 2}};
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: any = await migration.migrate(source);
 
     expect(result.schemaVersion).to.equal(10);
-    expect(result.ledger).to.deep.equal({phase: 'initialized', realm: 1, shard: 2, chainId: Number(HEDERA_CHAIN_ID)});
+    expect(result.ledger).to.deep.equal({phase: 'initialized', realm: 1, shard: 2});
   });
 
   it('should keep a chain ID that is already set', async (): Promise<void> => {
@@ -43,7 +42,6 @@ describe('RemoteConfigV10Migration', (): void => {
     await migration.migrate(source);
 
     expect(source.schemaVersion).to.equal(9);
-    expect(source.ledger).to.not.have.property('chainId');
   });
 
   it('should throw when the source is undefined', (): void => {

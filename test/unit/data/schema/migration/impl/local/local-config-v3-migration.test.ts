@@ -5,7 +5,6 @@ import {describe, it} from 'mocha';
 import {LocalConfigV3Migration} from '../../../../../../../src/data/schema/migration/impl/local/local-config-v3-migration.js';
 import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/migration/api/invalid-schema-version-error.js';
 import {type VersionRange} from '../../../../../../../src/business/utils/version-range.js';
-import {HEDERA_CHAIN_ID} from '../../../../../../../src/core/constants.js';
 
 describe('LocalConfigV3Migration', (): void => {
   const migration: LocalConfigV3Migration = new LocalConfigV3Migration();
@@ -16,7 +15,7 @@ describe('LocalConfigV3Migration', (): void => {
     expect(migration.version.major).to.equal(3);
   });
 
-  it('should add the default chain ID to every deployment', async (): Promise<void> => {
+  it('should leave the chain ID of existing deployments unset', async (): Promise<void> => {
     const source: object = {
       schemaVersion: 2,
       deployments: [
@@ -30,22 +29,8 @@ describe('LocalConfigV3Migration', (): void => {
 
     expect(result.schemaVersion).to.equal(3);
     expect(result.deployments).to.deep.equal([
-      {
-        name: 'alpha',
-        namespace: 'alpha-ns',
-        clusters: ['cluster-1'],
-        realm: 0,
-        shard: 0,
-        chainId: Number(HEDERA_CHAIN_ID),
-      },
-      {
-        name: 'beta',
-        namespace: 'beta-ns',
-        clusters: ['cluster-2'],
-        realm: 1,
-        shard: 2,
-        chainId: Number(HEDERA_CHAIN_ID),
-      },
+      {name: 'alpha', namespace: 'alpha-ns', clusters: ['cluster-1'], realm: 0, shard: 0},
+      {name: 'beta', namespace: 'beta-ns', clusters: ['cluster-2'], realm: 1, shard: 2},
     ]);
   });
 
@@ -74,7 +59,6 @@ describe('LocalConfigV3Migration', (): void => {
     await migration.migrate(source);
 
     expect(source.schemaVersion).to.equal(2);
-    expect(source.deployments[0]).to.not.have.property('chainId');
   });
 
   it('should reject a source that is not at schema version 2', (): void => {

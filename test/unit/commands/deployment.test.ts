@@ -350,7 +350,7 @@ describe('DeploymentCommand unit tests', (): void => {
       expect(imported?.shard).to.equal(1);
     });
 
-    it('should warn and fall back to the default realm and shard and the remote chain ID when they cannot be read', async (): Promise<void> => {
+    it('should warn, fall back to the default realm and shard, and leave an unknown chain ID unset', async (): Promise<void> => {
       k8Stub.pods = sinon.stub().returns({list: sinon.stub().resolves([])});
 
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
@@ -366,7 +366,7 @@ describe('DeploymentCommand unit tests', (): void => {
       ).to.be.true;
       expect(
         showUserStub.getCalls().some((call): boolean => String(call.args[0]).includes('chain ID')),
-        'expected a warning about falling back to the remote config chain ID',
+        'expected a warning that the chain ID could not be read',
       ).to.be.true;
 
       await localConfig.load();
@@ -375,8 +375,8 @@ describe('DeploymentCommand unit tests', (): void => {
       );
       expect(imported?.realm).to.equal(0);
       expect(imported?.shard).to.equal(0);
-      // the v0.35.1 remote config predates the chain ID, so its migration seeds the default
-      expect(imported?.chainId).to.equal(Number(constants.HEDERA_CHAIN_ID));
+      // the v0.35.1 remote config predates the chain ID, so there is no fallback for it
+      expect(imported?.chainId).to.be.undefined;
     });
 
     it('should fail when no Solo deployment exists in the targeted context', async (): Promise<void> => {
@@ -604,6 +604,34 @@ describe('DeploymentCommand unit tests', (): void => {
         localPort: constants.ONE_SHOT_MIRROR_REST_HOST_PORT,
         podPort: constants.ONE_SHOT_MIRROR_REST_NODE_PORT,
       });
+    });
+
+    it('should report the chain ID as unknown when the deployment has none stored', async (): Promise<void> => {
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      (deploymentCommand as unknown as {remoteConfig: unknown}).remoteConfig = {
+        loadAndValidate: sinon.stub().resolves(),
+        configuration: {state: {haProxies: [], mirrorNodes: [], relayNodes: [], explorers: [], blockNodes: []}},
+      };
+      (deploymentCommand as unknown as {localConfig: unknown}).localConfig = {
+        load: sinon.stub().resolves(),
+        configuration: {
+          deploymentByName: sinon.stub().returns({
+            name: deploymentName,
+            namespace: namespace.name,
+            clusters: [{toString: (): string => 'cluster-1'}],
+          }),
+        },
+      };
+      const logger: SoloLogger = container.resolve(InjectTokens.SoloLogger);
+      const showUserStub: SinonStub = sinon.stub(logger, 'showUser');
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+      argv.setArg(flags.output, 'wide');
+
+      await expect(deploymentCommand.ports(argv.build())).to.eventually.be.true;
+
+      expect(showUserStub.calledWith('Chain ID: unknown')).to.be.true;
     });
   });
 

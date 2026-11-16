@@ -1364,10 +1364,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     const relayChainId: string = `${config.relayNodeConfiguration[chainIdKey] ?? ''}`.trim();
 
     const chainId: string = networkChainId || config.chainId || (flags.chainId.definition.defaultValue as string);
-    // A values file bypasses flag validation, so the resolved chain ID is checked here
-    FlagValidation.assertAllValid([flags.chainId], {[flags.chainId.name]: chainId});
-    // The consensus node parses contracts.chainId as a decimal integer, so a hex chain ID (0x12a) is passed as 298
-    config.chainId = String(Number(chainId));
+    // A values file bypasses flag validation, and the consensus node parses contracts.chainId as decimal only
+    config.chainId = String(FlagValidation.validatedNumber(flags.chainId, chainId));
 
     // Number() lets the relay's hex form (0x12a) match the decimal chain ID (298)
     if (relayChainId && Number(relayChainId) !== Number(config.chainId)) {
