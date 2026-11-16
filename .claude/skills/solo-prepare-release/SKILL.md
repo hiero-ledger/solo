@@ -30,8 +30,8 @@ non-Solo repos.
 
 | Fact | How to get it |
 |------|----------------|
-| Last released version | `git describe --tags --abbrev=0` (e.g. `v0.79.0`) |
-| Commits since last tag | `git log "$(git describe --tags --abbrev=0)"..HEAD --pretty=%s` |
+| Last released version | `git describe --tags --match 'v[0-9]*' --abbrev=0` (e.g. `v0.79.0`) |
+| Commits since last tag | `git log "$(git describe --tags --match 'v[0-9]*' --abbrev=0)"..HEAD --pretty=%B` |
 | Today's date | `date +%Y-%m-%d` |
 | Dependency versions | `version.ts` constants (see mapping below) |
 
@@ -39,33 +39,44 @@ non-Solo repos.
 
 Read the current version from `package.json` (`"version"`) — confirm it matches the last tag.
 
-Decide the bump by inspecting commit subjects since the last tag:
+Decide the shared Solo/TCK bump by inspecting commit subjects and bodies since the last Solo tag:
 
 ```bash
-LAST_TAG="$(git describe --tags --abbrev=0)"
-git log "${LAST_TAG}..HEAD" --pretty=%s
+LAST_TAG="$(git describe --tags --match 'v[0-9]*' --abbrev=0)"
+git log "${LAST_TAG}..HEAD" --pretty=%B
 ```
 
-- If **any** subject starts with `feat:` (also count conventional variants `feat(scope):` and `feat!:`/`feat(scope)!:`),
-  bump the **minor** version and reset patch to 0 → `0.79.0` becomes `0.80.0`.
+- Include every scope, including `tck`, in Solo's shared release.
+- A feature (`feat:`, `feat(scope):`) or any breaking change (`type!:`, `type(scope)!:`, or a
+  `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer) bumps the **minor** version and resets patch to 0 →
+  `0.79.0` becomes `0.80.0`. Solo's policy uses minor for breaking changes, including TCK changes.
 - Otherwise bump only the **patch** version → `0.79.0` becomes `0.79.1`.
+- Mixed commits take the largest bump: a TCK feature or breaking change plus a Solo fix is a minor release.
 
-Detection one-liner (`NEXT` ends up as the bare version, no leading `v`):
+Version calculation (`NEXT` ends up as the bare version, no leading `v`, when commits exist):
 
 ```bash
 CUR="$(node -p "require('./package.json').version")"   # e.g. 0.79.0
 IFS=. read -r MAJ MIN PAT <<< "${CUR}"
-if git log "${LAST_TAG}..HEAD" --pretty=%s | grep -Eq '^feat(\(.+\))?!?:'; then
-  NEXT="${MAJ}.$((MIN + 1)).0"
+SUBJECTS="$(git log "${LAST_TAG}..HEAD" --pretty=%s)"
+MESSAGES="$(git log "${LAST_TAG}..HEAD" --pretty=%B)"
+if [[ -z "${SUBJECTS}" ]]; then
+  echo "No commits since ${LAST_TAG}; nothing to prepare."
 else
-  NEXT="${MAJ}.${MIN}.$((PAT + 1))"
+  if grep -Eq '^(feat(\([^)]*\))?!?|[[:alnum:]_-]+(\([^)]*\))?!):' <<< "${SUBJECTS}" ||
+    grep -Eq '^[[:space:]]*BREAKING[ -]CHANGE:' <<< "${MESSAGES}"; then
+    NEXT="${MAJ}.$((MIN + 1)).0"
+  else
+    NEXT="${MAJ}.${MIN}.$((PAT + 1))"
+  fi
+  echo "Next version: ${NEXT}"
 fi
-echo "Next version: ${NEXT}"
 ```
 
-State the computed version and the reason (feat found → minor / none → patch) before proceeding.
+If no commits exist, report that there is nothing to prepare and stop before Step 2. Otherwise state the
+computed version and the reason (feature or breaking change found -> minor / otherwise -> patch) before proceeding.
 
-> **Patch-only short-circuit:** if the bump is a **patch** (no `feat:` commits since the last tag), there is
+> **Patch-only short-circuit:** if the bump is a **patch** (no features or breaking changes since the last tag), there is
 > **nothing to prepare** — do **not** create a branch, edit any files, or commit. Report that the next version is a
 > patch release and that no documentation changes are needed, then stop. Skip every step below. Only continue when the
 > bump is a **minor**.
@@ -183,7 +194,8 @@ Then report: the computed version, LTS/normal classification, the new README row
 
 ### MUST
 
-- Stop immediately with no branch, no file edits, and no commit when the bump is **patch-only** (no `feat:` commits).
+- Stop immediately with no branch, no file edits, and no commit when the bump is **patch-only** (no features or
+  breaking changes).
 - Read dependency versions from `version.ts` (`HEDERA_PLATFORM_VERSION`, `KUBECTL_VERSION`), never assume them.
 - Insert the new release as the first data row of the "Current Releases" table.
 - Apply the even=LTS/3-month, odd=normal/1-month rule from the **minor** version number.

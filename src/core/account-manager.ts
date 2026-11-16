@@ -22,7 +22,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, resolveGossipFqdnRestricted, sleep} from './helpers.js';
+import {entityId, extractContextFromConsensusNodes, resolveGossipFqdnRestricted, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -41,10 +41,12 @@ import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
+import {ResourceNotFoundError} from '../integration/kube/errors/resource-operation-errors.js';
 import {Address} from '../business/address/address.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {type NetworkNodes} from './network-nodes.js';
 import {NodeStatusCodes, NodeStatusEnums} from './enumerations.js';
+import {type FeatureFlags} from '../business/runtime-state/config/solo/feature-flags.js';
 
 // TODO - revisit and remove once we complete the cutover to BN and no longer need MN to pull from CN.
 // This should remove this dependency on @hiero-ledger/proto
@@ -97,6 +99,7 @@ export class AccountManager {
     @inject(InjectTokens.LocalConfigRuntimeState) private readonly localConfig?: LocalConfigRuntimeState,
     @inject(InjectTokens.NetworkNodes) private readonly networkNodes?: NetworkNodes,
     @inject(InjectTokens.HederaClientFactory) private readonly hederaClientFactory?: HederaClientFactory,
+    @inject(InjectTokens.FeatureFlags) private readonly featureFlags?: FeatureFlags,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
@@ -108,6 +111,7 @@ export class AccountManager {
       InjectTokens.HederaClientFactory,
       this.constructor.name,
     );
+    this.featureFlags = patchInject(featureFlags, InjectTokens.FeatureFlags, this.constructor.name);
 
     this._portForwards = [];
     this._hederaClient = undefined;
@@ -153,6 +157,36 @@ export class AccountManager {
       privateKey: genesisKey.toString(),
       publicKey: genesisKey.publicKey.toString(),
     };
+  }
+
+  /**
+   * Gets a consensus node's admin key from its admin key secret, or the genesis key when the node has none
+   * @param nodeAlias - the node whose admin key we want
+   * @param namespace - the namespace storing the secret
+   * @param consensusNodes - the deployment's consensus nodes, used to find the node's cluster context
+   * @throws any error reading the secret other than it not existing
+   */
+  public async getNodeAdminKey(
+    nodeAlias: NodeAlias,
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+  ): Promise<PrivateKey> {
+    let keyFromK8: Secret;
+    try {
+      keyFromK8 = await this.k8Factory
+        .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
+        .secrets()
+        .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
+    } catch (error) {
+      // any failure other than a missing secret (API error, RBAC denial, wrong context) is real and must surface
+      if (!(error instanceof ResourceNotFoundError)) {
+        throw error;
+      }
+      // a node without an admin key secret still has the genesis key it was created with
+      this.logger.debug(`Node ${nodeAlias} has no admin key secret, using the genesis key`);
+      return await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
+    }
+    return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
   }
 
   /**
@@ -316,8 +350,8 @@ export class AccountManager {
         await this.refreshNodeClient(namespace, clusterReferences, deployment, forcePortForward);
       } else {
         try {
-          if (!constants.SKIP_NODE_PING) {
-            await this._hederaClient.ping(this._hederaClient.operatorAccountId);
+          if (!this.featureFlags.skipNodePing) {
+            await this._hederaClient.checkHealth();
           }
         } catch {
           this.logger.debug('node client ping failed, refreshing node client');
@@ -484,8 +518,8 @@ export class AccountManager {
       }
 
       // ping the node client to ensure it is working
-      if (!constants.SKIP_NODE_PING) {
-        await hederaClient.ping(AccountId.fromString(operatorId));
+      if (!this.featureFlags.skipNodePing) {
+        await hederaClient.checkHealth();
       }
 
       return hederaClient.sdkClient;
@@ -1275,7 +1309,7 @@ export class AccountManager {
       nodeClient = this.hederaClientFactory.create({network: object});
       this.logger.debug(`sdk pinging network node: ${Object.keys(object)[0]}`);
 
-      if (!constants.SKIP_NODE_PING) {
+      if (!this.featureFlags.skipNodePing) {
         await nodeClient.ping(accountId);
       }
       this.logger.debug(`sdk ping successful for network node: ${Object.keys(object)[0]}`);

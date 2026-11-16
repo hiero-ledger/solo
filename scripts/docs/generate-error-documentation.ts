@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import chalk from 'chalk';
+import {ExitCode} from '../../src/core/exit-code.js';
 
 const currentDirectory: string = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot: string = path.resolve(currentDirectory, '../../');
@@ -245,6 +246,13 @@ function generateIndexPageBody(errors: ErrorMeta[]): string {
   let document: string = '';
   document += 'All Solo errors carry a structured code, an ownership classification, and troubleshooting\n';
   document += 'steps. Click an error code to see its dedicated page.\n\n';
+
+  document += '## Exit codes\n\n';
+  document += '| Exit code | Meaning |\n';
+  document += '|---|---|\n';
+  document += `| \`${ExitCode.SUCCESS}\` | The command completed. |\n`;
+  document += `| \`${ExitCode.FAILURE}\` | The command failed for a reason other than its input, for example a failed deployment. |\n`;
+  document += `| \`${ExitCode.INVALID_INPUT}\` | The input was rejected: a command-line usage error, or a failure whose root cause is a Validation error with User ownership, such as an unsupported component version combination. |\n\n`;
 
   // Group errors by category, preserving the canonical order defined in CATEGORY_LABELS.
   const byCategory: Map<string, ErrorMeta[]> = emptyCategoryBuckets();

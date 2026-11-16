@@ -13,7 +13,7 @@ import * as constants from './src/core/constants.js';
  */
 
 // Dependencies
-export const HELM_VERSION: string = 'v3.14.2';
+export const HELM_VERSION: string = 'v4.3.1';
 export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
@@ -28,7 +28,7 @@ export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.78.1';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.164.2';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.2.0';
-export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.80.1';
+export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.81.0';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
 // If this version changes, regenerate test/data/proto.zip (see test/data/get-block.sh for steps) —
@@ -66,6 +66,14 @@ export const PROMETHEUS_OPERATOR_CRDS_VERSION: string =
 export const REDIS_IMAGE_VERSION: string = constants.getEnvironmentVariable('REDIS_IMAGE_VERSION') || '8.2.2';
 export const REDIS_SENTINEL_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('REDIS_SENTINEL_IMAGE_VERSION') || '8.2.2';
+// Bitnami publishes free PostgreSQL images only under the floating 'latest' tag (versioned tags are
+// frozen in bitnamilegacy at 17.6.0), and the postgresql chart used by solo-shared-resources defaults
+// to it. Pin a digest of 'latest' instead so every deploy runs the same image: PostgreSQL 18.6.0
+// (2026-11-02). Move the pin forward with
+// `docker buildx imagetools inspect docker.io/bitnami/postgresql:latest`.
+export const POSTGRES_IMAGE_DIGEST: string =
+  constants.getEnvironmentVariable('POSTGRES_IMAGE_DIGEST') ||
+  'b418fd5f001c272aad93ac1febf783f543ee45d8e359d58bd5afc3d2a9b62290';
 
 // Image versions embedded in the solo-deployment Helm chart (SOLO_CHART_VERSION).
 // These must stay in sync with charts/solo-deployment/values.yaml whenever SOLO_CHART_VERSION bumps.
@@ -83,7 +91,7 @@ export const MIRROR_NODE_EDGE_VERSION: string =
 export const EXPLORER_EDGE_VERSION: string =
   constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || EXPLORER_VERSION;
 export const HEDERA_JSON_RPC_RELAY_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || '0.80.1';
+  constants.getEnvironmentVariable('RELAY_EDGE_VERSION') || '0.81.0';
 export const BLOCK_NODE_EDGE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION') || '0.44.3';
 
 // -------------------------------------------------------------------- //

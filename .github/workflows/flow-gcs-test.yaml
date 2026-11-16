@@ -172,7 +172,7 @@ jobs:
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: 'v3.14.2'
+          version: 'v4.3.1'
 
       - name: Install Kind
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}

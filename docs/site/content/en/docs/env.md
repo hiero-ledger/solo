@@ -6,6 +6,12 @@
 * **Default:** the well-known Solo genesis key.
 * **Used in:** `src/core/constants.ts`, `src/core/genesis-key-resolver.ts`, `src/commands/network.ts`.
 
+## POSTGRES\_IMAGE\_DIGEST
+
+* **Description:** SHA-256 digest (hex, without the `sha256:` prefix) of the `docker.io/bitnami/postgresql` image that the mirror node's shared PostgreSQL database runs, and that `solo cache image pull` pre-pulls. Bitnami publishes this image only under the floating `latest` tag, so Solo pins a digest.
+* **Default:** a pinned digest of `latest` (PostgreSQL 18.6.0), see `version.ts`.
+* **Used in:** `version.ts`, `src/commands/mirror-node.ts` (deploy), `src/commands/cache.ts`.
+
 ## SOLO\_BLOCK\_NODE\_CHART\_DIR
 
 * **Description:** Directory that contains the block node chart (`block-node-server`), for testing a chart that has not been published, e.g. `/path/to/hiero-block-node/charts`.

@@ -38,10 +38,10 @@ export class InstallChartOptionsBuilder {
 
   /**
    * if set, the installation process deletes the installation on failure. The --wait flag will be set automatically
-   * if --atomic is used.
+   * if --rollback-on-failure is used.
    *
    * @param atomic if set, the installation process deletes the installation on failure. The --wait flag will be set
-   *              automatically if --atomic is used.
+   *              automatically if --rollback-on-failure is used.
    * @returns the current InstallChartOptionsBuilder.
    */
   public atomic(atomic: boolean): InstallChartOptionsBuilder {
