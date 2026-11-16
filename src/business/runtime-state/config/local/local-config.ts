@@ -65,4 +65,8 @@ export class LocalConfig implements Facade<LocalConfigSchema> {
   public shardForDeployment(deploymentName: DeploymentName): Shard {
     return this.deploymentByName(deploymentName).shard;
   }
+
+  public chainIdForDeployment(deploymentName: DeploymentName): number {
+    return this.deploymentByName(deploymentName).chainId;
+  }
 }

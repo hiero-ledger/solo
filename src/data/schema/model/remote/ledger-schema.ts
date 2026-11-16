@@ -17,9 +17,13 @@ export class LedgerSchema implements LedgerStructure {
   @Expose()
   public shard: number;
 
-  public constructor(phase?: LedgerPhase, realm?: number, shard?: number) {
+  @Expose()
+  public chainId: number;
+
+  public constructor(phase?: LedgerPhase, realm?: number, shard?: number, chainId?: number) {
     this.phase = phase;
     this.realm = realm ?? 0;
     this.shard = shard ?? 0;
+    this.chainId = chainId;
   }
 }

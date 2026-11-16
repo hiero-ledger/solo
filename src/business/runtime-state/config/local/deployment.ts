@@ -47,6 +47,14 @@ export class Deployment implements Facade<DeploymentSchema> {
     this.encapsulatedObject.shard = shard;
   }
 
+  public get chainId(): number {
+    return this.encapsulatedObject.chainId;
+  }
+
+  public set chainId(chainId: number) {
+    this.encapsulatedObject.chainId = chainId;
+  }
+
   public get clusters(): FacadeArray<StringFacade, string> {
     return this.clusterList;
   }
