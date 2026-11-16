@@ -36,14 +36,18 @@ vars:
   PREV_BLOCK_VERSION:
     sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 
-  # Current versions to upgrade to. extract_version reads the whole declaration, so a value that Prettier wraps onto
-  # the next line of version.ts (e.g. a long pre-release tag) is still found.
-  CURRENT_CN_VERSION:
-    sh: bash -c 'source "$0/.github/workflows/script/helper.sh" && extract_version HEDERA_PLATFORM_VERSION "$0/version.ts"' "$(git rev-parse --show-toplevel)"
+  # Consensus node and block node upgrade targets. Solo's defaults can't be used here: a consensus node from
+  # CN_VERSION_REQUIRING_REDEPLOY (v0.79.1) on must be redeployed rather than upgraded in place, because the new TSS
+  # library does not convert existing keys or proofs, and block node 0.45+ only accepts the SHA-256 blocks of a
+  # v0.79+ consensus node. Upgrade both to the newest pair still on the in-place side of those boundaries.
+  UPGRADE_CN_VERSION:
+    sh: sed -n "s/.*TEST_UPGRADE_TO_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  UPGRADE_BLOCK_VERSION:
+    sh: sed -n "s/.*TEST_UPGRADE_TO_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  # Current mirror node version to upgrade to. extract_version reads the whole declaration, so a value that Prettier
+  # wraps onto the next line of version.ts (e.g. a long pre-release tag) is still found.
   CURRENT_MIRROR_VERSION:
     sh: bash -c 'source "$0/.github/workflows/script/helper.sh" && extract_version MIRROR_NODE_VERSION "$0/version.ts"' "$(git rev-parse --show-toplevel)"
-  CURRENT_BLOCK_VERSION:
-    sh: bash -c 'source "$0/.github/workflows/script/helper.sh" && extract_version BLOCK_NODE_VERSION "$0/version.ts"' "$(git rev-parse --show-toplevel)"
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
@@ -157,17 +161,17 @@ tasks:
       # block buffer and stalls the network. Upgrading both while no consensus node is producing
       # removes that window entirely, so no version comparison is needed here.
       - cmd: |
-          echo "Upgrading consensus network to version: {{ .CURRENT_CN_VERSION }}"
+          echo "Upgrading consensus network to version: {{ .UPGRADE_CN_VERSION }}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --upgrade-version {{ .CURRENT_CN_VERSION }} \
+          --upgrade-version {{ .UPGRADE_CN_VERSION }} \
           --deployment {{ .DEPLOYMENT }} \
           --skip-node-start
 
       # Upgrade block node while the consensus nodes are still stopped
       - cmd: |
           $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }} \
-          --upgrade-version {{ .CURRENT_BLOCK_VERSION }} \
-          --consensus-node-version {{ .CURRENT_CN_VERSION }}
+          --upgrade-version {{ .UPGRADE_BLOCK_VERSION }} \
+          --consensus-node-version {{ .UPGRADE_CN_VERSION }}
 
       # Start the upgraded consensus nodes now that the block node also speaks the new format
       - cmd: |
