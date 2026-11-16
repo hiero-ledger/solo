@@ -4,6 +4,7 @@ import {type SoloLogger} from './logging/solo-logger.js';
 import {type SoloError} from './errors/solo-error.js';
 import {type FatalErrorKind} from './errors/fatal-error-kind.js';
 import {SoloErrors} from './errors/solo-errors.js';
+import {ExitCode} from './exit-code.js';
 
 /**
  * Reports errors that escaped every handler (`uncaughtException` and `unhandledRejection`).
@@ -34,7 +35,7 @@ export class FatalErrorReporter {
    * @param escapedError - the value the handler received; normalized to an `Error` when it is not one
    */
   public static report(logger: SoloLogger, kind: FatalErrorKind, escapedError: unknown): void {
-    process.exitCode = 1;
+    process.exitCode = ExitCode.FAILURE;
 
     const cause: Error | undefined = FatalErrorReporter.normalize(escapedError);
 
@@ -60,7 +61,7 @@ export class FatalErrorReporter {
    * written directly instead of dumping a raw stack the user cannot act on.
    */
   public static reportWithoutLogger(error: SoloError): void {
-    process.exitCode = 1;
+    process.exitCode = ExitCode.FAILURE;
     FatalErrorReporter.renderToStandardError(error);
   }
 

@@ -9,6 +9,7 @@
 | [multicluster-backup-restore](./multicluster-backup-restore/)       | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes             |
 | [external-database-test](./external-database-test/)                 | Deploy a Solo network with an external PostgreSQL database                                                          |
 | [explorer-stale-routing-repro](./explorer-stale-routing-repro/)     | Reproduces issue #6118: `explorer node upgrade` does not refresh the explorer's live routing config                    |
+| [foundry-with-solo](./foundry-with-solo/)                           | Example of using Foundry (`forge` and `cast`) to deploy and test a smart contract with a local Solo deployment      |
 | [hardhat-with-solo](./hardhat-with-solo/)                           | Example of using Hardhat to test a smart contract with a local Solo deployment                                      |
 | [local-build-with-custom-config](./local-build-with-custom-config/) | Example of how to create and manage a custom Hiero Hashgraph Solo deployment using locally built consensus nodes    |
 | [mirror-node-component-image](./mirror-node-component-image/)       | Deploy Mirror Node using six locally built module images via `--component-image`                                    |

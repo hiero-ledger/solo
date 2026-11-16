@@ -15,7 +15,6 @@ import {UpgradeChartOptionsBuilder} from '../integration/helm/model/upgrade/upgr
 import {Chart} from '../integration/helm/model/chart.js';
 import {type InstallChartOptions} from '../integration/helm/model/install/install-chart-options.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
-import {type SemanticVersion} from '../business/utils/semantic-version.js';
 import {type HelmClient} from '../integration/helm/helm-client.js';
 import {UnInstallChartOptionsBuilder} from '../integration/helm/model/install/un-install-chart-options-builder.js';
 import {AddRepoOptionsBuilder} from '../integration/helm/model/add/add-repo-options-builder.js';
@@ -125,7 +124,7 @@ export class ChartManager {
       }
 
       const urls: string[] = await Promise.all(promises); // urls
-      await this.helm.updateRepositories();
+      await this.updateManagedRepositories(repoURLs);
       return urls;
     } catch (error) {
       throw new SoloErrors.system.helmRepoSetupFailed(error);
@@ -133,26 +132,34 @@ export class ChartManager {
   }
 
   /**
-   * Check if the required chart repositories are set up
-   *
-   * @param repoURLs - a map of name and chart repository URLs
-   * @returns true if all repos are set up, false otherwise
+   * Updates only the repositories Solo manages, so a broken third-party repository in the user's Helm
+   * configuration cannot fail a Solo command. A managed repository that fails to update is removed and
+   * re-added once before the failure is surfaced.
    */
-  public async isSetup(repoURLs: Map<string, string> = constants.DEFAULT_CHART_REPO): Promise<boolean> {
+  private async updateManagedRepositories(repoURLs: Map<string, string>): Promise<void> {
+    const names: string[] = [...repoURLs.keys()];
+    if (names.length === 0) {
+      return;
+    }
     try {
-      const existingRepos: Repository[] = await this.helm.listRepositories();
-      for (const [name, url] of repoURLs.entries()) {
-        const found: Repository = existingRepos.find(
-          (repo: Repository): boolean => repo.name === name && repo.url === url,
-        );
-        if (!found) {
-          this.logger.debug(`Repo not found: ${name} -> ${url}`);
-          return false;
-        }
-      }
-      return true;
+      await this.helm.updateRepositories(...names);
+      return;
     } catch (error) {
-      throw new SoloErrors.system.helmRepoCheckFailed(error);
+      this.logger.warn(
+        `Helm repo update failed for [${names.join(', ')}], re-adding the repositories: ${error.message}`,
+      );
+    }
+
+    try {
+      for (const [name, url] of repoURLs.entries()) {
+        await this.helm.removeRepository(new Repository(name, url));
+        await this.retryTransientDownload((): Promise<void> =>
+          this.helm.addRepository(new Repository(name, url), new AddRepoOptionsBuilder().forceUpdate(true).build()),
+        );
+      }
+      await this.retryTransientDownload((): Promise<void> => this.helm.updateRepositories(...names));
+    } catch (error) {
+      throw new SoloErrors.system.helmRepoSetupFailed(error, names);
     }
   }
 
@@ -276,12 +283,6 @@ export class ChartManager {
     }
 
     return true;
-  }
-
-  /** The major version of the Helm CLI in use; Helm 3 and Helm 4 take different kinds of post-renderers. */
-  public async getHelmMajorVersion(): Promise<number> {
-    const version: SemanticVersion<string> = await this.helm.version();
-    return version.major;
   }
 
   public async isChartInstalled(

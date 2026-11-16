@@ -12,9 +12,9 @@ import {HelmChartValues} from './model/values.js';
  * A post-renderer sits between Helm rendering a chart and Helm applying the result: Helm pipes the
  * rendered manifests to the post-renderer's stdin and applies whatever it writes to stdout.
  *
- * Helm 3 takes the path of an executable for `--post-renderer`. Helm 4 only takes the name of an installed
- * plugin of type `postrenderer/v1`, so for Helm 4 the same script is wrapped in a plugin that Helm finds
- * through the `HELM_PLUGINS` environment variable, which spares installing anything into the user's Helm home.
+ * Helm 4 only takes the name of an installed plugin of type `postrenderer/v1` for `--post-renderer`, so the script is
+ * wrapped in a plugin that Helm finds through the `HELM_PLUGINS` environment variable, which spares installing
+ * anything into the user's Helm home.
  */
 export class HelmPostRenderer {
   private static readonly SAFE_LITERAL: RegExp = /^[\w-]+$/;
@@ -25,11 +25,10 @@ export class HelmPostRenderer {
    * Used to rename resources whose names a chart hardcodes, so that several releases of the chart can share a namespace.
    *
    * @param directory - the directory the post-renderer files are written to
-   * @param helmMajorVersion - the major version of the Helm CLI that will run the chart
    * @param from - the literal to replace; only letters, digits, `_` and `-` are accepted
    * @param to - the replacement; only letters, digits, `_` and `-` are accepted
    */
-  public static replacer(directory: string, helmMajorVersion: number, from: string, to: string): HelmChartValues {
+  public static replacer(directory: string, from: string, to: string): HelmChartValues {
     for (const literal of [from, to]) {
       if (!HelmPostRenderer.SAFE_LITERAL.test(literal)) {
         throw new SoloErrors.validation.illegalArgument(
@@ -39,20 +38,16 @@ export class HelmPostRenderer {
     }
 
     const chartValues: HelmChartValues = new HelmChartValues();
-    if (helmMajorVersion >= 4) {
-      const pluginsDirectory: string = PathEx.join(directory, 'plugins');
-      HelmPostRenderer.writePlugin(PathEx.join(pluginsDirectory, HelmPostRenderer.PLUGIN_NAME));
-      chartValues
-        .environmentVariable('HELM_PLUGINS', pluginsDirectory)
-        .arguments('--post-renderer', HelmPostRenderer.PLUGIN_NAME);
-    } else {
-      chartValues.arguments('--post-renderer', HelmPostRenderer.writeScript(directory));
-    }
+    const pluginsDirectory: string = PathEx.join(directory, 'plugins');
+    HelmPostRenderer.writePlugin(PathEx.join(pluginsDirectory, HelmPostRenderer.PLUGIN_NAME));
+    chartValues
+      .environmentVariable('HELM_PLUGINS', pluginsDirectory)
+      .arguments('--post-renderer', HelmPostRenderer.PLUGIN_NAME);
 
     return chartValues.arguments('--post-renderer-args', from, '--post-renderer-args', to);
   }
 
-  /** Writes the Helm 4 plugin that runs the replace script. */
+  /** Writes the plugin that runs the replace script. */
   private static writePlugin(pluginDirectory: string): void {
     HelmPostRenderer.writeScript(pluginDirectory);
     fs.writeFileSync(
@@ -75,9 +70,8 @@ export class HelmPostRenderer {
 
   /**
    * Writes the script that replaces its first argument with its second in whatever it reads from stdin.
-   * @returns the path of the script
    */
-  private static writeScript(directory: string): string {
+  private static writeScript(directory: string): void {
     fs.mkdirSync(directory, {recursive: true});
 
     if (OperatingSystem.isWin32()) {
@@ -90,12 +84,11 @@ export class HelmPostRenderer {
           '',
         ].join('\r\n'),
       );
-      return path;
+      return;
     }
 
     const path: string = PathEx.join(directory, 'replace.sh');
     fs.writeFileSync(path, '#!/bin/sh\nexec sed "s/$1/$2/g"\n', {mode: 0o755});
     fs.chmodSync(path, 0o755);
-    return path;
   }
 }

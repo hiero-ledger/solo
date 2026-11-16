@@ -17,6 +17,13 @@ import {UserBreak} from '../../../../../../src/core/errors/user-break.js';
 import {Flags} from '../../../../../../src/commands/flags.js';
 import {ValuesFileNotFoundSoloError} from '../../../../../../src/core/errors/classes/validation/values-file-not-found-solo-error.js';
 import {PathEx} from '../../../../../../src/business/utils/path-ex.js';
+import {ChainIdMismatchSoloError} from '../../../../../../src/core/errors/classes/validation/chain-id-mismatch-solo-error.js';
+import {InvalidFlagValueSoloError} from '../../../../../../src/core/errors/classes/validation/invalid-flag-value-solo-error.js';
+import {DefaultOneShotCommand} from '../../../../../../src/commands/one-shot/default-one-shot.js';
+import * as constants from '../../../../../../src/core/constants.js';
+import {ContainerResourcePreflight} from '../../../../../../src/core/container-resource-preflight.js';
+import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
+import {type ArgvStruct} from '../../../../../../src/types/aliases.js';
 import fs from 'node:fs';
 import os from 'node:os';
 
@@ -34,24 +41,28 @@ function makeOrchestrator(
     helm?: MockType;
     logger?: MockType;
     k8Factory?: MockType;
+    configManager?: MockType;
+    oneShotState?: MockType;
+    clusterTaskManager?: MockType;
+    eventBus?: MockType;
   } = {},
 ): DefaultOneShotDeployOrchestrator {
   return new DefaultOneShotDeployOrchestrator(
     {} as MockType,
-    {} as MockType,
+    overrides.eventBus ?? ({} as MockType),
     {} as MockType,
     overrides.localConfig ?? ({} as MockType),
     overrides.remoteConfig ?? ({} as MockType),
     overrides.logger ?? makeLogger(),
-    {} as MockType,
-    {} as MockType,
+    overrides.configManager ?? ({} as MockType),
+    overrides.oneShotState ?? ({} as MockType),
     overrides.k8Factory ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
     overrides.helm ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
-    {} as MockType,
+    overrides.clusterTaskManager ?? ({} as MockType),
   );
 }
 
@@ -114,6 +125,7 @@ function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): On
     pinger: true,
     externalAddress: '',
     edgeEnabled: false,
+    chainId: '298',
     clusterHasOneShotPortMappings: true,
     versions: {
       soloChart: '',
@@ -924,6 +936,218 @@ describe('DefaultOneShotDeployOrchestrator applyValuesFileOverrides', (): void =
 
     expect(config.networkConfiguration[Flags.getFormattedFlagKey(Flags.valuesFile)]).to.equal(
       PathEx.resolve('examples/one-shot-falcon/silo-helm-values.yaml'),
+    );
+  });
+});
+
+describe('DefaultOneShotCommand chain ID flag', (): void => {
+  it('accepts --chain-id on one-shot single and multi deploy', (): void => {
+    expect(DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional).to.include(Flags.chainId);
+    expect(DefaultOneShotCommand.MULTI_DEPLOY_FLAGS_LIST.optional).to.include(Flags.chainId);
+  });
+});
+
+function resolve(config: OneShotSingleDeployConfigClass): OneShotSingleDeployConfigClass {
+  // @ts-expect-error - to access private method
+  makeOrchestrator().resolveChainId(config);
+  return config;
+}
+
+describe('DefaultOneShotDeployOrchestrator resolveChainId', (): void => {
+  const chainIdKey: string = Flags.getFormattedFlagKey(Flags.chainId);
+
+  it('keeps the --chain-id flag value when the values file sets no chain ID', (): void => {
+    const config: OneShotSingleDeployConfigClass = resolve(
+      makeConfig({
+        chainId: '1234',
+        networkConfiguration: {[chainIdKey]: ''},
+        relayNodeConfiguration: {[chainIdKey]: ''},
+      }),
+    );
+
+    expect(config.chainId).to.equal('1234');
+  });
+
+  it('falls back to the flag default when the deploy command has no --chain-id flag', (): void => {
+    const config: OneShotSingleDeployConfigClass = resolve(makeConfig({chainId: undefined}));
+
+    expect(config.chainId).to.equal(Flags.chainId.definition.defaultValue);
+  });
+
+  it('uses the chain ID from the network section of the values file', (): void => {
+    const config: OneShotSingleDeployConfigClass = resolve(
+      makeConfig({chainId: undefined, networkConfiguration: {[chainIdKey]: 1234}}),
+    );
+
+    expect(config.chainId).to.equal('1234');
+  });
+
+  it('converts a hex chain ID to the decimal form the consensus node parses', (): void => {
+    expect(resolve(makeConfig({chainId: '0x4d2'})).chainId).to.equal('1234');
+    expect(resolve(makeConfig({chainId: undefined, networkConfiguration: {[chainIdKey]: '0x4d2'}})).chainId).to.equal(
+      '1234',
+    );
+  });
+
+  it('rejects a chain ID in the values file that is not a positive whole number', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      chainId: undefined,
+      networkConfiguration: {[chainIdKey]: 'abc'},
+    });
+
+    expect((): OneShotSingleDeployConfigClass => resolve(config)).to.throw(
+      InvalidFlagValueSoloError,
+      "Invalid value 'abc' for flag --chain-id",
+    );
+  });
+
+  it('accepts a relayNode chain ID that matches the consensus node, in decimal or hex', (): void => {
+    expect(resolve(makeConfig({chainId: '1234', relayNodeConfiguration: {[chainIdKey]: '1234'}})).chainId).to.equal(
+      '1234',
+    );
+    expect(resolve(makeConfig({chainId: '1234', relayNodeConfiguration: {[chainIdKey]: '0x4d2'}})).chainId).to.equal(
+      '1234',
+    );
+  });
+
+  it('rejects a relayNode chain ID that differs from the consensus node', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      chainId: undefined,
+      networkConfiguration: {[chainIdKey]: '1234'},
+      relayNodeConfiguration: {[chainIdKey]: '298'},
+    });
+
+    expect((): OneShotSingleDeployConfigClass => resolve(config)).to.throw(
+      ChainIdMismatchSoloError,
+      'The relay chain ID 298 does not match the consensus node chain ID 1234',
+    );
+  });
+
+  it('resolves the real one-shot Falcon example to the flag default', (): void => {
+    const config: OneShotSingleDeployConfigClass = makeConfig({
+      chainId: undefined,
+      valuesFile: PathEx.resolve('examples/one-shot-falcon/falcon-values.yaml'),
+    });
+    invokeApplyValuesFileOverrides(config);
+
+    expect(resolve(config).chainId).to.equal(Flags.chainId.definition.defaultValue);
+  });
+});
+
+function makeMessageGroupLogger(): MockType {
+  return {
+    ...makeLogger(),
+    addMessageGroup: sinon.stub(),
+    addMessageGroupMessage: sinon.stub(),
+    getMessageGroupKeys: sinon.stub().returns([]),
+    showMessageGroup: sinon.stub(),
+    showUser: sinon.stub(),
+  };
+}
+
+function messages(logger: MockType): string[] {
+  return logger.addMessageGroupMessage.getCalls().map((call: sinon.SinonSpyCall): string => call.args[1]);
+}
+
+async function runInitializePhase(
+  valuesFile: string,
+  configReference: {value?: OneShotSingleDeployConfigClass},
+): Promise<void> {
+  sinon.stub(ContainerResourcePreflight, 'warnIfInsufficient').resolves();
+  sinon.stub(DeployArgvBuilders, 'resolveOneShotComponentVersions').resolves(makeConfig().versions);
+  const argv: ArgvStruct = {_: [], [Flags.valuesFile.name]: valuesFile};
+  const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator({
+    configManager: {
+      update: sinon.stub(),
+      setFlag: sinon.stub(),
+      getFlag: sinon.stub().returns(false),
+      executePrompt: sinon.stub().resolves(),
+      getConfig: sinon.stub().returns({...makeConfig(), namespace: undefined, chainId: undefined}),
+    },
+    oneShotState: {activate: sinon.stub()},
+    clusterTaskManager: {createdClusterWithOneShotPortMappings: false},
+    eventBus: {abort: sinon.stub()},
+  });
+  const pipeline: OrchestratorPipeline<OneShotSingleDeployContext> = orchestrator.buildDeployPipeline(
+    argv,
+    {required: [], optional: []},
+    {},
+    configReference,
+  );
+  const initialize: MockType = (pipeline.tasks as MockType[]).find(
+    (task: MockType): boolean => task.title === 'Initialize',
+  );
+  await initialize.task({} as OneShotSingleDeployContext, {} as MockType);
+}
+
+describe('DefaultOneShotDeployOrchestrator Initialize phase values file validation', (): void => {
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  // A config published for rollback before its namespace is set made rollback crash with a TypeError
+  it('rejects a mismatched relayNode chain ID before publishing the config for rollback', async (): Promise<void> => {
+    const valuesFile: string = PathEx.join(os.tmpdir(), `chain-id-mismatch.unit.${Date.now()}.yaml`);
+    fs.writeFileSync(valuesFile, 'network:\n  --chain-id: 1234\nrelayNode:\n  --chain-id: 298\n');
+    const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+
+    try {
+      await expect(runInitializePhase(valuesFile, configReference)).to.be.rejectedWith(ChainIdMismatchSoloError);
+    } finally {
+      fs.rmSync(valuesFile, {force: true});
+    }
+    expect(configReference.value).to.be.undefined;
+  });
+
+  it('rejects an invalid chain ID in the values file before publishing the config for rollback', async (): Promise<void> => {
+    const valuesFile: string = PathEx.join(os.tmpdir(), `chain-id-invalid.unit.${Date.now()}.yaml`);
+    fs.writeFileSync(valuesFile, 'network:\n  --chain-id: abc\n');
+    const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+
+    try {
+      await expect(runInitializePhase(valuesFile, configReference)).to.be.rejectedWith(InvalidFlagValueSoloError);
+    } finally {
+      fs.rmSync(valuesFile, {force: true});
+    }
+    expect(configReference.value).to.be.undefined;
+  });
+
+  it('rejects a missing values file before publishing the config for rollback', async (): Promise<void> => {
+    const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+
+    await expect(
+      runInitializePhase(PathEx.join(os.tmpdir(), `missing.unit.${Date.now()}.yaml`), configReference),
+    ).to.be.rejectedWith(ValuesFileNotFoundSoloError);
+    expect(configReference.value).to.be.undefined;
+  });
+});
+
+describe('DefaultOneShotDeployOrchestrator deploy summary', (): void => {
+  it('prints the chain ID in the user notes', (): void => {
+    const logger: MockType = makeMessageGroupLogger();
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator({logger});
+
+    // @ts-expect-error - to access private method
+    orchestrator.showOneShotUserNotes({config: makeConfig({chainId: '1234'})});
+
+    expect(messages(logger)).to.include('Chain ID: 1234');
+  });
+
+  it('prints the relay NodePort endpoint as a URL', async (): Promise<void> => {
+    const logger: MockType = makeMessageGroupLogger();
+    const k8Factory: MockType = {
+      getK8: sinon.stub().returns({services: (): MockType => ({create: sinon.stub().resolves()})}),
+    };
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator({logger, k8Factory});
+
+    // @ts-expect-error - to access private method
+    await orchestrator.exposeNodePortServices(makeConfig());
+
+    expect(messages(logger)).to.include(
+      `JSON RPC Relay available on http://${constants.LOCAL_HOST}:${constants.ONE_SHOT_RELAY_HOST_PORT} (NodePort)`,
+    );
+    expect(messages(logger)).to.include(
+      `Consensus Node gRPC available on ${constants.LOCAL_HOST}:${constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT} (NodePort)`,
     );
   });
 });

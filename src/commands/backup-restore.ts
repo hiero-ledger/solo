@@ -3129,7 +3129,7 @@ export class BackupRestoreCommand extends BaseCommand {
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');
             await this.helm.addRepository(new Repository('metallb', 'https://metallb.github.io/metallb'));
-            await this.helm.updateRepositories();
+            await this.helm.updateRepositories('metallb');
           } catch (error: unknown) {
             // Network might already exist, which is fine
             const errorMessage: string = BackupRestoreCommand.getErrorMessage(error);

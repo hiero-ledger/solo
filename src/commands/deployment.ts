@@ -455,6 +455,10 @@ export class DeploymentCommand extends BaseCommand {
             } catch {
               // Deployment might not exist in local config, ignore error and continue with cleanup of other deployments if needed
             }
+
+            // A remote config loaded earlier in this process describes the deleted deployment; a command that runs
+            // next in the same process (e.g. one-shot deploy after its auto-clean) must not resolve its clusters.
+            this.remoteConfig.unload();
           },
         },
       ],
@@ -1340,7 +1344,7 @@ export class DeploymentCommand extends BaseCommand {
           context_.config.ledgerPhase = LedgerPhase.UNINITIALIZED;
 
           // if the user can't be prompted for '--num-consensus-nodes' fail
-          if (!numberOfConsensusNodes && quiet) {
+          if (numberOfConsensusNodes === undefined && quiet) {
             throw new SoloErrors.validation.consensusNodeCountRequired(
               flags.numberOfConsensusNodes.name,
               DeploymentStates.PRE_GENESIS,
@@ -1348,7 +1352,7 @@ export class DeploymentCommand extends BaseCommand {
           }
 
           // prompt the user for the '--num-consensus-nodes'
-          else if (!numberOfConsensusNodes) {
+          else if (numberOfConsensusNodes === undefined) {
             await this.configManager.executePrompt(task, [flags.numberOfConsensusNodes]);
             context_.config.numberOfConsensusNodes = this.configManager.getFlag<number>(flags.numberOfConsensusNodes);
           }
@@ -1375,7 +1379,7 @@ export class DeploymentCommand extends BaseCommand {
         context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, existingNodesCount);
 
         // If ledgerPhase is pre-genesis and user can't be prompted for the '--num-consensus-nodes' fail
-        if (ledgerPhase === LedgerPhase.UNINITIALIZED && !numberOfConsensusNodes && quiet) {
+        if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined && quiet) {
           throw new SoloErrors.validation.consensusNodeCountRequired(
             flags.numberOfConsensusNodes.name,
             LedgerPhase.UNINITIALIZED,
@@ -1383,7 +1387,7 @@ export class DeploymentCommand extends BaseCommand {
         }
 
         // If ledgerPhase is pre-genesis prompt the user for the '--num-consensus-nodes'
-        else if (ledgerPhase === LedgerPhase.UNINITIALIZED && !numberOfConsensusNodes) {
+        else if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined) {
           await this.configManager.executePrompt(task, [flags.numberOfConsensusNodes]);
           context_.config.numberOfConsensusNodes = this.configManager.getFlag<number>(flags.numberOfConsensusNodes);
           context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(

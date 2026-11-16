@@ -6,11 +6,29 @@
 * **Default:** the well-known Solo genesis key.
 * **Used in:** `src/core/constants.ts`, `src/core/genesis-key-resolver.ts`, `src/commands/network.ts`.
 
+## POSTGRES\_IMAGE\_DIGEST
+
+* **Description:** SHA-256 digest (hex, without the `sha256:` prefix) of the `docker.io/bitnami/postgresql` image that the mirror node's shared PostgreSQL database runs, and that `solo cache image pull` pre-pulls. Bitnami publishes this image only under the floating `latest` tag, so Solo pins a digest.
+* **Default:** a pinned digest of `latest` (PostgreSQL 18.6.0), see `version.ts`.
+* **Used in:** `version.ts`, `src/commands/mirror-node.ts` (deploy), `src/commands/cache.ts`.
+
 ## SOLO\_BLOCK\_NODE\_CHART\_DIR
 
 * **Description:** Directory that contains the block node chart (`block-node-server`), for testing a chart that has not been published, e.g. `/path/to/hiero-block-node/charts`.
 * **Default:** unset (the published chart is used). The `--block-node-chart-dir` flag takes precedence when provided.
 * **Used in:** `src/commands/block-node.ts` (deploy, upgrade).
+
+## SOLO\_CACHE\_CDN\_BASE\_URL
+
+* **Description:** Base URL that `solo cache image pull` downloads image archives and their `.sha256` hash files from, for a staging or test copy of the image cache CDN. Archives are fetched from `<base>/<file name>`; trailing slashes are ignored.
+* **Default:** `https://cdn.solo.hiero.org`.
+* **Used in:** `src/integration/cache/impl/cache-manifest-client.ts`.
+
+## SOLO\_CACHE\_MANIFEST\_URL
+
+* **Description:** Full URL of the image cache manifest (`cache-manifest.json`), for a manifest that is not published as a release asset (staging, testing).
+* **Default:** unset (the manifest is downloaded from the GitHub release of the running Solo version, `https://github.com/hiero-ledger/solo/releases/download/v<version>/cache-manifest.json`).
+* **Used in:** `src/integration/cache/impl/cache-manifest-client.ts`.
 
 ## SOLO\_EXPLORER\_CHART\_DIR
 

@@ -35,12 +35,12 @@ interface RawCacheManifest {
  * file, and the two must agree.
  *
  * The CDN is flat: `<base>/<tarFile>` and `<base>/<hashFile>`. The base defaults to
- * `https://cdn.solo.hashgraph.io` and can be overridden with the `SOLO_CACHE_CDN_BASE_URL` environment
+ * {@link CacheManifestClient.DEFAULT_CDN_BASE_URL} and can be overridden with the `SOLO_CACHE_CDN_BASE_URL` environment
  * variable for staging and testing. The manifest URL can likewise be replaced wholesale with the
  * `SOLO_CACHE_MANIFEST_URL` environment variable, for a manifest that is not published as a release asset.
  */
 export class CacheManifestClient {
-  public static readonly DEFAULT_CDN_BASE_URL: string = 'https://cdn.solo.hashgraph.io';
+  public static readonly DEFAULT_CDN_BASE_URL: string = 'https://cdn.solo.hiero.org';
   public static readonly CDN_BASE_URL_ENVIRONMENT_VARIABLE: string = 'SOLO_CACHE_CDN_BASE_URL';
   public static readonly MANIFEST_URL_ENVIRONMENT_VARIABLE: string = 'SOLO_CACHE_MANIFEST_URL';
   /** Version 2 added `images[].platform`; a version 1 manifest cannot say which platform an archive is for. */
@@ -90,6 +90,7 @@ export class CacheManifestClient {
    * @param platform the platform to return archives for, for example `linux/arm64`
    * @param soloVersion the Solo version whose manifest to fetch; defaults to the running version
    * @param options request settings passed on to {@link GitHubApiClient.get}
+   * @throws CacheManifestUnpublishedSoloError when the release asset manifest is not published (HTTP 404)
    * @throws CacheManifestDownloadFailedSoloError when the manifest cannot be fetched or read
    * @throws CacheManifestInvalidSoloError when the manifest does not match the expected schema
    */
@@ -98,6 +99,10 @@ export class CacheManifestClient {
     soloVersion: string = getSoloVersion(),
     options: GitHubRequestOptions = {},
   ): Promise<readonly CacheManifestImage[]> {
+    const configuredUrl: string | undefined = constants.getEnvironmentVariable(
+      CacheManifestClient.MANIFEST_URL_ENVIRONMENT_VARIABLE,
+    );
+    const hasConfiguredManifestUrl: boolean = Boolean(configuredUrl && configuredUrl.trim().length > 0);
     const url: string = CacheManifestClient.getManifestUrl(soloVersion);
 
     let body: string;
@@ -105,7 +110,13 @@ export class CacheManifestClient {
       const response: Response = await GitHubApiClient.get(url, options);
       body = await response.text();
     } catch (error) {
-      throw new SoloErrors.system.cacheManifestDownloadFailed(url, error);
+      const status: unknown = (error as {meta?: {status?: unknown}})?.meta?.status;
+
+      if (!hasConfiguredManifestUrl && status === 404) {
+        throw new SoloErrors.system.cacheManifestUnpublished(url, error as Error);
+      }
+
+      throw new SoloErrors.system.cacheManifestDownloadFailed(url, error as Error);
     }
 
     return CacheManifestClient.parse(url, soloVersion, body).filter(

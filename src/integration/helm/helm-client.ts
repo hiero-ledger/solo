@@ -51,8 +51,10 @@ export interface HelmClient {
 
   /**
    * Executes the Helm CLI repo update sub-command and updates the Helm repositories.
+   *
+   * @param repositoryNames - names of the repositories to update; when empty, every configured repository is updated
    */
-  updateRepositories(): Promise<void>;
+  updateRepositories(...repositoryNames: string[]): Promise<void>;
 
   /**
    * Executes the Helm CLI install sub-command and installs a Helm chart passing the flags and arguments

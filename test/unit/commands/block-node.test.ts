@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon from 'sinon';
 import {container} from 'tsyringe-neo';
 import {BlockNodeCommand} from '../../../src/commands/block-node.js';
+import {Flags as flags} from '../../../src/commands/flags.js';
 import * as constants from '../../../src/core/constants.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {ComponentTypes} from '../../../src/core/config/remote/enumerations/component-types.js';
@@ -24,6 +25,10 @@ import * as versions from '../../../version.js';
 interface BlockNodeK8Stub {
   services: () => BlockNodeServicesStub;
   manifests: () => BlockNodeManifestsStub;
+}
+
+interface BlockNodeConfigMapsK8Stub {
+  configMaps: () => {update: sinon.SinonStub};
 }
 
 interface BlockNodeServicesStub {
@@ -75,6 +80,8 @@ interface BlockNodeCommandInternal {
   getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string, componentImageArchive?: string) => number;
   isLocalImageAvailableInDocker: (componentImage: string) => boolean;
   updateBlockNodeVersionInRemoteConfig: (config: Record<string, unknown>) => Promise<void>;
+  isComponentImageAvailableForKind: (componentImage: string, componentImageArchive?: string) => boolean;
+  applyComponentImageVersion: (config: Record<string, unknown>) => Promise<string | undefined>;
 }
 
 describe('BlockNodeCommand unit tests', (): void => {
@@ -249,6 +256,77 @@ describe('BlockNodeCommand unit tests', (): void => {
       SemanticVersion<string>,
     ];
     expect(version.toString()).to.equal('0.38.0');
+  });
+
+  it('should accept the component image flags on upgrade', (): void => {
+    expect(BlockNodeCommand.UPGRADE_FLAGS_LIST.optional).to.include.members([
+      flags.componentImage,
+      flags.componentImageArchive,
+    ]);
+  });
+
+  it('should record an upgrade archive-sourced componentImage version in remote config', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    const updateComponentVersionStub: sinon.SinonStub = sinon.stub();
+    blockNodeCommandInternal.remoteConfig = {
+      updateComponentVersion: updateComponentVersionStub,
+      persist: sinon.stub().resolves(),
+    } as unknown as BlockNodeCommandInternal['remoteConfig'];
+
+    await blockNodeCommandInternal.updateBlockNodeVersionInRemoteConfig({
+      upgradeVersion: '0.38.0',
+      componentImage: 'ghcr.io/hiero-ledger/block-node-server:0.40.0',
+      componentImageArchive: '/tmp/block-node-server.tar',
+    });
+
+    expect(updateComponentVersionStub).to.have.been.calledOnce;
+    const [, version]: [unknown, SemanticVersion<string>] = updateComponentVersionStub.firstCall.args as [
+      unknown,
+      SemanticVersion<string>,
+    ];
+    expect(version.toString()).to.equal('0.40.0');
+  });
+
+  it('should set the release config map VERSION to a Kind-loaded componentImage tag', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    const updateStub: sinon.SinonStub = sinon.stub().resolves();
+    blockNodeCommandInternal.k8Factory = {
+      getK8: (): BlockNodeConfigMapsK8Stub => ({configMaps: (): {update: sinon.SinonStub} => ({update: updateStub})}),
+    } as unknown as BlockNodeCommandInternal['k8Factory'];
+    sinon.stub(blockNodeCommandInternal, 'isComponentImageAvailableForKind').returns(true);
+
+    const tag: string | undefined = await blockNodeCommandInternal.applyComponentImageVersion({
+      componentImage: 'block-node-server:0.45.0',
+      componentImageArchive: undefined,
+      context: 'kind-solo',
+      namespace: NamespaceName.of('solo-ns'),
+      releaseName: 'block-node-0',
+    });
+
+    expect(tag).to.equal('0.45.0');
+    expect(updateStub).to.have.been.calledOnceWith(NamespaceName.of('solo-ns'), 'block-node-0-config', {
+      VERSION: '0.45.0',
+    });
+  });
+
+  it('should leave the release config map VERSION alone for a registry-pulled componentImage', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    const updateStub: sinon.SinonStub = sinon.stub().resolves();
+    blockNodeCommandInternal.k8Factory = {
+      getK8: (): BlockNodeConfigMapsK8Stub => ({configMaps: (): {update: sinon.SinonStub} => ({update: updateStub})}),
+    } as unknown as BlockNodeCommandInternal['k8Factory'];
+    sinon.stub(blockNodeCommandInternal, 'isComponentImageAvailableForKind').returns(false);
+
+    const tag: string | undefined = await blockNodeCommandInternal.applyComponentImageVersion({
+      componentImage: 'ghcr.io/hiero-ledger/block-node-server:0.45.0',
+      componentImageArchive: undefined,
+      context: 'kind-solo',
+      namespace: NamespaceName.of('solo-ns'),
+      releaseName: 'block-node-1',
+    });
+
+    expect(tag).to.be.undefined;
+    expect(updateStub).to.not.have.been.called;
   });
 
   it('should configure the RSA mirror bootstrap source for block-stream consensus versions', async (): Promise<void> => {

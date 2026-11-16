@@ -4,7 +4,8 @@ import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {Templates} from '../../core/templates.js';
 import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
-import {checkNamespace, parseNodeAliases} from '../../core/helpers.js';
+import {checkNamespace, parseNodeAliases, splitFlagInput} from '../../core/helpers.js';
+import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import fs from 'node:fs';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import {Flags as flags} from '../flags.js';
@@ -28,7 +29,7 @@ import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-conf
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
 import {type NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
-import {type SoloListrTaskWrapper} from '../../types/index.js';
+import {type Optional, type SoloListrTaskWrapper} from '../../types/index.js';
 import {type NodeUpgradeContext} from './config-interfaces/node-upgrade-context.js';
 import {type NodeUpdateContext} from './config-interfaces/node-update-context.js';
 import {type NodeDestroyContext} from './config-interfaces/node-destroy-context.js';
@@ -407,6 +408,11 @@ export class NodeCommandConfigs {
 
     config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
+    // adding a node submits a transaction to a running network, so at least one consensus node must already exist
+    if (Object.keys(this.remoteConfig.configuration.state.consensusNodes).length === 0) {
+      throw new SoloErrors.validation.noConsensusNodesForNodeAdd(config.deployment);
+    }
+
     context_.adminKey = argv[flags.adminKey?.name]
       ? PrivateKey.fromStringED25519(argv[flags.adminKey?.name])
       : await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), config.namespace);
@@ -753,6 +759,16 @@ export class NodeCommandConfigs {
     config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     config.consensusNodes = this.remoteConfig.getConsensusNodes();
     config.nodeAliases = parseNodeAliases(config.nodeAliasesUnparsed, config.consensusNodes, this.configManager);
+
+    const adminPublicKeysFlag: Optional<string> = this.configManager.getFlag(flags.adminPublicKeys);
+    if (adminPublicKeysFlag !== undefined) {
+      const parsed: string[] = splitFlagInput(adminPublicKeysFlag);
+      if (parsed.length === 0) {
+        throw new SoloErrors.validation.invalidAdminPublicKey(config.consensusNodes[0]?.name);
+      }
+
+      GenesisNetworkDataConstructor.validateAdminPublicKeys(parsed, config.consensusNodes);
+    }
 
     await this.initializeSetup(config, this.k8Factory);
 

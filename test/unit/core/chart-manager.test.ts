@@ -345,3 +345,45 @@ describe('ChartManager transient download retry', (): void => {
     expect(sleptMillis()).to.deep.equal([2000, 4000, 8000]);
   });
 });
+
+describe('ChartManager scoped repository update', (): void => {
+  const repoURLs: Map<string, string> = new Map([['solo-setup', 'https://example.com/charts']]);
+  let helm: Record<string, SinonStub>;
+  let chartManager: ChartManager;
+
+  beforeEach((): void => {
+    helm = {
+      listRepositories: sinon.stub().resolves([]),
+      addRepository: sinon.stub().resolves(),
+      removeRepository: sinon.stub().resolves(),
+      updateRepositories: sinon.stub().resolves(),
+    };
+    const logger: SoloLogger = {debug: sinon.stub(), warn: sinon.stub()} as unknown as SoloLogger;
+    chartManager = new ChartManager(helm as unknown as HelmClient, logger);
+  });
+
+  it('updates only the repositories Solo manages', async (): Promise<void> => {
+    await chartManager.setup(repoURLs);
+    expect(helm.updateRepositories).to.have.been.calledOnceWithExactly('solo-setup');
+    expect(helm.removeRepository).not.to.have.been.called;
+  });
+
+  it('removes and re-adds a managed repository whose update failed', async (): Promise<void> => {
+    helm.updateRepositories.onFirstCall().rejects(new Error('404'));
+    await chartManager.setup(repoURLs);
+    expect(helm.removeRepository).to.have.been.calledOnce;
+    expect(helm.updateRepositories).to.have.been.calledTwice;
+  });
+
+  it('names the managed repositories in the error when the update still fails', async (): Promise<void> => {
+    helm.updateRepositories.rejects(new Error('404'));
+    let thrown: Error | undefined;
+    try {
+      await chartManager.setup(repoURLs);
+    } catch (error) {
+      thrown = error as Error;
+    }
+    expect(thrown).to.be.instanceOf(SoloErrors.system.helmRepoSetupFailed);
+    expect(thrown.message).to.contain('[solo-setup]');
+  });
+});

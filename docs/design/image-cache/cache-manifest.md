@@ -102,13 +102,16 @@ References must be immutable: an exact version tag or a digest, never a moving t
 ## 4. File Names
 
 The archive file name is `<image>__<platform>` with every `/` and `:` replaced by `__`, plus `.tar`.
-The hash file name is the archive file name plus `.sha256`.
+A digest-pinned image adds `__tagged` before `.tar`, because its archive also carries a tag name
+(§8); the archives published for it before that change cannot start in a cluster, and a published
+name is never reused for different bytes (§5). The hash file name is the archive file name plus
+`.sha256`.
 
 | Image                                          | Platform      | `tarFile`                                                           |
 | ---------------------------------------------- | ------------- | ------------------------------------------------------------------- |
 | `docker.io/library/busybox:1.36.1`             | `linux/amd64` | `docker.io__library__busybox__1.36.1__linux__amd64.tar`             |
 | `ghcr.io/hiero-ledger/hiero-block-node:0.43.0` | `linux/arm64` | `ghcr.io__hiero-ledger__hiero-block-node__0.43.0__linux__arm64.tar` |
-| `docker.io/pgsty/silo@sha256:<digest>`         | `linux/amd64` | `docker.io__pgsty__silo@sha256__<digest>__linux__amd64.tar`         |
+| `docker.io/pgsty/silo@sha256:<digest>`         | `linux/amd64` | `docker.io__pgsty__silo@sha256__<digest>__linux__amd64__tagged.tar` |
 
 The local cache holds one platform only, so the CLI names its copy without the platform suffix
 (`docker.io__library__busybox__1.36.1.tar`). Embedding the registry, path, version and platform
@@ -122,8 +125,8 @@ extension convention can change without a CLI release.
 The CDN is flat, with no version or registry directories:
 
 ```text
-https://cdn.solo.hashgraph.io/<tarFile>
-https://cdn.solo.hashgraph.io/<hashFile>
+https://cdn.solo.hiero.org/<tarFile>
+https://cdn.solo.hiero.org/<hashFile>
 ```
 
 `SOLO_CACHE_CDN_BASE_URL` overrides the base URL for staging and testing.
@@ -177,9 +180,54 @@ Produced by `.github/workflows/script/image_cache_export.sh` (A3,
 - The layout's manifest carries `io.containerd.image.name` set to the `image` reference. Without it
   containerd imports the image under a name the kubelet does not look up (for example
   `index.docker.io/…`), and the cluster pulls the image from its registry anyway.
+- A digest-pinned image's layout lists its manifest a second time, named
+  `<name>:solo-cache-<digest hex>`. `kind load image-archive` also imports every image as
+  `import-<date>@sha256:<manifest digest>`. An image with no tag is started from its alphabetically
+  first digest name, which for a name sorting after `docker.io/library/import-` (such as
+  `docker.io/pgsty/silo`) is that import name; containerd cannot find it under its normalized
+  `docker.io/library/import-…` form and the pod fails with `CreateContainerError`
+  ([#6420](https://github.com/hiero-ledger/solo/issues/6420)). A tag name is always used first, so
+  the image starts.
 - The tar is packed reproducibly (sorted entries, zero timestamps and owners, fixed modes), so the
   same image always produces the same hash (§5).
 
-## 9. Out of Scope
+## 9. Publishing the Manifest
 
-- How CI uploads to the CDN and publishes the manifest: A4 and A5.
+The release workflow's "Publish Image Cache Manifest" job (A5,
+[#5747](https://github.com/hiero-ledger/solo/issues/5747)) builds the manifest with
+`.github/workflows/script/image_cache_manifest.sh` from the index A3 exports, once the GitHub
+release exists:
+
+- The index is checked against every rule in §2.3 and §4, so a manifest the CLI would reject is
+  never published.
+- On a real release, every `tarFile` must be served from the CDN with the recorded `size`, and
+  every `hashFile` must hold the recorded `sha256`; otherwise no manifest is published. A dry run
+  skips this check, because it uploads nothing to the CDN.
+- The manifest is kept as the `cache-manifest` workflow artifact and, on a real release, attached
+  to the release as `cache-manifest.json` (§2.1). The upload replaces an existing asset, so a
+  corrected manifest can be published again by rerunning the job.
+
+## 10. Uploading the Archives
+
+On a real release, the image cache workflow uploads every archive and hash file to the CDN bucket
+(`solo-cache-cdn-public`) with `.github/workflows/script/image_cache_upload.sh` (A4,
+[#5746](https://github.com/hiero-ledger/solo/issues/5746)), before the manifest job runs. Each file,
+archive first and then its hash file, is handled in one of three ways:
+
+| On the CDN                    | Action                                                |
+| ----------------------------- | ----------------------------------------------------- |
+| Absent                        | Uploaded.                                             |
+| Present with the same content | Skipped: an image unchanged since an earlier release. |
+| Present with other content    | Reported, and the release fails once all are checked. |
+
+When an archive conflicts, for example one left by an interrupted upload, its hash file is not
+uploaded: it would describe a different archive than the one on the CDN, and once published it could
+never be replaced to repair the pair. The other archives are still checked and uploaded.
+
+Content is compared by the MD5 Cloud Storage records for each object, so nothing is downloaded, and
+every upload only succeeds if the object does not exist yet, so a published file is never replaced
+(§5), not even by a concurrent run.
+
+The service account signs in through Workload Identity Federation. A dry run uploads nothing. The
+workflow's `upload-to-cdn` and `cdn-bucket` inputs allow a manual run to upload to a staging
+bucket, and the CLI's `SOLO_CACHE_CDN_BASE_URL` points downloads at it.
