@@ -1322,8 +1322,8 @@ export class DeploymentCommand extends BaseCommand {
    * Checks the ledger phase:
    * - if remote config is found check's the ledgerPhase field to see if it's pre or post genesis.
    *   - pre genesis:
-   *     - defaults '--num-consensus-nodes' to zero when omitted, so the additional cluster can host only other
-   *       components (e.g. a mirror node or block node).
+   *     - defaults '--num-consensus-nodes' to zero when omitted in quiet mode, so the additional cluster can host
+   *       only other components (e.g. a mirror node or block node); otherwise prompts the user.
    *     - generates node aliases based on '--num-consensus-nodes'
    *   - post genesis:
    *     - throws if '--num-consensus-nodes' is passed
@@ -1379,10 +1379,19 @@ export class DeploymentCommand extends BaseCommand {
 
         context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, existingNodesCount);
 
-        // An additional cluster defaults to zero consensus nodes, so it can host only other components
-        // (e.g. a mirror node or block node) when '--num-consensus-nodes' is omitted
+        // An additional cluster defaults to zero consensus nodes when the user can't be prompted, so it can host only
+        // other components (e.g. a mirror node or block node); an interactive user is prompted for the count
         if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined) {
-          context_.config.numberOfConsensusNodes = 0;
+          if (quiet) {
+            context_.config.numberOfConsensusNodes = 0;
+          } else {
+            await this.configManager.executePrompt(task, [flags.numberOfConsensusNodes]);
+            context_.config.numberOfConsensusNodes = this.configManager.getFlag<number>(flags.numberOfConsensusNodes);
+            context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(
+              context_.config.numberOfConsensusNodes,
+              existingNodesCount,
+            );
+          }
         }
 
         // if the ledgerPhase is post-genesis and '--num-consensus-nodes' is specified throw

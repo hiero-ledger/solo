@@ -414,6 +414,7 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.info(
         `Mirror node will pull from the consensus node record files; ${optionFromFlag(flags.mirrorNodeSource)} is bucket`,
       );
+      this.throwIfBucketSourceHasNoCredentials(config);
       return new HelmChartValues();
     }
 
@@ -421,7 +422,19 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.mirrorNodeSource === 'block-node' && chartValues.isEmpty()) {
       throw new SoloErrors.validation.mirrorNodeBlockNodeSourceUnavailable(config.clusterReference);
     }
+    if (chartValues.isEmpty()) {
+      this.throwIfBucketSourceHasNoCredentials(config);
+    }
     return chartValues;
+  }
+
+  /** A cluster without consensus nodes gets an empty uploader secret, so the importer can't read from a bucket */
+  private throwIfBucketSourceHasNoCredentials(
+    config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
+  ): void {
+    if (!this.hasConsensusNodes(config.clusterReference)) {
+      throw new SoloErrors.validation.mirrorNodeBucketSourceUnavailable(config.clusterReference);
+    }
   }
 
   private resolveBlockNodeIntegrationValues(
@@ -1323,16 +1336,19 @@ export class MirrorNodeCommand extends BaseCommand {
    * adopt one that already exists without its ownership metadata.
    *
    * Limitation: the empty secret carries no storage credentials, so a cluster without consensus nodes supports only
-   * the `block-node` mirror source. Reading from a cloud bucket there fails at download time, and the secret is not
-   * removed by `consensus network destroy`, which only cleans the consensus contexts.
+   * the `block-node` mirror source; `prepareBlockNodeIntegrationValues` fails fast when the source resolves to the
+   * bucket there. The secret is not removed by `consensus network destroy`, which only cleans the consensus contexts.
    */
+  private hasConsensusNodes(clusterReference: ClusterReferenceName): boolean {
+    return this.remoteConfig
+      .getConsensusNodes()
+      .some((consensusNode): boolean => consensusNode.cluster === clusterReference);
+  }
+
   private ensureUploaderSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Ensure mirror-node uploader secret',
-      skip: (context_): boolean =>
-        this.remoteConfig
-          .getConsensusNodes()
-          .some((consensusNode): boolean => consensusNode.cluster === context_.config.clusterReference),
+      skip: (context_): boolean => this.hasConsensusNodes(context_.config.clusterReference),
       task: async (context_): Promise<void> => {
         const secrets: Secrets = this.k8Factory.getK8(context_.config.clusterContext).secrets();
 
@@ -2411,6 +2427,7 @@ export class MirrorNodeCommand extends BaseCommand {
               : ListrLock.newAcquireLockTask(lease, task);
           },
         },
+        this.ensureUploaderSecretTask(),
         this.enableSharedResourcesTask(),
         this.deleteStaleRedisSecretTask(),
         this.primePostgresSecretTask(), // creates mirror-passwords secret if missing (e.g. re-install via upgrade)

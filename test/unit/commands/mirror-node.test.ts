@@ -274,8 +274,11 @@ function withMirrorNodes(
 function withBlockNodes(
   mirrorNodeCommandInternal: MirrorNodeCommandInternal,
   blockNodes: {metadata: {cluster: string; id: number; namespace: string}}[],
+  consensusNodeClusters: string[] = ['cluster-a'],
 ): void {
   mirrorNodeCommandInternal.remoteConfig = {
+    getConsensusNodes: (): {cluster: string}[] =>
+      consensusNodeClusters.map((cluster: string): {cluster: string} => ({cluster})),
     configuration: {
       components: {state: {blockNodes}},
       clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
@@ -732,6 +735,26 @@ describe('MirrorNodeCommand unit tests', (): void => {
       expect(integrationValues(mirrorNodeCommandInternal, 'auto').isEmpty()).to.be.true;
     });
 
+    it('fails fast with bucket and with auto in a cluster that has no consensus nodes', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      withBlockNodes(mirrorNodeCommandInternal, [], ['cluster-b']);
+
+      for (const source of ['bucket', 'auto']) {
+        expect((): HelmChartValues => integrationValues(mirrorNodeCommandInternal, source)).to.throw(
+          'cannot import from the bucket in cluster cluster-a',
+        );
+      }
+    });
+
+    it('imports from the block node in a cluster that has no consensus nodes', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      withBlockNodes(mirrorNodeCommandInternal, [blockNode], ['cluster-b']);
+
+      expect(integrationValues(mirrorNodeCommandInternal, 'block-node').isEmpty()).to.be.false;
+    });
+
     it('fails with block-node instead of silently falling back to the bucket', (): void => {
       const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
         mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
@@ -1167,6 +1190,8 @@ describe('MirrorNodeCommand unit tests', (): void => {
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
 
+    sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'kind-a'}]);
+
     try {
       mirrorNodeCommandInternal.remoteConfig._remoteConfig = {
         clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
@@ -1205,6 +1230,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
     try {
       mirrorNodeCommandInternal.remoteConfig = {
+        getConsensusNodes: (): {cluster: string}[] => [{cluster: 'kind-a'}],
         configuration: {
           clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
           components: {

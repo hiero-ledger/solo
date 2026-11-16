@@ -50,5 +50,6 @@ task destroy    # clean up
 ## Limitation
 
 The cluster without consensus nodes has no storage credentials, so Solo creates an empty `uploader-mirror-secrets`
-for its mirror node importer. Use `--mirror-node-source block-node` there, as this example does. Reading record
-streams from a cloud bucket in such a cluster is not supported.
+for its mirror node importer. Use `--mirror-node-source block-node` there, as this example does. Importing from
+a bucket in such a cluster is not supported, and `mirror node add` fails fast (`SOLO-4097`) when the source
+resolves to the bucket there.

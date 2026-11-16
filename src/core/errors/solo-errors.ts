@@ -153,6 +153,7 @@ import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
 import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
 import {MirrorNodeBlockNodeSourceUnavailableSoloError} from './classes/validation/mirror-node-block-node-source-unavailable-solo-error.js';
+import {MirrorNodeBucketSourceUnavailableSoloError} from './classes/validation/mirror-node-bucket-source-unavailable-solo-error.js';
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
@@ -673,6 +674,7 @@ export class SoloErrors {
     readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
     readonly mirrorNodeBlockNodeSourceUnavailable: typeof MirrorNodeBlockNodeSourceUnavailableSoloError;
+    readonly mirrorNodeBucketSourceUnavailable: typeof MirrorNodeBucketSourceUnavailableSoloError;
     readonly invalidHbarAmount: typeof InvalidHbarAmountSoloError;
     readonly invalidFileIdFormat: typeof InvalidFileIdFormatSoloError;
     readonly invalidEndpointFormat: typeof InvalidEndpointFormatSoloError;
@@ -766,6 +768,7 @@ export class SoloErrors {
     relayInvalidComponentId: RelayInvalidComponentIdSoloError,
     mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
     mirrorNodeBlockNodeSourceUnavailable: MirrorNodeBlockNodeSourceUnavailableSoloError,
+    mirrorNodeBucketSourceUnavailable: MirrorNodeBucketSourceUnavailableSoloError,
     invalidHbarAmount: InvalidHbarAmountSoloError,
     invalidFileIdFormat: InvalidFileIdFormatSoloError,
     invalidEndpointFormat: InvalidEndpointFormatSoloError,

@@ -244,6 +244,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CONFIG_VALUE_TYPE_MISMATCH: 'SOLO-4094',
   CHAIN_ID_MISMATCH: 'SOLO-4095',
   NO_CONSENSUS_NODES_FOR_NODE_ADD: 'SOLO-4096',
+  MIRROR_NODE_BUCKET_SOURCE_UNAVAILABLE: 'SOLO-4097',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',

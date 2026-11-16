@@ -2644,7 +2644,7 @@ export class Flags {
     name: 'num-consensus-nodes',
     definition: {
       describe:
-        'Used to specify desired number of consensus nodes for pre-genesis deployments (defaults to 0 for an additional cluster of a deployment)',
+        'Used to specify desired number of consensus nodes for pre-genesis deployments (an additional cluster defaults to 0 in quiet mode)',
       type: 'number',
       promptText: 'Enter number of consensus nodes to add to the provided cluster (must be zero or a positive number):',
     },

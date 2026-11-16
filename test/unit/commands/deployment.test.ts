@@ -27,6 +27,7 @@ import {PodReference} from '../../../src/integration/kube/resources/pod/pod-refe
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import * as constants from '../../../src/core/constants.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {LedgerPhase} from '../../../src/data/schema/model/remote/ledger-phase.js';
 
 describe('DeploymentCommand unit tests', (): void => {
@@ -739,6 +740,7 @@ describe('DeploymentCommand unit tests', (): void => {
     const runCheckNetworkState = async (
       numberOfConsensusNodes?: number,
       isFirstCluster: boolean = false,
+      quiet: boolean = true,
     ): Promise<NetworkStateContext> => {
       const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
       await localConfig.load();
@@ -755,7 +757,7 @@ describe('DeploymentCommand unit tests', (): void => {
 
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
       const context: NetworkStateContext = {
-        config: {deployment: deploymentName, numberOfConsensusNodes, quiet: true, namespace},
+        config: {deployment: deploymentName, numberOfConsensusNodes, quiet, namespace},
       } as unknown as NetworkStateContext;
 
       await deploymentCommand.checkNetworkState().task(context, {} as NetworkStateTaskWrapper);
@@ -767,6 +769,19 @@ describe('DeploymentCommand unit tests', (): void => {
 
       expect(context.config.numberOfConsensusNodes).to.equal(0);
       expect(context.config.nodeAliases).to.deep.equal([]);
+    });
+
+    it('should prompt for --num-consensus-nodes instead of defaulting to zero when not in quiet mode', async (): Promise<void> => {
+      const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const executePrompt: SinonStub = sinon.stub(configManager, 'executePrompt').resolves();
+      const getFlag: SinonStub = sinon.stub(configManager, 'getFlag').callThrough();
+      getFlag.withArgs(flags.numberOfConsensusNodes).returns(2);
+
+      const context: NetworkStateContext = await runCheckNetworkState(undefined, false, false);
+
+      expect(executePrompt).to.have.been.calledOnce;
+      expect(context.config.numberOfConsensusNodes).to.equal(2);
+      expect(context.config.nodeAliases).to.deep.equal(['node2', 'node3']);
     });
 
     it('should accept an explicit --num-consensus-nodes 0 in quiet mode', async (): Promise<void> => {
