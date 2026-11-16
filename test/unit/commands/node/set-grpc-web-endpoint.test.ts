@@ -16,6 +16,7 @@ import {
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
+import {AccountManager} from '../../../../src/core/account-manager.js';
 import {NodeSubcommandType} from '../../../../src/core/enumerations.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {Templates} from '../../../../src/core/templates.js';
@@ -25,6 +26,9 @@ import {SoloError} from '../../../../src/core/errors/solo-error.js';
 import * as constants from '../../../../src/core/constants.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../src/types/index.js';
 import {type AnyListrContext, type NodeAlias} from '../../../../src/types/aliases.js';
+import {ResourceNotFoundError} from '../../../../src/integration/kube/errors/resource-operation-errors.js';
+import {ResourceOperation} from '../../../../src/integration/kube/resources/resource-operation.js';
+import {ResourceType} from '../../../../src/integration/kube/resources/resource-type.js';
 
 type FakeConsensusNode = {name: NodeAlias; nodeId: number; cluster: string; context: string};
 type FakeLogger = {debug: SinonStub; showUser: SinonStub};
@@ -52,16 +56,30 @@ function createTasks(
     read: async (secretNamespace: NamespaceName, name: string): Promise<{data: Record<string, string>}> => {
       const key: PrivateKey = adminKeySecrets[name];
       if (!key || secretNamespace.name !== namespace.name) {
-        throw new Error(`secret ${name} not found`);
+        throw new ResourceNotFoundError(ResourceOperation.READ, ResourceType.SECRET, secretNamespace, name);
       }
       return {data: {privateKey: Base64.encode(key.toString()), publicKey: Base64.encode(key.publicKey.toString())}};
     },
     exists: async (): Promise<boolean> => false,
   };
 
+  const k8Factory: unknown = {getK8: (): {secrets: () => unknown} => ({secrets: (): unknown => secrets})};
+  const remoteConfig: unknown = {
+    getClusterRefs: (): Record<string, string> => ({}),
+    getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
+    getContexts: (): string[] => ['context-1'],
+    configuration: {clusters: [{namespace: namespace.name, dnsBaseDomain: 'cluster.local'}]},
+  };
+
+  // A real AccountManager prototype, so the node admin key lookup runs against the fake secrets
+  const accountManager: AccountManager = Object.create(AccountManager.prototype) as AccountManager;
+
   Object.assign(tasks, {
-    k8Factory: {getK8: (): {secrets: () => unknown} => ({secrets: (): unknown => secrets})},
-    accountManager: {
+    k8Factory,
+    accountManager: Object.assign(accountManager, {
+      k8Factory,
+      remoteConfig,
+      logger,
       getNodeServiceMap: async (): Promise<Map<NodeAlias, unknown>> =>
         new Map(
           consensusNodes.map((node: FakeConsensusNode): [NodeAlias, unknown] => [
@@ -79,13 +97,8 @@ function createTasks(
       loadNodeClient: async (): Promise<Client> => client,
       hederaClientFor: (sdkClient: Client): SdkHederaClient =>
         new SdkHederaClient(sdkClient, logger as unknown as SoloLogger),
-    },
-    remoteConfig: {
-      getClusterRefs: (): Record<string, string> => ({}),
-      getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
-      getContexts: (): string[] => ['context-1'],
-      configuration: {clusters: [{namespace: namespace.name, dnsBaseDomain: 'cluster.local'}]},
-    },
+    }),
+    remoteConfig,
     logger,
   });
 
