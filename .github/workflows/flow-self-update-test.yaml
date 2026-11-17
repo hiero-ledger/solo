@@ -1,0 +1,191 @@
+##
+# Copyright (C) 2026 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+# Tests `solo update` end to end on Linux. A SEA binary is built from this checkout with an old version
+# number, so the latest GitHub release is newer than it. The job then:
+#   1. declines an update by piping `n` into `solo update` and checks nothing changed
+#   2. accepts it by piping `y`, which verifies the release signature and checksum and swaps the binary
+#   3. checks the binary now reports the latest release version
+#   4. runs `solo one-shot single deploy` with the downloaded release binary, validates it, then destroys it
+# Tracked by hiero-ledger/solo#5728.
+name: 'Self Update Test'
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version used to build the SEA binary'
+        type: string
+        required: false
+        default: '22'
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+  # The version embedded in the binary under test. It only has to be older than every release.
+  OLD_VERSION: '0.1.0'
+
+jobs:
+  self-update:
+    name: Self Update (linux-x64)
+    runs-on: hiero-solo-linux-large
+    timeout-minutes: 120
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: ${{ inputs.node-version || '22' }}
+          package-manager-cache: false
+
+      - name: Install Task
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Old Version
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: npm version "${OLD_VERSION}" --no-git-tag-version --allow-same-version
+
+      # Installs dependencies (npm ci on CI) and compiles before building the binary.
+      - name: Build SEA Binary
+        timeout-minutes: 30
+        run: task sea:build
+
+      # The binary goes outside the checkout, so every later solo command runs from the SEA alone.
+      - name: Install Old Solo
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          install_directory="${RUNNER_TEMP}/solo-bin"
+          mkdir -p "${install_directory}"
+          cp sea/dist/solo-linux-x64 "${install_directory}/solo"
+          chmod 0755 "${install_directory}/solo"
+          echo "${install_directory}" >>"${GITHUB_PATH}"
+          echo "RUN_DIRECTORY=${RUNNER_TEMP}/solo-clean-run" >>"${GITHUB_ENV}"
+          mkdir -p "${RUNNER_TEMP}/solo-clean-run"
+
+          version_output="$("${install_directory}/solo" --version)"
+          echo "${version_output}"
+          echo "${version_output}" | grep -qF "${OLD_VERSION}"
+
+      - name: Find Latest Release
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # The same redirect solo update reads; it names the release GitHub marks as latest.
+          latest_url="$(curl -fsSL --retry 5 --retry-all-errors -o /dev/null -w '%{url_effective}' \
+            https://github.com/hiero-ledger/solo/releases/latest)"
+          latest_tag="${latest_url##*/}"
+          echo "Latest release: ${latest_tag}"
+          echo "${latest_tag}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+'
+          echo "LATEST_VERSION=${latest_tag#v}" >>"${GITHUB_ENV}"
+
+      - name: Decline Update
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          cd "${RUN_DIRECTORY}"
+          # Piped input mimics the user typing their answer at the prompt.
+          echo n | solo update 2>&1 | tee "${RUNNER_TEMP}/update-declined.log"
+          grep -qF "Solo ${LATEST_VERSION} is available (you have ${OLD_VERSION})" "${RUNNER_TEMP}/update-declined.log"
+          solo --version | grep -qF "${OLD_VERSION}"
+
+      - name: Accept Update
+        timeout-minutes: 10
+        run: |
+          cd "${RUN_DIRECTORY}"
+          echo y | solo update 2>&1 | tee "${RUNNER_TEMP}/update-accepted.log"
+          grep -qF "Updated Solo ${OLD_VERSION} to ${LATEST_VERSION}" "${RUNNER_TEMP}/update-accepted.log"
+
+      - name: Verify Updated Binary
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          solo --version | grep -qF "${LATEST_VERSION}"
+          # No staged file may be left beside the binary.
+          if ls "${RUNNER_TEMP}"/solo-bin/.solo.update.* >/dev/null 2>&1; then
+            echo "ERROR: a staged update file was left behind"
+            exit 1
+          fi
+          # Already on the latest release now, so a second update has nothing to do.
+          cd "${RUN_DIRECTORY}"
+          solo update 2>&1 </dev/null | grep -qF "Solo ${LATEST_VERSION} is the latest release"
+
+      - name: One-Shot Single Deploy
+        id: deploy
+        timeout-minutes: 70
+        run: |
+          cd "${RUN_DIRECTORY}"
+          solo one-shot single deploy --dev
+
+      - name: Verify Mirror REST API
+        timeout-minutes: 10
+        run: |
+          echo "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
+          for i in $(seq 1 30); do
+            response=$(curl -sf http://localhost:38081/api/v1/accounts 2>/dev/null || true)
+            if echo "${response}" | grep -q '"accounts"'; then
+              echo "Mirror REST API is up and returned accounts."
+              exit 0
+            fi
+            echo "Attempt ${i}/30: not ready yet, retrying in 10s..."
+            sleep 10
+          done
+          echo "ERROR: Mirror REST API did not become available after 5 minutes."
+          exit 1
+
+      - name: Collect Diagnostics on Failure
+        if: ${{ failure() && steps.deploy.outcome != 'skipped' }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          cd "${RUN_DIRECTORY}"
+          solo deployment diagnostics logs -q --dev || true
+
+      - name: One-Shot Single Destroy
+        # Runs whenever a deploy was attempted, including a failed or cancelled one.
+        if: ${{ always() && steps.deploy.outcome != 'skipped' }}
+        timeout-minutes: 15
+        run: |
+          cd "${RUN_DIRECTORY}"
+          solo one-shot single destroy --quiet-mode --dev
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: self-update-logs
+          path: |
+            ~/.solo/logs/*
+            ${{ runner.temp }}/update-*.log
+          overwrite: true
+          if-no-files-found: warn

@@ -293,6 +293,14 @@ jobs:
     secrets:
       SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
+  self-update:
+    name: Extended Test (self-update)
+    needs:
+      - generate_matrix
+    uses: $/.github/workflows/flow-self-update-test.yaml
+    with:
+      node-version: ${{ inputs.node-version || '24' }}
+
   windows-one-shot-redeployment:
     name: Extended Test (windows-one-shot-redeployment)
     needs:
@@ -323,6 +331,7 @@ jobs:
       - ledger-reset-warm-start-timing
       - flow-performance-test
       - windows-one-shot-redeployment
+      - self-update
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3

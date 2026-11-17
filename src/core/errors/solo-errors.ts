@@ -287,6 +287,11 @@ import {HelmChartPullNoArchiveSoloError} from './classes/system/helm-chart-pull-
 import {ContainerEngineNotFoundSoloError} from './classes/system/container-engine-not-found-solo-error.js';
 import {ContainerEngineStartFailedSoloError} from './classes/system/container-engine-start-failed-solo-error.js';
 import {KindClusterContainerNotFoundSoloError} from './classes/system/kind-cluster-container-not-found-solo-error.js';
+import {SelfUpdateDownloadFailedSoloError} from './classes/system/self-update-download-failed-solo-error.js';
+import {SelfUpdateAssetUnavailableSoloError} from './classes/system/self-update-asset-unavailable-solo-error.js';
+import {SelfUpdateVerificationFailedSoloError} from './classes/system/self-update-verification-failed-solo-error.js';
+import {SelfUpdateInstallFailedSoloError} from './classes/system/self-update-install-failed-solo-error.js';
+import {SelfUpdateFolderNotWritableSoloError} from './classes/system/self-update-folder-not-writable-solo-error.js';
 import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.js';
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
@@ -883,6 +888,11 @@ export class SoloErrors {
     readonly containerEngineNotFound: typeof ContainerEngineNotFoundSoloError;
     readonly containerEngineStartFailed: typeof ContainerEngineStartFailedSoloError;
     readonly kindClusterContainerNotFound: typeof KindClusterContainerNotFoundSoloError;
+    readonly selfUpdateDownloadFailed: typeof SelfUpdateDownloadFailedSoloError;
+    readonly selfUpdateAssetUnavailable: typeof SelfUpdateAssetUnavailableSoloError;
+    readonly selfUpdateVerificationFailed: typeof SelfUpdateVerificationFailedSoloError;
+    readonly selfUpdateInstallFailed: typeof SelfUpdateInstallFailedSoloError;
+    readonly selfUpdateFolderNotWritable: typeof SelfUpdateFolderNotWritableSoloError;
     readonly fileNotFound: typeof FileNotFoundSoloError;
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
@@ -981,6 +991,11 @@ export class SoloErrors {
     containerEngineNotFound: ContainerEngineNotFoundSoloError,
     containerEngineStartFailed: ContainerEngineStartFailedSoloError,
     kindClusterContainerNotFound: KindClusterContainerNotFoundSoloError,
+    selfUpdateDownloadFailed: SelfUpdateDownloadFailedSoloError,
+    selfUpdateAssetUnavailable: SelfUpdateAssetUnavailableSoloError,
+    selfUpdateVerificationFailed: SelfUpdateVerificationFailedSoloError,
+    selfUpdateInstallFailed: SelfUpdateInstallFailedSoloError,
+    selfUpdateFolderNotWritable: SelfUpdateFolderNotWritableSoloError,
     fileNotFound: FileNotFoundSoloError,
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,

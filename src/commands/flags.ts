@@ -554,6 +554,17 @@ export class Flags {
     },
   };
 
+  public static readonly targetVersion: CommandFlag = {
+    constName: 'targetVersion',
+    name: 'target-version',
+    definition: {
+      describe: 'Release to install, for example v0.97.0; newer or older. Defaults to the latest release',
+      defaultValue: '',
+      type: 'string',
+      disablePrompt: true,
+    },
+  };
+
   public static readonly freezeBlockDrainSeconds: CommandFlag = {
     constName: 'freezeBlockDrainSeconds',
     name: 'freeze-block-drain-seconds',
@@ -3039,6 +3050,7 @@ export class Flags {
     Flags.releaseTag,
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
+    Flags.targetVersion,
     Flags.freezeBlockDrainSeconds,
     Flags.resumeFromFreeze,
     Flags.skipNodeStart,
