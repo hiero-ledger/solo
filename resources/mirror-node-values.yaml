@@ -270,8 +270,12 @@ web3:
           evm:
             network: OTHER
 
-          # Restores the pre-0.160 default; the first call after web3 starts takes ~2s and can pass 4s on a busy host
-          requestTimeout: 10s
+          # Restores the pre-0.160 10s default; the first call after web3 starts takes ~2s and can pass 4s on a busy host
+          requestTimeout: 10s # read up to v0.164
+          api:
+            call:
+              response:
+                timeout: 10s # replaces requestTimeout from v0.165
 
           # This cache causes an issue where data about contractState, entity and tokens to be outdated for a short
           # period after a transaction is imported into the mirror node, which forces users to hardcode sleep logic into
