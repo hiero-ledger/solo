@@ -246,6 +246,9 @@ export class SdkHederaClient implements HederaClient {
     if (options.adminKey) {
       transaction.setAdminKey(options.adminKey);
     }
+    if (options.description !== undefined) {
+      transaction.setDescription(options.description);
+    }
     if (options.accountId) {
       transaction.setAccountId(options.accountId);
     }
