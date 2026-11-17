@@ -146,6 +146,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   RELAY_OPERATOR_SECRET_CREATION_FAILED: 'SOLO-3095',
   MIRROR_NODE_JFR_COLLECTION_FAILED: 'SOLO-3096',
   NODE_RESTORE_STATUS_MISMATCH: 'SOLO-3097',
+  NODE_ADMIN_KEY_SAVE_FAILED: 'SOLO-3098',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -243,6 +244,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CONFIG_VALUE_TYPE_MISMATCH: 'SOLO-4094',
   CHAIN_ID_MISMATCH: 'SOLO-4095',
   NO_CONSENSUS_NODES_FOR_NODE_ADD: 'SOLO-4096',
+  MIRROR_NODE_BUCKET_SOURCE_UNAVAILABLE: 'SOLO-4097',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -337,6 +339,9 @@ export const ErrorCodeRegistry: Record<string, string> = {
   POD_LOGS_CRD_INVALID: 'SOLO-5090',
   BLOCK_NODE_BLOCKS_UNAVAILABLE: 'SOLO-5091',
   CACHE_MANIFEST_UNPUBLISHED: 'SOLO-5092',
+  CONTAINER_ENGINE_NOT_FOUND: 'SOLO-5093',
+  CONTAINER_ENGINE_START_FAILED: 'SOLO-5094',
+  KIND_CLUSTER_CONTAINER_NOT_FOUND: 'SOLO-5095',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

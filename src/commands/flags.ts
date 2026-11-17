@@ -1914,7 +1914,10 @@ export class Flags {
     constName: 'adminPublicKeys',
     name: 'admin-public-keys',
     definition: {
-      describe: 'Comma separated list of DER encoded ED25519 public keys and must match the order of the node aliases',
+      describe:
+        'Comma separated list of DER encoded ED25519 public keys and must match the order of the node aliases. ' +
+        "Solo signs each node's updates with the private key in that node's <node-alias>-admin secret, " +
+        'so create that secret for each node given a key here',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
@@ -2640,7 +2643,8 @@ export class Flags {
     constName: 'numberOfConsensusNodes',
     name: 'num-consensus-nodes',
     definition: {
-      describe: 'Used to specify desired number of consensus nodes for pre-genesis deployments',
+      describe:
+        'Used to specify desired number of consensus nodes for pre-genesis deployments (an additional cluster defaults to 0 in quiet mode)',
       type: 'number',
       promptText: 'Enter number of consensus nodes to add to the provided cluster (must be zero or a positive number):',
     },
@@ -2649,7 +2653,7 @@ export class Flags {
         Flags.prompt('number', task, input, Flags.numberOfConsensusNodes);
 
       input = await promptForInput();
-      while (input === undefined) {
+      while (input === undefined || Number.isNaN(input) || input < 0) {
         input = await promptForInput();
       }
 

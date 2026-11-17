@@ -5,6 +5,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {BaseCommand} from './base.js';
 import {Flags, Flags as flags} from './flags.js';
+import {FlagValidation} from './validation/flag-validation.js';
 import * as constants from '../core/constants.js';
 import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
@@ -196,7 +197,7 @@ export class DeploymentCommand extends BaseCommand {
 
   public static CREATE_FLAGS_LIST: CommandFlags = {
     required: [flags.namespace, flags.deployment],
-    optional: [flags.quiet, flags.realm, flags.shard],
+    optional: [flags.quiet, flags.realm, flags.shard, flags.chainId],
   };
 
   public static DESTROY_FLAGS_LIST: CommandFlags = {
@@ -261,6 +262,7 @@ export class DeploymentCommand extends BaseCommand {
       deployment: DeploymentName;
       realm: Realm;
       shard: Shard;
+      chainId: number;
       skipDeploymentCreate?: boolean;
     }
 
@@ -285,6 +287,10 @@ export class DeploymentCommand extends BaseCommand {
               deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
               realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
               shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
+              chainId: FlagValidation.validatedNumber(
+                flags.chainId,
+                this.configManager.getFlag<string>(flags.chainId) || (flags.chainId.definition.defaultValue as string),
+              ),
             } as Config;
 
             context_.config = config;
@@ -322,7 +328,7 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Add deployment to local config',
           skip: ({config}: Context): boolean => config.skipDeploymentCreate === true,
-          task: async ({config: {namespace, deployment, realm, shard}}: Context, task): Promise<void> => {
+          task: async ({config: {namespace, deployment, realm, shard, chainId}}: Context, task): Promise<void> => {
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
             if (this.localConfig.configuration.deployments.some((d: Deployment): boolean => d.name === deployment)) {
@@ -334,6 +340,7 @@ export class DeploymentCommand extends BaseCommand {
             actualDeployment.namespace = namespace.name;
             actualDeployment.realm = realm;
             actualDeployment.shard = shard;
+            actualDeployment.chainId = chainId;
 
             await this.localConfig.persist();
           },
@@ -872,12 +879,17 @@ export class DeploymentCommand extends BaseCommand {
               (candidate: Deployment): boolean => candidate.name === deploymentName,
             );
             if (!deployment) {
-              const {realm, shard} = await this.readRealmAndShardFromConsensusNode(kubeContext, configMap.namespace);
+              const {realm, shard, chainId} = await this.readLedgerSettingsFromConsensusNode(
+                kubeContext,
+                configMap.namespace,
+                this.remoteConfig.configuration.ledger.chainId,
+              );
               deployment = this.localConfig.configuration.deployments.addNew();
               deployment.name = deploymentName;
               deployment.namespace = namespaceName;
               deployment.realm = realm;
               deployment.shard = shard;
+              deployment.chainId = chainId;
             }
 
             for (const cluster of clusters) {
@@ -920,11 +932,12 @@ export class DeploymentCommand extends BaseCommand {
     return true;
   }
 
-  /** Read the realm and shard from the deployment's application.properties, warning and defaulting when unreachable. */
-  private async readRealmAndShardFromConsensusNode(
+  /** Read the realm, shard and chain ID from the deployment's application.properties, warning when unreachable. */
+  private async readLedgerSettingsFromConsensusNode(
     kubeContext: Context,
     namespace: NamespaceName,
-  ): Promise<{realm: Realm; shard: Shard}> {
+    remoteChainId: Optional<number>,
+  ): Promise<{realm: Realm; shard: Shard; chainId: Optional<number>}> {
     const defaultRealm: Realm = flags.realm.definition.defaultValue as Realm;
     const defaultShard: Shard = flags.shard.definition.defaultValue as Shard;
 
@@ -938,6 +951,9 @@ export class DeploymentCommand extends BaseCommand {
     const shard: Optional<number> = applicationProperties
       ? Helpers.parseNumericApplicationProperty(applicationProperties, 'hedera.shard')
       : undefined;
+    const chainId: Optional<number> = applicationProperties
+      ? Helpers.parseNumericApplicationProperty(applicationProperties, 'contracts.chainId')
+      : undefined;
 
     if (realm === undefined || shard === undefined) {
       this.logger.showUser(
@@ -948,7 +964,18 @@ export class DeploymentCommand extends BaseCommand {
       );
     }
 
-    return {realm: realm ?? defaultRealm, shard: shard ?? defaultShard};
+    if (chainId === undefined) {
+      this.logger.showUser(
+        chalk.yellow(
+          "Could not read the chain ID from the deployment's consensus nodes; " +
+            (remoteChainId === undefined
+              ? 'it is left unknown.'
+              : `using chain ID ${remoteChainId} from the remote config.`),
+        ),
+      );
+    }
+
+    return {realm: realm ?? defaultRealm, shard: shard ?? defaultShard, chainId: chainId ?? remoteChainId};
   }
 
   /** Fetch application.properties from the first reachable consensus node pod, else from the shared data ConfigMap. */
@@ -1009,6 +1036,7 @@ export class DeploymentCommand extends BaseCommand {
       deployment: DeploymentName;
       clusterReference: ClusterReferenceName;
       namespace: string;
+      chainId: Optional<number>;
       services: {
         consensusNodeGrpc: PortEntry[];
         mirrorNodeRest: PortEntry[];
@@ -1081,13 +1109,14 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'List deployment port-forwards',
           task: async ({config}, task): Promise<void> => {
-            const {deployment, namespace, clusterReference, output} = config;
+            const {deployment, namespace, clusterReference, output, deploymentConfig} = config;
             const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
 
             const report: PortsReport = {
               deployment,
               clusterReference,
               namespace: namespace.name,
+              chainId: deploymentConfig.chainId,
               services: {
                 consensusNodeGrpc: DeploymentCommand.collectPortEntries(state.haProxies || [], 'HaProxy', deployment),
                 mirrorNodeRest: DeploymentCommand.collectPortEntries(state.mirrorNodes || [], 'MirrorNode', deployment),
@@ -1118,6 +1147,7 @@ export class DeploymentCommand extends BaseCommand {
               this.logger.showUser(chalk.cyan(`\n=== Port-forwards for deployment: ${deployment} ===`));
               this.logger.showUser(`Cluster: ${clusterReference}`);
               this.logger.showUser(`Namespace: ${namespace.name}`);
+              this.logger.showUser(`Chain ID: ${report.chainId ?? 'unknown'}`);
 
               const serviceGroups: {title: string; entries: PortEntry[]}[] = [
                 {title: 'Consensus node gRPC', entries: report.services.consensusNodeGrpc},
@@ -1322,13 +1352,14 @@ export class DeploymentCommand extends BaseCommand {
    * Checks the ledger phase:
    * - if remote config is found check's the ledgerPhase field to see if it's pre or post genesis.
    *   - pre genesis:
-   *     - prompts user if needed.
-   *     - generates node aliases based on '--number-of-consensus-nodes'
+   *     - defaults '--num-consensus-nodes' to zero when omitted in quiet mode, so the additional cluster can host
+   *       only other components (e.g. a mirror node or block node); otherwise prompts the user.
+   *     - generates node aliases based on '--num-consensus-nodes'
    *   - post genesis:
-   *     - throws if '--number-of-consensus-nodes' is passed
-   * - if remote config is not found:
-   *   - prompts user if needed.
-   *   - generates node aliases based on '--number-of-consensus-nodes'.
+   *     - throws if '--num-consensus-nodes' is passed
+   * - if remote config is not found (the first cluster of the deployment):
+   *   - throws in quiet mode when '--num-consensus-nodes' is omitted, otherwise prompts for it.
+   *   - generates node aliases based on '--num-consensus-nodes'.
    */
   public checkNetworkState(): SoloListrTask<DeploymentAddClusterContext> {
     return {
@@ -1378,26 +1409,23 @@ export class DeploymentCommand extends BaseCommand {
 
         context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, existingNodesCount);
 
-        // If ledgerPhase is pre-genesis and user can't be prompted for the '--num-consensus-nodes' fail
-        if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined && quiet) {
-          throw new SoloErrors.validation.consensusNodeCountRequired(
-            flags.numberOfConsensusNodes.name,
-            LedgerPhase.UNINITIALIZED,
-          );
-        }
-
-        // If ledgerPhase is pre-genesis prompt the user for the '--num-consensus-nodes'
-        else if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined) {
-          await this.configManager.executePrompt(task, [flags.numberOfConsensusNodes]);
-          context_.config.numberOfConsensusNodes = this.configManager.getFlag<number>(flags.numberOfConsensusNodes);
-          context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(
-            context_.config.numberOfConsensusNodes,
-            existingNodesCount,
-          );
+        // An additional cluster defaults to zero consensus nodes when the user can't be prompted, so it can host only
+        // other components (e.g. a mirror node or block node); an interactive user is prompted for the count
+        if (ledgerPhase === LedgerPhase.UNINITIALIZED && numberOfConsensusNodes === undefined) {
+          if (quiet) {
+            context_.config.numberOfConsensusNodes = 0;
+          } else {
+            await this.configManager.executePrompt(task, [flags.numberOfConsensusNodes]);
+            context_.config.numberOfConsensusNodes = this.configManager.getFlag<number>(flags.numberOfConsensusNodes);
+            context_.config.nodeAliases = Templates.renderNodeAliasesFromCount(
+              context_.config.numberOfConsensusNodes,
+              existingNodesCount,
+            );
+          }
         }
 
         // if the ledgerPhase is post-genesis and '--num-consensus-nodes' is specified throw
-        else if (ledgerPhase === LedgerPhase.INITIALIZED && numberOfConsensusNodes) {
+        if (ledgerPhase === LedgerPhase.INITIALIZED && numberOfConsensusNodes) {
           throw new SoloErrors.validation.illegalArgument(
             `--${flags.numberOfConsensusNodes.name}=${numberOfConsensusNodes} shouldn't be specified ${ledgerPhase}`,
           );

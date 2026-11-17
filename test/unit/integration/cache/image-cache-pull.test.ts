@@ -45,6 +45,7 @@ const engine: ContainerEngineClient = {
   listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
   resumeStoppedClusterNode: async (): Promise<ClusterNodeResumeOutcome> => ClusterNodeResumeOutcome.UNCHANGED,
   getLinuxPlatform: async (): Promise<string> => 'linux/amd64',
+  getClusterNodeCommand: async (): Promise<undefined> => undefined,
 };
 
 function manifestImage(sha256: string = ARCHIVE_HASH, size?: number): CacheManifestImage {

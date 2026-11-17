@@ -177,7 +177,6 @@ import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
-import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
@@ -1312,29 +1311,10 @@ export class NodeCommandTasks {
         const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
         const nodeAlias: NodeAlias = (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias;
         config.adminKey = nodeAlias
-          ? await this.loadNodeAdminKey(nodeAlias, config.namespace, config.consensusNodes)
+          ? await this.accountManager.getNodeAdminKey(nodeAlias, config.namespace, config.consensusNodes)
           : await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), config.namespace);
       },
     };
-  }
-
-  /** Returns the node's admin key from its admin key secret, or the genesis key when the node has none. */
-  private async loadNodeAdminKey(
-    nodeAlias: NodeAlias,
-    namespace: NamespaceName,
-    consensusNodes: ConsensusNode[],
-  ): Promise<PrivateKey> {
-    try {
-      const keyFromK8: Secret = await this.k8Factory
-        .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
-        .secrets()
-        .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
-      return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
-    } catch (error) {
-      // a node without an admin key secret still has the genesis key it was created with
-      this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
-      return await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
-    }
   }
 
   public checkExistingNodesStakedAmount(): SoloListrTask<
@@ -2296,8 +2276,11 @@ export class NodeCommandTasks {
             ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
           });
 
-          const nodeAdminKey: PrivateKey = await this.loadNodeAdminKey(nodeAlias, namespace, config.consensusNodes);
-
+          const nodeAdminKey: PrivateKey = await this.accountManager.getNodeAdminKey(
+            nodeAlias,
+            namespace,
+            config.consensusNodes,
+          );
           let updateStatus: HederaTransactionStatus;
           try {
             updateStatus = await nodeClient.updateNode({
@@ -5708,6 +5691,15 @@ export class NodeCommandTasks {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
 
+        // Every collection gets its own timestamped snapshot folder so pod files left by earlier runs are never
+        // mistaken for this deployment's. The analyzer reads the latest snapshot by default.
+        const collectedAt: Date = new Date();
+        const snapshotDirectory: string = PathEx.join(
+          outputDirectory,
+          collectedAt.toISOString().replaceAll(':', '-').replaceAll('.', '-'),
+        );
+        fs.mkdirSync(snapshotDirectory, {recursive: true});
+
         for (const context of contextList) {
           const k8: K8 = this.k8Factory.getK8(context);
 
@@ -5731,7 +5723,7 @@ export class NodeCommandTasks {
                 allPods.push(newPodInfo);
                 // If it is block node pod, download *.log files from '/opt/hiero/block-node/logs'
                 if ('block node' === config.name) {
-                  await this.downloadBlockNodeLogFiles(newPodInfo, outputDirectory);
+                  await this.downloadBlockNodeLogFiles(newPodInfo, snapshotDirectory);
                 }
               }
             }
@@ -5740,12 +5732,15 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.info(`Logs will be saved to: ${outputDirectory}`);
+        this.logger.info(`Logs will be saved to: ${snapshotDirectory}`);
         this.logger.info(`Found ${allPods.length} Hiero component pods`);
         // Download logs from each pod
         for (const podInfo of allPods) {
-          await this.downloadPodLogs(podInfo, outputDirectory);
+          await this.downloadPodLogs(podInfo, snapshotDirectory);
         }
+
+        // Older snapshots are never analyzed and `debug` zips the whole logs directory, so keep only the last few.
+        DiagnosticsAnalyzer.pruneOldSnapshots(outputDirectory);
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },
