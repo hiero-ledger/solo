@@ -18,7 +18,7 @@
 # number, so the latest GitHub release is newer than it. The job then:
 #   1. declines an update by piping `n` into `solo update` and checks nothing changed
 #   2. accepts it by piping `y`, which verifies the release signature and checksum and swaps the binary
-#   3. checks the binary now reports the latest release version
+#   3. checks the binary now reports the latest release version and left no staged file
 #   4. runs `solo one-shot single deploy` with the downloaded release binary, validates it, then destroys it
 # Tracked by hiero-ledger/solo#5728.
 name: 'Self Update Test'
@@ -136,12 +136,8 @@ jobs:
             echo "ERROR: a staged update file was left behind"
             exit 1
           fi
-          # Already on the latest release now, so a second update has nothing to do.
-          cd "${RUN_DIRECTORY}"
-          # Captured to a file: grep -q exiting early would SIGPIPE solo and fail the pipeline under pipefail.
-          solo update </dev/null >"${RUNNER_TEMP}/update-again.log" 2>&1
-          cat "${RUNNER_TEMP}/update-again.log"
-          grep -qF "Solo ${LATEST_VERSION} is the latest release" "${RUNNER_TEMP}/update-again.log"
+          # A second `solo update` is not checked: the release just installed predates the command. Add that
+          # check once a release ships with `solo update`.
 
       - name: One-Shot Single Deploy
         id: deploy
