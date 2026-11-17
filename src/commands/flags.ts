@@ -2654,7 +2654,8 @@ export class Flags {
     constName: 'numberOfConsensusNodes',
     name: 'num-consensus-nodes',
     definition: {
-      describe: 'Used to specify desired number of consensus nodes for pre-genesis deployments',
+      describe:
+        'Used to specify desired number of consensus nodes for pre-genesis deployments (an additional cluster defaults to 0 in quiet mode)',
       type: 'number',
       promptText: 'Enter number of consensus nodes to add to the provided cluster (must be zero or a positive number):',
     },
@@ -2663,7 +2664,7 @@ export class Flags {
         Flags.prompt('number', task, input, Flags.numberOfConsensusNodes);
 
       input = await promptForInput();
-      while (input === undefined) {
+      while (input === undefined || Number.isNaN(input) || input < 0) {
         input = await promptForInput();
       }
 
