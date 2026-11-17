@@ -138,7 +138,10 @@ jobs:
           fi
           # Already on the latest release now, so a second update has nothing to do.
           cd "${RUN_DIRECTORY}"
-          solo update 2>&1 </dev/null | grep -qF "Solo ${LATEST_VERSION} is the latest release"
+          # Captured to a file: grep -q exiting early would SIGPIPE solo and fail the pipeline under pipefail.
+          solo update </dev/null >"${RUNNER_TEMP}/update-again.log" 2>&1
+          cat "${RUNNER_TEMP}/update-again.log"
+          grep -qF "Solo ${LATEST_VERSION} is the latest release" "${RUNNER_TEMP}/update-again.log"
 
       - name: One-Shot Single Deploy
         id: deploy
