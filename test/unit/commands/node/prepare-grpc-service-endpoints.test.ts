@@ -67,4 +67,26 @@ describe('NodeCommandTasks.prepareGrpcServiceEndpoints', (): void => {
 
     expect(endpointAddresses(endpoints)).to.deep.equal(['grpc.example.com:50211']);
   });
+
+  it('appends host endpoint when publishHostEndpoints is true', (): void => {
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints({
+      publishHostEndpoints: true,
+    });
+
+    expect(endpoints).to.have.lengthOf(2);
+    expect(endpoints[0]._domainName).to.equal('network-node4-svc.solo.svc.cluster.local');
+    expect(endpoints[0]._port).to.equal(+constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT);
+    expect(endpoints[1]._ipAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+    expect(endpoints[1]._port).to.equal(constants.GRPC_LOCAL_PORT + 3);
+  });
+
+  it('uses custom host port when serviceEndpointPortMapping is provided', (): void => {
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints({
+      publishHostEndpoints: true,
+      serviceEndpointPortMapping: {nodeAliasToPort: {node4: 38_211}},
+    });
+
+    expect(endpoints).to.have.lengthOf(2);
+    expect(endpoints[1]._port).to.equal(38_211);
+  });
 });

@@ -75,6 +75,7 @@ describe('core/genesis-network-data-constructor', (): void => {
   async function buildGenesisNetworkData(
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
+    publishHostEndpoints?: boolean,
   ): Promise<GenesisNetworkDataConstructor> {
     return await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
@@ -85,6 +86,7 @@ describe('core/genesis-network-data-constructor', (): void => {
       undefined,
       gossipEndpointPortMapping,
       serviceEndpointPortMapping,
+      publishHostEndpoints,
     );
   }
 
@@ -133,6 +135,18 @@ describe('core/genesis-network-data-constructor', (): void => {
     expect(servicePorts(genesisNetworkData)).to.deep.equal([
       ...secureGrpcPorts(constants.GRPC_PORT),
       ...secureGrpcPorts(40_212),
+    ]);
+  });
+
+  it('should include host endpoints when publishHostEndpoints is true', async (): Promise<void> => {
+    const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData(undefined, undefined, true);
+
+    // Each node gets: servicePort (50211), servicePort + 1 (50212), and hostPort (35211 for node1, 35212 for node2)
+    expect(servicePorts(genesisNetworkData)).to.deep.equal([
+      ...secureGrpcPorts(constants.GRPC_PORT),
+      constants.GRPC_LOCAL_PORT,
+      ...secureGrpcPorts(constants.GRPC_PORT),
+      constants.GRPC_LOCAL_PORT + 1,
     ]);
   });
 

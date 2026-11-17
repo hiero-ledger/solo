@@ -182,6 +182,8 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
       flags.gossipEndpointPort,
       flags.serviceEndpointPort,
+      flags.publishHostEndpoints,
+      flags.externalAddress,
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
@@ -1049,6 +1051,8 @@ export class NetworkCommand extends BaseCommand {
       flags.domainNames,
       flags.gossipEndpointPort,
       flags.serviceEndpointPort,
+      flags.publishHostEndpoints,
+      flags.externalAddress,
     ];
 
     // disable the prompts that we don't want to prompt the user for

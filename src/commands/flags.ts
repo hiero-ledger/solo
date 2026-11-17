@@ -2729,6 +2729,17 @@ export class Flags {
     },
   };
 
+  public static readonly publishHostEndpoints: CommandFlag = {
+    constName: 'publishHostEndpoints',
+    name: 'publish-host-endpoints',
+    definition: {
+      describe:
+        'Publish host-reachable localhost endpoints alongside internal Kubernetes endpoints in the address book',
+      defaultValue: false,
+      type: 'boolean',
+    },
+  };
+
   public static readonly realm: CommandFlag = {
     constName: 'realm',
     name: 'realm',
@@ -3096,6 +3107,7 @@ export class Flags {
     Flags.domainNames,
     Flags.gossipEndpointPort,
     Flags.serviceEndpointPort,
+    Flags.publishHostEndpoints,
     Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,

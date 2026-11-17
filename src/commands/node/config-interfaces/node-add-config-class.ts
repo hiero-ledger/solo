@@ -47,5 +47,7 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   gossipEndpointPortMapping: EndpointPortMapping;
   serviceEndpointPort: string;
   serviceEndpointPortMapping: EndpointPortMapping;
+  publishHostEndpoints?: boolean;
+  externalAddress?: string;
   nodeAliasesUnparsed?: string;
 }
