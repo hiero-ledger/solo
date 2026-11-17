@@ -9,7 +9,7 @@ import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/res
 import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {DataValidationError} from '../../../src/core/errors/classes/internal/data-validation-error.js';
-import {InvalidArgumentSoloError} from '../../../src/core/errors/classes/internal/invalid-argument-solo-error.js';
+import {InternalArgumentGuardSoloError} from '../../../src/core/errors/classes/internal/internal-argument-guard-solo-error.js';
 import {RemoteConfigUnsupportedComponentError} from '../../../src/core/errors/classes/internal/remote-config-unsupported-component-error.js';
 import {SdkPingFailedSoloError} from '../../../src/core/errors/classes/component/sdk-ping-failed-solo-error.js';
 import {SdkClientNoHealthyNodesSoloError} from '../../../src/core/errors/classes/component/sdk-client-no-healthy-nodes-solo-error.js';
@@ -66,13 +66,13 @@ describe('Errors', (): void => {
     expect(error.meta).to.deep.equal({value});
   });
 
-  it('should construct correct InvalidArgumentSoloError', (): void => {
+  it('should construct correct InternalArgumentGuardSoloError', (): void => {
     const value: string = 'invalid argument';
-    const error: InvalidArgumentSoloError = new InvalidArgumentSoloError(message, value, cause);
+    const error: InternalArgumentGuardSoloError = new InternalArgumentGuardSoloError(message, value, cause);
     expect(error).to.be.instanceof(SoloError);
-    expect(error.name).to.equal('InvalidArgumentSoloError');
+    expect(error.name).to.equal('InternalArgumentGuardSoloError');
     expect(error.message).to.equal(message);
-    expect(error.getFormattedCode()).to.equal(ErrorCodeRegistry.INVALID_ARGUMENT);
+    expect(error.getFormattedCode()).to.equal(ErrorCodeRegistry.INTERNAL_ARGUMENT_GUARD);
     expect(error.isInvalidInput()).to.be.false;
     expect(error.cause).to.equal(cause);
     expect(error.meta).to.deep.equal({value});
@@ -85,7 +85,7 @@ describe('Errors', (): void => {
     ];
     for (const kubeError of kubeErrors) {
       const translated: SoloError | undefined = KubeErrorTranslator.tryTranslate(kubeError);
-      expect(translated).to.be.instanceof(InvalidArgumentSoloError);
+      expect(translated).to.be.instanceof(InternalArgumentGuardSoloError);
       expect(translated.message).to.equal(kubeError.message);
       expect(translated.cause).to.equal(kubeError);
     }

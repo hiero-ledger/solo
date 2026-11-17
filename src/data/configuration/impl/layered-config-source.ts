@@ -27,7 +27,7 @@ export abstract class LayeredConfigSource implements ConfigSource {
     public readonly prefix?: string,
   ) {
     if (!mapper) {
-      throw new SoloErrors.internal.invalidArgument('ObjectMapper is required');
+      throw new SoloErrors.internal.argumentGuard('ObjectMapper is required');
     }
   }
 

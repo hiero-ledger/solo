@@ -10,7 +10,7 @@ import {ErrorCodeRegistry} from '../../error-code-registry.js';
  * reaching one points to a defect in solo rather than to user input, and it should be reported with the full
  * error output and the command that triggered it.
  */
-export class InvalidArgumentSoloError extends SoloError {
+export class InternalArgumentGuardSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
 
@@ -18,7 +18,7 @@ export class InvalidArgumentSoloError extends SoloError {
     super(
       {
         message: reason,
-        code: ErrorCodeRegistry.INVALID_ARGUMENT,
+        code: ErrorCodeRegistry.INTERNAL_ARGUMENT_GUARD,
         troubleshootingSteps: `This is an internal Solo error. File a bug report: ${SoloError.bugReportUrl}`,
       },
       cause,

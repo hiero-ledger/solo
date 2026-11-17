@@ -35,19 +35,19 @@ export abstract class LayeredModelConfigSource<T extends object>
     super(backend, mapper, prefix);
 
     if (!key) {
-      throw new SoloErrors.internal.invalidArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.argumentGuard('key must not be null or undefined');
     }
 
     if (!ReflectAssist.isObjectStorageBackend(this.backend)) {
-      throw new SoloErrors.internal.invalidArgument('backend must be an object storage backend');
+      throw new SoloErrors.internal.argumentGuard('backend must be an object storage backend');
     }
 
     if (!schema) {
-      throw new SoloErrors.internal.invalidArgument('schema must not be null or undefined');
+      throw new SoloErrors.internal.argumentGuard('schema must not be null or undefined');
     }
 
     if (!mapper) {
-      throw new SoloErrors.internal.invalidArgument('mapper must not be null or undefined');
+      throw new SoloErrors.internal.argumentGuard('mapper must not be null or undefined');
     }
   }
 

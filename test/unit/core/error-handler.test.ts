@@ -119,7 +119,7 @@ describe('ErrorHandler', (): void => {
     });
 
     it('should exit with the failure code for a tripped internal guard', (): void => {
-      const error: SoloError = new SoloErrors.internal.invalidArgument('srcPath is required');
+      const error: SoloError = new SoloErrors.internal.argumentGuard('srcPath is required');
       expect(exitCodeFor(error)).to.equal(ExitCode.FAILURE);
     });
 
@@ -155,12 +155,12 @@ describe('ErrorHandler', (): void => {
   describe('translated guards', (): void => {
     it('should exit with the failure code when a kube missing argument error is shown as a tripped guard', (): void => {
       expect(exitCodeFor(new KubeMissingArgumentError('filters are required'))).to.equal(ExitCode.FAILURE);
-      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.INVALID_ARGUMENT);
+      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.INTERNAL_ARGUMENT_GUARD);
     });
 
     it('should exit with the failure code when a kube illegal argument error is shown as a tripped guard', (): void => {
       expect(exitCodeFor(new KubeIllegalArgumentError('metadata is required'))).to.equal(ExitCode.FAILURE);
-      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.INVALID_ARGUMENT);
+      expect(shownErrorCode()).to.equal(ErrorCodeRegistry.INTERNAL_ARGUMENT_GUARD);
     });
   });
 
