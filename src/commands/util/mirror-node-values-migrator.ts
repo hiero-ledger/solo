@@ -11,6 +11,16 @@ type MutableRecord = Record<string, unknown>;
 export class MirrorNodeValuesMigrator {
   private static readonly CONFIGURATION_ROOTS: string[] = ['hiero', 'hedera'];
 
+  private static readonly MODULE_CHART_KEYS: string[] = [
+    'grpc',
+    'importer',
+    'monitor',
+    'pinger',
+    'rest',
+    'restjava',
+    'web3',
+  ];
+
   // Solo generated these importer env vars before block node endpoints existed; the importer rejects them afterwards.
   private static readonly LEGACY_BLOCK_NODE_ENVIRONMENT_KEY: RegExp =
     /^(HIERO|HEDERA)_MIRROR_IMPORTER_BLOCK_NODES_\d+_(HOST|PORT)$/;
@@ -62,6 +72,23 @@ export class MirrorNodeValuesMigrator {
 
     MirrorNodeValuesMigrator.dropBlockNodeEnvironment(environment);
 
+    return migrated;
+  }
+
+  /**
+   * Removes the `image` block (registry, repository, tag, pull policy) of every mirror node module. A component image
+   * set at install is a pinned artifact: carrying its repository and `pullPolicy: Never` over while the upgrade sets
+   * only the new tag yields an image that was never loaded. Dropping the block returns the modules to the chart
+   * defaults, and the upgrade sets the tag again. Image values in a user values file are applied later and still win.
+   *
+   * @param values - release values as returned by `helm get values`; not modified
+   * @returns a copy of the values without the module image blocks
+   */
+  public static dropModuleImages(values: Record<string, unknown>): Record<string, unknown> {
+    const migrated: MutableRecord = structuredClone(values);
+    for (const chartKey of MirrorNodeValuesMigrator.MODULE_CHART_KEYS) {
+      delete MirrorNodeValuesMigrator.asRecord(migrated[chartKey])?.['image'];
+    }
     return migrated;
   }
 

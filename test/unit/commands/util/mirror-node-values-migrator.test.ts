@@ -167,4 +167,19 @@ describe('MirrorNodeValuesMigrator', (): void => {
       expect(MirrorNodeValuesMigrator.migrateBlockNodeEndpoints({db: {name: 'x'}})).to.deep.equal({db: {name: 'x'}});
     });
   });
+
+  describe('dropModuleImages', (): void => {
+    it('removes the image block of every module and keeps other values', (): void => {
+      const values: any = {
+        importer: {image: {registry: 'r', repository: 'x', tag: '1', pullPolicy: 'Never'}, podAnnotations: {a: 'b'}},
+        web3: {image: {tag: '1'}},
+        db: {name: 'x'},
+      };
+
+      const result: any = MirrorNodeValuesMigrator.dropModuleImages(values);
+
+      expect(result).to.deep.equal({importer: {podAnnotations: {a: 'b'}}, web3: {}, db: {name: 'x'}});
+      expect(values.importer.image.repository).to.equal('x');
+    });
+  });
 });

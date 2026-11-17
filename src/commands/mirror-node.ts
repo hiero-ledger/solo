@@ -994,10 +994,15 @@ export class MirrorNodeCommand extends BaseCommand {
 
     // the release values include secrets (database passwords, storage keys), so keep the file owner-only
     const valuesFilePath: string = PathEx.join(config.cacheDir, 'mirror-release-values.yaml');
+    const migratedValues: Record<string, unknown> = MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(
+      releaseValues,
+      !config.usesBlockNodeIntegration,
+    );
+    // without --component-image the upgrade sets only the image tag, so the install-time image block must not linger
     fs.writeFileSync(
       valuesFilePath,
       yaml.stringify(
-        MirrorNodeValuesMigrator.migrateBlockNodeEndpoints(releaseValues, !config.usesBlockNodeIntegration),
+        config.componentImage ? migratedValues : MirrorNodeValuesMigrator.dropModuleImages(migratedValues),
       ),
       {mode: 0o600},
     );
