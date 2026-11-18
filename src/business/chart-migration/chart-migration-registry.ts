@@ -18,7 +18,7 @@ export class ChartMigrationRegistry {
   }
 
   /**
-   * @param chartName - the chart name passed to `ChartManager.upgrade`
+   * @param chartName - the name of a deployed chart, as Helm reports it
    * @returns the registered migrations for the chart
    */
   public migrationsFor(chartName: string): ChartMigration[] {

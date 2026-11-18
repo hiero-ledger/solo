@@ -389,7 +389,6 @@ export class ChartManager {
         {
           namespace: namespaceName,
           releaseName: chartReleaseName,
-          chartName,
           kubeContext,
           targetVersion: version,
           chartValues,

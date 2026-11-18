@@ -378,7 +378,8 @@ the migration's boundary is the new chart version.
 **What to add:**
 
 1. A `ChartMigration` in `src/business/chart-migration/impl/<chart>-<change>-chart-migration.ts`,
-   whose `range` ends at the version that introduces the change (end it at `<version>-0` to treat
+   whose `chartName` is `name` in the chart's `Chart.yaml` (not a Solo constant used as a chart
+   reference), and whose `range` ends at the version that introduces the change (end it at `<version>-0` to treat
    that version's pre-releases as past the boundary). Use `carryReleaseValues()` to rewrite the
    deployed release's values for the new chart, and `addInheritedValues()` for values the new
    chart no longer generates.

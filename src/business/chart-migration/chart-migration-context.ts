@@ -13,6 +13,8 @@ import {type SemanticVersion} from '../utils/semantic-version.js';
 export interface ChartMigrationContext {
   readonly namespace: NamespaceName;
   readonly releaseName: string;
+
+  /** The name of the deployed chart, as Helm reports it (`name` in its `Chart.yaml`). */
   readonly chartName: string;
   readonly kubeContext: string;
 

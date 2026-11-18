@@ -28,7 +28,8 @@ passes them back as a low-precedence values file. This document describes the fr
   and feed the result into the `helm upgrade` as extra values.
 - Every chart upgrade gets this without command-specific wiring: the framework runs inside `ChartManager.upgrade`.
 - Values the user or Solo supplies for the upgrade always win over values a migration contributes.
-- No cost for upgrades of charts that have no migrations: no extra Helm calls.
+- Little cost: while no migration is registered, upgrades make no extra Helm calls; otherwise each upgrade makes one
+  `helm list` call, plus `helm get values` only for a migration that reads the release values.
 
 ## 3. Non-Goals
 
@@ -57,7 +58,8 @@ The Helm plumbing it relies on:
 
 - `HelmClient.getValues()` (`helm get values -o json`, via `ReleaseGetValuesRequest`) reads the user-supplied values of
   a deployed release.
-- `ReleaseItem.chartVersion` parses the deployed chart version from `helm list` output (`<chart name>-<version>`).
+- `ReleaseItem.chartName` and `ReleaseItem.chartVersion` parse the deployed chart name and version from `helm list`
+  output (`<chart name>-<version>`).
 
 ### 4.2 When a migration applies
 
@@ -76,14 +78,16 @@ PR #6414 does for releases before the v0.152.0 shared-resources change.
 pre-releases of the boundary version (e.g. `0.157.0-rc1`) as already past it, end the range at `0.157.0-0`, matching
 `MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS`.
 
-Migrations are matched on the chart name the caller passes to `ChartManager.upgrade` (e.g.
-`constants.MIRROR_NODE_CHART`), not the release name, so they cover every release of the chart.
+Migrations are matched on the name of the deployed chart as Helm reports it, which is `name` in the chart's
+`Chart.yaml` (e.g. `hedera-mirror`, `hiero-explorer-chart`). They cover every release of the chart, whatever the
+release is called and whatever reference the command upgrades from: a repository alias, an OCI URL (as explorer uses),
+a local chart directory or a cached chart archive.
 
 The deployed version comes from the cluster (`helm list`), not from the remote config: it is the version Helm will
 upgrade from, and it is available for every chart, including charts that are not tracked components. The framework
 skips migrations, logging why at debug level, when:
 
-- the chart has no registered migration (no Helm call is made at all);
+- no migration is registered (no Helm call is made at all), or none for the deployed chart;
 - the release is not installed yet (`helm upgrade --install` of a new release);
 - the deployed chart reports no version, or the target version is empty or not a semantic version.
 
@@ -151,7 +155,7 @@ A migration for the mirror node block node endpoints change in PR #6414 would lo
 ```typescript
 export class MirrorNodeBlockNodeEndpointsChartMigration implements ChartMigration {
   public readonly name: string = 'mirror-node-block-node-endpoints';
-  public readonly chartName: string = constants.MIRROR_NODE_CHART;
+  public readonly chartName: string = 'hedera-mirror';
   public readonly range: VersionRange<string> = VersionRange.fromSemanticVersionBounds(
     new SemanticVersion<string>(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION),
     new SemanticVersion<string>('0.157.0-0'),

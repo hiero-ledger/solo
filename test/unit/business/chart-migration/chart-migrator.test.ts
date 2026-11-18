@@ -65,6 +65,9 @@ describe('ChartMigrator', (): void => {
   const logger: SoloLogger = {debug: sinon.stub(), info: sinon.stub()} as unknown as SoloLogger;
 
   const registry: ChartMigrationRegistry = {
+    get migrations(): ChartMigration[] {
+      return migrations;
+    },
     migrationsFor: (chartName: string): ChartMigration[] =>
       migrations.filter((migration: ChartMigration): boolean => migration.chartName === chartName),
   } as unknown as ChartMigrationRegistry;
@@ -75,7 +78,6 @@ describe('ChartMigrator', (): void => {
   ): ChartMigrationRequest => ({
     namespace: NamespaceName.of('solo'),
     releaseName: RELEASE,
-    chartName: CHART,
     kubeContext: 'kind-solo',
     targetVersion,
     chartValues: new HelmChartValues().set('solo.key', 'computed').userFile('/user/values.yaml'),
@@ -114,9 +116,7 @@ describe('ChartMigrator', (): void => {
   });
 
   describe('when no migration applies', (): void => {
-    it('upgrades with the caller values without looking up the release when the chart has no migrations', async (): Promise<void> => {
-      migrations = [{...migrationOf('other-chart', '0.0.0', '0.157.0'), chartName: 'other-chart'}];
-
+    it('upgrades with the caller values without looking up the release when no migration is registered', async (): Promise<void> => {
       const values: ChartUpgradeValues = await upgrade('0.160.0', true);
 
       expect(values).to.deep.equal({valueArguments: callerArguments, reuseValues: true});
@@ -124,6 +124,7 @@ describe('ChartMigrator', (): void => {
     });
 
     const skipped: [string, string, string | undefined][] = [
+      ['the deployed release is from another chart', '0.160.0', 'hiero-explorer-chart-0.155.0'],
       ['the deployed version is at or after the end of the range', '0.160.0', 'hedera-mirror-0.157.0'],
       ['the target version is before the end of the range', '0.156.0', 'hedera-mirror-0.155.0'],
       ['the deployed version is before the start of the range', '0.160.0', 'hedera-mirror-0.151.0'],
@@ -160,6 +161,20 @@ describe('ChartMigrator', (): void => {
       expect(context.kubeContext).to.equal('kind-solo');
       expect(context.currentVersion.toString()).to.equal('0.155.0');
       expect(context.targetVersion.toString()).to.equal('0.157.0');
+    });
+
+    it('matches the migration on the deployed chart name, whatever reference the upgrade uses', async (): Promise<void> => {
+      const beforeUpgrade: SinonStub = sinon.stub().resolves();
+      migrations = [
+        {...migrationOf('explorer-change', '0.0.0', '26.0.0', beforeUpgrade), chartName: 'hiero-explorer-chart'},
+      ];
+      deployedChart = 'hiero-explorer-chart-25.1.0';
+
+      await upgrade('26.2.0');
+
+      const context: ChartMigrationContext = beforeUpgrade.firstCall.args[0] as ChartMigrationContext;
+      expect(context.chartName).to.equal('hiero-explorer-chart');
+      expect(context.currentVersion.toString()).to.equal('25.1.0');
     });
 
     it('treats a pre-release of the boundary as crossing a range ending in a -0 pre-release', async (): Promise<void> => {

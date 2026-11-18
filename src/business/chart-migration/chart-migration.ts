@@ -22,8 +22,9 @@ export interface ChartMigration {
   readonly name: string;
 
   /**
-   * The chart the migration applies to. It is matched against the chart name passed to `ChartManager.upgrade`
-   * (e.g. `constants.MIRROR_NODE_CHART`), not against the release name.
+   * The chart the migration applies to: the chart name of the deployed release as Helm reports it, which is `name` in
+   * the chart's `Chart.yaml` (e.g. `hedera-mirror`, `hiero-explorer-chart`). It is not the release name, nor the
+   * chart reference the command upgrades from, which may be an alias, an OCI URL or a local directory.
    */
   readonly chartName: string;
 

@@ -7,7 +7,6 @@ import {type HelmChartValues} from '../../integration/helm/model/values.js';
 export interface ChartMigrationRequest {
   readonly namespace: NamespaceName;
   readonly releaseName: string;
-  readonly chartName: string;
   readonly kubeContext: string;
 
   /** The chart version to upgrade to; migrations are skipped when it is empty (Helm then picks the latest chart). */

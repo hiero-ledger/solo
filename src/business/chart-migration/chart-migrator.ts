@@ -50,7 +50,7 @@ export class ChartMigrator {
     const session: ChartMigrationSession | undefined = await this.createSession(request);
     const migrations: ChartMigration[] = session
       ? this.registry
-          .migrationsFor(request.chartName)
+          .migrationsFor(session.chartName)
           .filter((migration: ChartMigration): boolean =>
             ChartMigrator.applies(migration, session.currentVersion, session.targetVersion),
           )
@@ -83,11 +83,14 @@ export class ChartMigrator {
   }
 
   /**
-   * Creates the session of an upgrade whose chart has registered migrations, or returns undefined when no migration
-   * can apply: the chart has none, the release is not installed yet, or either chart version is unknown.
+   * Creates the session of an upgrade of a deployed release, or returns undefined when no migration can apply: none is
+   * registered, the release is not installed yet, or either chart version is unknown.
+   *
+   * Migrations are matched on the deployed chart's name rather than the chart reference of the upgrade, which may be
+   * an alias, an OCI URL or a local directory.
    */
   private async createSession(request: ChartMigrationRequest): Promise<ChartMigrationSession | undefined> {
-    if (this.registry.migrationsFor(request.chartName).length === 0) {
+    if (this.registry.migrations.length === 0) {
       return undefined;
     }
 
@@ -104,14 +107,14 @@ export class ChartMigrator {
       (item: ReleaseItem): boolean => item.name === request.releaseName,
     );
     const currentVersion: SemanticVersion<string> | undefined = ChartMigrator.parseVersion(release?.chartVersion);
-    if (!currentVersion) {
+    if (!release || !currentVersion) {
       this.logger.debug(
         `Skipping chart migrations for release '${request.releaseName}': no deployed chart version (chart: '${release?.chart}')`,
       );
       return undefined;
     }
 
-    return new ChartMigrationSession(this.helm, request, currentVersion, targetVersion);
+    return new ChartMigrationSession(this.helm, request, release.chartName ?? '', currentVersion, targetVersion);
   }
 
   private async upgradeWithMigratedValues(

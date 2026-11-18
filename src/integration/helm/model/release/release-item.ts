@@ -22,4 +22,14 @@ export class ReleaseItem {
   public get chartVersion(): string | undefined {
     return ReleaseItem.CHART_VERSION_SUFFIX.exec(this.chart ?? '')?.[1];
   }
+
+  /**
+   * The name of the chart the release was installed from (`name` in its `Chart.yaml`), parsed from {@link chart}.
+   *
+   * @returns the chart name, or undefined when {@link chart} does not end in a semantic version
+   */
+  public get chartName(): string | undefined {
+    const match: RegExpExecArray | null = ReleaseItem.CHART_VERSION_SUFFIX.exec(this.chart ?? '');
+    return match ? this.chart.slice(0, match.index) : undefined;
+  }
 }

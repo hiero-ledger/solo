@@ -433,7 +433,7 @@ describe('ChartManager chart migrations', (): void => {
           request: ChartMigrationRequest,
           upgrade: (values: ChartUpgradeValues) => Promise<void>,
         ): Promise<void> => {
-          expect(request).to.include({releaseName: 'mirror-1', chartName: 'hedera-mirror', targetVersion: '0.157.0'});
+          expect(request).to.include({releaseName: 'mirror-1', targetVersion: '0.157.0'});
           expect(request.reuseValues).to.be.true;
           await upgrade({
             valueArguments: ['--values', '/tmp/migration-values-0.yaml', ...request.chartValues.toArguments()],

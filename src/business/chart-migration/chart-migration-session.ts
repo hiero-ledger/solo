@@ -15,7 +15,6 @@ import {type ChartMigrationRequest} from './chart-migration-request.js';
 export class ChartMigrationSession implements ChartMigrationContext {
   public readonly namespace: NamespaceName;
   public readonly releaseName: string;
-  public readonly chartName: string;
   public readonly kubeContext: string;
 
   private deployedValues: Record<string, unknown> | undefined;
@@ -25,12 +24,12 @@ export class ChartMigrationSession implements ChartMigrationContext {
   public constructor(
     private readonly helm: HelmClient,
     request: ChartMigrationRequest,
+    public readonly chartName: string,
     public readonly currentVersion: SemanticVersion<string>,
     public readonly targetVersion: SemanticVersion<string>,
   ) {
     this.namespace = request.namespace;
     this.releaseName = request.releaseName;
-    this.chartName = request.chartName;
     this.kubeContext = request.kubeContext;
   }
 
