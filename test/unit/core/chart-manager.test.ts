@@ -19,6 +19,10 @@ import {Helpers} from '../../../src/core/helpers.js';
 import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type Duration} from '../../../src/core/time/duration.js';
+import {type ChartMigrator} from '../../../src/business/chart-migration/chart-migrator.js';
+import {type ChartMigrationRequest} from '../../../src/business/chart-migration/chart-migration-request.js';
+import {type ChartUpgradeValues} from '../../../src/business/chart-migration/chart-upgrade-values.js';
+import {type UpgradeChartOptions} from '../../../src/integration/helm/model/upgrade/upgrade-chart-options.js';
 
 const inspectorReturning: (present: boolean) => CacheHealthInspector = (present: boolean): CacheHealthInspector =>
   ({
@@ -385,5 +389,87 @@ describe('ChartManager scoped repository update', (): void => {
     }
     expect(thrown).to.be.instanceOf(SoloErrors.system.helmRepoSetupFailed);
     expect(thrown.message).to.contain('[solo-setup]');
+  });
+});
+
+describe('ChartManager chart migrations', (): void => {
+  const logger: SoloLogger = {debug: (): void => undefined} as unknown as SoloLogger;
+
+  const chartValues: HelmChartValues = {
+    toArguments: (): string[] => ['--set', 'solo.key=computed'],
+    toEnvironment: (): Record<string, string> => ({}),
+  } as unknown as HelmChartValues;
+
+  const buildManager: (helm: HelmClient, chartMigrator: ChartMigrator) => ChartManager = (
+    helm: HelmClient,
+    chartMigrator: ChartMigrator,
+  ): ChartManager =>
+    new ChartManager(
+      helm,
+      logger,
+      undefined as unknown as CacheCatalogStore,
+      {exists: async (): Promise<boolean> => false} as unknown as CacheHealthInspector,
+      chartMigrator,
+    );
+
+  const runUpgrade: (manager: ChartManager) => Promise<boolean> = (manager: ChartManager): Promise<boolean> =>
+    manager.upgrade(
+      NamespaceName.of('solo'),
+      'mirror-1',
+      'hedera-mirror',
+      'https://example.com/charts',
+      '0.157.0',
+      chartValues,
+      'kind-solo',
+      true,
+    );
+
+  it('upgrades with the values and --reuse-values the chart migrations settle on', async (): Promise<void> => {
+    const upgradeChart: SinonStub = sinon.stub().resolves();
+    const migrate: SinonStub = sinon
+      .stub()
+      .callsFake(
+        async (
+          request: ChartMigrationRequest,
+          upgrade: (values: ChartUpgradeValues) => Promise<void>,
+        ): Promise<void> => {
+          expect(request).to.include({releaseName: 'mirror-1', chartName: 'hedera-mirror', targetVersion: '0.157.0'});
+          expect(request.reuseValues).to.be.true;
+          await upgrade({
+            valueArguments: ['--values', '/tmp/migration-values-0.yaml', ...request.chartValues.toArguments()],
+            reuseValues: false,
+          });
+        },
+      );
+
+    await runUpgrade(
+      buildManager({upgradeChart} as unknown as HelmClient, {upgrade: migrate} as unknown as ChartMigrator),
+    );
+
+    const options: UpgradeChartOptions = upgradeChart.firstCall.args[2] as UpgradeChartOptions;
+    expect(options.reuseValues).to.be.false;
+    expect(options.valueArguments).to.deep.equal([
+      '--values',
+      '/tmp/migration-values-0.yaml',
+      '--set',
+      'solo.key=computed',
+    ]);
+  });
+
+  it('reports a failed chart migration as such rather than as a failed upgrade', async (): Promise<void> => {
+    const migrationFailure: Error = new SoloErrors.system.helmChartMigrationFailed(
+      'block-node-endpoints',
+      'mirror-1',
+      new Error('cluster unreachable'),
+    );
+    const upgradeChart: SinonStub = sinon.stub().resolves();
+    const chartMigrator: ChartMigrator = {upgrade: sinon.stub().rejects(migrationFailure)} as unknown as ChartMigrator;
+
+    const error: unknown = await runUpgrade(buildManager({upgradeChart} as unknown as HelmClient, chartMigrator)).catch(
+      (error_: unknown): unknown => error_,
+    );
+
+    expect(error).to.equal(migrationFailure);
+    expect(upgradeChart).not.to.have.been.called;
   });
 });

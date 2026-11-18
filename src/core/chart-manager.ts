@@ -30,6 +30,8 @@ import {type CacheHealthInspector} from '../integration/cache/api/cache-health-i
 import {type Release} from '../integration/helm/model/chart/release.js';
 import {Helpers} from './helpers.js';
 import {Duration} from './time/duration.js';
+import {type ChartMigrator} from '../business/chart-migration/chart-migrator.js';
+import {type ChartUpgradeValues} from '../business/chart-migration/chart-upgrade-values.js';
 
 @injectable()
 export class ChartManager {
@@ -54,6 +56,7 @@ export class ChartManager {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.CacheCatalogStore) private readonly cacheCatalogStore?: CacheCatalogStore,
     @inject(InjectTokens.CacheHealthInspector) private readonly cacheHealthInspector?: CacheHealthInspector,
+    @inject(InjectTokens.ChartMigrator) private readonly chartMigrator?: ChartMigrator,
   ) {
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
@@ -63,6 +66,7 @@ export class ChartManager {
       InjectTokens.CacheHealthInspector,
       this.constructor.name,
     );
+    this.chartMigrator = patchInject(chartMigrator, InjectTokens.ChartMigrator, this.constructor.name);
   }
 
   /**
@@ -349,6 +353,13 @@ export class ChartManager {
     return true;
   }
 
+  /**
+   * Upgrades a release, running the chart migrations that apply to the deployed and target chart versions around the
+   * `helm upgrade` (see `ChartMigration`).
+   *
+   * @throws HelmChartMigrationFailedSoloError when a chart migration fails
+   * @throws HelmChartUpgradeFailedSoloError when the upgrade itself fails
+   */
   public async upgrade(
     namespaceName: NamespaceName,
     chartReleaseName: string,
@@ -366,23 +377,6 @@ export class ChartManager {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
 
       const cachedChartPath: string | undefined = await this.resolveCachedChartPath(chartName, version, repoName);
-
-      const builder: UpgradeChartOptionsBuilder = UpgradeChartOptionsBuilder.builder()
-        .reuseValues(reuseValues)
-        .install(install)
-        .createNamespace(createNamespace)
-        .namespace(namespaceName.name)
-        .kubeContext(kubeContext)
-        .valueArguments(chartValues.toArguments())
-        .environmentVariables(chartValues.toEnvironment())
-        .dependencyUpdate(dependencyUpdate);
-
-      // A local chart tarball is self-describing; `helm upgrade` rejects `--version` for a local chart.
-      if (version && !cachedChartPath) {
-        builder.version(version);
-      }
-
-      const options: UpgradeChartOptions = builder.build();
       const chart: Chart = cachedChartPath ? new Chart(cachedChartPath) : new Chart(chartName, repoName);
 
       if (cachedChartPath) {
@@ -391,11 +385,43 @@ export class ChartManager {
         );
       }
 
-      await this.retryTransientDownload((): Promise<Release> =>
-        this.helm.upgradeChart(chartReleaseName, chart, options),
+      await this.chartMigrator.upgrade(
+        {
+          namespace: namespaceName,
+          releaseName: chartReleaseName,
+          chartName,
+          kubeContext,
+          targetVersion: version,
+          chartValues,
+          reuseValues,
+        },
+        async (values: ChartUpgradeValues): Promise<void> => {
+          const builder: UpgradeChartOptionsBuilder = UpgradeChartOptionsBuilder.builder()
+            .reuseValues(values.reuseValues)
+            .install(install)
+            .createNamespace(createNamespace)
+            .namespace(namespaceName.name)
+            .kubeContext(kubeContext)
+            .valueArguments(values.valueArguments)
+            .environmentVariables(chartValues.toEnvironment())
+            .dependencyUpdate(dependencyUpdate);
+
+          // A local chart tarball is self-describing; `helm upgrade` rejects `--version` for a local chart.
+          if (version && !cachedChartPath) {
+            builder.version(version);
+          }
+
+          const options: UpgradeChartOptions = builder.build();
+          await this.retryTransientDownload((): Promise<Release> =>
+            this.helm.upgradeChart(chartReleaseName, chart, options),
+          );
+        },
       );
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);
     } catch (error) {
+      if (error instanceof SoloErrors.system.helmChartMigrationFailed) {
+        throw error;
+      }
       throw new SoloErrors.system.helmChartUpgradeFailed(chartReleaseName, error);
     }
 

@@ -13,6 +13,8 @@ import {
 } from '../dependency-managers/index.js';
 import * as constants from '../constants.js';
 import {ChartManager} from '../chart-manager.js';
+import {ChartMigrationRegistry} from '../../business/chart-migration/chart-migration-registry.js';
+import {ChartMigrator} from '../../business/chart-migration/chart-migrator.js';
 import {ConfigManager} from '../config-manager.js';
 import {LayeredConfigProvider} from '../../data/configuration/impl/layered-config-provider.js';
 import {FeatureFlags} from '../../business/runtime-state/config/solo/feature-flags.js';
@@ -163,6 +165,8 @@ export class Container {
       new SingletonContainer(InjectTokens.GvproxyDependencyManager, GvproxyDependencyManager),
       new SingletonContainer(InjectTokens.NetavarkDependencyManager, NetavarkDependencyManager),
       new SingletonContainer(InjectTokens.AardvarkDnsDependencyManager, AardvarkDnsDependencyManager),
+      new SingletonContainer(InjectTokens.ChartMigrationRegistry, ChartMigrationRegistry),
+      new SingletonContainer(InjectTokens.ChartMigrator, ChartMigrator),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
