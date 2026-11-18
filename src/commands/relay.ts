@@ -43,6 +43,7 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
 import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
+import {ChainIdResolver} from '../core/chain-id-resolver.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
@@ -763,6 +764,13 @@ export class RelayCommand extends BaseCommand {
 
               context_.config = config;
 
+              config.chainId = await ChainIdResolver.resolve(
+                this.configManager,
+                this.localConfig,
+                this.remoteConfig,
+                config.deployment,
+              );
+
               config.isLegacyChartInstalled = false;
 
               config.namespace = await this.getNamespace(task);
@@ -895,6 +903,13 @@ export class RelayCommand extends BaseCommand {
               }
 
               context_.config = config;
+
+              config.chainId = await ChainIdResolver.resolve(
+                this.configManager,
+                this.localConfig,
+                this.remoteConfig,
+                config.deployment,
+              );
 
               config.namespace = await this.getNamespace(task);
 
