@@ -28,5 +28,11 @@
     "name": "One Shot Local Build",
     "directory": "one-shot-local-build",
     "local-java-build": true
+  },
+  {
+    "name": "Hardhat with Solo",
+    "directory": "hardhat-with-solo",
+    "local-java-build": false,
+    "one-shot-with-block-node": false
   }
 ]
