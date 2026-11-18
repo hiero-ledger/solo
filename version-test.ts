@@ -10,5 +10,8 @@ export const TEST_UPGRADE_TO_VERSION: string = 'v0.78.1';
 // which is pre-boundary, so a post-boundary block node here is rejected with BAD_BLOCK_PROOF.
 export const PREV_BLOCK_NODE_VERSION: string = 'v0.40.0';
 export const PREV_MIRROR_NODE_VERSION: string = 'v0.163.0';
+// Mirror node release just below the v0.157.0 block node endpoints chart boundary, used by the version-upgrade-test
+// example to check that install-time release values survive an upgrade across that boundary.
+export const MIRROR_NODE_VERSION_BEFORE_BLOCK_NODE_ENDPOINTS: string = 'v0.156.0';
 export const PREV_EXPLORER_VERSION: string = '26.0.0';
 export const PREV_RELAY_VERSION: string = '0.78.1';

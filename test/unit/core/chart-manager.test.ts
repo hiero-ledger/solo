@@ -206,6 +206,44 @@ describe('ChartManager installed-release lookup', (): void => {
   });
 });
 
+describe('ChartManager release values', (): void => {
+  const logger: SoloLogger = {debug: (): void => undefined} as unknown as SoloLogger;
+
+  const buildManager: (helm: Partial<HelmClient>) => ChartManager = (helm: Partial<HelmClient>): ChartManager =>
+    new ChartManager(
+      helm as HelmClient,
+      logger,
+      undefined as unknown as CacheCatalogStore,
+      undefined as unknown as CacheHealthInspector,
+    );
+
+  it('returns the values of the release', async (): Promise<void> => {
+    const getValues: SinonStub = sinon.stub().resolves({importer: {a: 1}});
+
+    const values: Record<string, unknown> = await buildManager({getValues}).getReleaseValues(
+      NamespaceName.of('solo-ns'),
+      'mirror-1',
+      'ctx',
+    );
+
+    expect(values).to.deep.equal({importer: {a: 1}});
+    expect(getValues).to.have.been.calledOnceWith('mirror-1', 'solo-ns', 'ctx');
+  });
+
+  it('fails instead of returning empty values, so an upgrade cannot silently drop them', async (): Promise<void> => {
+    const getValues: SinonStub = sinon.stub().rejects(new Error('connection refused'));
+
+    let thrown: unknown;
+    try {
+      await buildManager({getValues}).getReleaseValues(NamespaceName.of('solo-ns'), 'mirror-1', 'ctx');
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).to.be.instanceOf(SoloErrors.system.helmReleaseValuesReadFailed);
+  });
+});
+
 describe('ChartManager transient download retry', (): void => {
   const logger: SoloLogger = {
     debug: (): void => undefined,

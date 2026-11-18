@@ -10,6 +10,7 @@ This test scenario performs the following operations:
 2. **Upgrade Components**: Upgrades each component individually to the current version
 3. **Network Upgrade with Local Build**: Upgrades the consensus network using the `--local-build-path` flag
 4. **Functionality Verification**: Creates accounts, verifies Explorer API responses, and tests Relay functionality
+5. **Mirror Node Chart Boundary Upgrade**: Reinstalls mirror node below `v0.157.0` with a `--values-file`, upgrades it without that file, and asserts the install-time values survived the upgrade
 
 ## Getting This Example
 

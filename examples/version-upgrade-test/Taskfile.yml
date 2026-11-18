@@ -36,6 +36,10 @@ vars:
   PREV_BLOCK_VERSION:
     sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 
+  # Mirror node release below the v0.157.0 chart boundary, where Solo cannot use --reuse-values
+  MIRROR_VERSION_BEFORE_BOUNDARY:
+    sh: sed -n "s/.*MIRROR_NODE_VERSION_BEFORE_BLOCK_NODE_ENDPOINTS.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+
   # Current versions to upgrade to
   CURRENT_CN_VERSION:
     sh: sed -n "s/^export const HEDERA_PLATFORM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
@@ -55,6 +59,7 @@ tasks:
       - task: deploy-old-versions
       - task: upgrade-components
       - task: verify-functionality
+      - task: upgrade-mirror-across-chart-boundary
 
   setup-cluster:
     desc: Setup Kind cluster and Solo environment
@@ -147,6 +152,7 @@ tasks:
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
           --mirror-node-version {{ .CURRENT_MIRROR_VERSION }} \
           --pinger
+
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Stage the network upgrade to main with local build path, but leave the consensus nodes
@@ -258,6 +264,26 @@ tasks:
 
           echo "✗ Block node test failed - stuck at block ${FIRST} (last read: ${SECOND:-none})"
           exit 1
+
+  upgrade-mirror-across-chart-boundary:
+    desc: Check that install-time mirror node values survive an upgrade across the v0.157.0 chart boundary
+    cmds:
+      # Replace the mirror node with one installed below the boundary, with values set only at install time
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force
+      - cmd: |
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
+          --mirror-node-version {{ .MIRROR_VERSION_BEFORE_BOUNDARY }} \
+          --values-file {{ .TASKFILE_DIR }}/mirror-values.yaml
+
+      # Upgrade without the values file: Solo cannot reuse values across the boundary, so the install-time
+      # values must be read from the release and carried over.
+      - cmd: |
+          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
+          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }}
+      - cmd: |
+          helm get values mirror-1 --namespace {{ .NAMESPACE }} --kube-context {{ .CONTEXT }} --output json \
+            | jq -e '.importer.podAnnotations["solo.hiero.org/version-upgrade-test"] == "preserved"' \
+            || { echo "FAIL: mirror install-time values were dropped by the upgrade"; exit 1; }
 
   destroy:
     desc: Destroy the Solo network and cleanup

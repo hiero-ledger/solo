@@ -45,6 +45,15 @@ export class HelmChartValues {
     return this;
   }
 
+  /**
+   * Add a values file inherited from an existing release. It is placed before every other argument, so Solo-supplied
+   * and user-supplied values both override it.
+   */
+  public inheritedFile(path: string): this {
+    this._arguments.unshift('--values', path);
+    return this;
+  }
+
   /** Add a user-supplied values file (always processed last, overriding Solo defaults). */
   public userFile(path: string): this {
     this._userArguments.push('--values', path);
