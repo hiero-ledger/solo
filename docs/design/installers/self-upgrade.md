@@ -167,13 +167,13 @@ banner adds the exact command: `npm install -g @hiero-ledger/solo@0.92.0`.
 ## 6. `solo update`
 
 ```text
-solo update [--version <tag>] [--quiet-mode]
+solo update [--target-version <tag>] [--quiet-mode]
 ```
 
 | Flag              | Effect                                                                                                                                                                                                               |
 |-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | (none)            | Look up the latest release (§4.1, ignoring the cache), show the current and the new version, ask to confirm, then install.                                                                                         |
-| `--version <tag>` | Install exactly this release, newer or older. This is how a user goes back from a bad release. Going back prints a warning that the older version may not read config written by the newer one.                  |
+| `--target-version <tag>` | Install exactly this release, newer or older. This is how a user goes back from a bad release. Going back prints a warning that the older version may not read config written by the newer one.                  |
 | `--quiet-mode`    | No confirmation.                                                                                                                                                                                                     |
 
 `solo update` does not depend on the `enableUpdateCheck` flag (§4.4). It works the same with the flag off.
@@ -263,7 +263,7 @@ written `solo`.
 ### 7.3 No backup copy
 
 Solo does not keep the old binary as `solo.old`. The new binary has already run (step 5) before it replaces
-anything. A release that runs but misbehaves is undone with `solo update --version <previous tag>`, which goes
+anything. A release that runs but misbehaves is undone with `solo update --target-version <previous tag>`, which goes
 through the same verified steps.
 
 ---
@@ -359,7 +359,7 @@ update removes it. At most two versions stay on disk.
 
 - **Scripts run in a terminal.** The prompt can pause a script that runs `solo` in a TTY for up to 30 seconds, at
   most once a day. `CI=true` or `SOLO_NO_UPDATE_CHECK=true` turns it off.
-- **Going back to an older version.** `solo update --version` can install a release older than the local config it
+- **Going back to an older version.** `solo update --target-version` can install a release older than the local config it
   finds. This is the same risk as installing an older npm version today. Solo warns but does not block.
 - **The `releases/latest` redirect is not a documented API.** It has been stable for years, and the install script
   already depends on it. If it changes, the check finds nothing and stays quiet. It does not fail the command.
