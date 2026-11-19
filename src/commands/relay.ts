@@ -4,6 +4,7 @@ import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
 import {parseNodeAliases, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
+import {PathEx} from '../business/utils/path-ex.js';
 import {UserInput} from '../core/user-input.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
@@ -51,6 +52,8 @@ import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
+
+const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'relay-values.yaml');
 
 interface RelayOperatorCredentials {
   operatorId: string;
@@ -295,7 +298,7 @@ export class RelayCommand extends BaseCommand {
     const mirrorNodeWeb3Url: string = Templates.renderMirrorNodeWeb3ServiceUrl(mirrorNodeReleaseName, mirrorNamespace);
 
     const chartValues: HelmChartValues = new HelmChartValues()
-      .file(constants.RELAY_VALUES_FILE)
+      .file(RELAY_VALUES_FILE)
       .set('nameOverride', releaseName)
       .set('relay.config.MIRROR_NODE_URL', mirrorNodeUrl)
       .set('relay.config.MIRROR_NODE_URL_WEB3', mirrorNodeWeb3Url)

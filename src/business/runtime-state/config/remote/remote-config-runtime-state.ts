@@ -65,6 +65,8 @@ import {ResourceNotFoundError} from '../../../../integration/kube/errors/resourc
 import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
 import {SemanticVersion} from '../../../utils/semantic-version.js';
 
+const SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY: number = 50;
+
 enum RuntimeStatePhase {
   Loaded = 'loaded',
   NotLoaded = 'not_loaded',
@@ -340,7 +342,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     this.source.modelData.history.commands.push(command);
     this.source.modelData.history.lastExecutedCommand = command;
 
-    if (this.source.modelData.history.commands.length > constants.SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY) {
+    if (this.source.modelData.history.commands.length > SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY) {
       this.source.modelData.history.commands.shift();
     }
   }

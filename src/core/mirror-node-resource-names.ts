@@ -5,6 +5,9 @@ import {type ComponentId} from '../types/index.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 
+const MIRROR_INGRESS_CLASS_NAME: string = 'mirror-ingress-class';
+const MIRROR_INGRESS_TLS_SECRET_NAME: string = 'ca-secret-mirror-node';
+
 /**
  * Names of the namespace-scoped (and cluster-scoped) resources that belong to a single mirror node.
  *
@@ -112,7 +115,7 @@ export class MirrorNodeResourceNames {
   }
 
   public get ingressClassName(): string {
-    return this.dashed(constants.MIRROR_INGRESS_CLASS_NAME);
+    return this.dashed(MIRROR_INGRESS_CLASS_NAME);
   }
 
   /** Value of the haproxy `controller-class` argument; the IngressClass `spec.controller` is derived from it. */
@@ -137,7 +140,7 @@ export class MirrorNodeResourceNames {
   }
 
   public get tlsSecretName(): string {
-    return this.dashed(constants.MIRROR_INGRESS_TLS_SECRET_NAME);
+    return this.dashed(MIRROR_INGRESS_TLS_SECRET_NAME);
   }
 
   private dashed(name: string): string {

@@ -16,7 +16,7 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
-import {type AnyListrContext, type NodeAlias} from '../types/aliases.js';
+import {type AnyListrContext} from '../types/aliases.js';
 import {type ListrBaseClassOptions} from 'listr2';
 import {SoloListrRenderer} from './task-list/solo-listr-renderer.js';
 
@@ -54,8 +54,6 @@ export const SOLO_LOGS_DIR: string = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR: string = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR: string = PathEx.join(SOLO_CACHE_DIR, 'values-files');
 export const SOLO_LOG_LEVEL: string = getEnvironmentVariable('SOLO_LOG_LEVEL') || 'info';
-export const DEFAULT_NAMESPACE: NamespaceName = NamespaceName.of('default');
-export const DEFAULT_CERT_MANAGER_NAMESPACE: NamespaceName = NamespaceName.of('cert-manager');
 export const HELM: string = 'helm';
 export const KIND: string = 'kind';
 export const PODMAN: string = 'podman';
@@ -66,7 +64,6 @@ export const AARDVARK_DNS: string = 'aardvark-dns';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
 export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
-export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
 export const DEFAULT_KIND_CLUSTER_CONFIG_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'kind-config.yaml');
 export const KIND_CLUSTER_CONFIG_FILE: string =
@@ -76,23 +73,16 @@ export const KIND_NODE_IMAGE: string =
   getEnvironmentVariable('KIND_IMAGE') ||
   'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211';
 
-export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
 export const SOLO_REMOTE_CONFIGMAP_LABELS: Record<string, string> = {'solo.hedera.com/type': 'remote-config'};
-export const SOLO_CLUSTER_ROLE_LABELS: Record<string, string> = {'solo.hedera.com/type': 'cluster-role'};
-export const SOLO_REMOTE_CONFIG_MAX_COMMAND_IN_HISTORY: number = 50;
 export const SOLO_REMOTE_CONFIGMAP_LABEL_SELECTOR: string = 'solo.hedera.com/type=remote-config';
 export const NODE_COPY_CONCURRENT: number = Number(getEnvironmentVariable('NODE_COPY_CONCURRENT')) || 4;
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS: number = +getEnvironmentVariable('SOLO_LEASE_ACQUIRE_ATTEMPTS') || 10;
 export const DEFAULT_LEASE_DURATION: number = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
-
-// Recommended minimum container-engine (Docker/Podman) resources; used by the pre-flight resource check.
-export const MINIMUM_RECOMMENDED_MEMORY_BYTES: number = 12 * 1024 * 1024 * 1024;
-export const MINIMUM_RECOMMENDED_CPU_CORES: number = 6;
 
 export const SOLO_USER_AGENT_HEADER: string = 'Solo-User-Agent';
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
@@ -135,12 +125,9 @@ export const REDIS_HOST: string =
     ? 'solo-shared-resources-redis'
     : 'solo-shared-resources-redis-master';
 export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
-export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
 export const REDIS_REPLICA_REPLICACOUNT: number =
   +getEnvironmentVariable('REDIS_REPLICA_REPLICACOUNT') || REDIS_SENTINEL_ENABLED ? 1 : 0;
 export const REDIS_SENTINEL_GETMASTERTIMEOUT: number = +getEnvironmentVariable('REDIS_SENTINEL_GETMASTERTIMEOUT') || 10;
-export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
-export const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
 export const REDIS_SENTINEL_MASTER_SET: string = 'mirror';
 // docker.io (not the chart's registry-1.docker.io) so the image name matches the image cache target.
 export const POSTGRES_IMAGE_REGISTRY: string = 'docker.io';
@@ -166,16 +153,12 @@ export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
 
-// Container name of the importer inside the mirror node importer pod (the hedera-mirror umbrella chart's subchart alias).
-export const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('importer');
-
 // In-pod JFR repository path `mirror node collect-jfr` reads from (a dedicated volume, mirrors the block node output dir); enforced by mirror-node-values.test.ts.
 export const MIRROR_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/mirror-node/output/jfr';
 export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
 export const PROMETHEUS_RELEASE_NAME: string = 'kube-prometheus-stack';
-export const SOLO_SERVICE_MONITOR_NAME: string = 'solo-service-monitor';
 
 export const POD_MONITOR_ROLE: string = 'pod-monitor-role';
 
@@ -234,9 +217,7 @@ export const EXPLORER_CHART_URL: string =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
   'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
 export const EXPLORER_RELEASE_NAME: string = 'hiero-explorer';
-export const SOLO_RELAY_LABEL: string = 'app=hedera-json-rpc';
 export const SOLO_EXPLORER_LABEL: string = 'app.kubernetes.io/component=hiero-explorer';
-export const OLD_SOLO_EXPLORER_LABEL: string = 'app.kubernetes.io/component=hedera-explorer';
 
 // TODO: remove after migrated to resources/solo-config.yaml
 export const INGRESS_CONTROLLER_CHART_URL: string =
@@ -268,20 +249,13 @@ export const NETWORK_LOAD_GENERATOR_POD_LABELS: string[] = [
   'app.kubernetes.io/name=network-load-generator',
 ];
 
-export const PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME: string = 'prometheus-operator-crds';
 export const PROMETHEUS_OPERATOR_CRDS_CHART: string = 'prometheus-operator-crds';
-export const PROMETHEUS_OPERATOR_CRDS_REPO: string = 'prometheus-community';
 export const PROMETHEUS_OPERATOR_CRDS_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_OPERATOR_CRDS_CHART_URL') || 'https://prometheus-community.github.io/helm-charts';
 
 export const NETWORK_LOAD_GENERATOR_CONTAINER: ContainerName = ContainerName.of('nlg');
 
 // TODO: remove after migrated to resources/solo-config.yaml
-export const CERT_MANAGER_NAME_SPACE: string = 'cert-manager';
-export const SOLO_HEDERA_MIRROR_IMPORTER: string[] = [
-  'app.kubernetes.io/component=importer',
-  'app.kubernetes.io/instance=mirror',
-];
 
 // Component label selectors for pod discovery
 export const SOLO_RELAY_NAME_LABEL: string = 'app.kubernetes.io/name=relay';
@@ -306,10 +280,7 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL)
   .set(GRAFANA_CHART_REPO, GRAFANA_CHART_URL);
 
-export const MIRROR_INGRESS_CLASS_NAME: string = 'mirror-ingress-class';
 export const MIRROR_INGRESS_CONTROLLER: string = 'mirror-ingress-controller';
-export const EXPLORER_INGRESS_CLASS_NAME: string = 'explorer-ingress-class';
-export const EXPLORER_INGRESS_CONTROLLER: string = 'explorer-ingress-controller';
 // ------------------- Hedera Account related ---------------------------------------------------------------------------------
 export const DEFAULT_OPERATOR_ID_NUMBER: number = +getEnvironmentVariable('SOLO_OPERATOR_ID') || 2;
 export const OPERATOR_KEY: string =
@@ -320,7 +291,6 @@ export const OPERATOR_PUBLIC_KEY: string =
   '302a300506032b65700321000aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92';
 
 export const DEFAULT_FREEZE_ID_NUMBER: number = +getEnvironmentVariable('FREEZE_ADMIN_ACCOUNT') || 58;
-export const DEFAULT_TREASURY_ID_NUMBER: number = 2;
 export const DEFAULT_START_ID_NUMBER: number = +getEnvironmentVariable('DEFAULT_START_ID_NUMBER') || 3;
 
 export const DEFAULT_GENESIS_KEY: string =
@@ -335,21 +305,12 @@ export const SYSTEM_ACCOUNTS: number[][] = [
   [900, 1000],
 ]; // do account 0.0.2 last and outside the loop
 export const SHORTER_SYSTEM_ACCOUNTS: number[][] = [[3, 60]];
-export const TREASURY_ACCOUNT: number = 2;
 export const LOCAL_NODE_START_PORT: number = +getEnvironmentVariable('LOCAL_NODE_START_PORT') || 30_212;
 export const ACCOUNT_UPDATE_BATCH_SIZE: number = +getEnvironmentVariable('ACCOUNT_UPDATE_BATCH_SIZE') || 10;
 
 export const POD_PHASE_RUNNING: string = 'Running';
 
-export const POD_CONDITION_INITIALIZED: string = 'Initialized';
-export const POD_CONDITION_READY: string = 'Ready';
-
-export const POD_CONDITION_POD_SCHEDULED: string = 'PodScheduled';
-export const POD_CONDITION_STATUS_TRUE: string = 'True';
-
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
-export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
-export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
 export const MIRROR_NODE_DEBUG_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-node-debug-values.yaml',
@@ -357,10 +318,6 @@ export const MIRROR_NODE_DEBUG_VALUES_FILE: string = PathEx.joinWithRealPath(
 export const PROMETHEUS_STACK_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'prometheus-stack-values.yaml',
-);
-export const ONE_SHOT_FALCON_PREPARE_SPEC_FILE: string = PathEx.joinWithRealPath(
-  RESOURCES_DIR,
-  'one-shot-falcon-prepare.yaml',
 );
 
 /* vars MIRROR_NODE_OLD_.* can be removed once minimum mirrornode version support is 0.152.0.
@@ -413,12 +370,6 @@ export const ONE_SHOT_RELAY_HOST_PORT: number = 37_546;
 export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
 export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
-export const GRAFANA_ALLOY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'grafana-alloy-values.yaml');
-export const LOKI_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'loki-values.yaml');
-export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
-  RESOURCES_DIR,
-  'mirror-postgres-truncate.sql',
-);
 // psql client used to run SQL against an external mirror node database from inside the cluster.
 // Override for air-gapped or private registries.
 export const MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE: string =
@@ -427,7 +378,6 @@ export const MIRROR_EXTERNAL_DATABASE_CLIENT_IMAGE: string =
 export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
-export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 export const ONE_SHOT_DEPLOYMENT_NAME: string = 'one-shot';
@@ -530,11 +480,8 @@ export const LISTR_DEFAULT_OPTIONS: {
 export const CACHE_IMAGE_MAX_CONCURRENCY: number = +getEnvironmentVariable('CACHE_IMAGE_MAX_CONCURRENCY') || 12;
 
 export const SIGNING_KEY_PREFIX: string = 's';
-export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
 export const LOCAL_HOST: string = '127.0.0.1';
-
-export const STANDARD_DATAMASK: string = '***';
 
 // ------ Hedera SDK Related ------
 export const NODE_CLIENT_MAX_ATTEMPTS: number = +getEnvironmentVariable('NODE_CLIENT_MAX_ATTEMPTS') || 600;
@@ -550,12 +497,6 @@ export const NODE_CLIENT_SDK_PING_RETRY_INTERVAL: number =
 // ---- New Node Related ----
 export const ENDPOINT_TYPE_IP: string = 'IP';
 export const ENDPOINT_TYPE_FQDN: string = 'FQDN';
-export const DEFAULT_NETWORK_NODE_NAME: NodeAlias = 'node1';
-
-// file-id must be between 0.0.150 and 0.0.159
-// file must be uploaded using FileUpdateTransaction in maximum of 5Kb chunks
-export const UPGRADE_FILE_ID_NUM: number = 150;
-export const UPGRADE_FILE_CHUNK_SIZE: number = 1024 * 5; // 5Kb
 
 export const JVM_DEBUG_PORT: number = 5005;
 
@@ -654,7 +595,6 @@ export const JSON_RPC_RELAY_LOCAL_PORT: number = +getEnvironmentVariable('JSON_R
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
 export const EXPLORER_LOCAL_PORT: number = +getEnvironmentVariable('EXPLORER_LOCAL_PORT') || 38_080;
 export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 38_081;
-export const MIRROR_REST_CONTAINER_PORT: number = 5551;
 export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;
@@ -695,10 +635,6 @@ export const MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES: number =
 export const IGNORED_NODE_ACCOUNT_ID: string = '0.0.0';
 
 export const UPLOADER_SECRET_NAME: string = 'uploader-mirror-secrets';
-export const MINIO_SECRET_NAME: string = 'minio-secrets';
-export const BACKUP_SECRET_NAME: string = 'backup-uploader-secrets';
-export const MIRROR_NODE_SECRETS_BACKUP_NAME: string = 'mirror-node-secrets-backup';
-export const MIRROR_INGRESS_TLS_SECRET_NAME: string = 'ca-secret-mirror-node';
 export const EXPLORER_INGRESS_TLS_SECRET_NAME: string = 'ca-secret-hiero-explorer';
 export const NODE_TLS_KEYS_SECRET_NAME: string = 'network-node-hapi-app-secrets';
 
@@ -706,8 +642,6 @@ export const BLOCK_STREAM_STREAM_MODE: string = getEnvironmentVariable('BLOCK_ST
 export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE') || 'FILE_AND_GRPC';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
-export const RELAY_IMAGE_NAME: string = 'hiero-json-rpc-relay';
-export const EXPLORER_IMAGE_NAME: string = 'hiero-explorer';
 export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER: string = 'SOLO_ENABLE_OVERWRITE=true';
 export const SIMPLE_FEES_SCHEDULES_JSON: string = 'simpleFeesSchedules.json';
@@ -721,13 +655,6 @@ export const enum StorageType {
   AWS_AND_GCS = 'aws_and_gcs',
 }
 
-export const CERT_MANAGER_CRDS: string[] = [
-  'certificaterequests.cert-manager.io',
-  'certificates.cert-manager.io',
-  'clusterissuers.cert-manager.io',
-  'issuers.cert-manager.io',
-];
-
 export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
   +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;
 
@@ -736,8 +663,3 @@ export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PRO
 export const SOLO_CREATED_BY_LABEL: string = 'app.kubernetes.io/created-by';
 export const SOLO_CREATED_BY_VALUE: string = 'solo';
 export const DEFAULT_SOLO_NAMESPACE_LABELS: Record<string, string> = {[SOLO_CREATED_BY_LABEL]: SOLO_CREATED_BY_VALUE};
-
-// Log rotation configuration
-export const LOG_MAX_FILE_SIZE: string = '50M';
-export const LOG_MAX_FILES: number = 5;
-export const LOG_ROTATION_INTERVAL: string = '1d';

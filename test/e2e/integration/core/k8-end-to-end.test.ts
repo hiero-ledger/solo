@@ -31,6 +31,8 @@ import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
+const DEFAULT_NAMESPACE: NamespaceName = NamespaceName.of('default');
+
 const defaultTimeout: number = Duration.ofMinutes(2).toMillis();
 const TEST_POD_IMAGE: string = process.env.K8_E2E_TEST_IMAGE ?? 'registry.k8s.io/e2e-test-images/busybox:1.29';
 
@@ -104,9 +106,7 @@ describe('K8', (): void => {
   it('should be able to list namespaces', async (): Promise<void> => {
     const namespaces: NamespaceName[] = await k8Factory.default().namespaces().list();
     expect(namespaces).not.to.have.lengthOf(0);
-    const match: NamespaceName[] = namespaces.filter(
-      (n: NamespaceName): boolean => n.name === constants.DEFAULT_NAMESPACE.name,
-    );
+    const match: NamespaceName[] = namespaces.filter((n: NamespaceName): boolean => n.name === DEFAULT_NAMESPACE.name);
     expect(match).to.have.lengthOf(1);
   }).timeout(defaultTimeout);
 
