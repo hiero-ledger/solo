@@ -153,6 +153,7 @@ import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
 import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
 import {MirrorNodeBlockNodeSourceUnavailableSoloError} from './classes/validation/mirror-node-block-node-source-unavailable-solo-error.js';
+import {MirrorNodeBucketSourceUnavailableSoloError} from './classes/validation/mirror-node-bucket-source-unavailable-solo-error.js';
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
@@ -290,6 +291,11 @@ import {HelmChartPullNoArchiveSoloError} from './classes/system/helm-chart-pull-
 import {ContainerEngineNotFoundSoloError} from './classes/system/container-engine-not-found-solo-error.js';
 import {ContainerEngineStartFailedSoloError} from './classes/system/container-engine-start-failed-solo-error.js';
 import {KindClusterContainerNotFoundSoloError} from './classes/system/kind-cluster-container-not-found-solo-error.js';
+import {SelfUpdateDownloadFailedSoloError} from './classes/system/self-update-download-failed-solo-error.js';
+import {SelfUpdateAssetUnavailableSoloError} from './classes/system/self-update-asset-unavailable-solo-error.js';
+import {SelfUpdateVerificationFailedSoloError} from './classes/system/self-update-verification-failed-solo-error.js';
+import {SelfUpdateInstallFailedSoloError} from './classes/system/self-update-install-failed-solo-error.js';
+import {SelfUpdateFolderNotWritableSoloError} from './classes/system/self-update-folder-not-writable-solo-error.js';
 import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.js';
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
@@ -343,6 +349,7 @@ import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
 import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
 import {UncaughtFatalErrorSoloError} from './classes/internal/uncaught-fatal-error-solo-error.js';
+import {InternalArgumentGuardSoloError} from './classes/internal/internal-argument-guard-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -678,6 +685,7 @@ export class SoloErrors {
     readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
     readonly mirrorNodeBlockNodeSourceUnavailable: typeof MirrorNodeBlockNodeSourceUnavailableSoloError;
+    readonly mirrorNodeBucketSourceUnavailable: typeof MirrorNodeBucketSourceUnavailableSoloError;
     readonly invalidHbarAmount: typeof InvalidHbarAmountSoloError;
     readonly invalidFileIdFormat: typeof InvalidFileIdFormatSoloError;
     readonly invalidEndpointFormat: typeof InvalidEndpointFormatSoloError;
@@ -774,6 +782,7 @@ export class SoloErrors {
     relayInvalidComponentId: RelayInvalidComponentIdSoloError,
     mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
     mirrorNodeBlockNodeSourceUnavailable: MirrorNodeBlockNodeSourceUnavailableSoloError,
+    mirrorNodeBucketSourceUnavailable: MirrorNodeBucketSourceUnavailableSoloError,
     invalidHbarAmount: InvalidHbarAmountSoloError,
     invalidFileIdFormat: InvalidFileIdFormatSoloError,
     invalidEndpointFormat: InvalidEndpointFormatSoloError,
@@ -894,6 +903,11 @@ export class SoloErrors {
     readonly containerEngineNotFound: typeof ContainerEngineNotFoundSoloError;
     readonly containerEngineStartFailed: typeof ContainerEngineStartFailedSoloError;
     readonly kindClusterContainerNotFound: typeof KindClusterContainerNotFoundSoloError;
+    readonly selfUpdateDownloadFailed: typeof SelfUpdateDownloadFailedSoloError;
+    readonly selfUpdateAssetUnavailable: typeof SelfUpdateAssetUnavailableSoloError;
+    readonly selfUpdateVerificationFailed: typeof SelfUpdateVerificationFailedSoloError;
+    readonly selfUpdateInstallFailed: typeof SelfUpdateInstallFailedSoloError;
+    readonly selfUpdateFolderNotWritable: typeof SelfUpdateFolderNotWritableSoloError;
     readonly fileNotFound: typeof FileNotFoundSoloError;
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
@@ -994,6 +1008,11 @@ export class SoloErrors {
     containerEngineNotFound: ContainerEngineNotFoundSoloError,
     containerEngineStartFailed: ContainerEngineStartFailedSoloError,
     kindClusterContainerNotFound: KindClusterContainerNotFoundSoloError,
+    selfUpdateDownloadFailed: SelfUpdateDownloadFailedSoloError,
+    selfUpdateAssetUnavailable: SelfUpdateAssetUnavailableSoloError,
+    selfUpdateVerificationFailed: SelfUpdateVerificationFailedSoloError,
+    selfUpdateInstallFailed: SelfUpdateInstallFailedSoloError,
+    selfUpdateFolderNotWritable: SelfUpdateFolderNotWritableSoloError,
     fileNotFound: FileNotFoundSoloError,
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,
@@ -1055,6 +1074,7 @@ export class SoloErrors {
     readonly injectedFailure: typeof InjectedFailureSoloError;
     readonly pipelineCancelled: typeof PipelineCancelledSoloError;
     readonly uncaughtFatalError: typeof UncaughtFatalErrorSoloError;
+    readonly argumentGuard: typeof InternalArgumentGuardSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -1068,5 +1088,6 @@ export class SoloErrors {
     injectedFailure: InjectedFailureSoloError,
     pipelineCancelled: PipelineCancelledSoloError,
     uncaughtFatalError: UncaughtFatalErrorSoloError,
+    argumentGuard: InternalArgumentGuardSoloError,
   });
 }

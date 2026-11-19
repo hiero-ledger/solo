@@ -554,6 +554,17 @@ export class Flags {
     },
   };
 
+  public static readonly targetVersion: CommandFlag = {
+    constName: 'targetVersion',
+    name: 'target-version',
+    definition: {
+      describe: 'Release to install, for example v0.97.0; newer or older. Defaults to the latest release',
+      defaultValue: '',
+      type: 'string',
+      disablePrompt: true,
+    },
+  };
+
   public static readonly freezeBlockDrainSeconds: CommandFlag = {
     constName: 'freezeBlockDrainSeconds',
     name: 'freeze-block-drain-seconds',
@@ -2654,7 +2665,8 @@ export class Flags {
     constName: 'numberOfConsensusNodes',
     name: 'num-consensus-nodes',
     definition: {
-      describe: 'Used to specify desired number of consensus nodes for pre-genesis deployments',
+      describe:
+        'Used to specify desired number of consensus nodes for pre-genesis deployments (an additional cluster defaults to 0 in quiet mode)',
       type: 'number',
       promptText: 'Enter number of consensus nodes to add to the provided cluster (must be zero or a positive number):',
     },
@@ -2663,7 +2675,7 @@ export class Flags {
         Flags.prompt('number', task, input, Flags.numberOfConsensusNodes);
 
       input = await promptForInput();
-      while (input === undefined) {
+      while (input === undefined || Number.isNaN(input) || input < 0) {
         input = await promptForInput();
       }
 
@@ -3050,6 +3062,7 @@ export class Flags {
     Flags.releaseTag,
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
+    Flags.targetVersion,
     Flags.freezeBlockDrainSeconds,
     Flags.resumeFromFreeze,
     Flags.skipNodeStart,

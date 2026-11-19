@@ -33,7 +33,6 @@ import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {
   AccountId,
   type AccountInfo,
-  type Client,
   FileId,
   Long,
   PrivateKey,
@@ -1235,11 +1234,7 @@ export class NodeCommandTasks {
             postUpgradeSystemFiles,
           );
         }
-        context_.upgradeZipHash = await this._uploadUpgradeZip(
-          context_.upgradeZipFile,
-          this.accountManager.hederaClientFor(config.nodeClient),
-          deployment,
-        );
+        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }
@@ -1353,7 +1348,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
@@ -1404,7 +1399,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
 
@@ -1449,8 +1444,10 @@ export class NodeCommandTasks {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(
-          await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment),
+        const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
+          namespace,
+          this.remoteConfig.getClusterRefs(),
+          deployment,
         );
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
@@ -2222,7 +2219,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const nodeClient: Client = await this.accountManager.loadNodeClient(
+          const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             deployment,
@@ -2288,7 +2285,7 @@ export class NodeCommandTasks {
           );
           let updateStatus: HederaTransactionStatus;
           try {
-            updateStatus = await this.accountManager.hederaClientFor(nodeClient).updateNode({
+            updateStatus = await nodeClient.updateNode({
               nodeId: Number(networkNodeService.nodeId),
               grpcWebProxyEndpoint,
               serviceEndpoints: [grpcServiceEndpoint],
@@ -2425,6 +2422,8 @@ export class NodeCommandTasks {
                   yamlRoot,
                   deploymentName,
                   applicationPropertiesPath,
+                  // node add resolves the chain ID from the deployment when --chain-id is not given
+                  {chainId: config.chainId},
                 );
               }
             },
@@ -4250,7 +4249,7 @@ export class NodeCommandTasks {
 
         let nodeUpdateStatus: HederaTransactionStatus;
         try {
-          nodeUpdateStatus = await this.accountManager.hederaClientFor(config.nodeClient).updateNode(updateOptions);
+          nodeUpdateStatus = await config.nodeClient.updateNode(updateOptions);
         } catch (error) {
           throw new SoloErrors.component.nodeUpdateTransactionError(error);
         }
@@ -5471,9 +5470,7 @@ export class NodeCommandTasks {
 
         let nodeDeleteStatus: HederaTransactionStatus;
         try {
-          nodeDeleteStatus = await this.accountManager
-            .hederaClientFor(config.nodeClient)
-            .deleteNode(nodeId, config.adminKey);
+          nodeDeleteStatus = await config.nodeClient.deleteNode(nodeId, config.adminKey);
         } catch (error) {
           throw new SoloErrors.component.nodeDeleteTransactionError(error);
         }
@@ -5513,7 +5510,7 @@ export class NodeCommandTasks {
             config.namespace,
           );
 
-          nodeCreateStatus = await this.accountManager.hederaClientFor(config.nodeClient).createNode({
+          nodeCreateStatus = await config.nodeClient.createNode({
             accountId: context_.newNode.accountId,
             gossipEndpoints: context_.gossipEndpoints,
             serviceEndpoints: context_.grpcServiceEndpoints,
@@ -5751,6 +5748,15 @@ export class NodeCommandTasks {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
 
+        // Every collection gets its own timestamped snapshot folder so pod files left by earlier runs are never
+        // mistaken for this deployment's. The analyzer reads the latest snapshot by default.
+        const collectedAt: Date = new Date();
+        const snapshotDirectory: string = PathEx.join(
+          outputDirectory,
+          collectedAt.toISOString().replaceAll(':', '-').replaceAll('.', '-'),
+        );
+        fs.mkdirSync(snapshotDirectory, {recursive: true});
+
         for (const context of contextList) {
           const k8: K8 = this.k8Factory.getK8(context);
 
@@ -5774,7 +5780,7 @@ export class NodeCommandTasks {
                 allPods.push(newPodInfo);
                 // If it is block node pod, download *.log files from '/opt/hiero/block-node/logs'
                 if ('block node' === config.name) {
-                  await this.downloadBlockNodeLogFiles(newPodInfo, outputDirectory);
+                  await this.downloadBlockNodeLogFiles(newPodInfo, snapshotDirectory);
                 }
               }
             }
@@ -5783,12 +5789,15 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.info(`Logs will be saved to: ${outputDirectory}`);
+        this.logger.info(`Logs will be saved to: ${snapshotDirectory}`);
         this.logger.info(`Found ${allPods.length} Hiero component pods`);
         // Download logs from each pod
         for (const podInfo of allPods) {
-          await this.downloadPodLogs(podInfo, outputDirectory);
+          await this.downloadPodLogs(podInfo, snapshotDirectory);
         }
+
+        // Older snapshots are never analyzed and `debug` zips the whole logs directory, so keep only the last few.
+        DiagnosticsAnalyzer.pruneOldSnapshots(outputDirectory);
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },

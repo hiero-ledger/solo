@@ -4,7 +4,7 @@ import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
 import {type PrivateKey} from '@hiero-ledger/sdk';
 import {type CheckedNodesConfigClass} from './checked-nodes-config-class.js';
 import {type NodeCommonConfigWithNodeAlias} from './node-common-config-with-node-alias.js';
-import {type Client} from '@hiero-ledger/sdk';
+import {type HederaClient} from '../../../integration/hedera/hedera-client.js';
 import {type ClusterReferenceName, type EndpointPortMapping} from '../../../types/index.js';
 
 export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, CheckedNodesConfigClass {
@@ -31,7 +31,7 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   freezeAdminPrivateKey: string;
   keysDir: string;
   lastStateZipPath: string;
-  nodeClient: Client;
+  nodeClient: HederaClient;
   treasuryKey: PrivateKey;
   stagingDir: string;
   grpcTlsCertificatePath: string;

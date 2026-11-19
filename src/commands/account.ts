@@ -177,7 +177,7 @@ export class AccountCommand extends BaseCommand {
     shouldRetrievePrivateKey: boolean,
   ): Promise<{accountId: string; balance: number; publicKey: string; privateKey?: string; privateKeyRaw?: string}> {
     if (!accountInfo || !(accountInfo instanceof AccountInfo)) {
-      throw new SoloErrors.validation.illegalArgument('An instance of AccountInfo is required');
+      throw new SoloErrors.internal.argumentGuard('An instance of AccountInfo is required');
     }
 
     const newAccountInfo: {

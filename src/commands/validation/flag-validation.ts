@@ -37,4 +37,10 @@ export class FlagValidation {
       }
     }
   }
+
+  /** Asserts a numeric flag value passes the flag's rules and returns it as a number, so `0x12a` becomes 298. */
+  public static validatedNumber(flag: CommandFlag, value: string): number {
+    FlagValidation.assertAllValid([flag], {[flag.name]: value});
+    return Number(value);
+  }
 }

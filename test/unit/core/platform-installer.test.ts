@@ -10,7 +10,7 @@ import * as constants from '../../../src/core/constants.js';
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
-import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
+import {InternalArgumentGuardSoloError} from '../../../src/core/errors/classes/internal/internal-argument-guard-solo-error.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import {container} from 'tsyringe-neo';
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
@@ -32,7 +32,7 @@ describe('PackageInstaller', (): void => {
 
   describe('validatePlatformReleaseDir', (): void => {
     it('should fail for missing path', (): void => {
-      expect((): void => installer.validatePlatformReleaseDir('')).to.throw(MissingArgumentError);
+      expect((): void => installer.validatePlatformReleaseDir('')).to.throw(InternalArgumentGuardSoloError);
     });
 
     it('should fail for invalid path', (): void => {
@@ -94,7 +94,7 @@ describe('PackageInstaller', (): void => {
     it('should fail for missing pod name', async (): Promise<void> => {
       await expect(
         installer.fetchPlatform(undefined as PodReference, packageVersion, zipPath, checksumPath),
-      ).to.be.rejectedWith(MissingArgumentError);
+      ).to.be.rejectedWith(InternalArgumentGuardSoloError);
     });
     it('should fail for missing tag', async (): Promise<void> => {
       await expect(
@@ -104,7 +104,7 @@ describe('PackageInstaller', (): void => {
           zipPath,
           checksumPath,
         ),
-      ).to.be.rejectedWith(MissingArgumentError);
+      ).to.be.rejectedWith(InternalArgumentGuardSoloError);
     });
   });
   describe('fetchPlatform verification', (): void => {
@@ -146,12 +146,12 @@ describe('PackageInstaller', (): void => {
   describe('copyGossipKeys', (): void => {
     it('should fail for missing podName', async (): Promise<void> => {
       // @ts-expect-error - TS2554: Expected 3 arguments, but got 2
-      await expect(installer.copyGossipKeys('', os.tmpdir())).to.be.rejectedWith(MissingArgumentError);
+      await expect(installer.copyGossipKeys('', os.tmpdir())).to.be.rejectedWith(InternalArgumentGuardSoloError);
     });
 
     it('should fail for missing stagingDir path', async (): Promise<void> => {
       // @ts-expect-error - TS2554: Expected 3 arguments, but got 2
-      await expect(installer.copyGossipKeys('node1', '')).to.be.rejectedWith(MissingArgumentError);
+      await expect(installer.copyGossipKeys('node1', '')).to.be.rejectedWith(InternalArgumentGuardSoloError);
     });
   });
 });

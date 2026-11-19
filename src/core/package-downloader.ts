@@ -168,11 +168,11 @@ export class PackageDownloader {
    */
   public async fetchFile(url: string, destinationPath: string): Promise<string> {
     if (!url) {
-      throw new SoloErrors.validation.illegalArgument('package URL is required', url);
+      throw new SoloErrors.internal.argumentGuard('package URL is required', url);
     }
 
     if (!destinationPath) {
-      throw new SoloErrors.validation.illegalArgument('destination path is required', destinationPath);
+      throw new SoloErrors.internal.argumentGuard('destination path is required', destinationPath);
     }
 
     if (!this.isValidURL(url)) {
@@ -421,10 +421,10 @@ export class PackageDownloader {
    */
   public async fetchPlatform(tag: string, destinationDirectory: string, force: boolean = false): Promise<string> {
     if (!tag) {
-      throw new SoloErrors.validation.missingArgument('tag is required');
+      throw new SoloErrors.internal.argumentGuard('tag is required');
     }
     if (!destinationDirectory) {
-      throw new SoloErrors.validation.missingArgument('destination directory path is required');
+      throw new SoloErrors.internal.argumentGuard('destination directory path is required');
     }
 
     const releaseDirectory: string = Templates.prepareReleasePrefix(tag);

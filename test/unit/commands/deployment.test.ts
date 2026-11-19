@@ -27,6 +27,8 @@ import {PodReference} from '../../../src/integration/kube/resources/pod/pod-refe
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import * as constants from '../../../src/core/constants.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type ConfigManager} from '../../../src/core/config-manager.js';
+import {LedgerPhase} from '../../../src/data/schema/model/remote/ledger-phase.js';
 
 describe('DeploymentCommand unit tests', (): void => {
   type K8StubbedMethods = Pick<
@@ -166,6 +168,65 @@ describe('DeploymentCommand unit tests', (): void => {
     });
   });
 
+  describe('create() - chain ID', (): void => {
+    const chainIdDeploymentName: string = 'chain-id-deployment';
+    const chainIdNamespace: NamespaceName = NamespaceName.of('chain-id-namespace');
+
+    function buildCreateArgv(chainId: string): Argv {
+      const argv: Argv = Argv.getDefaultArgv(chainIdNamespace);
+      argv.setArg(flags.deployment, chainIdDeploymentName);
+      argv.setArg(flags.namespace, chainIdNamespace.name);
+      argv.setArg(flags.chainId, chainId);
+      return argv;
+    }
+
+    async function createdChainId(chainId: string): Promise<number> {
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+      await expect(deploymentCommand.create(buildCreateArgv(chainId).build())).to.eventually.be.true;
+
+      await localConfig.load();
+      return localConfig.configuration.chainIdForDeployment(chainIdDeploymentName);
+    }
+
+    it('should persist the --chain-id value in the local config', async (): Promise<void> => {
+      expect(await createdChainId('1234')).to.equal(1234);
+    });
+
+    it('should store the hex form the relay accepts as its decimal value', async (): Promise<void> => {
+      expect(await createdChainId('0x4d2')).to.equal(1234);
+    });
+
+    it('should persist the default chain ID when --chain-id is not set', async (): Promise<void> => {
+      expect(await createdChainId('')).to.equal(Number(flags.chainId.definition.defaultValue));
+    });
+
+    for (const invalidChainId of ['abc', '-5', '1.5', '0', '1e3']) {
+      it(`should reject --chain-id ${invalidChainId} before adding the deployment`, async (): Promise<void> => {
+        const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+        const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+        let thrownError: unknown;
+        try {
+          await deploymentCommand.create(buildCreateArgv(invalidChainId).build());
+        } catch (error) {
+          thrownError = error;
+        }
+
+        expect(thrownError).to.be.instanceof(SoloErrors.deployment.createFailed);
+        expect((thrownError as SoloError).cause).to.be.instanceof(SoloErrors.validation.invalidFlagValue);
+
+        await localConfig.load();
+        expect(
+          localConfig.configuration.deployments.some(
+            (deployment: Deployment): boolean => deployment.name === chainIdDeploymentName,
+          ),
+        ).to.be.false;
+      });
+    }
+  });
+
   describe('importConfig()', (): void => {
     const importedDeploymentName: string = 'alpha-prod';
     const importedNamespaceName: string = 'solo-alpha-prod';
@@ -232,8 +293,8 @@ describe('DeploymentCommand unit tests', (): void => {
       expect(imported?.clusters.map((cluster): string => cluster.toString())).to.deep.equal([importedClusterReference]);
     });
 
-    it("should read the realm and shard from a consensus node's application.properties", async (): Promise<void> => {
-      const applicationPropertiesContent: string = 'hedera.realm=3\nhedera.shard=2\n';
+    it("should read the realm, shard and chain ID from a consensus node's application.properties", async (): Promise<void> => {
+      const applicationPropertiesContent: string = 'hedera.realm=3\nhedera.shard=2\ncontracts.chainId=1234\n';
       k8Stub.pods = sinon.stub().returns({
         list: sinon
           .stub()
@@ -256,6 +317,7 @@ describe('DeploymentCommand unit tests', (): void => {
       );
       expect(imported?.realm).to.equal(3);
       expect(imported?.shard).to.equal(2);
+      expect(imported?.chainId).to.equal(1234);
     });
 
     it('should read the realm and shard from the shared data ConfigMap when no consensus node is running', async (): Promise<void> => {
@@ -290,7 +352,7 @@ describe('DeploymentCommand unit tests', (): void => {
       expect(imported?.shard).to.equal(1);
     });
 
-    it('should warn and fall back to the default realm and shard when they cannot be determined', async (): Promise<void> => {
+    it('should warn, fall back to the default realm and shard, and leave an unknown chain ID unset', async (): Promise<void> => {
       k8Stub.pods = sinon.stub().returns({list: sinon.stub().resolves([])});
 
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
@@ -304,6 +366,10 @@ describe('DeploymentCommand unit tests', (): void => {
         showUserStub.getCalls().some((call): boolean => String(call.args[0]).includes('realm')),
         'expected a warning about falling back to the default realm and shard',
       ).to.be.true;
+      expect(
+        showUserStub.getCalls().some((call): boolean => String(call.args[0]).includes('chain ID')),
+        'expected a warning that the chain ID could not be read',
+      ).to.be.true;
 
       await localConfig.load();
       const imported: Deployment | undefined = localConfig.configuration.deployments.find(
@@ -311,6 +377,8 @@ describe('DeploymentCommand unit tests', (): void => {
       );
       expect(imported?.realm).to.equal(0);
       expect(imported?.shard).to.equal(0);
+      // the v0.35.1 remote config predates the chain ID, so there is no fallback for it
+      expect(imported?.chainId).to.be.undefined;
     });
 
     it('should fail when no Solo deployment exists in the targeted context', async (): Promise<void> => {
@@ -441,7 +509,7 @@ describe('DeploymentCommand unit tests', (): void => {
   });
 
   describe('ports()', (): void => {
-    it('should include the static one-shot host ports when the deployment is one-shot', async (): Promise<void> => {
+    it('should include the chain ID and the static one-shot host ports when the deployment is one-shot', async (): Promise<void> => {
       const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
       const remoteConfigStub = {
         loadAndValidate: sinon.stub().resolves(),
@@ -499,6 +567,7 @@ describe('DeploymentCommand unit tests', (): void => {
           deploymentByName: sinon.stub().returns({
             name: constants.ONE_SHOT_DEPLOYMENT_NAME,
             namespace: namespace.name,
+            chainId: 1234,
             clusters: [{toString: (): string => 'cluster-1'}],
           }),
         },
@@ -512,7 +581,11 @@ describe('DeploymentCommand unit tests', (): void => {
       await expect(deploymentCommand.ports(argv.build())).to.eventually.be.true;
 
       const output: string = fs.readFileSync('test/data/tmp/output/forwarded-ports.json', 'utf8');
-      const report: {services: Record<string, unknown>} = JSON.parse(output) as {services: Record<string, unknown>};
+      const report: {chainId: number; services: Record<string, unknown>} = JSON.parse(output) as {
+        chainId: number;
+        services: Record<string, unknown>;
+      };
+      expect(report.chainId).to.equal(1234);
       expect(report.services.consensusNodeGrpc).to.deep.include({
         componentId: 1,
         localPort: constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT,
@@ -533,6 +606,34 @@ describe('DeploymentCommand unit tests', (): void => {
         localPort: constants.ONE_SHOT_MIRROR_REST_HOST_PORT,
         podPort: constants.ONE_SHOT_MIRROR_REST_NODE_PORT,
       });
+    });
+
+    it('should report the chain ID as unknown when the deployment has none stored', async (): Promise<void> => {
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      (deploymentCommand as unknown as {remoteConfig: unknown}).remoteConfig = {
+        loadAndValidate: sinon.stub().resolves(),
+        configuration: {state: {haProxies: [], mirrorNodes: [], relayNodes: [], explorers: [], blockNodes: []}},
+      };
+      (deploymentCommand as unknown as {localConfig: unknown}).localConfig = {
+        load: sinon.stub().resolves(),
+        configuration: {
+          deploymentByName: sinon.stub().returns({
+            name: deploymentName,
+            namespace: namespace.name,
+            clusters: [{toString: (): string => 'cluster-1'}],
+          }),
+        },
+      };
+      const logger: SoloLogger = container.resolve(InjectTokens.SoloLogger);
+      const showUserStub: SinonStub = sinon.stub(logger, 'showUser');
+
+      const argv: Argv = Argv.getDefaultArgv(namespace);
+      argv.setArg(flags.deployment, deploymentName);
+      argv.setArg(flags.output, 'wide');
+
+      await expect(deploymentCommand.ports(argv.build())).to.eventually.be.true;
+
+      expect(showUserStub.calledWith('Chain ID: unknown')).to.be.true;
     });
   });
 
@@ -727,6 +828,89 @@ describe('DeploymentCommand unit tests', (): void => {
 
       expect(thrownError).to.be.instanceof(SoloErrors.deployment.clusterAddFailed);
       expect((thrownError as SoloError).cause).to.equal(expectedCause);
+    });
+  });
+
+  describe('checkNetworkState() - consensus node count for an additional cluster', (): void => {
+    type NetworkStateTask = ReturnType<DeploymentCommand['checkNetworkState']>;
+    type NetworkStateContext = Parameters<NetworkStateTask['task']>[0];
+    type NetworkStateTaskWrapper = Parameters<NetworkStateTask['task']>[1];
+
+    const runCheckNetworkState = async (
+      numberOfConsensusNodes?: number,
+      isFirstCluster: boolean = false,
+      quiet: boolean = true,
+    ): Promise<NetworkStateContext> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+      await localConfig.load();
+      if (isFirstCluster) {
+        // a deployment with no attached cluster has no remote config to read
+        sinon.stub(localConfig, 'configuration').get(() => ({deploymentByName: () => ({clusters: []})}));
+      }
+      const remoteConfig: RemoteConfigRuntimeStateApi = container.resolve(InjectTokens.RemoteConfigRuntimeState);
+      sinon.stub(remoteConfig, 'populateFromExisting').resolves();
+      sinon.stub(remoteConfig, 'configuration').get(() => ({
+        ledger: {phase: LedgerPhase.UNINITIALIZED},
+        state: {consensusNodes: {node1: {}}},
+      }));
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const context: NetworkStateContext = {
+        config: {deployment: deploymentName, numberOfConsensusNodes, quiet, namespace},
+      } as unknown as NetworkStateContext;
+
+      await deploymentCommand.checkNetworkState().task(context, {} as NetworkStateTaskWrapper);
+      return context;
+    };
+
+    it('should default to zero consensus nodes when --num-consensus-nodes is omitted in quiet mode', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState();
+
+      expect(context.config.numberOfConsensusNodes).to.equal(0);
+      expect(context.config.nodeAliases).to.deep.equal([]);
+    });
+
+    it('should prompt for --num-consensus-nodes instead of defaulting to zero when not in quiet mode', async (): Promise<void> => {
+      const configManager: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const executePrompt: SinonStub = sinon.stub(configManager, 'executePrompt').resolves();
+      const getFlag: SinonStub = sinon.stub(configManager, 'getFlag').callThrough();
+      getFlag.withArgs(flags.numberOfConsensusNodes).returns(2);
+
+      const context: NetworkStateContext = await runCheckNetworkState(undefined, false, false);
+
+      expect(executePrompt).to.have.been.calledOnce;
+      expect(context.config.numberOfConsensusNodes).to.equal(2);
+      expect(context.config.nodeAliases).to.deep.equal(['node2', 'node3']);
+    });
+
+    it('should accept an explicit --num-consensus-nodes 0 in quiet mode', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState(0);
+
+      expect(context.config.numberOfConsensusNodes).to.equal(0);
+      expect(context.config.nodeAliases).to.deep.equal([]);
+    });
+
+    it('should still require --num-consensus-nodes for the first cluster in quiet mode', async (): Promise<void> => {
+      let thrown: unknown;
+      try {
+        await runCheckNetworkState(undefined, true);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect((thrown as SoloError)?.constructor.name).to.equal('ConsensusNodeCountRequiredError');
+    });
+
+    it('should accept an explicit --num-consensus-nodes 0 for the first cluster in quiet mode', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState(0, true);
+
+      expect(context.config.nodeAliases).to.deep.equal([]);
+    });
+
+    it('should number new consensus nodes after the existing ones', async (): Promise<void> => {
+      const context: NetworkStateContext = await runCheckNetworkState(2);
+
+      expect(context.config.nodeAliases).to.deep.equal(['node2', 'node3']);
     });
   });
 });

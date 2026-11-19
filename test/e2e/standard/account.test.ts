@@ -13,8 +13,6 @@ import {
   type Key,
   Logger,
   LogLevel,
-  Long,
-  NodeUpdateTransaction,
   PrivateKey,
   Status,
   TopicCreateTransaction,
@@ -22,6 +20,8 @@ import {
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
+import {type HederaClient} from '../../../src/integration/hedera/hedera-client.js';
+import {type HederaTransactionStatus} from '../../../src/integration/hedera/hedera-transaction-status.js';
 import * as constants from '../../../src/core/constants.js';
 import * as version from '../../../version.js';
 import {
@@ -229,22 +229,21 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
           });
 
           it(`the admin key in the secret of ${nodeAlias} should sign its node updates`, async (): Promise<void> => {
-            const nodeClient: Client = await accountManager.loadNodeClient(
+            const nodeClient: HederaClient = await accountManager.loadNodeClient(
               namespace,
               remoteConfig.getClusterRefs(),
               argv.getArg<DeploymentName>(flags.deployment),
               argv.getArg<boolean>(flags.forcePortForward),
             );
 
-            const nodeUpdateTransaction: NodeUpdateTransaction = await new NodeUpdateTransaction()
-              .setNodeId(Long.fromNumber(Templates.nodeIdFromNodeAlias(nodeAlias)))
-              .setDescription(nodeAlias)
-              .freezeWith(nodeClient)
-              .sign(PrivateKey.fromStringED25519(await readNodeAdminKey(nodeAlias)));
-            const transactionResponse: TransactionResponse = await nodeUpdateTransaction.execute(nodeClient);
-            const receipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+            const adminKey: string = await readNodeAdminKey(nodeAlias);
+            const status: HederaTransactionStatus = await nodeClient.updateNode({
+              nodeId: Templates.nodeIdFromNodeAlias(nodeAlias),
+              description: nodeAlias,
+              signingKeys: [PrivateKey.fromStringED25519(adminKey)],
+            });
 
-            expect(receipt.status).to.equal(Status.Success);
+            expect(status.status).to.equal('SUCCESS');
           }).timeout(Duration.ofMinutes(1).toMillis());
         }
       });
