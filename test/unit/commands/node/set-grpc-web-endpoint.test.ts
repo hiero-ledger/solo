@@ -12,6 +12,7 @@ import {
   ReceiptStatusError,
   Status,
   TransactionId,
+  type ServiceEndpoint,
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
@@ -108,10 +109,13 @@ async function runTask(task: SoloListrTask<AnyListrContext>, config: Record<stri
   await task.task({config} as unknown as AnyListrContext, {} as unknown as SoloListrTaskWrapper<AnyListrContext>);
 }
 
-async function setGrpcWebEndpoint(tasks: NodeCommandTasks): Promise<void> {
+async function setGrpcWebEndpoint(
+  tasks: NodeCommandTasks,
+  configOverrides: Record<string, unknown> = {},
+): Promise<void> {
   await runTask(
     tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START) as unknown as SoloListrTask<AnyListrContext>,
-    {namespace, deployment: 'solo-deployment', nodeAliases, consensusNodes},
+    {namespace, deployment: 'solo-deployment', nodeAliases, consensusNodes, ...configOverrides},
   );
 }
 
@@ -138,6 +142,7 @@ describe('NodeCommandTasks admin key signing', (): void => {
   let logger: FakeLogger;
   let tasks: NodeCommandTasks;
   let signSpy: SinonSpy;
+  let setServiceEndpointsSpy: SinonSpy;
   let executeStub: SinonStub;
 
   beforeEach((): void => {
@@ -148,6 +153,7 @@ describe('NodeCommandTasks admin key signing', (): void => {
     logger = {debug: sinon.stub(), showUser: sinon.stub()};
     tasks = createTasks(adminKeySecrets, client, logger);
     signSpy = sinon.spy(NodeUpdateTransaction.prototype, 'sign');
+    setServiceEndpointsSpy = sinon.spy(NodeUpdateTransaction.prototype, 'setServiceEndpoints');
     executeStub = sinon.stub(NodeUpdateTransaction.prototype, 'execute').resolves(responseWithStatus(Status.Success));
   });
 
@@ -186,6 +192,132 @@ describe('NodeCommandTasks admin key signing', (): void => {
 
       await expect(setGrpcWebEndpoint(tasks)).to.be.rejectedWith(SoloError);
       expect(logger.showUser.called).to.be.false;
+    });
+
+    it('publishes only internal cluster IP endpoint by default', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks);
+
+      expect(setServiceEndpointsSpy.callCount).to.equal(2);
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+      expect(node1Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 1]));
+
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints).to.have.lengthOf(1);
+      expect(node2Endpoints[0].getPort).to.equal(50_211);
+      expect(node2Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 2]));
+    });
+
+    it('publishes dual endpoints (internal + host) when publishHostEndpoints is true', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {publishHostEndpoints: true});
+
+      expect(setServiceEndpointsSpy.callCount).to.equal(2);
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+      expect(node1Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 1]));
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(node1Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints).to.have.lengthOf(2);
+      expect(node2Endpoints[0].getPort).to.equal(50_211);
+      expect(node2Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 2]));
+      expect(node2Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT + 1);
+      expect(node2Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+    });
+
+    it('publishes custom host ports when serviceEndpointPortMapping is provided', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints[1].getPort).to.equal(36_211);
+    });
+
+    it('publishes host endpoint with domain name when domainNamesMapping is provided', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        domainNamesMapping: {node1: 'node1.solo.local'},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[1].getDomainName).to.equal('node1.solo.local');
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+
+      expect(node1Endpoints[1].getIpAddressV4).to.be.null;
+    });
+
+    it('publishes host endpoint with custom external address when provided', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        externalAddress: '192.168.1.150',
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([192, 168, 1, 150]));
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+    });
+
+    it('deduplicates when host endpoint matches internal endpoint', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        externalAddress: '10.0.0.1',
+        serviceEndpointPortMapping: {nodeAliasToPort: {node1: 50_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+  });
+
+  describe('resolveHostGrpcPort', (): void => {
+    it('prefers explicit CLI serviceEndpointPortMapping per node or default', (): void => {
+      const port: number = tasks.resolveHostGrpcPort('node2', 1, {nodeAliasToPort: {node2: 36_211}});
+      expect(port).to.equal(36_211);
+
+      const defaultPort: number = tasks.resolveHostGrpcPort('node1', 0, {
+        defaultPort: 39_211,
+        nodeAliasToPort: {},
+      });
+      expect(defaultPort).to.equal(39_211);
+    });
+
+    it('prefers active RemoteConfig HAProxy port forward when CLI mapping is absent', (): void => {
+      const mockComponent = {
+        metadata: {
+          portForwardConfigs: [{podPort: constants.GRPC_PORT, localPort: 37_211}],
+        },
+      };
+      (tasks as unknown as {remoteConfig: unknown}).remoteConfig = {
+        configuration: {
+          components: {
+            getComponentById: (_type: unknown, id: number): unknown => {
+              return id === 2 ? mockComponent : undefined; // node2 -> componentId 2
+            },
+          },
+        },
+      };
+
+      const port: number = tasks.resolveHostGrpcPort('node2', 1);
+      expect(port).to.equal(37_211);
+    });
+
+    it('falls back to deterministic default (GRPC_LOCAL_PORT + nodeId)', (): void => {
+      const portNode1: number = tasks.resolveHostGrpcPort('node1', 0);
+      expect(portNode1).to.equal(constants.GRPC_LOCAL_PORT);
+
+      const portNode2: number = tasks.resolveHostGrpcPort('node2', 1);
+      expect(portNode2).to.equal(constants.GRPC_LOCAL_PORT + 1);
     });
   });
 

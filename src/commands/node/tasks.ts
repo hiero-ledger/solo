@@ -56,6 +56,7 @@ import {
   prepareEndpoints,
   renameAndCopyFile,
   parseIpAddressToUint8Array,
+  isIpV4Address,
   resolveGossipFqdnRestricted,
   showVersionBanner,
   sleep,
@@ -112,6 +113,7 @@ import {
   type EndpointPortMapping,
   type NodeAliasToAddressMapping,
   type Optional,
+  type PortForwardConfig,
   type PriorityMapping,
   type Realm,
   type Shard,
@@ -2179,6 +2181,51 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Resolves the host-reachable gRPC port for a consensus node.
+   * Precedence order:
+   * 1. Explicit CLI mapping in serviceEndpointPortMapping (e.g. --service-endpoint-port node2=36211)
+   * 2. Active RemoteConfig HAProxy port-forward configuration from cluster state
+   * 3. Deterministic default: constants.GRPC_LOCAL_PORT + nodeId
+   */
+  public resolveHostGrpcPort(
+    nodeAlias: NodeAlias,
+    nodeId: number,
+    serviceEndpointPortMapping?: EndpointPortMapping,
+  ): number {
+    // 1. Explicit CLI mapping
+    if (serviceEndpointPortMapping) {
+      if (serviceEndpointPortMapping.nodeAliasToPort?.[nodeAlias] !== undefined) {
+        return serviceEndpointPortMapping.nodeAliasToPort[nodeAlias];
+      }
+      if (serviceEndpointPortMapping.defaultPort !== undefined) {
+        return serviceEndpointPortMapping.defaultPort;
+      }
+    }
+
+    // 2. Active RemoteConfig HAProxy port-forward
+    try {
+      const componentId: ComponentId = Templates.renderComponentIdFromNodeId(nodeId);
+      const component: BaseStateSchema | undefined = this.remoteConfig?.configuration?.components?.getComponentById(
+        ComponentTypes.HaProxy,
+        componentId,
+      );
+      if (component?.metadata?.portForwardConfigs) {
+        const activeConfig: PortForwardConfig | undefined = component.metadata.portForwardConfigs.find(
+          (c: PortForwardConfig): boolean => c.podPort === constants.GRPC_PORT,
+        );
+        if (activeConfig?.localPort) {
+          return activeConfig.localPort;
+        }
+      }
+    } catch {
+      // Fall through to deterministic default if remoteConfig is not initialized/accessible
+    }
+
+    // 3. Deterministic default: base port + nodeId
+    return constants.GRPC_LOCAL_PORT + nodeId;
+  }
+
   public setGrpcWebEndpoint(
     nodeAliasesProperty: string,
     subcommandType: NodeSubcommandType,
@@ -2276,6 +2323,46 @@ export class NodeCommandTasks {
             ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
           });
 
+          const serviceEndpoints: ServiceEndpoint[] = [grpcServiceEndpoint];
+
+          const shouldPublishHostEndpoints: boolean = Boolean(
+            config.publishHostEndpoints ??
+            this.configManager?.getFlag<boolean>(flags.publishHostEndpoints) ??
+            (config.serviceEndpointPortMapping &&
+              (config.serviceEndpointPortMapping.nodeAliasToPort?.[nodeAlias] !== undefined ||
+                config.serviceEndpointPortMapping.defaultPort !== undefined)),
+          );
+
+          if (shouldPublishHostEndpoints) {
+            const hostAddress: string =
+              config.domainNamesMapping?.[nodeAlias] ||
+              config.externalAddress ||
+              this.configManager?.getFlag<string>(flags.externalAddress) ||
+              constants.LOCAL_HOST;
+            const hostPort: number = this.resolveHostGrpcPort(
+              nodeAlias,
+              Number(networkNodeService.nodeId),
+              config.serviceEndpointPortMapping,
+            );
+
+            const isDuplicate: boolean =
+              hostPort === networkNodeService.nodeServiceGrpcPort && hostAddress === grpcIpAddress;
+
+            if (!isDuplicate) {
+              const hostServiceEndpoint: ServiceEndpoint = isIpV4Address(hostAddress)
+                ? new ServiceEndpoint({
+                    port: hostPort,
+                    ipAddressV4: parseIpAddressToUint8Array(hostAddress),
+                  })
+                : new ServiceEndpoint({
+                    port: hostPort,
+                    domainName: hostAddress,
+                  });
+
+              serviceEndpoints.push(hostServiceEndpoint);
+            }
+          }
+
           const nodeAdminKey: PrivateKey = await this.accountManager.getNodeAdminKey(
             nodeAlias,
             namespace,
@@ -2286,7 +2373,7 @@ export class NodeCommandTasks {
             updateStatus = await nodeClient.updateNode({
               nodeId: Number(networkNodeService.nodeId),
               grpcWebProxyEndpoint,
-              serviceEndpoints: [grpcServiceEndpoint],
+              serviceEndpoints,
               signingKeys: [nodeAdminKey],
             });
           } catch (error) {
@@ -2373,6 +2460,8 @@ export class NodeCommandTasks {
       adminPublicKeys = parsed;
     }
 
+    const publishHostEndpoints: boolean = this.configManager.getFlag<boolean>(flags.publishHostEndpoints);
+
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -2382,6 +2471,7 @@ export class NodeCommandTasks {
       domainNamesMapping,
       gossipEndpointPortMapping,
       serviceEndpointPortMapping,
+      publishHostEndpoints,
     );
 
     const networkJson: string = PathEx.join(stagingDirectory, fileName);
@@ -2570,11 +2660,16 @@ export class NodeCommandTasks {
               nodeId = Templates.nodeIdFromNodeAlias(match[1] as NodeAlias);
             }
 
+            const nodeAlias: NodeAlias =
+              (pod.labels?.['solo.hedera.com/node-name'] as NodeAlias) ??
+              Templates.renderNodeAliasFromNumber(Templates.renderComponentIdFromNodeId(nodeId));
+            const localPort: number = this.resolveHostGrpcPort(nodeAlias, nodeId, config.serviceEndpointPortMapping);
+
             await this.remoteConfig.configuration.components.managePortForward(
               undefined,
               podReference,
               constants.GRPC_PORT, // Pod port
-              constants.GRPC_LOCAL_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
+              localPort,
               this.k8Factory.getK8(context),
               this.logger,
               ComponentTypes.HaProxy,
@@ -4087,6 +4182,49 @@ export class NodeCommandTasks {
         }
 
         context_.grpcServiceEndpoints = prepareEndpoints(config.endpointType, endpoints, servicePort);
+
+        const shouldPublishHostEndpoints: boolean = Boolean(
+          config.publishHostEndpoints ??
+          this.configManager?.getFlag<boolean>(flags.publishHostEndpoints) ??
+          (config.serviceEndpointPortMapping &&
+            (config.serviceEndpointPortMapping.nodeAliasToPort?.[config.nodeAlias] !== undefined ||
+              config.serviceEndpointPortMapping.defaultPort !== undefined)),
+        );
+
+        if (shouldPublishHostEndpoints) {
+          const hostAddress: string =
+            config.domainNamesMapping?.[config.nodeAlias] ||
+            config.externalAddress ||
+            this.configManager?.getFlag<string>(flags.externalAddress) ||
+            constants.LOCAL_HOST;
+          const hostPort: number = this.resolveHostGrpcPort(
+            config.nodeAlias,
+            Templates.nodeIdFromNodeAlias(config.nodeAlias),
+            config.serviceEndpointPortMapping,
+          );
+
+          const hostServiceEndpoint: ServiceEndpoint = isIpV4Address(hostAddress)
+            ? new ServiceEndpoint({
+                port: hostPort,
+                ipAddressV4: parseIpAddressToUint8Array(hostAddress),
+              })
+            : new ServiceEndpoint({
+                port: hostPort,
+                domainName: hostAddress,
+              });
+
+          const isDuplicate: boolean = context_.grpcServiceEndpoints.some(
+            (ep: ServiceEndpoint): boolean =>
+              ep.getPort === hostPort &&
+              (isIpV4Address(hostAddress)
+                ? ep.getIpAddressV4?.toString() === parseIpAddressToUint8Array(hostAddress).toString()
+                : ep.getDomainName === hostAddress),
+          );
+
+          if (!isDuplicate) {
+            context_.grpcServiceEndpoints.push(hostServiceEndpoint);
+          }
+        }
       },
     };
   }

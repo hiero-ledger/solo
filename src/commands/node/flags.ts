@@ -66,6 +66,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.domainNames,
   flags.gossipEndpointPort,
   flags.serviceEndpointPort,
+  flags.publishHostEndpoints,
   // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
   flags.consensusNodeVersion,
@@ -153,6 +154,7 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.domainNames,
   flags.gossipEndpointPort,
   flags.serviceEndpointPort,
+  flags.publishHostEndpoints,
   // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
   flags.consensusNodeVersion,
@@ -182,6 +184,7 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.domainNames,
   flags.gossipEndpointPort,
   flags.serviceEndpointPort,
+  flags.publishHostEndpoints,
   flags.cacheDir,
   flags.endpointType,
   flags.generateGossipKeys,
@@ -271,6 +274,8 @@ export const REFRESH_FLAGS: CommandFlags = {
     flags.domainNames,
     flags.gossipEndpointPort,
     flags.serviceEndpointPort,
+    flags.publishHostEndpoints,
+    flags.externalAddress,
     flags.force,
   ],
 };
@@ -323,6 +328,7 @@ export const START_FLAGS: CommandFlags = {
     flags.domainNames,
     flags.gossipEndpointPort,
     flags.serviceEndpointPort,
+    flags.publishHostEndpoints,
   ],
 };
 
@@ -349,6 +355,8 @@ export const SETUP_FLAGS: CommandFlags = {
     flags.domainNames,
     flags.gossipEndpointPort,
     flags.serviceEndpointPort,
+    flags.publishHostEndpoints,
+    flags.externalAddress,
     flags.force,
   ],
 };
