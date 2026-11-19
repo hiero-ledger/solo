@@ -4,7 +4,7 @@ import {readFileSync, renameSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
-import {Contract, Failure, EXIT} from './contract.mjs';
+import {Contract, Failure, EXIT, MIRROR_URL} from './contract.mjs';
 import {Processes} from './process.mjs';
 
 export class Probe {
@@ -176,7 +176,7 @@ async function worker(mode, directory) {
         evidence.topicId = topic.topicId.toString();
         evidence.message = await message(evidence.topicId, `solo-tck ${configuration.candidateSha} ${Date.now()}`);
       });
-      await probe('P6', () => Probe.readbacks(configuration.mirrorUrl, evidence));
+      await probe('P6', () => Probe.readbacks(MIRROR_URL, evidence));
     } else if (mode === 'load') {
       const stored = JSON.parse(readFileSync(stateFile, 'utf8'));
       account = sdk.AccountId.fromString(stored.accountId);
@@ -221,7 +221,7 @@ async function worker(mode, directory) {
         if (load.submitted !== 2400 || load.successful !== 2400) {
           throw new Failure('candidate', 'Not all 2400 load transactions received SUCCESS');
         }
-        await Probe.readbacks(configuration.mirrorUrl, {transfer: load.lastTransfer, message: load.lastMessage});
+        await Probe.readbacks(MIRROR_URL, {transfer: load.lastTransfer, message: load.lastMessage});
         load.elapsedMilliseconds = Math.round(performance.now() - started);
       });
     } else {

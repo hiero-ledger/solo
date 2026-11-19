@@ -217,7 +217,6 @@ async function run(arguments_) {
         JSON.stringify({
           sdkEntry: result.identity.imported,
           soloBinary,
-          mirrorUrl: 'http://127.0.0.1:38081',
           candidateSha: process.env.GITHUB_SHA || result.candidates['@hiero-ledger/sdk'].integrity,
         }),
       );

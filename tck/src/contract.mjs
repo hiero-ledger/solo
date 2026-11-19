@@ -5,6 +5,8 @@ import {parseArgs} from 'node:util';
 export const PROBES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'];
 export const EXIT = {candidate: 1, invalid: 2, environment: 3, kit: 4, unknown: 5};
 export const PACKAGES = ['@hiero-ledger/sdk', '@hiero-ledger/proto', '@hiero-ledger/cryptography'];
+// Solo one-shot's fixed Mirror REST port; never read from run state, so probes cannot be redirected.
+export const MIRROR_URL = 'http://127.0.0.1:38081';
 export const LIMITS = {
   total: 1_200_000,
   cleanup: 180_000,
