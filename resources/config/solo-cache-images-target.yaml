@@ -5,6 +5,7 @@ templates:
   - EXPLORER_VERSION
   - MINIO_OPERATOR_VERSION
   - MINIO_IMAGE_DIGEST
+  - POSTGRES_IMAGE_DIGEST
   - SOLO_CHEETAH_VERSION
   - SOLO_CONTAINERS_VERSION
 
@@ -78,8 +79,9 @@ images:
 
   # ---
 
-  - name: docker.io/bitnami/postgresql
-    version: latest
+  # Pinned by digest: Bitnami publishes free PostgreSQL images only under the floating "latest" tag.
+  - name: docker.io/bitnami/postgresql@sha256
+    version: POSTGRES_IMAGE_DIGEST
     source: docker.io
 
   - name: docker.io/bitnamilegacy/postgresql-repmgr

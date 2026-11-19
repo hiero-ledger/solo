@@ -44,6 +44,7 @@ export class InjectTokens {
   public static NetworkCommand: symbol = Symbol.for('NetworkCommand');
   public static RelayCommand: symbol = Symbol.for('RelayCommand');
   public static CacheCommand: symbol = Symbol.for('CacheCommand');
+  public static UpdateCommand: symbol = Symbol.for('UpdateCommand');
   public static ClusterCommandTasks: symbol = Symbol.for('ClusterCommandTasks');
   public static ClusterCommandHandlers: symbol = Symbol.for('ClusterCommandHandlers');
   public static NodeCommandTasks: symbol = Symbol.for('NodeCommandTasks');
@@ -58,6 +59,7 @@ export class InjectTokens {
   public static KeyFormatter: symbol = Symbol.for('KeyFormatter');
   public static CommandInvoker: symbol = Symbol.for('CommandInvoker');
   public static ConfigProvider: symbol = Symbol.for('ConfigProvider');
+  public static FeatureFlags: symbol = Symbol.for('FeatureFlags');
   public static BlockNodeCommand: symbol = Symbol.for('BlockNodeCommand');
   public static RapidFireCommand: symbol = Symbol.for('RapidFireCommand');
   public static LocalConfigFileName: symbol = Symbol.for('LocalConfigFileName');
@@ -115,6 +117,7 @@ export class InjectTokens {
   public static ImageCacheHandlerBuilder: symbol = Symbol.for('ImageCacheHandlerBuilder');
   public static ContainerEngineClient: symbol = Symbol.for('ContainerEngineClient');
   public static ContainerEngineResourceInspector: symbol = Symbol.for('ContainerEngineResourceInspector');
+  public static ClusterStateService: symbol = Symbol.for('ClusterStateService');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
@@ -129,6 +132,7 @@ export class InjectTokens {
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
   public static CacheCommandDefinition: symbol = Symbol.for('CacheCommandDefinition');
+  public static UpdateCommandDefinition: symbol = Symbol.for('UpdateCommandDefinition');
   public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
   public static RapidFireCommandDefinition: symbol = Symbol.for('RapidFireCommandDefinition');
 }

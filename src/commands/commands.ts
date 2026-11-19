@@ -18,6 +18,7 @@ import {RelayCommandDefinition} from './command-definitions/relay-command-defini
 import {RapidFireCommandDefinition} from './command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommandDefinition} from './command-definitions/backup-restore-command-definition.js';
 import {CacheCommandDefinition} from './command-definitions/cache-command-definition.js';
+import {UpdateCommandDefinition} from './command-definitions/update-command-definition.js';
 
 /**
  * Return a list of Yargs command builder to be exposed through CLI
@@ -42,6 +43,7 @@ export class Commands {
     @inject(InjectTokens.OneShotCommandDefinition) private readonly oneShot?: OneShotCommandDefinition,
     @inject(InjectTokens.RapidFireCommandDefinition) private readonly rapidFire?: RapidFireCommandDefinition,
     @inject(InjectTokens.CacheCommandDefinition) private readonly cache?: CacheCommandDefinition,
+    @inject(InjectTokens.UpdateCommandDefinition) private readonly update?: UpdateCommandDefinition,
   ) {
     this.backupRestore = patchInject(backupRestore, InjectTokens.BackupRestoreCommandDefinition, this.constructor.name);
     this.block = patchInject(block, InjectTokens.BlockCommandDefinition, this.constructor.name);
@@ -57,6 +59,7 @@ export class Commands {
     this.oneShot = patchInject(oneShot, InjectTokens.OneShotCommandDefinition, this.constructor.name);
     this.rapidFire = patchInject(rapidFire, InjectTokens.RapidFireCommandDefinition, this.constructor.name);
     this.cache = patchInject(cache, InjectTokens.CacheCommandDefinition, this.constructor.name);
+    this.update = patchInject(update, InjectTokens.UpdateCommandDefinition, this.constructor.name);
   }
 
   public getCommandDefinitions(): CommandDefinition[] {
@@ -75,6 +78,7 @@ export class Commands {
       this.cache.getCommandDefinition(),
       this.oneShot.getCommandDefinition(),
       this.rapidFire.getCommandDefinition(),
+      this.update.getCommandDefinition(),
     ];
   }
 }

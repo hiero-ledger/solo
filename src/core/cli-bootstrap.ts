@@ -5,6 +5,7 @@ import {container} from 'tsyringe-neo';
 import {type ErrorHandler} from './error-handler.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {SilentBreak} from './errors/silent-break.js';
+import {ExitCode} from './exit-code.js';
 
 export class CliBootstrap {
   /**
@@ -38,7 +39,7 @@ export class CliBootstrap {
           }
           // Any other resolve failure — a bad token, an unrelated constructor throwing — was never reported,
           // and exiting 1 with no output at all is harder to diagnose than the error itself.
-          process.exitCode = 1;
+          process.exitCode = ExitCode.FAILURE;
           process.stderr.write(`\nsolo: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
           return;
         }
@@ -47,10 +48,10 @@ export class CliBootstrap {
 
     if (context.logger) {
       // eslint-disable-next-line unicorn/no-process-exit, n/no-process-exit
-      context.logger.flush((): void => process.exit(process.exitCode ?? 0));
+      context.logger.flush((): void => process.exit(process.exitCode ?? ExitCode.SUCCESS));
     } else {
       // eslint-disable-next-line unicorn/no-process-exit, n/no-process-exit
-      process.exit(process.exitCode ?? 0);
+      process.exit(process.exitCode ?? ExitCode.SUCCESS);
     }
   }
 }

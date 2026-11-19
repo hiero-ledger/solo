@@ -44,7 +44,7 @@ jobs:
       need-hl-release: ${{ steps.set-outputs.outputs.need-hl-release }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -155,7 +155,7 @@ jobs:
       hl-package-name: ${{ steps.set-hl-package-name.outputs.hl-package-name }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -201,7 +201,7 @@ jobs:
       need-hl-publish: ${{ steps.verify-hl-package.outputs.need-hl-publish }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -273,11 +273,13 @@ jobs:
       - name: Upload Logs
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # Diagnostics only: an artifact service outage must not fail a passing job or skip the steps after it.
+        continue-on-error: true
         with:
           path: /home/runner/.npm/_logs
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@1a84ddcff2d475751d8392ef6d7ecb478a7cfe53 # v5.3.1
+        uses: jfrog/setup-jfrog-cli@ae385c7164244e984cd20a58674e5b57f53596d7 # v5.3.4
         env:
           JF_URL: ${{ vars.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
@@ -478,7 +480,7 @@ jobs:
     if: ${{ needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -594,7 +596,7 @@ jobs:
       - capture-image-cache-cluster-images
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -638,13 +640,13 @@ jobs:
           set -euo pipefail
           gh release upload --clobber "v${RELEASE_VERSION}" cache-manifest.json --repo "${GITHUB_REPOSITORY}"
 
-  # Attaches the Linux SEA binaries, install.sh and SHA256SUMS to the GitHub Release.
-  publish-linux-installer:
-    name: Publish Linux Installer Assets
+  # Attaches the Linux and macOS SEA binaries, install.sh and SHA256SUMS to the GitHub Release.
+  publish-installer:
+    name: Publish Installer Assets
     runs-on: hiero-solo-linux-medium
     permissions:
       contents: read # the release upload authenticates with GH_ACCESS_TOKEN, not GITHUB_TOKEN
-    # A failed non-Linux SEA leg must not block the Linux assets; a missing linux-x64 binary fails below.
+    # A failed macOS or Windows SEA leg must not block the Linux assets; a missing linux-x64 binary fails below.
     if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && needs.create-github-release.result == 'success' }}
     needs:
       - prepare-release
@@ -652,7 +654,7 @@ jobs:
       - build-sea
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -669,14 +671,21 @@ jobs:
           path: sea-artifacts
           merge-multiple: true
 
+      - name: Download macOS SEA Binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: solo-darwin-*
+          path: sea-artifacts
+          merge-multiple: true
+
       - name: Stage Release Assets
         run: |
           set -euo pipefail
           # The SEA artifacts also hold build intermediates (.blob, .cjs, .json); publish only the binaries.
           [[ -f sea-artifacts/solo-linux-x64 ]] || { echo "::error::the solo-linux-x64 SEA binary was not built"; exit 1; }
           binaries=(solo-linux-x64)
-          # A failed arm64 or musl leg must not block the x64 assets; install.sh then points those users to npm.
-          for binary in solo-linux-arm64 solo-linux-x64-musl solo-linux-arm64-musl; do
+          # A failed arm64, musl or macOS leg must not block the x64 assets; install.sh then points those users to npm.
+          for binary in solo-linux-arm64 solo-linux-x64-musl solo-linux-arm64-musl solo-darwin-arm64 solo-darwin-x64; do
             if [[ -f "sea-artifacts/${binary}" ]]; then
               binaries+=("${binary}")
             else
@@ -714,7 +723,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 

@@ -40,6 +40,11 @@ import {K8} from '../../integration/kube/k8.js';
 import {type ConfigMaps} from '../../integration/kube/resources/config-map/config-maps.js';
 import {HelmChartValues} from '../../integration/helm/model/values.js';
 import {Flags} from '../flags.js';
+import {type ClusterStateService} from '../../integration/container-engine/cluster-state-service.js';
+import {type ContainerEngineState} from '../../integration/container-engine/container-engine-state.js';
+import {type KindClusterContainer} from '../../integration/container-engine/kind-cluster-container.js';
+import {OperatingSystem} from '../../business/utils/operating-system.js';
+import {Helpers} from '../../core/helpers.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -63,6 +68,7 @@ export class ClusterCommandTasks {
     @inject(InjectTokens.ClusterChecks) private readonly clusterChecks: ClusterChecks,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeState,
     @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
+    @inject(InjectTokens.ClusterStateService) private readonly clusterStateService: ClusterStateService,
   ) {
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -72,6 +78,11 @@ export class ClusterCommandTasks {
     this.clusterChecks = patchInject(clusterChecks, InjectTokens.ClusterChecks, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
+    this.clusterStateService = patchInject(
+      clusterStateService,
+      InjectTokens.ClusterStateService,
+      this.constructor.name,
+    );
   }
 
   public async installMinioOperatorChart(clusterSetupNamespace: NamespaceName, context: Context): Promise<void> {
@@ -318,6 +329,167 @@ export class ClusterCommandTasks {
         this.logger.showUserUnlessOneShot(task.output);
       },
     };
+  }
+
+  public startClusterState(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Start container engine and Kind cluster containers',
+      task: async (): Promise<void> => {
+        const engineState: ContainerEngineState = await this.clusterStateService.startEngine();
+
+        const containers: KindClusterContainer[] = await this.listSoloKindClusterContainers(engineState.engineName);
+
+        const stoppedContainers: KindClusterContainer[] = containers.filter((container): boolean => !container.running);
+        if (stoppedContainers.length === 0) {
+          this.logger.showUser(
+            `✅ Kind cluster container(s) already running: ${ClusterCommandTasks.describeContainers(containers)}`,
+          );
+          return;
+        }
+
+        await this.clusterStateService.startContainers(stoppedContainers);
+        this.logger.showUser(
+          `✅ Started Kind cluster container(s): ${ClusterCommandTasks.describeContainers(stoppedContainers)}`,
+        );
+      },
+    };
+  }
+
+  public stopClusterState(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Stop Kind cluster containers',
+      task: async (): Promise<void> => {
+        const engineState: ContainerEngineState = await this.clusterStateService.getEngineState();
+        if (!engineState.engineName) {
+          throw new SoloErrors.system.containerEngineNotFound();
+        }
+        if (!engineState.running) {
+          this.logger.showUser(
+            '✅ Container engine is not running, so any Kind cluster containers are already stopped',
+          );
+          return;
+        }
+
+        const containers: KindClusterContainer[] = await this.listSoloKindClusterContainers(engineState.engineName);
+
+        const runningContainers: KindClusterContainer[] = containers.filter((container): boolean => container.running);
+        if (runningContainers.length === 0) {
+          this.logger.showUser(
+            `✅ Kind cluster container(s) already stopped: ${ClusterCommandTasks.describeContainers(containers)}`,
+          );
+          return;
+        }
+
+        await this.clusterStateService.stopContainers(runningContainers);
+        this.logger.showUser(
+          `✅ Stopped Kind cluster container(s): ${ClusterCommandTasks.describeContainers(runningContainers)}`,
+        );
+      },
+    };
+  }
+
+  public showClusterStateInfo(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Get local cluster state info',
+      task: async (): Promise<void> => {
+        const engineState: ContainerEngineState = await this.clusterStateService.getEngineState();
+        const machineBased: boolean = OperatingSystem.isDarwin() || OperatingSystem.isWin32();
+        const engineDescription: string = machineBased
+          ? `${engineState.engineName ?? 'none detected'} (Docker Desktop / Podman machine)`
+          : (engineState.engineName ?? 'none detected');
+
+        const lines: string[] = [
+          `Container engine:        ${engineDescription}`,
+          `Container engine state:  ${engineState.engineName ? (engineState.running ? 'running' : 'stopped') : 'not installed'}`,
+        ];
+
+        if (engineState.running) {
+          // info deliberately lists every Kind cluster on the machine, including ones Solo does not
+          // manage, so orphaned clusters are surfaced; each line states which side it falls on
+          const clusterReferences: Map<string, string> = await this.soloKindClusterReferences();
+          const containers: KindClusterContainer[] = await this.clusterStateService.listKindClusterContainers(
+            engineState.engineName,
+            [...clusterReferences.keys()],
+          );
+          const containerLines: string[] = containers.map((container): string => {
+            const clusterReference: string | undefined = clusterReferences.get(container.clusterName);
+            const ownership: string = clusterReference ? `cluster-ref: ${clusterReference}` : 'not managed by Solo';
+            return (
+              `  - ${container.clusterName}: ${container.running ? 'running' : 'stopped'} ` +
+              `(${container.containerName}) [${ownership}]`
+            );
+          });
+          for (const [clusterName, clusterReference] of clusterReferences) {
+            if (!containers.some((container): boolean => container.clusterName === clusterName)) {
+              containerLines.push(`  - ${clusterName}: not-found [cluster-ref: ${clusterReference}]`);
+            }
+          }
+          lines.push('Kind cluster containers:', containerLines.join('\n') || '  - not-found');
+        } else {
+          lines.push('Kind cluster containers: unknown (start the container engine to detect them)');
+        }
+
+        this.logger.showUser(lines.join('\n'));
+      },
+    };
+  }
+
+  /**
+   * Maps each Kind cluster name to the Solo cluster reference pointing at it. Cluster references
+   * whose context is not a Kind context are skipped, so the result is exactly the set of Kind
+   * clusters Solo is configured to manage.
+   */
+  private async soloKindClusterReferences(): Promise<Map<string, string>> {
+    await this.localConfig.load();
+
+    const clusterReferencesByClusterName: Map<string, string> = new Map<string, string>();
+    for (const [clusterReference, context] of this.localConfig.configuration.clusterRefs.entries()) {
+      const kindClusterName: string | undefined = Helpers.kindClusterNameForContext(context.toString(), this.k8Factory);
+      if (kindClusterName) {
+        clusterReferencesByClusterName.set(kindClusterName, clusterReference);
+      }
+    }
+    return clusterReferencesByClusterName;
+  }
+
+  /**
+   * Kind cluster containers belonging to the Solo cluster references in the local config. Kind
+   * clusters created outside Solo are excluded so `state start` and `state stop` never touch
+   * another project's cluster.
+   */
+  private async listSoloKindClusterContainers(engineName: string): Promise<KindClusterContainer[]> {
+    const clusterReferences: Map<string, string> = await this.soloKindClusterReferences();
+    const containers: KindClusterContainer[] = await this.clusterStateService.listKindClusterContainers(engineName, [
+      ...clusterReferences.keys(),
+    ]);
+    const soloContainers: KindClusterContainer[] = containers.filter((container): boolean =>
+      clusterReferences.has(container.clusterName),
+    );
+
+    if (soloContainers.length === 0) {
+      // every mapped cluster is missing here, so name both sides of the mismatch
+      const reasons: string[] = [];
+      const detectedClusters: string = [...new Set(containers.map((container): string => container.clusterName))].join(
+        ', ',
+      );
+      if (detectedClusters) {
+        reasons.push(`None of the detected Kind clusters (${detectedClusters}) are mapped to a Solo cluster reference`);
+      }
+      const missingClusters: string = [...clusterReferences]
+        .map(([clusterName, clusterReference]): string => `${clusterName} [cluster-ref: ${clusterReference}]`)
+        .join(', ');
+      if (missingClusters) {
+        reasons.push(`No Kind container was found for the Solo cluster(s) ${missingClusters}`);
+      }
+      throw new SoloErrors.system.kindClusterContainerNotFound(reasons.join('; ') || undefined);
+    }
+    return soloContainers;
+  }
+
+  private static describeContainers(containers: readonly KindClusterContainer[]): string {
+    return containers
+      .map((container): string => `${container.containerName} [cluster: ${container.clusterName}]`)
+      .join(', ');
   }
 
   public installMinioOperator(): SoloListrTask<ClusterReferenceSetupContext> {

@@ -307,8 +307,11 @@ export class DeploymentTest extends BaseCommandTest {
   }
 
   public static verifyDeploymentConfigPorts(options: BaseTestOptions): void {
-    const {testName, testLogger, deployment, clusterReferenceNameArray, namespace, testCacheDirectory} = options;
+    const {testName, testLogger, deployment, clusterReferenceNameArray, namespace, testCacheDirectory, chainId} =
+      options;
     const {soloDeploymentConfigPortsArgv, runMainAndCaptureOutputToJson, assertPortsFile} = DeploymentTest;
+    // A suite that does not call withChainId() deploys with the default chain ID
+    const expectedChainId: number = chainId || Number(Flags.chainId.definition.defaultValue);
 
     it(`${testName}: verify deployment config ports output`, async (): Promise<void> => {
       testLogger.info(`${testName}: beginning deployment config ports output verification`);
@@ -343,6 +346,7 @@ export class DeploymentTest extends BaseCommandTest {
       expect(wideResult.stdout).to.contain('Cluster:');
       expect(wideResult.stdout).to.contain(clusterReference);
       expect(wideResult.stdout).to.contain('Namespace:');
+      expect(wideResult.stdout).to.contain(`Chain ID: ${expectedChainId}`);
       // When one-shot created the Kind cluster itself, the consensus node gRPC, mirror node REST
       // API, relay, and explorer are served via stable Kind NodePort mappings and no port-forwards
       // are registered in the remote config. When the cluster pre-existed (e.g. CI creates it via
@@ -355,8 +359,14 @@ export class DeploymentTest extends BaseCommandTest {
       } else {
         expect(wideResult.stdout).to.contain('Consensus node gRPC');
         expect(wideResult.stdout).to.contain('Mirror node REST');
-        expect(wideResult.stdout).to.contain('JSON-RPC relay');
-        expect(wideResult.stdout).to.contain('Explorer');
+        // A minimal setup deploys neither the relay nor the explorer.
+        if (options.minimalSetup) {
+          expect(wideResult.stdout).to.not.contain('JSON-RPC relay');
+          expect(wideResult.stdout).to.not.contain('Explorer');
+        } else {
+          expect(wideResult.stdout).to.contain('JSON-RPC relay');
+          expect(wideResult.stdout).to.contain('Explorer');
+        }
       }
 
       const jsonResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
@@ -386,7 +396,7 @@ export class DeploymentTest extends BaseCommandTest {
       expect(jsonResult.stdout).to.contain('"explorer"');
       expect(jsonResult.stdout).to.contain('"blockNode"');
 
-      await assertPortsFile(jsonPortsFile, 'json', deployment, clusterReference);
+      await assertPortsFile(jsonPortsFile, 'json', deployment, clusterReference, expectedChainId);
 
       const yamlResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
         soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'yaml', testCacheDirectory),
@@ -415,7 +425,7 @@ export class DeploymentTest extends BaseCommandTest {
       expect(yamlResult.stdout).to.contain('explorer:');
       expect(yamlResult.stdout).to.contain('blockNode:');
 
-      await assertPortsFile(yamlPortsFile, 'yaml', deployment, clusterReference);
+      await assertPortsFile(yamlPortsFile, 'yaml', deployment, clusterReference, expectedChainId);
 
       testLogger.info(`${testName}: deployment config ports wide output saved to ${wideResult.outputFilePath}`);
       testLogger.info(`${testName}: deployment config ports json output saved to ${jsonResult.outputFilePath}`);
@@ -504,12 +514,14 @@ export class DeploymentTest extends BaseCommandTest {
     format: 'json' | 'yaml',
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
+    chainId: number,
   ): Promise<void> {
     const raw: string = await fs.readFile(filePath, 'utf8');
     const parsed: AnyObject = format === 'json' ? JSON.parse(raw) : yaml.parse(raw);
 
     expect(parsed.deployment).to.equal(deployment);
     expect(parsed.clusterReference).to.equal(clusterReference);
+    expect(parsed.chainId).to.equal(chainId);
 
     expect(parsed.services).to.be.an('object');
     expect(parsed.services).to.have.property('consensusNodeGrpc').that.is.an('array');

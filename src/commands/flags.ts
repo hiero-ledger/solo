@@ -554,6 +554,17 @@ export class Flags {
     },
   };
 
+  public static readonly targetVersion: CommandFlag = {
+    constName: 'targetVersion',
+    name: 'target-version',
+    definition: {
+      describe: 'Release to install, for example v0.97.0; newer or older. Defaults to the latest release',
+      defaultValue: '',
+      type: 'string',
+      disablePrompt: true,
+    },
+  };
+
   public static readonly freezeBlockDrainSeconds: CommandFlag = {
     constName: 'freezeBlockDrainSeconds',
     name: 'freeze-block-drain-seconds',
@@ -1914,7 +1925,10 @@ export class Flags {
     constName: 'adminPublicKeys',
     name: 'admin-public-keys',
     definition: {
-      describe: 'Comma separated list of DER encoded ED25519 public keys and must match the order of the node aliases',
+      describe:
+        'Comma separated list of DER encoded ED25519 public keys and must match the order of the node aliases. ' +
+        "Solo signs each node's updates with the private key in that node's <node-alias>-admin secret, " +
+        'so create that secret for each node given a key here',
       type: 'string',
       dataMask: constants.STANDARD_DATAMASK,
     },
@@ -2640,21 +2654,23 @@ export class Flags {
     constName: 'numberOfConsensusNodes',
     name: 'num-consensus-nodes',
     definition: {
-      describe: 'Used to specify desired number of consensus nodes for pre-genesis deployments',
+      describe:
+        'Used to specify desired number of consensus nodes for pre-genesis deployments (an additional cluster defaults to 0 in quiet mode)',
       type: 'number',
-      promptText: 'Enter number of consensus nodes to add to the provided cluster (must be a positive number):',
+      promptText: 'Enter number of consensus nodes to add to the provided cluster (must be zero or a positive number):',
     },
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: number): Promise<number> {
       const promptForInput: () => Promise<number> = (): Promise<number> =>
         Flags.prompt('number', task, input, Flags.numberOfConsensusNodes);
 
       input = await promptForInput();
-      while (!input) {
+      while (input === undefined || Number.isNaN(input) || input < 0) {
         input = await promptForInput();
       }
 
       return input;
     },
+    rules: [FlagRules.integer, FlagRules.atLeast(0)],
   };
 
   public static readonly dnsBaseDomain: CommandFlag = {
@@ -2821,13 +2837,15 @@ export class Flags {
 
   // --------------- One Shot --------------- //
 
-  // A minimal setup deployment with 1 consensus node and 1 mirror node
+  // A minimal setup deploys only the consensus node(s) and mirror node, skipping the relay and explorer.
   // Using this flag will enable one-shot to be used in a test workflow running on a default linux GitHub runner
   public static readonly minimalSetup: CommandFlag = {
     constName: 'minimalSetup',
     name: 'minimal-setup',
     definition: {
-      describe: 'Create a deployment with minimal setup. Only includes a single consensus node and mirror node',
+      describe:
+        'Create a deployment with minimal setup. Only includes the consensus node(s) and mirror node, ' +
+        'without the JSON-RPC relay or explorer',
       defaultValue: false,
       type: 'boolean',
     },
@@ -3033,6 +3051,7 @@ export class Flags {
     Flags.releaseTag,
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
+    Flags.targetVersion,
     Flags.freezeBlockDrainSeconds,
     Flags.resumeFromFreeze,
     Flags.skipNodeStart,

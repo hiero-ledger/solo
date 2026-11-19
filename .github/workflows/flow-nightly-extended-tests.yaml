@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -97,7 +97,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -141,7 +141,7 @@ jobs:
         test: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -224,6 +224,34 @@ jobs:
           operation: save
           key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
+      - name: Collect Diagnostics on Failure
+        if: ${{ failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # Best-effort: the test script may already have collected richer diagnostics. This step
+          # covers scripts that do not, while the Kind cluster is still up.
+          DIAGNOSTICS_DIRECTORY="${HOME}/.solo/logs/workflow-diagnostics"
+          mkdir -p "${DIAGNOSTICS_DIRECTORY}"
+          kubectl get pods -A -o wide > "${DIAGNOSTICS_DIRECTORY}/pods.txt" 2>&1 || true
+          kubectl get events -A --sort-by=.lastTimestamp > "${DIAGNOSTICS_DIRECTORY}/events.txt" 2>&1 || true
+          npm run solo-test -- deployment diagnostics logs -q --dev > "${DIAGNOSTICS_DIRECTORY}/solo-diagnostics-logs.txt" 2>&1 || true
+
+      # Must run before 'Cleanup Kind Clusters', which deletes ~/.solo (and the logs in it).
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # Diagnostics only: an artifact service outage must not fail a passing job or skip the steps after it.
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: solo-logs-${{ matrix.test.name }}
+          path: |
+            ~/.solo/logs/*
+            /tmp/solo-node-start.log
+            /tmp/solo-jdwp-probe.log
+            /tmp/solo-${{ matrix.test.name }}*.log
+          if-no-files-found: ignore
+
       - name: Cleanup Kind Clusters
         if: ${{ always() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
@@ -234,19 +262,6 @@ jobs:
             kind delete cluster -n "$cluster" || true
           done
           rm -rf ~/.solo
-
-      - name: Upload Logs to GitHub
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          name: solo-logs-${{ matrix.test.name }}
-          path: |
-            ~/.solo/logs/*
-            /tmp/solo-node-start.log
-            /tmp/solo-jdwp-probe.log
-            /tmp/solo-${{ matrix.test.name }}*.log
-          if-no-files-found: ignore
 
   one-shot-timing:
     name: Extended Test (one-shot-timing)
@@ -280,6 +295,14 @@ jobs:
     secrets:
       SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
+  self-update:
+    name: Extended Test (self-update)
+    needs:
+      - generate_matrix
+    uses: $/.github/workflows/flow-self-update-test.yaml
+    with:
+      node-version: ${{ inputs.node-version || '24' }}
+
   windows-one-shot-redeployment:
     name: Extended Test (windows-one-shot-redeployment)
     needs:
@@ -310,9 +333,10 @@ jobs:
       - ledger-reset-warm-start-timing
       - flow-performance-test
       - windows-one-shot-redeployment
+      - self-update
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -333,7 +357,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Send Slack Notification on Failure
-        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
+        uses: rtCamp/action-slack-notify@06cc13f74fa8d4d2296c09455d91e9453e4025f4 # v2.4.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}

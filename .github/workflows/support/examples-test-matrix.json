@@ -15,12 +15,6 @@
     "local-java-build": false
   },
   {
-    "name": "Hardhat with Solo",
-    "directory": "hardhat-with-solo",
-    "local-java-build": false,
-    "one-shot-with-block-node": false
-  },
-  {
     "name": "Foundry with Solo",
     "directory": "foundry-with-solo",
     "local-java-build": false,
@@ -77,6 +71,11 @@
   {
     "name": "Multicluster Component Image",
     "directory": "multicluster-component-image",
+    "local-java-build": false
+  },
+  {
+    "name": "Multicluster No Consensus Cluster",
+    "directory": "multicluster-no-consensus-cluster",
     "local-java-build": false
   }
 ]

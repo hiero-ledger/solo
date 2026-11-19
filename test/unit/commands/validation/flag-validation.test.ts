@@ -106,4 +106,16 @@ describe('FlagValidation', (): void => {
       expect(thrownError.message).to.contain('lowercase');
     });
   });
+
+  describe('validatedNumber', (): void => {
+    it('should return a decimal or hex chain ID as its decimal number', (): void => {
+      expect(FlagValidation.validatedNumber(Flags.chainId, '1234')).to.equal(1234);
+      expect(FlagValidation.validatedNumber(Flags.chainId, '0x12a')).to.equal(298);
+    });
+
+    it('should reject a value the flag rules do not accept', (): void => {
+      expect((): number => FlagValidation.validatedNumber(Flags.chainId, '1e3')).to.throw(InvalidFlagValueSoloError);
+      expect((): number => FlagValidation.validatedNumber(Flags.chainId, 'abc')).to.throw(InvalidFlagValueSoloError);
+    });
+  });
 });

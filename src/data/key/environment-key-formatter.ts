@@ -16,12 +16,12 @@ export class EnvironmentKeyFormatter implements KeyFormatter {
       return key;
     }
 
-    return StringEx.camelCaseToKebab(key).trim().toUpperCase().replaceAll(StringEx.PERIOD, this.separator);
+    return StringEx.camelCaseToSnake(key).trim().toUpperCase().replaceAll(StringEx.PERIOD, this.separator);
   }
 
   public split(key: string): string[] {
     if (!key || key.trim().length === 0) {
-      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
+      throw new SoloErrors.internal.argumentGuard('key must not be null or undefined');
     }
 
     return key.split(this.separator);

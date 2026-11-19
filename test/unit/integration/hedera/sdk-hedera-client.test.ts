@@ -12,7 +12,11 @@ import {
   FileUpdateTransaction,
   FreezeTransaction,
   FreezeType,
+  AccountUpdateTransaction,
+  NodeCreateTransaction,
+  NodeDeleteTransaction,
   NodeUpdateTransaction,
+  ServiceEndpoint,
   TopicCreateTransaction,
   TopicId,
   TopicInfoQuery,
@@ -295,6 +299,25 @@ describe('SdkHederaClient', (): void => {
     });
   });
 
+  describe('updateAccountStakedNode', (): void => {
+    it('stakes the account to the node, signs with the given key and reports the receipt status', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const signerKey: PrivateKey = PrivateKey.generateED25519();
+      sinon.stub(AccountUpdateTransaction.prototype, 'freezeWith').returnsThis();
+      const stakeStub: sinon.SinonSpy = sinon.spy(AccountUpdateTransaction.prototype, 'setStakedNodeId');
+      const signStub: sinon.SinonStub = sinon.stub(AccountUpdateTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(AccountUpdateTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().resolves({status: Status.Success}),
+      } as never);
+
+      const status: HederaTransactionStatus = await client.updateAccountStakedNode('0.0.1002', 1, signerKey);
+
+      expect(stakeStub.firstCall.args[0]).to.equal(1);
+      expect(signStub.firstCall.args[0]).to.equal(signerKey);
+      expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
+    });
+  });
+
   describe('updateNodeAdminKey', (): void => {
     it('signs with the new and the current admin key and reports the receipt status', async (): Promise<void> => {
       const {client}: {client: SdkHederaClient} = makeClient();
@@ -311,6 +334,99 @@ describe('SdkHederaClient', (): void => {
       expect(signStub.callCount).to.equal(2);
       expect(signStub.firstCall.args[0]).to.equal(newAdminKey);
       expect(signStub.secondCall.args[0]).to.equal(currentAdminKey);
+      expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
+    });
+  });
+
+  describe('node transactions', (): void => {
+    const endpoint: ServiceEndpoint = new ServiceEndpoint({port: 50_211, domainName: 'node1.example'});
+
+    it('updateNode sets only the given fields and signs in the given order', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const firstKey: PrivateKey = PrivateKey.generateED25519();
+      const secondKey: PrivateKey = PrivateKey.generateED25519();
+      const certificateHash: Uint8Array = new Uint8Array([1, 2, 3]);
+      sinon.stub(NodeUpdateTransaction.prototype, 'freezeWith').returnsThis();
+      const signStub: sinon.SinonStub = sinon.stub(NodeUpdateTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(NodeUpdateTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().resolves({status: Status.Success}),
+      } as never);
+      const gossipSpy: sinon.SinonSpy = sinon.spy(NodeUpdateTransaction.prototype, 'setGossipEndpoints');
+      const hashSpy: sinon.SinonSpy = sinon.spy(NodeUpdateTransaction.prototype, 'setCertificateHash');
+      const adminKeySpy: sinon.SinonSpy = sinon.spy(NodeUpdateTransaction.prototype, 'setAdminKey');
+
+      const status: HederaTransactionStatus = await client.updateNode({
+        nodeId: 3,
+        gossipEndpoints: [endpoint],
+        certificateHash,
+        signingKeys: [firstKey, secondKey],
+      });
+
+      expect(gossipSpy.firstCall.args[0]).to.deep.equal([endpoint]);
+      expect(hashSpy.firstCall.args[0]).to.equal(certificateHash);
+      expect(adminKeySpy.called).to.equal(false);
+      expect(signStub.firstCall.args[0]).to.equal(firstKey);
+      expect(signStub.secondCall.args[0]).to.equal(secondKey);
+      expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
+    });
+
+    it('updateNode lets a receipt failure through unchanged', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const failure: Error = new Error('receipt failed');
+      sinon.stub(NodeUpdateTransaction.prototype, 'freezeWith').returnsThis();
+      sinon.stub(NodeUpdateTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(NodeUpdateTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().rejects(failure),
+      } as never);
+
+      let thrown: unknown;
+      try {
+        await client.updateNode({nodeId: 1, signingKeys: [PrivateKey.generateED25519()]});
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).to.equal(failure);
+    });
+
+    it('createNode signs in the given order and reports a non-success status', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const accountKey: PrivateKey = PrivateKey.generateED25519();
+      const adminKey: PrivateKey = PrivateKey.generateED25519();
+      sinon.stub(NodeCreateTransaction.prototype, 'freezeWith').returnsThis();
+      const signStub: sinon.SinonStub = sinon.stub(NodeCreateTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(NodeCreateTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().resolves({status: Status.InvalidSignature}),
+      } as never);
+
+      const status: HederaTransactionStatus = await client.createNode({
+        accountId: '0.0.1005',
+        gossipEndpoints: [endpoint],
+        serviceEndpoints: [endpoint],
+        gossipCaCertificate: new Uint8Array([4]),
+        certificateHash: new Uint8Array([5]),
+        adminKey: adminKey.publicKey,
+        signingKeys: [accountKey, adminKey],
+      });
+
+      expect(signStub.firstCall.args[0]).to.equal(accountKey);
+      expect(signStub.secondCall.args[0]).to.equal(adminKey);
+      expect(status).to.deep.equal({isSuccess: false, status: 'INVALID_SIGNATURE'});
+    });
+
+    it('deleteNode signs with the admin key', async (): Promise<void> => {
+      const {client}: {client: SdkHederaClient} = makeClient();
+      const adminKey: PrivateKey = PrivateKey.generateED25519();
+      sinon.stub(NodeDeleteTransaction.prototype, 'freezeWith').returnsThis();
+      const signStub: sinon.SinonStub = sinon.stub(NodeDeleteTransaction.prototype, 'sign').resolvesThis();
+      sinon.stub(NodeDeleteTransaction.prototype, 'execute').resolves({
+        getReceipt: sinon.stub().resolves({status: Status.Success}),
+      } as never);
+
+      const status: HederaTransactionStatus = await client.deleteNode(2, adminKey);
+
+      expect(signStub.callCount).to.equal(1);
+      expect(signStub.firstCall.args[0]).to.equal(adminKey);
       expect(status).to.deep.equal({isSuccess: true, status: 'SUCCESS'});
     });
   });

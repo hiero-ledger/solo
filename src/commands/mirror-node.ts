@@ -61,6 +61,7 @@ import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
+import {type Secrets} from '../integration/kube/resources/secret/secrets.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {PostgresStateSchema} from '../data/schema/model/remote/state/postgres-state-schema.js';
 import {RedisStateSchema} from '../data/schema/model/remote/state/redis-state-schema.js';
@@ -246,6 +247,9 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
   private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
   private static readonly MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS: string = '0.157.0-0';
+
+  private static readonly DISABLE_BLOCK_NODE_INTEGRATION_ENVIRONMENT_VARIABLE_NAMES: string =
+    'SOLO_FF_DISABLE_BLOCK_NODE_INTEGRATION (or DISABLE_IMPORTER_SPRING_PROFILES)';
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -410,6 +414,7 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.info(
         `Mirror node will pull from the consensus node record files; ${optionFromFlag(flags.mirrorNodeSource)} is bucket`,
       );
+      this.throwIfBucketSourceHasNoCredentials(config);
       return new HelmChartValues();
     }
 
@@ -417,7 +422,19 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.mirrorNodeSource === 'block-node' && chartValues.isEmpty()) {
       throw new SoloErrors.validation.mirrorNodeBlockNodeSourceUnavailable(config.clusterReference);
     }
+    if (chartValues.isEmpty()) {
+      this.throwIfBucketSourceHasNoCredentials(config);
+    }
     return chartValues;
+  }
+
+  /** A cluster without consensus nodes gets an empty uploader secret, so the importer can't read from a bucket */
+  private throwIfBucketSourceHasNoCredentials(
+    config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
+  ): void {
+    if (!this.hasConsensusNodes(config.clusterReference)) {
+      throw new SoloErrors.validation.mirrorNodeBucketSourceUnavailable(config.clusterReference);
+    }
   }
 
   private resolveBlockNodeIntegrationValues(
@@ -464,14 +481,17 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
     }
 
-    if (!config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+    const blockNodeIntegrationDisabled: boolean = this.featureFlags.disableBlockNodeIntegration;
+
+    if (!config.forceBlockNodeIntegration && blockNodeIntegrationDisabled) {
       this.logger.info(
-        'Mirror node will remain configured to pull from consensus node; DISABLE_IMPORTER_SPRING_PROFILES=true disables automatic block node integration',
+        'Mirror node will remain configured to pull from consensus node; ' +
+          `${MirrorNodeCommand.DISABLE_BLOCK_NODE_INTEGRATION_ENVIRONMENT_VARIABLE_NAMES} disables automatic block node integration`,
       );
       return new HelmChartValues();
-    } else if (constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+    } else if (blockNodeIntegrationDisabled) {
       this.logger.showUser(
-        `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
+        `${MirrorNodeCommand.DISABLE_BLOCK_NODE_INTEGRATION_ENVIRONMENT_VARIABLE_NAMES} is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
       );
     }
 
@@ -510,14 +530,7 @@ export class MirrorNodeCommand extends BaseCommand {
       MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
     );
 
-    if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
-      if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
-        this.logger.showUser(
-          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
-        );
-      }
-      data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
-    }
+    data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
 
     const importerConfig: {
       [key: string]: {
@@ -635,7 +648,6 @@ export class MirrorNodeCommand extends BaseCommand {
     chartValues.add(
       HelmPostRenderer.replacer(
         PathEx.join(constants.SOLO_CACHE_DIR, 'post-renderers'),
-        await this.chartManager.getHelmMajorVersion(),
         MirrorNodeResourceNames.CHART_PASSWORDS_SECRET_NAME,
         names.passwordsSecretName,
       ),
@@ -1216,6 +1228,9 @@ export class MirrorNodeCommand extends BaseCommand {
                   'redis.sentinel.image.tag': versions.REDIS_SENTINEL_IMAGE_VERSION,
                   'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
                   'redis.sentinel.getMasterTimeout': constants.REDIS_SENTINEL_GETMASTERTIMEOUT,
+                  'postgresql.image.registry': constants.POSTGRES_IMAGE_REGISTRY,
+                  'postgresql.image.repository': constants.POSTGRES_IMAGE_REPOSITORY,
+                  'postgresql.image.digest': `sha256:${versions.POSTGRES_IMAGE_DIGEST}`,
                 },
               );
             },
@@ -1308,6 +1323,52 @@ export class MirrorNodeCommand extends BaseCommand {
         );
       },
       skip: ({config}: MirrorNodeDeployContext): boolean => config.useExternalDatabase,
+    };
+  }
+
+  /**
+   * The importer reads `uploader-mirror-secrets` through an envFrom reference. Solo creates that secret only for the
+   * contexts of consensus nodes (`NetworkCommand.prepareStreamUploaderSecrets`, or the `solo-deployment` chart when
+   * it generates the minio secrets), so a cluster that has no consensus nodes lacks it. Create an empty secret there
+   * so the importer container can start.
+   *
+   * A cluster that hosts consensus nodes is skipped: the chart may install the secret later, and Helm refuses to
+   * adopt one that already exists without its ownership metadata.
+   *
+   * Limitation: the empty secret carries no storage credentials, so a cluster without consensus nodes supports only
+   * the `block-node` mirror source; `prepareBlockNodeIntegrationValues` fails fast when the source resolves to the
+   * bucket there. The secret is not removed by `consensus network destroy`, which only cleans the consensus contexts.
+   */
+  private hasConsensusNodes(clusterReference: ClusterReferenceName): boolean {
+    return this.remoteConfig
+      .getConsensusNodes()
+      .some((consensusNode): boolean => consensusNode.cluster === clusterReference);
+  }
+
+  private ensureUploaderSecretTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Ensure mirror-node uploader secret',
+      skip: (context_): boolean => this.hasConsensusNodes(context_.config.clusterReference),
+      task: async (context_): Promise<void> => {
+        const secrets: Secrets = this.k8Factory.getK8(context_.config.clusterContext).secrets();
+
+        if (await secrets.exists(context_.config.namespace, constants.UPLOADER_SECRET_NAME)) {
+          return;
+        }
+
+        const isCreated: boolean = await secrets.createOrReplace(
+          context_.config.namespace,
+          constants.UPLOADER_SECRET_NAME,
+          SecretType.OPAQUE,
+          {},
+        );
+
+        if (!isCreated) {
+          throw new SoloErrors.system.k8sSecretCreateFailed(
+            `failed to create secret ${constants.UPLOADER_SECRET_NAME} using context: ${context_.config.clusterContext}`,
+          );
+        }
+      },
     };
   }
 
@@ -2072,6 +2133,7 @@ export class MirrorNodeCommand extends BaseCommand {
           title: 'Deploy charts',
           task: (_, parentTask): SoloListr<AnyListrContext> => {
             const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
+              this.ensureUploaderSecretTask(),
               this.enableSharedResourcesTask(),
               this.primePostgresSecretTask(), // creates mirror-passwords secret before init reads it
               this.deleteStaleRedisSecretTask(), // remove stale sentinel nodes left by a prior prime install
@@ -2365,6 +2427,7 @@ export class MirrorNodeCommand extends BaseCommand {
               : ListrLock.newAcquireLockTask(lease, task);
           },
         },
+        this.ensureUploaderSecretTask(),
         this.enableSharedResourcesTask(),
         this.deleteStaleRedisSecretTask(),
         this.primePostgresSecretTask(), // creates mirror-passwords secret if missing (e.g. re-install via upgrade)

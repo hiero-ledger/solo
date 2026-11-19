@@ -15,6 +15,7 @@ import * as constants from '../constants.js';
 import {ChartManager} from '../chart-manager.js';
 import {ConfigManager} from '../config-manager.js';
 import {LayeredConfigProvider} from '../../data/configuration/impl/layered-config-provider.js';
+import {FeatureFlags} from '../../business/runtime-state/config/solo/feature-flags.js';
 import {AccountManager} from '../account-manager.js';
 import {PlatformInstaller} from '../platform-installer.js';
 import {KeyManager} from '../key-manager.js';
@@ -108,9 +109,12 @@ import {ROOT_DIR} from '../constants.js';
 import {CacheCommandDefinition} from '../../commands/command-definitions/cache-command-definition.js';
 import {InitCommandDefinition} from '../../commands/init/init-command-definition.js';
 import {CacheCommand} from '../../commands/cache.js';
+import {UpdateCommand} from '../../commands/update.js';
+import {UpdateCommandDefinition} from '../../commands/command-definitions/update-command-definition.js';
 import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
 import {DockerClient} from '../../integration/container-engine/docker-client.js';
 import {ContainerEngineResourceInspector} from '../../integration/container-engine/container-engine-resource-inspector.js';
+import {ClusterStateService} from '../../integration/container-engine/cluster-state-service.js';
 import {DefaultCacheHandlerRegistry} from '../../integration/cache/impl/default-cache-handler-registry.js';
 import {DefaultCacheHealthInspector} from '../../integration/cache/impl/default-cache-health-inspector.js';
 import {FileSystemCacheCatalogStore} from '../../integration/cache/impl/file-system-cache-catalog-store.js';
@@ -178,6 +182,7 @@ export class Container {
       new SingletonContainer(InjectTokens.Middlewares, Middlewares),
       new SingletonContainer(InjectTokens.HelpRenderer, HelpRenderer),
       new SingletonContainer(InjectTokens.ConfigProvider, LayeredConfigProvider),
+      new SingletonContainer(InjectTokens.FeatureFlags, FeatureFlags),
       new SingletonContainer(InjectTokens.AccountCommand, AccountCommand),
       new SingletonContainer(InjectTokens.FileCommand, FileCommand),
       new SingletonContainer(InjectTokens.ClusterCommand, ClusterCommand),
@@ -188,6 +193,7 @@ export class Container {
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
       new SingletonContainer(InjectTokens.CacheCommand, CacheCommand),
+      new SingletonContainer(InjectTokens.UpdateCommand, UpdateCommand),
       new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
@@ -220,6 +226,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ImageCacheHandlerBuilder, ImageCacheHandlerBuilder),
       new SingletonContainer(InjectTokens.ContainerEngineClient, DockerClient),
       new SingletonContainer(InjectTokens.ContainerEngineResourceInspector, ContainerEngineResourceInspector),
+      new SingletonContainer(InjectTokens.ClusterStateService, ClusterStateService),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),
@@ -234,6 +241,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
       new SingletonContainer(InjectTokens.CacheCommandDefinition, CacheCommandDefinition),
+      new SingletonContainer(InjectTokens.UpdateCommandDefinition, UpdateCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
       new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
     ];
@@ -305,10 +313,7 @@ export class Container {
             objectMapper,
           );
 
-          // Operator-editable configuration in SOLO_HOME_DIR. Included so the cascade is
-          // complete for consumers that refresh the config; the subprocess allowlist is applied
-          // separately at startup by SubprocessEnvironmentBootstrap, because sources load
-          // asynchronously and this factory is synchronous.
+          // Operator-editable; SubprocessEnvironmentBootstrap vets this file before main() refreshes the config.
           const userConfigSource: OptionalDefaultConfigSource<SoloConfigSchema> =
             new OptionalDefaultConfigSource<SoloConfigSchema>(
               constants.DEFAULT_SOLO_CONFIG_FILE,

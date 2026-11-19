@@ -135,6 +135,8 @@ interface BlockNodeUpgradeConfigClass {
   context: string;
   releaseName: string;
   upgradeVersion: string;
+  componentImage: Optional<string>;
+  componentImageArchive: Optional<string>;
   currentVersion: string;
   migrationPlan: ComponentUpgradeMigrationStep[];
   chartValues: HelmChartValues;
@@ -310,6 +312,8 @@ export class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
       flags.upgradeVersion,
       flags.consensusNodeVersion,
+      flags.componentImage,
+      flags.componentImageArchive,
       flags.id,
     ],
   };
@@ -778,19 +782,37 @@ export class BlockNodeCommand extends BaseCommand {
     return chartValues.clone().arguments(...extraCommandArguments);
   }
 
-  private loadImageIntoKindTask(): SoloListrTask<BlockNodeDeployContext> {
+  private loadImageIntoKindTask<T extends BlockNodeDeployContext | BlockNodeUpgradeContext>(): SoloListrTask<T> {
     return {
       title: 'Load component image into Kind cluster',
-      skip: ({config}: BlockNodeDeployContext): boolean => {
+      skip: ({config}: T): boolean => {
         return (
           !this.hasComponentImageArchiveValue(config.componentImageArchive) &&
           (!config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage))
         );
       },
-      task: async ({config}: BlockNodeDeployContext): Promise<void> => {
+      task: async ({config}: T): Promise<void> => {
         await this.loadComponentImage(config.componentImage, config.componentImageArchive, config.context);
       },
     };
+  }
+
+  /** Sets the chart config map's VERSION to a Kind-loaded component image tag; returns the tag when applied. */
+  private async applyComponentImageVersion(
+    config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
+  ): Promise<Optional<string>> {
+    const {componentImage, componentImageArchive, context, namespace, releaseName} = config;
+    if (!componentImage || !this.isComponentImageAvailableForKind(componentImage, componentImageArchive)) {
+      return undefined;
+    }
+
+    // block node reads VERSION from this config map as a critical environment variable
+    const componentImageTag: string = ImageReference.parseImageReference(componentImage).tag;
+    await this.k8Factory
+      .getK8(context)
+      .configMaps()
+      .update(namespace, `${releaseName}-config`, {VERSION: componentImageTag});
+    return componentImageTag;
   }
 
   private getReleaseName(): string {
@@ -1037,7 +1059,6 @@ export class BlockNodeCommand extends BaseCommand {
               releaseName,
               chartVersion,
               chartValues,
-              componentImage,
               blockNodeChartDirectory,
               newBlockNodeComponent,
             } = config;
@@ -1063,16 +1084,8 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.remoteConfig.persist();
 
-            if (componentImage && this.isComponentImageAvailableForKind(componentImage, config.componentImageArchive)) {
-              // update config map with new VERSION info since
-              // it will be used as a critical environment variable by block node
-              const componentImageTag: string = ImageReference.parseImageReference(componentImage).tag;
-              const blockNodeId: ComponentId = newBlockNodeComponent.metadata.id;
-
-              const name: string = `block-node-${blockNodeId}-config`;
-              const data: Record<string, string> = {VERSION: componentImageTag};
-
-              await this.k8Factory.getK8(context).configMaps().update(namespace, name, data);
+            const componentImageTag: Optional<string> = await this.applyComponentImageVersion(config);
+            if (componentImageTag) {
               task.title += ` with component image (${componentImageTag})`;
             }
 
@@ -1445,7 +1458,6 @@ export class BlockNodeCommand extends BaseCommand {
               ? `${constants.BLOCK_NODE_RELEASE_NAME}-0`
               : this.renderReleaseName(config.id);
 
-            config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
             config.upgradeVersion = UpgradeVersionResolver.resolveFromFlags(
               this.configManager,
               [flags.upgradeVersion],
@@ -1495,6 +1507,7 @@ export class BlockNodeCommand extends BaseCommand {
             config.chartValues = await this.prepareValuesArgForBlockNode(config);
           },
         },
+        this.loadImageIntoKindTask(),
         {
           title: 'Plan block node upgrade migration',
           task: async ({config}, task): Promise<void> => {
@@ -1511,7 +1524,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         {
           title: 'Update block node chart',
-          task: async ({config}): Promise<void> => {
+          task: async ({config}, task): Promise<void> => {
             const {namespace, releaseName, context} = config;
 
             for (const step of config.migrationPlan) {
@@ -1570,6 +1583,11 @@ export class BlockNodeCommand extends BaseCommand {
               await this.remoteConfig.persist();
             }
 
+            const componentImageTag: Optional<string> = await this.applyComponentImageVersion(config);
+            if (componentImageTag) {
+              task.title += ` with component image (${componentImageTag})`;
+            }
+
             showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
@@ -1597,7 +1615,8 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.checkBlockNodeReadiness(
           (config): ComponentId => config.id,
-          (config): number => this.getLivenessCheckPortNumber(config.upgradeVersion),
+          (config): number =>
+            this.getLivenessCheckPortNumber(config.upgradeVersion, config.componentImage, config.componentImageArchive),
         ),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -1873,13 +1892,12 @@ export class BlockNodeCommand extends BaseCommand {
       blockNodeVersion = typeof version === 'string' ? new SemanticVersion<string>(version) : version;
     }
 
-    const deployConfig: BlockNodeDeployConfigClass = config as BlockNodeDeployConfigClass;
     if (
-      deployConfig.componentImage &&
-      (this.isLocalImageReference(deployConfig.componentImage) ||
-        this.hasComponentImageArchiveValue(deployConfig.componentImageArchive))
+      config.componentImage &&
+      (this.isLocalImageReference(config.componentImage) ||
+        this.hasComponentImageArchiveValue(config.componentImageArchive))
     ) {
-      const tag: string = ImageReference.parseImageReference(deployConfig.componentImage).tag;
+      const tag: string = ImageReference.parseImageReference(config.componentImage).tag;
       try {
         componentImageVersion = new SemanticVersion<string>(tag);
       } catch {

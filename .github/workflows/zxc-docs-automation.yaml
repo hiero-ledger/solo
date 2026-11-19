@@ -39,7 +39,7 @@ jobs:
       STEP_TIMEOUT_MINUTES: '5'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 
@@ -76,7 +76,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: "v3.12.3" # helm version
+          version: "v4.3.1" # helm version
 
       - name: Setup Kind
         uses: $/.github/actions/setup-kind
@@ -115,6 +115,8 @@ jobs:
       - name: Upload Logs to GitHub
         if: ${{ !cancelled() && always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # Diagnostics only: an artifact service outage must not fail a passing job or skip the steps after it.
+        continue-on-error: true
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs
@@ -138,7 +140,7 @@ jobs:
       STEP_TIMEOUT_MINUTES: '5'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
 

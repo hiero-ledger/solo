@@ -25,26 +25,20 @@ import {
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {type HederaClient} from '../../integration/hedera/hedera-client.js';
+import {type HederaNodeUpdateOptions} from '../../integration/hedera/hedera-node-update-options.js';
+import {type HederaTransactionStatus} from '../../integration/hedera/hedera-transaction-status.js';
 import {type HederaFileTransactionResult} from '../../integration/hedera/hedera-file-transaction-result.js';
 import {type HederaFreezeResult} from '../../integration/hedera/hedera-freeze-result.js';
 import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {
   AccountId,
   type AccountInfo,
-  AccountInfoQuery,
-  AccountUpdateTransaction,
-  type Client,
   FileId,
   Long,
-  NodeCreateTransaction,
-  NodeDeleteTransaction,
-  NodeUpdateTransaction,
   PrivateKey,
   ReceiptStatusError,
   ServiceEndpoint,
   Status,
-  TransactionReceipt,
-  TransactionResponse,
 } from '@hiero-ledger/sdk';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -183,7 +177,6 @@ import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
-import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {type NodePrepareUpgradeConfigClass} from './config-interfaces/node-prepare-upgrade-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
@@ -1125,7 +1118,7 @@ export class NodeCommandTasks {
       deploymentName,
       this.configManager.getFlag<boolean>(flags.forcePortForward),
     );
-    const client: Client = this.accountManager._nodeClient;
+    const client: HederaClient = this.accountManager.hederaClient;
     const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       namespace,
       deploymentName,
@@ -1138,7 +1131,7 @@ export class NodeCommandTasks {
     // check balance
     let treasuryAccountInfo: AccountInfo;
     try {
-      treasuryAccountInfo = await new AccountInfoQuery().setAccountId(treasuryAccountId).execute(client);
+      treasuryAccountInfo = await client.getAccountInfo(treasuryAccountId);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(treasuryAccountId, error);
     }
@@ -1151,31 +1144,24 @@ export class NodeCommandTasks {
     // check balance
     let accountInfo: AccountInfo;
     try {
-      accountInfo = await new AccountInfoQuery().setAccountId(accountId).execute(client);
+      accountInfo = await client.getAccountInfo(accountId);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(accountId, error);
     }
     this.logger.debug(`Account ${accountId} balance: ${accountInfo.balance}`);
 
-    // Create the transaction
-    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
-      .setAccountId(accountId)
-      .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
-      .freezeWith(client);
-
-    // Sign the transaction with the account's private key
-    const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
-
-    let transactionResponse: TransactionResponse;
-    let receipt: TransactionReceipt;
+    let stakeStatus: HederaTransactionStatus;
     try {
-      transactionResponse = await signTransaction.execute(client);
-      receipt = await transactionResponse.getReceipt(client);
+      stakeStatus = await client.updateAccountStakedNode(
+        accountId,
+        Templates.nodeIdFromNodeAlias(nodeAlias),
+        treasuryPrivateKey,
+      );
     } catch (error) {
       throw new SoloErrors.component.nodeStakeTransactionError(error);
     }
 
-    this.logger.debug(`The transaction consensus status is ${receipt.status}`);
+    this.logger.debug(`The transaction consensus status is ${stakeStatus.status}`);
   }
 
   public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
@@ -1246,11 +1232,7 @@ export class NodeCommandTasks {
             postUpgradeSystemFiles,
           );
         }
-        context_.upgradeZipHash = await this._uploadUpgradeZip(
-          context_.upgradeZipFile,
-          this.accountManager.hederaClientFor(config.nodeClient),
-          deployment,
-        );
+        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }
@@ -1329,29 +1311,10 @@ export class NodeCommandTasks {
         const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
         const nodeAlias: NodeAlias = (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias;
         config.adminKey = nodeAlias
-          ? await this.loadNodeAdminKey(nodeAlias, config.namespace, config.consensusNodes)
+          ? await this.accountManager.getNodeAdminKey(nodeAlias, config.namespace, config.consensusNodes)
           : await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), config.namespace);
       },
     };
-  }
-
-  /** Returns the node's admin key from its admin key secret, or the genesis key when the node has none. */
-  private async loadNodeAdminKey(
-    nodeAlias: NodeAlias,
-    namespace: NamespaceName,
-    consensusNodes: ConsensusNode[],
-  ): Promise<PrivateKey> {
-    try {
-      const keyFromK8: Secret = await this.k8Factory
-        .getK8(extractContextFromConsensusNodes(nodeAlias, consensusNodes))
-        .secrets()
-        .read(namespace, Templates.renderNodeAdminKeyName(nodeAlias));
-      return PrivateKey.fromStringED25519(Base64.decode(keyFromK8.data.privateKey));
-    } catch (error) {
-      // a node without an admin key secret still has the genesis key it was created with
-      this.logger.debug(`Error in loading node admin key: ${error.message}, use default key`);
-      return await GenesisKeyResolver.resolve(this.k8Factory, this.remoteConfig.getContexts(), namespace);
-    }
   }
 
   public checkExistingNodesStakedAmount(): SoloListrTask<
@@ -1383,7 +1346,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
@@ -1434,7 +1397,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
 
@@ -1479,8 +1442,10 @@ export class NodeCommandTasks {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(
-          await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment),
+        const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
+          namespace,
+          this.remoteConfig.getClusterRefs(),
+          deployment,
         );
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
@@ -2252,7 +2217,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const nodeClient: Client = await this.accountManager.loadNodeClient(
+          const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             deployment,
@@ -2311,19 +2276,19 @@ export class NodeCommandTasks {
             ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
           });
 
-          const nodeAdminKey: PrivateKey = await this.loadNodeAdminKey(nodeAlias, namespace, config.consensusNodes);
-          const updateTransaction: NodeUpdateTransaction = await new NodeUpdateTransaction()
-            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
-            .setServiceEndpoints([grpcServiceEndpoint])
-            .freezeWith(nodeClient)
-            .sign(nodeAdminKey);
-
-          let transactionResponse: TransactionResponse;
-          let updateTransactionReceipt: TransactionReceipt;
+          const nodeAdminKey: PrivateKey = await this.accountManager.getNodeAdminKey(
+            nodeAlias,
+            namespace,
+            config.consensusNodes,
+          );
+          let updateStatus: HederaTransactionStatus;
           try {
-            transactionResponse = await updateTransaction.execute(nodeClient);
-            updateTransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+            updateStatus = await nodeClient.updateNode({
+              nodeId: Number(networkNodeService.nodeId),
+              grpcWebProxyEndpoint,
+              serviceEndpoints: [grpcServiceEndpoint],
+              signingKeys: [nodeAdminKey],
+            });
           } catch (error) {
             if (error instanceof ReceiptStatusError && error.status === Status.InvalidSignature) {
               // Solo holds no key that can sign for this node, and the node itself is already running
@@ -2339,7 +2304,7 @@ export class NodeCommandTasks {
             throw new SoloErrors.component.nodeUpdateTransactionError(error);
           }
 
-          if (updateTransactionReceipt.status !== Status.Success) {
+          if (!updateStatus.isSuccess) {
             throw new SoloErrors.system.grpcProxyEndpointFailed();
           }
         }
@@ -2455,6 +2420,8 @@ export class NodeCommandTasks {
                   yamlRoot,
                   deploymentName,
                   applicationPropertiesPath,
+                  // node add resolves the chain ID from the deployment when --chain-id is not given
+                  {chainId: config.chainId},
                 );
               }
             },
@@ -4177,14 +4144,16 @@ export class NodeCommandTasks {
           );
         }
 
-        let nodeUpdateTx: NodeUpdateTransaction = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
-        nodeUpdateTx = nodeUpdateTx.setGossipEndpoints(await this.prepareNodeUpdateGossipEndpoints(config));
+        const updateOptions: HederaNodeUpdateOptions = {
+          nodeId,
+          gossipEndpoints: await this.prepareNodeUpdateGossipEndpoints(config),
+          signingKeys: [],
+        };
 
         if (config.tlsPublicKey && config.tlsPrivateKey) {
           this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
           const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-          const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
-          nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
+          updateOptions.certificateHash = crypto.createHash('sha384').update(tlsCertDer).digest();
 
           const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
           const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
@@ -4194,8 +4163,7 @@ export class NodeCommandTasks {
 
         if (config.gossipPublicKey && config.gossipPrivateKey) {
           this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-          const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
-          nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
+          updateOptions.gossipCaCertificate = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
 
           const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
           const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
@@ -4204,19 +4172,15 @@ export class NodeCommandTasks {
         }
 
         if (config.newAccountNumber) {
-          nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
+          updateOptions.accountId = config.newAccountNumber;
         }
 
+        // config.adminKey contains the original key, needed to sign the transaction
         let parsedNewKey: PrivateKey;
         if (config.newAdminKey) {
           parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
-          nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
-        }
-        nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
-
-        // config.adminKey contains the original key, needed to sign the transaction
-        if (config.newAdminKey) {
-          nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
+          updateOptions.adminKey = parsedNewKey.publicKey;
+          updateOptions.signingKeys.push(parsedNewKey);
         }
 
         // also sign with new account's key if account is being updated
@@ -4225,21 +4189,19 @@ export class NodeCommandTasks {
             config.newAccountNumber,
             config.namespace,
           );
-          nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+          updateOptions.signingKeys.push(PrivateKey.fromStringED25519(accountKeys.privateKey));
         }
 
-        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+        updateOptions.signingKeys.push(config.adminKey);
 
-        let txResp: TransactionResponse;
-        let nodeUpdateReceipt: TransactionReceipt;
+        let nodeUpdateStatus: HederaTransactionStatus;
         try {
-          txResp = await signedTx.execute(config.nodeClient);
-          nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
+          nodeUpdateStatus = await config.nodeClient.updateNode(updateOptions);
         } catch (error) {
           throw new SoloErrors.component.nodeUpdateTransactionError(error);
         }
 
-        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+        this.logger.debug(`NodeUpdate status: ${nodeUpdateStatus.status}`);
 
         // If admin key was updated, save the new key to k8s secret
         if (config.newAdminKey) {
@@ -5451,25 +5413,17 @@ export class NodeCommandTasks {
 
         const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
 
-        const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
-          .setNodeId(new Long(nodeId))
-          .freezeWith(config.nodeClient);
-
-        let signedTransaction: NodeDeleteTransaction;
-        let transactionResponse: TransactionResponse;
-        let nodeDeleteReceipt: TransactionReceipt;
+        let nodeDeleteStatus: HederaTransactionStatus;
         try {
-          signedTransaction = await nodeDeleteTransaction.sign(config.adminKey);
-          transactionResponse = await signedTransaction.execute(config.nodeClient);
-          nodeDeleteReceipt = await transactionResponse.getReceipt(config.nodeClient);
+          nodeDeleteStatus = await config.nodeClient.deleteNode(nodeId, config.adminKey);
         } catch (error) {
           throw new SoloErrors.component.nodeDeleteTransactionError(error);
         }
 
-        this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
+        this.logger.debug(`NodeDelete status: ${nodeDeleteStatus.status}`);
 
-        if (nodeDeleteReceipt.status !== Status.Success) {
-          throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteReceipt.status.toString());
+        if (!nodeDeleteStatus.isSuccess) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteStatus.status);
         }
 
         // Delete admin key secret from k8s after successful node deletion
@@ -5494,37 +5448,31 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass = context_.config;
 
-        const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
-          .setAccountId(context_.newNode.accountId)
-          .setGossipEndpoints(context_.gossipEndpoints)
-          .setServiceEndpoints(context_.grpcServiceEndpoints)
-          .setGossipCaCertificate(context_.signingCertDer)
-          .setCertificateHash(context_.tlsCertHash)
-          .setAdminKey(context_.adminKey.publicKey)
-          .freezeWith(config.nodeClient);
-
-        let signedTransaction: NodeCreateTransaction;
-        let txResp: TransactionResponse;
-        let nodeCreateReceipt: TransactionReceipt;
+        let nodeCreateStatus: HederaTransactionStatus;
         try {
           const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
             context_.newNode.accountId,
             config.namespace,
           );
 
-          // v0.75+ requires accountId signature when the account already exists.
-          signedTransaction = await nodeCreateTransaction.sign(PrivateKey.fromString(accountKeys.privateKey));
-          signedTransaction = await signedTransaction.sign(context_.adminKey);
-          txResp = await signedTransaction.execute(config.nodeClient);
-          nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
+          nodeCreateStatus = await config.nodeClient.createNode({
+            accountId: context_.newNode.accountId,
+            gossipEndpoints: context_.gossipEndpoints,
+            serviceEndpoints: context_.grpcServiceEndpoints,
+            gossipCaCertificate: context_.signingCertDer,
+            certificateHash: context_.tlsCertHash,
+            adminKey: context_.adminKey.publicKey,
+            // v0.75+ requires accountId signature when the account already exists.
+            signingKeys: [PrivateKey.fromString(accountKeys.privateKey), context_.adminKey],
+          });
         } catch (error) {
           throw new SoloErrors.component.nodeCreateTransactionError(error);
         }
 
-        this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
+        this.logger.debug(`NodeCreate status: ${nodeCreateStatus.status}`);
 
-        if (nodeCreateReceipt.status !== Status.Success) {
-          throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateReceipt.status.toString());
+        if (!nodeCreateStatus.isSuccess) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateStatus.status);
         }
 
         // Save admin key to k8s secret after successful node creation
@@ -5745,6 +5693,15 @@ export class NodeCommandTasks {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
 
+        // Every collection gets its own timestamped snapshot folder so pod files left by earlier runs are never
+        // mistaken for this deployment's. The analyzer reads the latest snapshot by default.
+        const collectedAt: Date = new Date();
+        const snapshotDirectory: string = PathEx.join(
+          outputDirectory,
+          collectedAt.toISOString().replaceAll(':', '-').replaceAll('.', '-'),
+        );
+        fs.mkdirSync(snapshotDirectory, {recursive: true});
+
         for (const context of contextList) {
           const k8: K8 = this.k8Factory.getK8(context);
 
@@ -5768,7 +5725,7 @@ export class NodeCommandTasks {
                 allPods.push(newPodInfo);
                 // If it is block node pod, download *.log files from '/opt/hiero/block-node/logs'
                 if ('block node' === config.name) {
-                  await this.downloadBlockNodeLogFiles(newPodInfo, outputDirectory);
+                  await this.downloadBlockNodeLogFiles(newPodInfo, snapshotDirectory);
                 }
               }
             }
@@ -5777,12 +5734,15 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.info(`Logs will be saved to: ${outputDirectory}`);
+        this.logger.info(`Logs will be saved to: ${snapshotDirectory}`);
         this.logger.info(`Found ${allPods.length} Hiero component pods`);
         // Download logs from each pod
         for (const podInfo of allPods) {
-          await this.downloadPodLogs(podInfo, outputDirectory);
+          await this.downloadPodLogs(podInfo, snapshotDirectory);
         }
+
+        // Older snapshots are never analyzed and `debug` zips the whole logs directory, so keep only the last few.
+        DiagnosticsAnalyzer.pruneOldSnapshots(outputDirectory);
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },

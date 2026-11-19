@@ -30,6 +30,7 @@ import {helmValuesHelper} from '../core/helm-values-helper.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {type PerNodeIdentity} from '../types/helm-values.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {ChainIdResolver} from '../core/chain-id-resolver.js';
 import fs from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import path from 'node:path';
@@ -1089,6 +1090,13 @@ export class NetworkCommand extends BaseCommand {
     // process-wide singleton shared across concurrent one-shot subcommands, and a sibling's Initialize task
     // (e.g. mirror node add with its HikariCP limits file) can race-overwrite the value set by update(argv).
     config.valuesFile = (argv[flags.valuesFile.name] as string | undefined) ?? config.valuesFile;
+
+    config.chainId = await ChainIdResolver.resolve(
+      this.configManager,
+      this.localConfig,
+      this.remoteConfig,
+      config.deployment,
+    );
 
     if (config.verifyPersistentVolumeClaimMounts && !config.persistentVolumeClaims) {
       throw new SoloErrors.validation.invalidFlagValue(
@@ -2321,7 +2329,7 @@ export class NetworkCommand extends BaseCommand {
             );
 
             const copyTasks: SoloListr<NetworkDeployContext> = task.newListr(subTasks, {
-              concurrent: constants.EXPERIMENTAL_COPY_WRAPS_LIB_IN_PARALLEL,
+              concurrent: this.featureFlags.copyWrapsLibraryInParallel,
               rendererOptions: {
                 collapseSubtasks: false,
               },

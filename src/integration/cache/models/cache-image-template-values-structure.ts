@@ -7,6 +7,7 @@ export interface CacheImageTemplateValuesStructure {
   readonly EXPLORER_VERSION: string;
   readonly MINIO_OPERATOR_VERSION: string;
   readonly MINIO_IMAGE_DIGEST: string;
+  readonly POSTGRES_IMAGE_DIGEST: string;
   readonly SOLO_CHEETAH_VERSION: string;
   readonly SOLO_CONTAINERS_VERSION: string;
 }

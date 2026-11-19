@@ -153,6 +153,7 @@ import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
 import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
 import {MirrorNodeBlockNodeSourceUnavailableSoloError} from './classes/validation/mirror-node-block-node-source-unavailable-solo-error.js';
+import {MirrorNodeBucketSourceUnavailableSoloError} from './classes/validation/mirror-node-bucket-source-unavailable-solo-error.js';
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
@@ -179,6 +180,7 @@ import {AccountUpdateFailedSoloError} from './classes/component/account-update-f
 import {AccountSecretCreationFailedSoloError} from './classes/component/account-secret-creation-failed-solo-error.js';
 import {EvmAddressRetrievalFailedSoloError} from './classes/component/evm-address-retrieval-failed-solo-error.js';
 import {NodeAccessConfigFailedSoloError} from './classes/component/node-access-config-failed-solo-error.js';
+import {NodeAdminKeySaveFailedSoloError} from './classes/component/node-admin-key-save-failed-solo-error.js';
 import {NodeClientLoadFailedSoloError} from './classes/component/node-client-load-failed-solo-error.js';
 import {NodeClientRefreshFailedSoloError} from './classes/component/node-client-refresh-failed-solo-error.js';
 import {NodeClientSetupFailedSoloError} from './classes/component/node-client-setup-failed-solo-error.js';
@@ -226,6 +228,7 @@ import {UnsupportedFlagFieldTypeSoloError} from './classes/validation/unsupporte
 import {VersionDowngradeBlockedSoloError} from './classes/validation/version-downgrade-blocked-solo-error.js';
 import {AdminKeysCountMismatchSoloError} from './classes/validation/admin-keys-count-mismatch-solo-error.js';
 import {InvalidAdminPublicKeySoloError} from './classes/validation/invalid-admin-public-key-solo-error.js';
+import {NoConsensusNodesForNodeAddSoloError} from './classes/validation/no-consensus-nodes-for-node-add-solo-error.js';
 import {ChainIdMismatchSoloError} from './classes/validation/chain-id-mismatch-solo-error.js';
 import {ComponentAlreadyExistsSoloError} from './classes/validation/component-already-exists-solo-error.js';
 import {ComponentIdRequiredSoloError} from './classes/validation/component-id-required-solo-error.js';
@@ -261,6 +264,7 @@ import {BackupInputPathNotFoundSoloError} from './classes/validation/backup-inpu
 import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-must-be-zip-solo-error.js';
 import {SubprocessConfigLoadFailedSoloError} from './classes/validation/subprocess-config-load-failed-solo-error.js';
 import {SubprocessConfigInvalidValueSoloError} from './classes/validation/subprocess-config-invalid-value-solo-error.js';
+import {ConfigValueTypeMismatchSoloError} from './classes/validation/config-value-type-mismatch-solo-error.js';
 import {SubprocessConfigUnsafePermissionsSoloError} from './classes/validation/subprocess-config-unsafe-permissions-solo-error.js';
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
 import {BackupDatabaseDumpNotFoundSoloError} from './classes/validation/backup-database-dump-not-found-solo-error.js';
@@ -281,6 +285,14 @@ import {HelmChartGenericInstallFailedSoloError} from './classes/system/helm-char
 import {HelmChartUninstallFailedSoloError} from './classes/system/helm-chart-uninstall-failed-solo-error.js';
 import {HelmChartUpgradeFailedSoloError} from './classes/system/helm-chart-upgrade-failed-solo-error.js';
 import {HelmChartPullNoArchiveSoloError} from './classes/system/helm-chart-pull-no-archive-solo-error.js';
+import {ContainerEngineNotFoundSoloError} from './classes/system/container-engine-not-found-solo-error.js';
+import {ContainerEngineStartFailedSoloError} from './classes/system/container-engine-start-failed-solo-error.js';
+import {KindClusterContainerNotFoundSoloError} from './classes/system/kind-cluster-container-not-found-solo-error.js';
+import {SelfUpdateDownloadFailedSoloError} from './classes/system/self-update-download-failed-solo-error.js';
+import {SelfUpdateAssetUnavailableSoloError} from './classes/system/self-update-asset-unavailable-solo-error.js';
+import {SelfUpdateVerificationFailedSoloError} from './classes/system/self-update-verification-failed-solo-error.js';
+import {SelfUpdateInstallFailedSoloError} from './classes/system/self-update-install-failed-solo-error.js';
+import {SelfUpdateFolderNotWritableSoloError} from './classes/system/self-update-folder-not-writable-solo-error.js';
 import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.js';
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
@@ -332,6 +344,7 @@ import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
 import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
 import {UncaughtFatalErrorSoloError} from './classes/internal/uncaught-fatal-error-solo-error.js';
+import {InternalArgumentGuardSoloError} from './classes/internal/internal-argument-guard-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -497,6 +510,7 @@ export class SoloErrors {
     readonly accountSecretCreationFailed: typeof AccountSecretCreationFailedSoloError;
     readonly evmAddressRetrievalFailed: typeof EvmAddressRetrievalFailedSoloError;
     readonly nodeAccessConfigFailed: typeof NodeAccessConfigFailedSoloError;
+    readonly nodeAdminKeySaveFailed: typeof NodeAdminKeySaveFailedSoloError;
     readonly nodeClientLoadFailed: typeof NodeClientLoadFailedSoloError;
     readonly nodeClientRefreshFailed: typeof NodeClientRefreshFailedSoloError;
     readonly nodeClientSetupFailed: typeof NodeClientSetupFailedSoloError;
@@ -593,6 +607,7 @@ export class SoloErrors {
     accountSecretCreationFailed: AccountSecretCreationFailedSoloError,
     evmAddressRetrievalFailed: EvmAddressRetrievalFailedSoloError,
     nodeAccessConfigFailed: NodeAccessConfigFailedSoloError,
+    nodeAdminKeySaveFailed: NodeAdminKeySaveFailedSoloError,
     nodeClientLoadFailed: NodeClientLoadFailedSoloError,
     nodeClientRefreshFailed: NodeClientRefreshFailedSoloError,
     nodeClientSetupFailed: NodeClientSetupFailedSoloError,
@@ -665,6 +680,7 @@ export class SoloErrors {
     readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
     readonly mirrorNodeBlockNodeSourceUnavailable: typeof MirrorNodeBlockNodeSourceUnavailableSoloError;
+    readonly mirrorNodeBucketSourceUnavailable: typeof MirrorNodeBucketSourceUnavailableSoloError;
     readonly invalidHbarAmount: typeof InvalidHbarAmountSoloError;
     readonly invalidFileIdFormat: typeof InvalidFileIdFormatSoloError;
     readonly invalidEndpointFormat: typeof InvalidEndpointFormatSoloError;
@@ -675,6 +691,7 @@ export class SoloErrors {
     readonly versionDowngradeBlocked: typeof VersionDowngradeBlockedSoloError;
     readonly adminKeysCountMismatch: typeof AdminKeysCountMismatchSoloError;
     readonly invalidAdminPublicKey: typeof InvalidAdminPublicKeySoloError;
+    readonly noConsensusNodesForNodeAdd: typeof NoConsensusNodesForNodeAddSoloError;
     readonly chainIdMismatch: typeof ChainIdMismatchSoloError;
     readonly componentAlreadyExists: typeof ComponentAlreadyExistsSoloError;
     readonly componentIdRequired: typeof ComponentIdRequiredSoloError;
@@ -712,6 +729,7 @@ export class SoloErrors {
     readonly subprocessConfigLoadFailed: typeof SubprocessConfigLoadFailedSoloError;
     readonly subprocessConfigUnsafePermissions: typeof SubprocessConfigUnsafePermissionsSoloError;
     readonly subprocessConfigInvalidValue: typeof SubprocessConfigInvalidValueSoloError;
+    readonly configValueTypeMismatch: typeof ConfigValueTypeMismatchSoloError;
     readonly backupDatabaseDumpNotFound: typeof BackupDatabaseDumpNotFoundSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
     readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
@@ -756,6 +774,7 @@ export class SoloErrors {
     relayInvalidComponentId: RelayInvalidComponentIdSoloError,
     mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
     mirrorNodeBlockNodeSourceUnavailable: MirrorNodeBlockNodeSourceUnavailableSoloError,
+    mirrorNodeBucketSourceUnavailable: MirrorNodeBucketSourceUnavailableSoloError,
     invalidHbarAmount: InvalidHbarAmountSoloError,
     invalidFileIdFormat: InvalidFileIdFormatSoloError,
     invalidEndpointFormat: InvalidEndpointFormatSoloError,
@@ -766,6 +785,7 @@ export class SoloErrors {
     versionDowngradeBlocked: VersionDowngradeBlockedSoloError,
     adminKeysCountMismatch: AdminKeysCountMismatchSoloError,
     invalidAdminPublicKey: InvalidAdminPublicKeySoloError,
+    noConsensusNodesForNodeAdd: NoConsensusNodesForNodeAddSoloError,
     chainIdMismatch: ChainIdMismatchSoloError,
     componentAlreadyExists: ComponentAlreadyExistsSoloError,
     componentIdRequired: ComponentIdRequiredSoloError,
@@ -803,6 +823,7 @@ export class SoloErrors {
     subprocessConfigLoadFailed: SubprocessConfigLoadFailedSoloError,
     subprocessConfigUnsafePermissions: SubprocessConfigUnsafePermissionsSoloError,
     subprocessConfigInvalidValue: SubprocessConfigInvalidValueSoloError,
+    configValueTypeMismatch: ConfigValueTypeMismatchSoloError,
     backupDatabaseDumpNotFound: BackupDatabaseDumpNotFoundSoloError,
     flagInputFailed: FlagInputFailedSoloError,
     confirmationRequired: ConfirmationRequiredSoloError,
@@ -868,6 +889,14 @@ export class SoloErrors {
     readonly helmChartUninstallFailed: typeof HelmChartUninstallFailedSoloError;
     readonly helmChartUpgradeFailed: typeof HelmChartUpgradeFailedSoloError;
     readonly helmChartPullNoArchive: typeof HelmChartPullNoArchiveSoloError;
+    readonly containerEngineNotFound: typeof ContainerEngineNotFoundSoloError;
+    readonly containerEngineStartFailed: typeof ContainerEngineStartFailedSoloError;
+    readonly kindClusterContainerNotFound: typeof KindClusterContainerNotFoundSoloError;
+    readonly selfUpdateDownloadFailed: typeof SelfUpdateDownloadFailedSoloError;
+    readonly selfUpdateAssetUnavailable: typeof SelfUpdateAssetUnavailableSoloError;
+    readonly selfUpdateVerificationFailed: typeof SelfUpdateVerificationFailedSoloError;
+    readonly selfUpdateInstallFailed: typeof SelfUpdateInstallFailedSoloError;
+    readonly selfUpdateFolderNotWritable: typeof SelfUpdateFolderNotWritableSoloError;
     readonly fileNotFound: typeof FileNotFoundSoloError;
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
@@ -963,6 +992,14 @@ export class SoloErrors {
     helmChartUninstallFailed: HelmChartUninstallFailedSoloError,
     helmChartUpgradeFailed: HelmChartUpgradeFailedSoloError,
     helmChartPullNoArchive: HelmChartPullNoArchiveSoloError,
+    containerEngineNotFound: ContainerEngineNotFoundSoloError,
+    containerEngineStartFailed: ContainerEngineStartFailedSoloError,
+    kindClusterContainerNotFound: KindClusterContainerNotFoundSoloError,
+    selfUpdateDownloadFailed: SelfUpdateDownloadFailedSoloError,
+    selfUpdateAssetUnavailable: SelfUpdateAssetUnavailableSoloError,
+    selfUpdateVerificationFailed: SelfUpdateVerificationFailedSoloError,
+    selfUpdateInstallFailed: SelfUpdateInstallFailedSoloError,
+    selfUpdateFolderNotWritable: SelfUpdateFolderNotWritableSoloError,
     fileNotFound: FileNotFoundSoloError,
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,
@@ -1022,6 +1059,7 @@ export class SoloErrors {
     readonly injectedFailure: typeof InjectedFailureSoloError;
     readonly pipelineCancelled: typeof PipelineCancelledSoloError;
     readonly uncaughtFatalError: typeof UncaughtFatalErrorSoloError;
+    readonly argumentGuard: typeof InternalArgumentGuardSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -1035,5 +1073,6 @@ export class SoloErrors {
     injectedFailure: InjectedFailureSoloError,
     pipelineCancelled: PipelineCancelledSoloError,
     uncaughtFatalError: UncaughtFatalErrorSoloError,
+    argumentGuard: InternalArgumentGuardSoloError,
   });
 }
