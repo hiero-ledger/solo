@@ -247,7 +247,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   MIRROR_NODE_BUCKET_SOURCE_UNAVAILABLE: 'SOLO-4097',
   STORAGE_CLASS_NAME_CONFLICT: 'SOLO-4098',
   STORAGE_CLASS_INSTALL_FORBIDDEN: 'SOLO-4099',
-  STORAGE_CLASS_NOT_FOUND: 'SOLO-4050',
+  STORAGE_CLASS_NOT_FOUND: 'SOLO-4100',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
