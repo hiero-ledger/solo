@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import chalk from 'chalk';
-import * as constants from './constants.js';
 import {type ContainerEngineResourceInspector} from '../integration/container-engine/container-engine-resource-inspector.js';
 import {type ContainerEngineResources} from '../integration/container-engine/container-engine-resources.js';
 import {type SoloLogger} from './logging/solo-logger.js';
+
+// Recommended minimum container-engine (Docker/Podman) resources; used by the pre-flight resource check.
+const MINIMUM_RECOMMENDED_MEMORY_BYTES: number = 12 * 1024 * 1024 * 1024;
+const MINIMUM_RECOMMENDED_CPU_CORES: number = 6;
 
 /**
  * Best-effort pre-flight check that warns when the local container engine (Docker/Podman) reports
@@ -31,15 +34,15 @@ export class ContainerResourcePreflight {
       return;
     }
 
-    const memoryInsufficient: boolean = resources.memoryBytes < constants.MINIMUM_RECOMMENDED_MEMORY_BYTES;
-    const cpuInsufficient: boolean = resources.cpuCount < constants.MINIMUM_RECOMMENDED_CPU_CORES;
+    const memoryInsufficient: boolean = resources.memoryBytes < MINIMUM_RECOMMENDED_MEMORY_BYTES;
+    const cpuInsufficient: boolean = resources.cpuCount < MINIMUM_RECOMMENDED_CPU_CORES;
     if (!memoryInsufficient && !cpuInsufficient) {
       return;
     }
 
     const detectedMemory: string = (resources.memoryBytes / ContainerResourcePreflight.BYTES_PER_GIBIBYTE).toFixed(1);
     const recommendedMemory: number = Math.round(
-      constants.MINIMUM_RECOMMENDED_MEMORY_BYTES / ContainerResourcePreflight.BYTES_PER_GIBIBYTE,
+      MINIMUM_RECOMMENDED_MEMORY_BYTES / ContainerResourcePreflight.BYTES_PER_GIBIBYTE,
     );
 
     logger.showUser(
@@ -47,7 +50,7 @@ export class ContainerResourcePreflight {
         [
           '⚠ Container engine resources look low for a Solo deployment:',
           `  detected:    ${detectedMemory}GB memory, ${resources.cpuCount} CPU(s)`,
-          `  recommended: >=${recommendedMemory}GB memory, >=${constants.MINIMUM_RECOMMENDED_CPU_CORES} CPU(s)`,
+          `  recommended: >=${recommendedMemory}GB memory, >=${MINIMUM_RECOMMENDED_CPU_CORES} CPU(s)`,
           '  The deployment may fail or run slowly. Increase the memory/CPU allocated to',
           '  Docker/Podman (or free up resources) before continuing.',
         ].join('\n'),

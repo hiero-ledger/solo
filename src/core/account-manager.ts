@@ -54,6 +54,9 @@ import {proto} from '@hiero-ledger/proto';
 import * as crypto from 'node:crypto';
 import {X509Certificate} from 'node:crypto';
 
+const DEFAULT_TREASURY_ID_NUMBER: number = 2;
+const TREASURY_ACCOUNT: number = 2;
+
 const REASON_FAILED_TO_GET_KEYS: string = 'failed to get keys for accountId';
 const REASON_SKIPPED: string = 'skipped since it does not have a genesis key';
 const REASON_FAILED_TO_UPDATE_ACCOUNT: string = 'failed to update account keys';
@@ -276,7 +279,7 @@ export class AccountManager {
       batchSets.push(currentBatch);
     }
 
-    batchSets.push([constants.TREASURY_ACCOUNT]);
+    batchSets.push([TREASURY_ACCOUNT]);
 
     return batchSets;
   }
@@ -1334,7 +1337,7 @@ export class AccountManager {
   }
 
   public getTreasuryAccountId(deployment: DeploymentName): AccountId {
-    return this.getAccountIdByNumber(deployment, constants.DEFAULT_TREASURY_ID_NUMBER);
+    return this.getAccountIdByNumber(deployment, DEFAULT_TREASURY_ID_NUMBER);
   }
 
   public getStartAccountId(deployment: DeploymentName): AccountId {

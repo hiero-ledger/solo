@@ -21,6 +21,11 @@ import {SoloError} from '../errors/solo-error.js';
 import {FatalErrorReporter} from '../fatal-error-reporter.js';
 import {MessageLevel} from './message-level.js';
 
+// Log rotation configuration
+const LOG_MAX_FILE_SIZE: string = '50M';
+const LOG_MAX_FILES: number = 5;
+const LOG_ROTATION_INTERVAL: string = '1d';
+
 type ChalkColor = typeof chalk.red;
 
 /**
@@ -176,9 +181,9 @@ export class SoloPinoLogger implements SoloLogger {
     } else {
       const rotationOptions: RotatingFileStreamOptions = {
         path: logsDirectory,
-        size: constants.LOG_MAX_FILE_SIZE,
-        interval: constants.LOG_ROTATION_INTERVAL,
-        maxFiles: constants.LOG_MAX_FILES,
+        size: LOG_MAX_FILE_SIZE,
+        interval: LOG_ROTATION_INTERVAL,
+        maxFiles: LOG_MAX_FILES,
         mode: SoloPinoLogger.LOG_FILE_MODE,
       };
       const ndjsonStream: RotatingFileStream = createStream(ndjsonFileName, rotationOptions);

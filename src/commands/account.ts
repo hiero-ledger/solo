@@ -60,6 +60,11 @@ import {ConsensusCommandDefinition} from './command-definitions/consensus-comman
 import {OneShotCommandDefinition} from './command-definitions/one-shot-command-definition.js';
 import {ConsensusNodePathTemplates} from '../core/consensus-node-path-templates.js';
 
+const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
+  constants.RESOURCES_DIR,
+  'mirror-postgres-truncate.sql',
+);
+
 interface UpdateAccountConfig {
   accountId: string;
   amount: number;
@@ -786,7 +791,7 @@ export class AccountCommand extends BaseCommand {
           title: 'Truncate mirror postgres data',
           skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
           task: async (): Promise<void> => {
-            const truncateSql: string = fs.readFileSync(constants.MIRROR_POSTGRES_TRUNCATE_SQL_FILE, 'utf8');
+            const truncateSql: string = fs.readFileSync(MIRROR_POSTGRES_TRUNCATE_SQL_FILE, 'utf8');
             for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
               if (!context) {

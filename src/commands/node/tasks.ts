@@ -19,7 +19,6 @@ import {SoloChartRepository} from '../../core/solo-chart-repository.js';
 import {
   CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
   CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
-  DEFAULT_NETWORK_NODE_NAME,
   HEDERA_HAPI_PATH,
   HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
 } from '../../core/constants.js';
@@ -194,6 +193,13 @@ import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
+
+const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'rename-state-node-id.sh');
+const DEFAULT_NETWORK_NODE_NAME: NodeAlias = 'node1';
+// file-id must be between 0.0.150 and 0.0.159
+// file must be uploaded using FileUpdateTransaction in maximum of 5Kb chunks
+const UPGRADE_FILE_ID_NUM: number = 150;
+const UPGRADE_FILE_CHUNK_SIZE: number = 1024 * 5; // 5Kb
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
@@ -385,7 +391,7 @@ export class NodeCommandTasks {
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
-    return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
+    return FileId.fromString(entityId(shard, realm, UPGRADE_FILE_ID_NUM));
   }
 
   private async _prepareUpgradeZip(
@@ -448,7 +454,7 @@ export class NodeCommandTasks {
 
       while (start < zipBytes.length) {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
-          zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
+          zipBytes.subarray(start, start + UPGRADE_FILE_CHUNK_SIZE),
         );
         const result: HederaFileTransactionResult = await hederaClient.writeFileChunk(
           this.getFileUpgradeId(deploymentName),
@@ -459,7 +465,7 @@ export class NodeCommandTasks {
           `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txStatus = ${result.status}]`,
         );
 
-        start += constants.UPGRADE_FILE_CHUNK_SIZE;
+        start += UPGRADE_FILE_CHUNK_SIZE;
         this.logger.debug(`uploaded ${start} bytes of ${zipBytes.length} bytes`);
       }
 
@@ -1836,11 +1842,11 @@ export class NodeCommandTasks {
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
 
-            const renameScriptName: string = PathEx.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
+            const renameScriptName: string = PathEx.basename(RENAME_STATE_NODE_ID_SCRIPT);
             const renameScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
 
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
-            await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            await container.copyTo(RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
 
             await container.execContainer([

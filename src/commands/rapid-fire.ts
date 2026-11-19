@@ -54,6 +54,8 @@ import {type RapidFireFailureDiagnostics} from './rapid-fire/rapid-fire-failure-
 import {type RttProbeResult} from './rapid-fire/rtt-probe-result.js';
 import {type RttSample} from './rapid-fire/rtt-sample.js';
 
+const MIRROR_REST_CONTAINER_PORT: number = 5551;
+
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
@@ -435,13 +437,13 @@ export class RapidFireCommand extends BaseCommand {
     }
 
     this.logger.info(
-      `Forwarding localhost:${port} → ${mirrorRestPod.podReference.name.name}:${constants.MIRROR_REST_CONTAINER_PORT}`,
+      `Forwarding localhost:${port} → ${mirrorRestPod.podReference.name.name}:${MIRROR_REST_CONTAINER_PORT}`,
     );
     const portForwarder: number = await this.k8Factory
       .getK8(config.context)
       .pods()
       .readByReference(mirrorRestPod.podReference)
-      .portForward(port, constants.MIRROR_REST_CONTAINER_PORT, true);
+      .portForward(port, MIRROR_REST_CONTAINER_PORT, true);
     await sleep(Duration.ofSeconds(2));
 
     return {port, portForwarder};
