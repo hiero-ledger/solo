@@ -352,6 +352,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   SELF_UPDATE_FOLDER_NOT_WRITABLE: 'SOLO-5100',
   PVC_BIND_TIMEOUT: 'SOLO-5101',
   PVC_PODS_STRANDED: 'SOLO-5102',
+  PVC_PODS_UNSCHEDULABLE: 'SOLO-5103',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

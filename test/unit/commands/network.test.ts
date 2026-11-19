@@ -519,6 +519,20 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
 
+    it('deletes only the consensus node volume claims on destroy', async (): Promise<void> => {
+      const list: SinonStub = sinon.stub().resolves(['hgcapp-data-saved-pvc-network-node1-0']);
+      const deleteClaim: SinonStub = sinon.stub().resolves();
+      options.k8Factory.getK8().pvcs = sinon.stub().returns({list, delete: deleteClaim});
+      const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+
+      // @ts-expect-error - to access private method
+      await networkCommand.deletePvcs(namespace, ['kind-solo-e2e']);
+
+      expect(list).to.have.been.calledOnceWithExactly(namespace, [constants.SOLO_NODE_PVC_LABEL_SELECTOR]);
+      expect(deleteClaim).to.have.been.calledOnce;
+      expect(deleteClaim.firstCall.args[0].name.toString()).to.equal('hgcapp-data-saved-pvc-network-node1-0');
+    });
+
     it('rejects --verify-pvc-mounts when PVCs are disabled', async (): Promise<void> => {
       const originalPersistentVolumeClaims: boolean = argv.getArg<boolean>(flags.persistentVolumeClaims);
       const originalVerifyPersistentVolumeClaimMounts: boolean = argv.getArg<boolean>(

@@ -112,11 +112,15 @@ export class NetworkCommand extends BaseCommand {
   /** How long a pod must stay unscheduled with a volume node affinity conflict to be treated as stranded. */
   private static readonly PVC_STRANDED_POD_THRESHOLD: Duration = Duration.ofMinutes(2);
 
+  /**
+   * How long a pod must stay unscheduled for a reason other than its volumes (cpu, memory, taints, ...) before the
+   * claim wait gives up on it. Longer than the stranded-pod threshold because insufficient capacity is what triggers a
+   * cluster autoscaler scale-up, which commonly takes a few minutes.
+   */
+  private static readonly PVC_UNSCHEDULABLE_POD_THRESHOLD: Duration = Duration.ofMinutes(5);
+
   /** How many times the volumes of one stranded pod are re-provisioned before the deploy fails. */
   private static readonly PVC_STRANDED_POD_MAX_RECOVERIES: number = 3;
-
-  /** Allowance, on top of the bind wait, for the deploy steps that run before the claims are first polled. */
-  private static readonly PVC_RECOVERY_CLAIM_AGE_SLACK: Duration = Duration.ofMinutes(5);
 
   private profileValuesFile?: Record<ClusterReferenceName, string>;
 
@@ -224,8 +228,9 @@ export class NetworkCommand extends BaseCommand {
    * Waits until every consensus node volume claim is bound. Provisioners bind claims serially and each consensus node
    * declares a full set of them, so on a sizable network this runs for a while before any node pod can be scheduled.
    * Reporting the bind count makes that phase visible instead of it looking like the pods are stuck.
+   * @param deployStartedAt - when this deploy began; claims created before it are never deleted
    */
-  private waitForNetworkPvcs(): SoloListrTask<NetworkDeployContext> {
+  private waitForNetworkPvcs(deployStartedAt: Date): SoloListrTask<NetworkDeployContext> {
     return {
       title: 'Check node persistent volume claims are bound',
       skip: (context_): boolean => !context_.config.persistentVolumeClaims,
@@ -237,7 +242,7 @@ export class NetworkCommand extends BaseCommand {
           subTasks.push({
             title: `Check volume claims in cluster: ${chalk.yellow(context)}`,
             task: async (_, subTask): Promise<void> => {
-              await this.waitForBoundPvcs(context, config.namespace, subTask);
+              await this.waitForBoundPvcs(context, config.namespace, subTask, deployStartedAt);
             },
           });
         }
@@ -256,6 +261,7 @@ export class NetworkCommand extends BaseCommand {
     context: string,
     namespace: NamespaceName,
     task: SoloListrTaskWrapper<NetworkDeployContext>,
+    deployStartedAt: Date,
   ): Promise<void> {
     const k8: K8 = this.k8Factory.getK8(context);
     const pvcs: Pvcs = k8.pvcs();
@@ -263,10 +269,10 @@ export class NetworkCommand extends BaseCommand {
       // the poll delay can be overridden, so the threshold is converted to attempts rather than fixed in attempts
       Math.ceil(NetworkCommand.PVC_STRANDED_POD_THRESHOLD.toMillis() / constants.PVC_BOUND_DELAY),
       NetworkCommand.PVC_STRANDED_POD_MAX_RECOVERIES,
-      // claims this deploy created cannot be older than the time it has been waiting for them, plus the steps before
-      Duration.ofMillis(constants.PVC_BOUND_MAX_ATTEMPTS * constants.PVC_BOUND_DELAY).plus(
-        NetworkCommand.PVC_RECOVERY_CLAIM_AGE_SLACK,
-      ),
+      deployStartedAt,
+    );
+    const unschedulablePodThresholdAttempts: number = Math.ceil(
+      NetworkCommand.PVC_UNSCHEDULABLE_POD_THRESHOLD.toMillis() / constants.PVC_BOUND_DELAY,
     );
     const baseTitle: string = task.title;
     let claims: PvcDetail[] = [];
@@ -299,9 +305,22 @@ export class NetworkCommand extends BaseCommand {
       }
 
       // Bound claims are not enough with node-local volumes: a pod whose claims bound to nodes it cannot use never
-      // schedules, so a volume conflict is part of this wait and is where such pods are recovered. Pods that are
-      // unscheduled for other reasons are not waited on here; the pod readiness step reports those.
+      // schedules, so a volume conflict is part of this wait and is where such pods are recovered.
       const recovered: number = await this.recoverStrandedPods(k8, namespace, claims, strandedPods, attempt);
+
+      // With a WaitForFirstConsumer StorageClass a claim binds only once its pod is scheduled, so a pod that cannot be
+      // scheduled for another reason (cpu, memory, taints, ...) keeps its claims unbound for good. Report the
+      // scheduler's reason instead of waiting out the full bind budget and reporting a bind timeout. A pod whose claims
+      // are already bound is left to the pod readiness step.
+      const unschedulable: [string, string][] = [
+        ...strandedPods.podsUnschedulableForOtherReasons(unschedulablePodThresholdAttempts),
+      ].filter(([podName]: [string, string]): boolean => strandedPods.claimsOf(podName, unbound).length > 0);
+      if (unschedulable.length > 0) {
+        throw new SoloErrors.system.pvcPodsUnschedulable(
+          unschedulable.map(([podName, message]: [string, string]): string => `${podName} (${message})`),
+          unbound.length,
+        );
+      }
 
       // The claims are created by the chart, so an empty list means they have not appeared yet rather than that
       // there is nothing to wait for.
@@ -369,7 +388,7 @@ export class NetworkCommand extends BaseCommand {
 
       // The chart keeps claims across uninstalls, so a claim older than this deploy may hold data from an earlier
       // run. Deleting it would destroy that data, so stop here and let the user decide.
-      const retained: PvcDetail[] = tracker.retainedClaims(podClaims, Date.now());
+      const retained: PvcDetail[] = tracker.retainedClaims(podClaims);
       if (retained.length > 0) {
         throw new SoloErrors.system.pvcPodsStranded(
           [podName],
@@ -1562,11 +1581,19 @@ export class NetworkCommand extends BaseCommand {
     await Promise.all(promises);
   }
 
+  /**
+   * Deletes the consensus node volume claims, selected by the label the chart puts on them. The namespace can also hold
+   * claims of other components (mirror node, block node) and claims solo did not create, so nothing else is touched:
+   * those are removed by their own destroy commands, or with the namespace.
+   */
   private async deletePvcs(namespace: NamespaceName, contexts: Context[]): Promise<void> {
     const pvcsData: Array<{pvc: string; context: Context}> = [];
 
     for (const context of contexts) {
-      const pvcs: string[] = await this.k8Factory.getK8(context).pvcs().list(namespace, []);
+      const pvcs: string[] = await this.k8Factory
+        .getK8(context)
+        .pvcs()
+        .list(namespace, [constants.SOLO_NODE_PVC_LABEL_SELECTOR]);
 
       for (const pvc of pvcs) {
         pvcsData.push({pvc, context});
@@ -1577,8 +1604,7 @@ export class NetworkCommand extends BaseCommand {
       await this.k8Factory
         .getK8(context)
         .pvcs()
-        .delete(PvcReference.of(namespace, PvcName.of(pvc)))
-        .catch();
+        .delete(PvcReference.of(namespace, PvcName.of(pvc)));
     });
 
     await Promise.all(promises);
@@ -2033,6 +2059,9 @@ export class NetworkCommand extends BaseCommand {
   /** Run helm install and deploy network components */
   public async deploy(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
+    // Captured per invocation rather than per process: one process can run several deploys (one-shot, e2e suites), and
+    // claims left by an earlier one must not look like this deploy's.
+    const deployStartedAt: Date = new Date();
 
     const tasks: SoloListr<NetworkDeployContext> = this.taskList.newTaskList(
       [
@@ -2318,7 +2347,7 @@ export class NetworkCommand extends BaseCommand {
             });
           },
         },
-        this.waitForNetworkPvcs(),
+        this.waitForNetworkPvcs(deployStartedAt),
         this.waitForNetworkPods(),
         this.installRootContainerTools(),
         this.verifyPersistentVolumeClaimMounts(),

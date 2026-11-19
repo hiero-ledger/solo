@@ -12,7 +12,7 @@ import {PvcReference} from '../../../src/integration/kube/resources/pvc/pvc-refe
 import {PvcName} from '../../../src/integration/kube/resources/pvc/pvc-name.js';
 import {Duration} from '../../../src/core/time/duration.js';
 
-const CLAIM_AGE: Duration = Duration.ofMinutes(30);
+const DEPLOY_STARTED_AT: Date = new Date('2026-11-04T12:00:00Z');
 const AFFINITY_MESSAGE: string =
   "0/56 nodes are available: 3 node(s) didn't match PersistentVolume's node affinity, 5 Insufficient cpu.";
 const BINDING_MESSAGE: string = "0/56 nodes are available: 4 node(s) didn't find available persistent volumes to bind.";
@@ -43,14 +43,14 @@ function claim(name: string, createdAt?: Date): PvcDetail {
 
 describe('PvcStrandedPodTracker', (): void => {
   it('does not flag a pod that is unscheduled only while its volumes provision', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
     for (let attempt: number = 0; attempt < 10; attempt++) {
       expect(tracker.observe([unscheduledPod('network-node1-0', BINDING_MESSAGE)], attempt)).to.have.lengthOf(0);
     }
   });
 
   it('flags a pod after a volume affinity conflict persists past the threshold, even when the message alternates', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
     expect(tracker.observe([unscheduledPod('network-node2-0', AFFINITY_MESSAGE)], 0)).to.have.lengthOf(0);
     expect(tracker.observe([unscheduledPod('network-node2-0', BINDING_MESSAGE)], 2)).to.have.lengthOf(0);
     const due: Pod[] = tracker.observe([unscheduledPod('network-node2-0', BINDING_MESSAGE)], 3);
@@ -58,14 +58,14 @@ describe('PvcStrandedPodTracker', (): void => {
   });
 
   it('stops tracking a pod once it is scheduled', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
     tracker.observe([unscheduledPod('network-node3-0', AFFINITY_MESSAGE)], 0);
     tracker.observe([scheduledPod('network-node3-0')], 1);
     expect(tracker.observe([unscheduledPod('network-node3-0', BINDING_MESSAGE)], 4)).to.have.lengthOf(0);
   });
 
   it('reports only pods with a volume affinity conflict, with the scheduler message of that conflict', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
     const unplaced: Pod = {
       podReference: PodReference.of(NamespaceName.of('solo'), PodName.of('network-node6-0')),
     } as unknown as Pod;
@@ -83,7 +83,7 @@ describe('PvcStrandedPodTracker', (): void => {
   });
 
   it('does not report a pod that is unscheduled for a reason other than its volumes', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
     const insufficientCpu: string = '0/56 nodes are available: 56 Insufficient cpu.';
     for (let attempt: number = 0; attempt < 10; attempt++) {
       expect(tracker.observe([unscheduledPod('network-node5-0', insufficientCpu)], attempt)).to.have.lengthOf(0);
@@ -93,7 +93,7 @@ describe('PvcStrandedPodTracker', (): void => {
   });
 
   it('keeps reporting a conflicted pod while its message alternates, until it is scheduled', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
     tracker.observe([unscheduledPod('network-node2-0', AFFINITY_MESSAGE)], 0);
     tracker.observe([unscheduledPod('network-node2-0', BINDING_MESSAGE)], 1);
     expect(tracker.affinityConflictPodNames).to.deep.equal(['network-node2-0']);
@@ -102,7 +102,7 @@ describe('PvcStrandedPodTracker', (): void => {
   });
 
   it('selects only the claims that belong to the pod', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
     const claims: PvcDetail[] = [
       claim('hgcapp-data-saved-pvc-network-node1-0'),
       claim('hgcapp-output-pvc-network-node1-0'),
@@ -114,21 +114,64 @@ describe('PvcStrandedPodTracker', (): void => {
     ).to.deep.equal(['hgcapp-data-saved-pvc-network-node1-0', 'hgcapp-output-pvc-network-node1-0']);
   });
 
-  it('retains claims that are older than the maximum age or whose age is unknown', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, CLAIM_AGE);
-    const now: number = Date.parse('2026-11-04T12:00:00Z');
-    const fresh: PvcDetail = claim('fresh-network-node1-0', new Date(now - Duration.ofMinutes(5).toMillis()));
-    const old: PvcDetail = claim('old-network-node1-0', new Date(now - Duration.ofHours(2).toMillis()));
+  it('retains claims created before the deploy started or whose creation time is unknown', (): void => {
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
+    const started: number = DEPLOY_STARTED_AT.getTime();
+    const fresh: PvcDetail = claim('fresh-network-node1-0', new Date(started + Duration.ofMinutes(5).toMillis()));
+    // created moments before this deploy, e.g. by a deploy that was destroyed and immediately redeployed
+    const recent: PvcDetail = claim('recent-network-node1-0', new Date(started - Duration.ofSeconds(30).toMillis()));
     const unknown: PvcDetail = claim('unknown-network-node1-0');
     expect(
       tracker
-        .retainedClaims([fresh, old, unknown], now)
+        .retainedClaims([fresh, recent, unknown])
         .map((retained: PvcDetail): string => retained.pvcReference.name.toString()),
-    ).to.deep.equal(['old-network-node1-0', 'unknown-network-node1-0']);
+    ).to.deep.equal(['recent-network-node1-0', 'unknown-network-node1-0']);
+  });
+
+  it('reports a pod unscheduled for a non-volume reason past the threshold, with its scheduler message', (): void => {
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
+    const insufficientCpu: string = '0/1 nodes are available: 1 Insufficient cpu.';
+    tracker.observe([unscheduledPod('network-node1-0', insufficientCpu)], 0);
+    tracker.observe([unscheduledPod('network-node1-0', insufficientCpu)], 4);
+    expect(tracker.podsUnschedulableForOtherReasons(5).size).to.equal(0);
+    tracker.observe([unscheduledPod('network-node1-0', insufficientCpu)], 5);
+    expect([...tracker.podsUnschedulableForOtherReasons(5)]).to.deep.equal([['network-node1-0', insufficientCpu]]);
+  });
+
+  it('does not report a pod as unschedulable for other reasons while the scheduler blames its volumes', (): void => {
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
+    tracker.observe(
+      [
+        unscheduledPod('network-node1-0', BINDING_MESSAGE),
+        unscheduledPod('network-node2-0', '0/1 nodes are available: pod has unbound immediate PersistentVolumeClaims.'),
+        unscheduledPod('network-node3-0', AFFINITY_MESSAGE),
+      ],
+      0,
+    );
+    tracker.observe(
+      [
+        unscheduledPod('network-node1-0', BINDING_MESSAGE),
+        unscheduledPod('network-node2-0', '0/1 nodes are available: pod has unbound immediate PersistentVolumeClaims.'),
+        // a pod that has reported a volume conflict stays a volume problem even when the message alternates
+        unscheduledPod('network-node3-0', '0/56 nodes are available: 56 Insufficient cpu.'),
+      ],
+      10,
+    );
+    expect(tracker.podsUnschedulableForOtherReasons(5).size).to.equal(0);
+  });
+
+  it('stops reporting a pod as unschedulable once it is scheduled', (): void => {
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(3, 2, DEPLOY_STARTED_AT);
+    const tainted: string = '0/1 nodes are available: 1 node(s) had untolerated taint {dedicated: infra}.';
+    tracker.observe([unscheduledPod('network-node1-0', tainted)], 0);
+    tracker.observe([unscheduledPod('network-node1-0', tainted)], 10);
+    expect(tracker.podsUnschedulableForOtherReasons(5).size).to.equal(1);
+    tracker.observe([scheduledPod('network-node1-0')], 11);
+    expect(tracker.podsUnschedulableForOtherReasons(5).size).to.equal(0);
   });
 
   it('allows a bounded number of recoveries per pod', (): void => {
-    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(1, 2, CLAIM_AGE);
+    const tracker: PvcStrandedPodTracker = new PvcStrandedPodTracker(1, 2, DEPLOY_STARTED_AT);
     expect(tracker.recordRecovery('network-node4-0')).to.equal(true);
     expect(tracker.recordRecovery('network-node4-0')).to.equal(true);
     expect(tracker.recordRecovery('network-node4-0')).to.equal(false);

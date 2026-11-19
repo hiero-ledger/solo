@@ -1192,8 +1192,10 @@ export class Flags {
     name: 'delete-pvcs',
     definition: {
       describe:
-        'Delete the persistent volume claims. If both --delete-pvcs and --delete-secrets are set to true, the namespace will be deleted.',
-      defaultValue: false,
+        'Delete the consensus node persistent volume claims (default: true). Set to false to keep the volume data, ' +
+        'which a later deploy into the same namespace will reattach. Claims of other components are not touched. ' +
+        'If both --delete-pvcs and --delete-secrets are set to true, the namespace will be deleted.',
+      defaultValue: true,
       type: 'boolean',
       promptText: 'Would you like to delete persistent volume claims upon uninstall? ',
     },
