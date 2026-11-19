@@ -6,6 +6,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {SOLO_MIRROR_IMPORTER_NAME_LABEL} from '../core/pod-label-selectors.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -2759,7 +2760,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Download Java Flight Recorder logs from mirror node importer pod',
       task: async ({config}, task): Promise<void> => {
         // Select the importer by name+component only so both modern (mirror-<id>) and legacy (mirror) release names match.
-        const labels: string[] = [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL, 'app.kubernetes.io/component=importer'];
+        const labels: string[] = [SOLO_MIRROR_IMPORTER_NAME_LABEL, 'app.kubernetes.io/component=importer'];
         const importerPods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()

@@ -15,6 +15,22 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
+import {
+  NETWORK_LOAD_GENERATOR_POD_LABELS,
+  SOLO_BLOCK_NODE_NAME_LABEL,
+  SOLO_EXPLORER_LABEL,
+  SOLO_INGRESS_CONTROLLER_NAME_LABEL,
+  SOLO_MIRROR_GRPC_NAME_LABEL,
+  SOLO_MIRROR_IMPORTER_NAME_LABEL,
+  SOLO_MIRROR_MONITOR_NAME_LABEL,
+  SOLO_MIRROR_PINGER_NAME_LABEL,
+  SOLO_MIRROR_POSTGRES_NAME_LABEL,
+  SOLO_MIRROR_REDIS_NAME_LABEL,
+  SOLO_MIRROR_RESTJAVA_NAME_LABEL,
+  SOLO_MIRROR_REST_NAME_LABEL,
+  SOLO_MIRROR_WEB3_NAME_LABEL,
+  SOLO_RELAY_NAME_LABEL,
+} from '../../core/pod-label-selectors.js';
 import {SoloChartRepository} from '../../core/solo-chart-repository.js';
 import {
   CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
@@ -234,20 +250,20 @@ export class NodeCommandTasks {
     {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
     {name: 'haproxy', labels: ['solo.hedera.com/type=haproxy']},
     {name: 'envoy proxy', labels: ['solo.hedera.com/type=envoy-proxy']},
-    {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
-    {name: 'mirror pinger', labels: [constants.SOLO_MIRROR_PINGER_NAME_LABEL]},
-    {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
-    {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
-    {name: 'mirror rest', labels: [constants.SOLO_MIRROR_REST_NAME_LABEL]},
-    {name: 'mirror web3', labels: [constants.SOLO_MIRROR_WEB3_NAME_LABEL]},
-    {name: 'mirror postgres', labels: [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]},
-    {name: 'mirror redis', labels: [constants.SOLO_MIRROR_REDIS_NAME_LABEL]},
-    {name: 'mirror rest-java', labels: [constants.SOLO_MIRROR_RESTJAVA_NAME_LABEL]},
-    {name: 'relay node', labels: [constants.SOLO_RELAY_NAME_LABEL]},
-    {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
-    {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
-    {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
-    {name: 'network load generator', labels: constants.NETWORK_LOAD_GENERATOR_POD_LABELS},
+    {name: 'mirror importer', labels: [SOLO_MIRROR_IMPORTER_NAME_LABEL]},
+    {name: 'mirror pinger', labels: [SOLO_MIRROR_PINGER_NAME_LABEL]},
+    {name: 'mirror grpc', labels: [SOLO_MIRROR_GRPC_NAME_LABEL]},
+    {name: 'mirror monitor', labels: [SOLO_MIRROR_MONITOR_NAME_LABEL]},
+    {name: 'mirror rest', labels: [SOLO_MIRROR_REST_NAME_LABEL]},
+    {name: 'mirror web3', labels: [SOLO_MIRROR_WEB3_NAME_LABEL]},
+    {name: 'mirror postgres', labels: [SOLO_MIRROR_POSTGRES_NAME_LABEL]},
+    {name: 'mirror redis', labels: [SOLO_MIRROR_REDIS_NAME_LABEL]},
+    {name: 'mirror rest-java', labels: [SOLO_MIRROR_RESTJAVA_NAME_LABEL]},
+    {name: 'relay node', labels: [SOLO_RELAY_NAME_LABEL]},
+    {name: 'explorer', labels: [SOLO_EXPLORER_LABEL]},
+    {name: 'block node', labels: [SOLO_BLOCK_NODE_NAME_LABEL]},
+    {name: 'ingress controller', labels: [SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+    {name: 'network load generator', labels: NETWORK_LOAD_GENERATOR_POD_LABELS},
   ];
 
   /** Read-only view of {@link COMPONENT_LABEL_CONFIGS}, for tests that guard against drift. */

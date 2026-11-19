@@ -4,6 +4,7 @@ import {MirrorNodeResourceNames} from './mirror-node-resource-names.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
 import * as constants from './constants.js';
+import {SOLO_INGRESS_CONTROLLER_NAME_LABEL} from './pod-label-selectors.js';
 import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
@@ -545,7 +546,7 @@ export class Templates {
   }
 
   public static renderMirrorIngressControllerLabels(): string[] {
-    return [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL];
+    return [SOLO_INGRESS_CONTROLLER_NAME_LABEL];
   }
 
   public static renderEnvoyProxyLabels(id: ComponentId): string[] {

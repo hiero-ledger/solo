@@ -8,6 +8,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
+import {SOLO_MIRROR_POSTGRES_NAME_LABEL, SOLO_MIRROR_REDIS_NAME_LABEL} from '../core/pod-label-selectors.js';
 import {entityId, extractContextFromConsensusNodes, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
@@ -800,7 +801,7 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const k8: K8 = this.k8Factory.getK8(context);
-              const postgresPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]);
+              const postgresPods: Pod[] = await k8.pods().list(namespace, [SOLO_MIRROR_POSTGRES_NAME_LABEL]);
               if (postgresPods.length === 0) {
                 throw new SoloErrors.system.postgresPodNotFound(namespace.name ?? String(namespace));
               }
@@ -863,7 +864,7 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const k8: K8 = this.k8Factory.getK8(context);
-              const redisPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_REDIS_NAME_LABEL]);
+              const redisPods: Pod[] = await k8.pods().list(namespace, [SOLO_MIRROR_REDIS_NAME_LABEL]);
 
               for (const redisPod of redisPods) {
                 const redisContainerReference: ContainerReference = ContainerReference.of(
