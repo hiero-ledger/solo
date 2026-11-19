@@ -25,15 +25,7 @@ import {NodeUpdateTest} from './tests/node-update-test.js';
 import {main} from '../../../src/index.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
-import {
-  PrivateKey,
-  AccountCreateTransaction,
-  Hbar,
-  HbarUnit,
-  AccountId,
-  type TransactionResponse,
-  type TransactionReceipt,
-} from '@hiero-ledger/sdk';
+import {PrivateKey, AccountId} from '@hiero-ledger/sdk';
 
 export function testSeparateNodeUpdate(
   argv: Argv,
@@ -69,13 +61,8 @@ export function testSeparateNodeUpdate(
       const privateKey: PrivateKey = PrivateKey.generateED25519();
       const amount: number = 100;
 
-      const newAccount: TransactionResponse = await new AccountCreateTransaction()
-        .setKeyWithoutAlias(privateKey)
-        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-        .execute(accountManager._nodeClient);
-
-      const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
-      const accountId: string = getReceipt.accountId.toString();
+      const createdAccountId: AccountId = await accountManager.hederaClient.createAccount(privateKey, amount, false);
+      const accountId: string = createdAccountId.toString();
       logger.info(`New account created for updated node: ${accountId}`);
       argv.setArg(flags.newAccountNumber, accountId);
       newAccountId = accountId;
