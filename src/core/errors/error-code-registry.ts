@@ -347,6 +347,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   SELF_UPDATE_VERIFICATION_FAILED: 'SOLO-5098',
   SELF_UPDATE_INSTALL_FAILED: 'SOLO-5099',
   SELF_UPDATE_FOLDER_NOT_WRITABLE: 'SOLO-5100',
+  HELM_RELEASE_VALUES_READ_FAILED: 'SOLO-5101',
+  HELM_CHART_MIGRATION_FAILED: 'SOLO-5102',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

@@ -364,6 +364,33 @@ When adding a new `CommandFlag` in `src/commands/flags.ts`:
 5. Run the focused flag registry unit test:
    `npx mocha 'test/unit/commands/flags.test.ts'`.
 
+### Chart Changes — A Chart Migration Is Required
+
+Every change to a Helm chart Solo deploys must come with a chart migration, so that upgrading an
+existing deployment across the change works. The framework and its rules are described in
+[`docs/design/architecture/component/helm-chart-migrations.md`](docs/design/architecture/component/helm-chart-migrations.md).
+
+**Trigger:** any change to the version of a chart Solo deploys (`SOLO_CHART_VERSION`,
+`MIRROR_NODE_VERSION`, `BLOCK_NODE_VERSION`, `EXPLORER_VERSION`, `HEDERA_JSON_RPC_RELAY_VERSION` and
+the other chart versions in `version.ts`). Migrations are selected by the deployed chart version, so
+the migration's boundary is the new chart version.
+
+**What to add:**
+
+1. A `ChartMigration` in `src/business/chart-migration/impl/<chart>-<change>-chart-migration.ts`,
+   whose `chartName` is `name` in the chart's `Chart.yaml` (not a Solo constant used as a chart
+   reference), and whose `range` ends at the version that introduces the change (end it at `<version>-0` to treat
+   that version's pre-releases as past the boundary). Use `carryReleaseValues()` to rewrite the
+   deployed release's values for the new chart, and `addInheritedValues()` for values the new
+   chart no longer generates.
+2. An instance of it appended to `ChartMigrationRegistry`.
+3. Unit tests for its value rewriting, and an upgrade across its boundary in the
+   `examples/version-upgrade-test` scenario.
+4. Removal of any hand-written upgrade handling it replaces, such as a version check that turns
+   `--reuse-values` off.
+
+The migration must be included in the same PR as the chart change.
+
 ## PR Requirements
 
 - **DCO sign-off** on all commits (`git commit -s`)

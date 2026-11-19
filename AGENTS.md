@@ -19,3 +19,7 @@ conventions are defined once and referenced here — do not duplicate them:
   `npx dpdm --no-warning --no-tree --exit-code circular:1 ./solo.ts` after any such move.
 - `import {type X}` (inline), explicit type annotations everywhere, no banned abbreviations, SPDX
   header on every source file.
+- **Every chart change needs a chart migration.** Changing the version of a chart Solo deploys
+  (`version.ts`) requires a `ChartMigration`, registered in
+  `ChartMigrationRegistry`, in the same PR. See "Chart Changes" in [`CLAUDE.md`](CLAUDE.md) and
+  [`docs/design/architecture/component/helm-chart-migrations.md`](docs/design/architecture/component/helm-chart-migrations.md).

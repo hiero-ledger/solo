@@ -24,6 +24,8 @@ export class InjectTokens {
   public static Helm: symbol = Symbol.for('Helm');
   public static KindBuilder: symbol = Symbol.for('KindBuilder');
   public static ChartManager: symbol = Symbol.for('ChartManager');
+  public static ChartMigrationRegistry: symbol = Symbol.for('ChartMigrationRegistry');
+  public static ChartMigrator: symbol = Symbol.for('ChartMigrator');
   public static ConfigManager: symbol = Symbol.for('ConfigManager');
   public static AccountManager: symbol = Symbol.for('AccountManager');
   public static PlatformInstaller: symbol = Symbol.for('PlatformInstaller');

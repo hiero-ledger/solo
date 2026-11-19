@@ -101,5 +101,17 @@ authoritative rules and rationale. The conventions below are the ones violated m
     matching headings and table rows.
   - **Table of Contents** — fix anchor links for any renamed headings.
 
+- **Every chart change needs a chart migration.** Any change to the version of a Helm chart Solo
+  deploys in `version.ts` (`SOLO_CHART_VERSION`, `MIRROR_NODE_VERSION`, `BLOCK_NODE_VERSION`,
+  `EXPLORER_VERSION`, `HEDERA_JSON_RPC_RELAY_VERSION`, …) must come with a `ChartMigration` in the
+  same PR:
+  - implement it in `src/business/chart-migration/impl/<chart>-<change>-chart-migration.ts`, with a
+    `range` ending at the version that introduces the change;
+  - append an instance to `ChartMigrationRegistry`;
+  - unit-test its value rewriting and cover the upgrade in `examples/version-upgrade-test`.
+
+  See `docs/design/architecture/component/helm-chart-migrations.md` for how migrations apply and how
+  they contribute values.
+
 When unsure, follow the existing pattern in the directory you are editing and defer to
 `docs/contributing/typescript-code-style.md`.
