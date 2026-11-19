@@ -6,6 +6,7 @@ import os from 'node:os';
 import {PathEx} from '../../../../business/utils/path-ex.js';
 import {KubeContainerInvalidPathError} from '../../errors/kube-container-invalid-path-error.js';
 import {KubeIllegalArgumentError} from '../../errors/kube-illegal-argument-error.js';
+import {KubeCopySourceChangedError} from '../../errors/kube-copy-source-changed-error.js';
 
 interface ResumableCopyChunk {
   readonly checksum: string;
@@ -66,7 +67,7 @@ export class ResumableCopySource {
             const bytesToRead: number = Math.min(buffer.length, remaining);
             const bytesRead: number = fs.readSync(sourceHandle, buffer, 0, bytesToRead, sourcePosition);
             if (bytesRead === 0) {
-              throw new KubeIllegalArgumentError(`source file ended before chunk ${chunkIndex} was complete`);
+              throw new KubeCopySourceChangedError(sourcePath, chunkIndex);
             }
             fs.writeSync(chunkHandle, buffer, 0, bytesRead);
             sourceChecksum.update(buffer.subarray(0, bytesRead));

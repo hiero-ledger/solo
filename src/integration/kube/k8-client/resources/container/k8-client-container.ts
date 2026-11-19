@@ -2,7 +2,6 @@
 
 import {KubeContainerOperationFailedError} from '../../../errors/kube-container-operation-failed-error.js';
 import {KubeContainerInvalidPathError} from '../../../errors/kube-container-invalid-path-error.js';
-import {KubeIllegalArgumentError} from '../../../errors/kube-illegal-argument-error.js';
 import {KubeMissingArgumentError} from '../../../errors/kube-missing-argument-error.js';
 import {container} from 'tsyringe-neo';
 import {type Container} from '../../../resources/container/container.js';
@@ -53,19 +52,13 @@ export class K8ClientContainer implements Container {
    * Waits until the pod for this container reference is visible in the API before
    * `copyTo`, `copyFrom`, or `execContainer`.
    *
-   * Uses {@link Pods.waitForPodByReference} and maps failures to
-   * {@link IllegalArgumentError} with the pod name.
+   * Uses {@link Pods.waitForPodByReference}, whose `KubePodNotFoundError` names the pod that never appeared.
    *
    * @param maxAttempts - forwarded to {@link Pods.waitForPodByReference} (default 20)
    * @param delayMs - forwarded to {@link Pods.waitForPodByReference} (default 3000 ms)
    */
   private async waitForPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
-    const podName: string = this.containerReference.parentReference.name.toString();
-    try {
-      await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
-    } catch {
-      throw new KubeIllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
   }
 
   private async execKubectl(

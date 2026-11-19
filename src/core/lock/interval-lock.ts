@@ -65,16 +65,16 @@ export class IntervalLock implements Lock {
     context: Context | null = null,
   ) {
     if (!k8Factory) {
-      throw new SoloErrors.validation.missingArgument('k8Factory is required');
+      throw new SoloErrors.internal.argumentGuard('k8Factory is required');
     }
     if (!renewalService) {
-      throw new SoloErrors.validation.missingArgument('renewalService is required');
+      throw new SoloErrors.internal.argumentGuard('renewalService is required');
     }
     if (!lockHolder) {
-      throw new SoloErrors.validation.missingArgument('_lockHolder is required');
+      throw new SoloErrors.internal.argumentGuard('_lockHolder is required');
     }
     if (!namespace) {
-      throw new SoloErrors.validation.missingArgument('_namespace is required');
+      throw new SoloErrors.internal.argumentGuard('_namespace is required');
     }
 
     this._lockHolder = lockHolder;

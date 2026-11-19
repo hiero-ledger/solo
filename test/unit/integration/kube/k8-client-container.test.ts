@@ -18,6 +18,12 @@ import {ResumableCopySource} from '../../../../src/integration/kube/resources/co
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {resetForTest} from '../../../test-container.js';
+import {KubePodNotFoundError} from '../../../../src/integration/kube/errors/kube-pod-not-found-error.js';
+import {KubeCopySourceChangedError} from '../../../../src/integration/kube/errors/kube-copy-source-changed-error.js';
+import {KubeErrorTranslator} from '../../../../src/core/errors/kube-error-translator.js';
+import {type SoloError} from '../../../../src/core/errors/solo-error.js';
+import {PodNotFoundSoloError} from '../../../../src/core/errors/classes/system/pod-not-found-solo-error.js';
+import {FileCopyFailedSoloError} from '../../../../src/core/errors/classes/system/file-copy-failed-solo-error.js';
 
 function kubectlFailure(stderr: string): KubeContainerOperationFailedError {
   return new KubeContainerOperationFailedError(
@@ -293,5 +299,67 @@ describe('K8ClientContainer copyFileResumable', (): void => {
 
     expect(execContainerStub).to.have.been.calledOnce;
     expect(copyToStub).to.not.have.been.called;
+  });
+});
+
+describe('K8ClientContainer runtime failures', (): void => {
+  const containerReference: ContainerReference = ContainerReference.of(
+    PodReference.of(NamespaceName.of('test-namespace'), PodName.of('test-pod')),
+    ContainerName.of('test-container'),
+  );
+
+  let temporaryDirectory: string;
+
+  beforeEach((): void => {
+    resetForTest();
+    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'k8-client-container-runtime-'));
+  });
+
+  afterEach((): void => {
+    sinon.restore();
+    fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+  });
+
+  it('reports a pod that never appears as pod not found, not as an internal error', async (): Promise<void> => {
+    const notFound: KubePodNotFoundError = new KubePodNotFoundError('test-pod');
+    const pods: Pods = {waitForPodByReference: sinon.stub().rejects(notFound)} as unknown as Pods;
+    const containerClient: K8ClientContainer = new K8ClientContainer(
+      {getCurrentContext: (): string => 'test-context'} as never,
+      containerReference,
+      pods,
+      '',
+    );
+
+    let thrownError: unknown;
+    try {
+      await containerClient.execContainer('ls');
+    } catch (error) {
+      thrownError = error;
+    }
+
+    expect(thrownError).to.equal(notFound);
+    const translated: SoloError | undefined = KubeErrorTranslator.tryTranslate(thrownError);
+    expect(translated).to.be.instanceOf(PodNotFoundSoloError);
+    expect(translated?.isInvalidInput()).to.be.false;
+  });
+
+  it('reports a source file that gets shorter during a resumable copy as a failed file copy', (): void => {
+    const sourcePath: string = path.join(temporaryDirectory, 'source.bin');
+    fs.writeFileSync(sourcePath, 'abc');
+    sinon.stub(fs, 'fstatSync').returns({size: 10} as fs.Stats);
+
+    let thrownError: unknown;
+    try {
+      ResumableCopySource.create(sourcePath, 4);
+    } catch (error) {
+      thrownError = error;
+    }
+
+    expect(thrownError).to.be.instanceOf(KubeCopySourceChangedError);
+    expect((thrownError as KubeCopySourceChangedError).message).to.include(sourcePath);
+    const translated: SoloError | undefined = KubeErrorTranslator.tryTranslate(thrownError);
+    expect(translated).to.be.instanceOf(FileCopyFailedSoloError);
+    expect(translated?.message).to.include('ended before chunk 0 was complete');
+    expect(translated?.isInvalidInput()).to.be.false;
   });
 });

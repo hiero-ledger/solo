@@ -162,6 +162,7 @@ flags may be specified at any level of the command hierarchy.
 | relay       | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | one-shot    | < single & multi & falcon & show > | < deploy & destroy & prepare & deployment & accounts >             |
 | cache       | < images & charts > | < pull & load & list & clear & prune & status >                                   |
+| update      |                    | (none; flags: `--target-version`, `--quiet-mode`)                                  |
 
 #### Example Commands
 
@@ -228,6 +229,7 @@ The CLI application is designed around the following high-level entities (aka co
 | **Mirror Node**   | `mirror-node`                 | `mirror`                      | Manage Hedera Mirror Node in solo network | Mirror Node operations for creating, modifying, and destroying resources. These commands require the presence of an existing deployment.                                       |
 | **One Shot**      |                               | `one-shot`                    |                                           | Quick start commands for new and returning users who need a preset environment type. These commands use reasonable defaults to provide a single command out of box experience. |
 | **Cache**         |                               | `cache`                       |                                           | Manage solo cached items.                                                                                                                                                      |
+| **Update**        |                               | `update`                      |                                           | Update the standalone Solo binary to the latest signed GitHub release, or to the release named by `--target-version`.                                                          |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

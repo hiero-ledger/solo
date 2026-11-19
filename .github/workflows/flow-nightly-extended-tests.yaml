@@ -240,6 +240,8 @@ jobs:
       - name: Upload Logs to GitHub
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # Diagnostics only: an artifact service outage must not fail a passing job or skip the steps after it.
+        continue-on-error: true
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs-${{ matrix.test.name }}
@@ -293,6 +295,14 @@ jobs:
     secrets:
       SLACK_TEST_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
 
+  self-update:
+    name: Extended Test (self-update)
+    needs:
+      - generate_matrix
+    uses: $/.github/workflows/flow-self-update-test.yaml
+    with:
+      node-version: ${{ inputs.node-version || '24' }}
+
   windows-one-shot-redeployment:
     name: Extended Test (windows-one-shot-redeployment)
     needs:
@@ -323,6 +333,7 @@ jobs:
       - ledger-reset-warm-start-timing
       - flow-performance-test
       - windows-one-shot-redeployment
+      - self-update
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
