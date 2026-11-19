@@ -339,6 +339,7 @@ import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
 import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
 import {UncaughtFatalErrorSoloError} from './classes/internal/uncaught-fatal-error-solo-error.js';
+import {InternalArgumentGuardSoloError} from './classes/internal/internal-argument-guard-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -1043,6 +1044,7 @@ export class SoloErrors {
     readonly injectedFailure: typeof InjectedFailureSoloError;
     readonly pipelineCancelled: typeof PipelineCancelledSoloError;
     readonly uncaughtFatalError: typeof UncaughtFatalErrorSoloError;
+    readonly argumentGuard: typeof InternalArgumentGuardSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -1056,5 +1058,6 @@ export class SoloErrors {
     injectedFailure: InjectedFailureSoloError,
     pipelineCancelled: PipelineCancelledSoloError,
     uncaughtFatalError: UncaughtFatalErrorSoloError,
+    argumentGuard: InternalArgumentGuardSoloError,
   });
 }

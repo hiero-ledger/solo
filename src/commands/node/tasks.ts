@@ -2420,6 +2420,8 @@ export class NodeCommandTasks {
                   yamlRoot,
                   deploymentName,
                   applicationPropertiesPath,
+                  // node add resolves the chain ID from the deployment when --chain-id is not given
+                  {chainId: config.chainId},
                 );
               }
             },

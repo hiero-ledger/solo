@@ -15,12 +15,6 @@
     "local-java-build": false
   },
   {
-    "name": "Hardhat with Solo",
-    "directory": "hardhat-with-solo",
-    "local-java-build": false,
-    "one-shot-with-block-node": false
-  },
-  {
     "name": "Foundry with Solo",
     "directory": "foundry-with-solo",
     "local-java-build": false,
