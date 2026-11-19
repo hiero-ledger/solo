@@ -3,6 +3,7 @@
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import * as constants from '../../../../src/core/constants.js';
+import {NETWORK_LOAD_GENERATOR_POD_LABELS} from '../../../../src/core/pod-label-selectors.js';
 import {type ChartManager} from '../../../../src/core/chart-manager.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {type K8} from '../../../../src/integration/kube/k8.js';
@@ -81,12 +82,12 @@ export class NetworkLoadGeneratorTest {
       .pods()
       .waitForReadyStatus(
         namespace,
-        constants.NETWORK_LOAD_GENERATOR_POD_LABELS,
+        NETWORK_LOAD_GENERATOR_POD_LABELS,
         constants.NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS,
         constants.NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY,
       );
 
-    const nlgPods: Pod[] = await k8Instance.pods().list(namespace, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
+    const nlgPods: Pod[] = await k8Instance.pods().list(namespace, NETWORK_LOAD_GENERATOR_POD_LABELS);
     const k8Containers: Containers = k8Instance.containers();
     for (const pod of nlgPods) {
       const containerReference: ContainerReference = ContainerReference.of(

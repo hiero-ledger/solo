@@ -22,6 +22,7 @@ import {NetworkLoadGeneratorTest} from './tests/network-load-generator-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
+import {NETWORK_LOAD_GENERATOR_POD_LABELS} from '../../../src/core/pod-label-selectors.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
@@ -213,7 +214,7 @@ async function copyThrottlesToNlgPod(kubeContext: string): Promise<void> {
   const namespaceName: string = await getNamespaceFromDeployment();
   const namespaceObject: NamespaceName = NamespaceName.of(namespaceName);
 
-  const nlgPods: Pod[] = await k8Instance.pods().list(namespaceObject, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
+  const nlgPods: Pod[] = await k8Instance.pods().list(namespaceObject, NETWORK_LOAD_GENERATOR_POD_LABELS);
 
   const throttlesSourcePath: string = PathEx.join(
     constants.RESOURCES_DIR,
