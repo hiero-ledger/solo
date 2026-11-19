@@ -22,4 +22,7 @@ export interface PvcDetail {
 
   /** Name of the storage class backing the claim, or undefined when the cluster default is used. */
   readonly storageClassName: string | undefined;
+
+  /** When Kubernetes created the claim, or undefined when that is not known. */
+  readonly createdAt?: Date;
 }

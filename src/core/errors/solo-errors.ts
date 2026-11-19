@@ -248,6 +248,9 @@ import {DomainNameParseFailedSoloError} from './classes/validation/domain-name-p
 import {UnknownTemplateDependencySoloError} from './classes/validation/unknown-template-dependency-solo-error.js';
 import {NoConsensusNodesFoundSoloError} from './classes/validation/no-consensus-nodes-found-solo-error.js';
 import {ServiceTypeMismatchSoloError} from './classes/validation/service-type-mismatch-solo-error.js';
+import {StorageClassInstallForbiddenSoloError} from './classes/validation/storage-class-install-forbidden-solo-error.js';
+import {StorageClassNameConflictSoloError} from './classes/validation/storage-class-name-conflict-solo-error.js';
+import {StorageClassNotFoundSoloError} from './classes/validation/storage-class-not-found-solo-error.js';
 import {BackupConfigNotFoundSoloError} from './classes/validation/backup-config-not-found-solo-error.js';
 import {BackupConfigInvalidSoloError} from './classes/validation/backup-config-invalid-solo-error.js';
 import {BackupConfigReadFailedSoloError} from './classes/validation/backup-config-read-failed-solo-error.js';
@@ -318,6 +321,9 @@ import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js
 import {PvcMountVerificationFailedSoloError} from './classes/system/pvc-mount-verification-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
+import {PvcBindTimeoutSoloError} from './classes/system/pvc-bind-timeout-solo-error.js';
+import {PvcPodsStrandedSoloError} from './classes/system/pvc-pods-stranded-solo-error.js';
+import {PvcPodsUnschedulableSoloError} from './classes/system/pvc-pods-unschedulable-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
 import {IngressClassListFailedSoloError} from './classes/system/ingress-class-list-failed-solo-error.js';
 import {MultipleItemsFoundSoloError} from './classes/system/multiple-items-found-solo-error.js';
@@ -711,6 +717,9 @@ export class SoloErrors {
     readonly unknownTemplateDependency: typeof UnknownTemplateDependencySoloError;
     readonly noConsensusNodesFound: typeof NoConsensusNodesFoundSoloError;
     readonly serviceTypeMismatch: typeof ServiceTypeMismatchSoloError;
+    readonly storageClassNotFound: typeof StorageClassNotFoundSoloError;
+    readonly storageClassNameConflict: typeof StorageClassNameConflictSoloError;
+    readonly storageClassInstallForbidden: typeof StorageClassInstallForbiddenSoloError;
     readonly backupConfigNotFound: typeof BackupConfigNotFoundSoloError;
     readonly backupConfigInvalid: typeof BackupConfigInvalidSoloError;
     readonly backupConfigReadFailed: typeof BackupConfigReadFailedSoloError;
@@ -805,6 +814,9 @@ export class SoloErrors {
     unknownTemplateDependency: UnknownTemplateDependencySoloError,
     noConsensusNodesFound: NoConsensusNodesFoundSoloError,
     serviceTypeMismatch: ServiceTypeMismatchSoloError,
+    storageClassNotFound: StorageClassNotFoundSoloError,
+    storageClassNameConflict: StorageClassNameConflictSoloError,
+    storageClassInstallForbidden: StorageClassInstallForbiddenSoloError,
     backupConfigNotFound: BackupConfigNotFoundSoloError,
     backupConfigInvalid: BackupConfigInvalidSoloError,
     backupConfigReadFailed: BackupConfigReadFailedSoloError,
@@ -921,6 +933,9 @@ export class SoloErrors {
     readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
+    readonly pvcBindTimeout: typeof PvcBindTimeoutSoloError;
+    readonly pvcPodsStranded: typeof PvcPodsStrandedSoloError;
+    readonly pvcPodsUnschedulable: typeof PvcPodsUnschedulableSoloError;
     readonly pvcMountVerificationFailed: typeof PvcMountVerificationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
     readonly ingressClassListFailed: typeof IngressClassListFailedSoloError;
@@ -1024,6 +1039,9 @@ export class SoloErrors {
     podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
+    pvcBindTimeout: PvcBindTimeoutSoloError,
+    pvcPodsStranded: PvcPodsStrandedSoloError,
+    pvcPodsUnschedulable: PvcPodsUnschedulableSoloError,
     pvcMountVerificationFailed: PvcMountVerificationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
     ingressClassListFailed: IngressClassListFailedSoloError,
