@@ -53,6 +53,7 @@ import {HelmChartValues} from '../integration/helm/model/values.js';
 import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
 
 const DEFAULT_CERT_MANAGER_NAMESPACE: NamespaceName = NamespaceName.of('cert-manager');
+// TODO: remove after migrated to resources/solo-config.yaml
 const CERT_MANAGER_NAME_SPACE: string = 'cert-manager';
 const CERT_MANAGER_CRDS: string[] = [
   'certificaterequests.cert-manager.io',

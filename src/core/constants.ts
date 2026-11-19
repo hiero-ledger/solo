@@ -255,8 +255,6 @@ export const PROMETHEUS_OPERATOR_CRDS_CHART_URL: string =
 
 export const NETWORK_LOAD_GENERATOR_CONTAINER: ContainerName = ContainerName.of('nlg');
 
-// TODO: remove after migrated to resources/solo-config.yaml
-
 // Component label selectors for pod discovery
 export const SOLO_RELAY_NAME_LABEL: string = 'app.kubernetes.io/name=relay';
 export const SOLO_MIRROR_IMPORTER_NAME_LABEL: string = 'app.kubernetes.io/name=importer';
