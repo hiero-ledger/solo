@@ -1,5 +1,5 @@
-#!/usr/bin/env node
 // SPDX-License-Identifier: Apache-2.0
+
 import {
   appendFileSync,
   existsSync,
@@ -10,33 +10,25 @@ import {
   statfsSync,
   writeFileSync,
 } from 'node:fs';
-import {createServer} from 'node:net';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {Failure, EXIT, LIMITS, inputs, classifyDeploy, complete, junit, redact} from './contract.mjs';
-import {command} from './process.mjs';
-import {candidates, install, identity, integrity, packSolo} from './packages.mjs';
+import {Contract, Failure, EXIT, LIMITS} from './contract.mjs';
+import {Processes} from './process.mjs';
+import {Packages} from './packages.mjs';
 import {PodWatcher} from './pods.mjs';
 
 const kit = fileURLToPath(new URL('..', import.meta.url));
 const version = JSON.parse(readFileSync(path.join(kit, 'package.json'), 'utf8')).version;
-
-export async function freePort(port) {
-  await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', () => reject(new Failure('environment', `Required one-shot port ${port} is already in use`)));
-    server.listen(port, '127.0.0.1', () => server.close(resolve));
-  });
-}
 
 async function run(arguments_) {
   const root = mkdtempSync(path.join(process.env.RUNNER_TEMP || tmpdir(), 'solo-tck-'));
   const artifacts = path.join(root, 'artifacts');
   const state = path.join(root, 'state');
   const soloDirectory = path.join(root, 'solo');
-  for (const directory of [artifacts, state, soloDirectory, path.join(root, 'home')])
+  for (const directory of [artifacts, state, soloDirectory, path.join(root, 'home')]) {
     mkdirSync(directory, {mode: 0o700});
+  }
   const kubeconfig = path.join(root, 'kubeconfig');
   writeFileSync(
     kubeconfig,
@@ -55,7 +47,7 @@ async function run(arguments_) {
     cleanup: {},
     startedAt: new Date(started).toISOString(),
   };
-  const env = Object.fromEntries(
+  const environment = Object.fromEntries(
     Object.entries(process.env).filter(
       ([name]) =>
         !name.startsWith('SOLO_') &&
@@ -68,13 +60,13 @@ async function run(arguments_) {
         ].includes(name),
     ),
   );
-  Object.assign(env, {
+  Object.assign(environment, {
     SOLO_HOME: path.join(root, 'home'),
     KUBECONFIG: kubeconfig,
     NO_COLOR: '1',
     PATH: `${path.join(root, 'home/bin')}${path.delimiter}${process.env.PATH}`,
   });
-  const runtime = {env, cwd: root, signal: controller.signal};
+  const runtime = {env: environment, cwd: root, signal: controller.signal};
   let options;
   let watcher;
   let soloBinary;
@@ -87,7 +79,7 @@ async function run(arguments_) {
     primary ||= new Failure('unknown', `Run interrupted by ${signal}`);
     result.outcome = 'fail';
     result.reason = primary.reason;
-    result.error = redact(primary.message);
+    result.error = Contract.redact(primary.message);
     result.failedStage = currentStage;
     controller.abort(primary);
   };
@@ -96,8 +88,8 @@ async function run(arguments_) {
   process.on('SIGINT', interrupt);
   process.on('SIGTERM', terminate);
   const remaining = () => Math.max(1, Math.min(stageDeadline, started + LIMITS.total - LIMITS.cleanup) - Date.now());
-  const execute = (program, args, extra = {}) =>
-    command(program, args, {
+  const execute = (program, commandArguments, extra = {}) =>
+    Processes.command(program, commandArguments, {
       ...runtime,
       timeout: remaining(),
       log: path.join(artifacts, `${currentStage}.log`),
@@ -127,41 +119,49 @@ async function run(arguments_) {
     }
   };
   try {
-    options = inputs(arguments_, JSON.parse(readFileSync(path.join(kit, 'solo-versions.json'), 'utf8')));
+    options = Contract.inputs(arguments_, JSON.parse(readFileSync(path.join(kit, 'solo-versions.json'), 'utf8')));
     result.requested = options;
     await stage('setup', LIMITS.setup, async () => {
       const before = Date.now();
-      result.candidates = await candidates(path.resolve(options['candidate-packages']), {
+      result.candidates = await Packages.candidates(path.resolve(options['candidate-packages']), {
         ...runtime,
         timeout: remaining(),
       });
       mark('P1', before);
-      if (process.versions.node.split('.')[0] !== '22' || !['linux', 'darwin'].includes(process.platform)) {
+      if (process.versions.node.split('.', 1)[0] !== '22' || !['linux', 'darwin'].includes(process.platform)) {
         throw new Failure('environment', 'This lane requires Node 22.x on Linux or macOS.');
       }
       const docker = JSON.parse(await execute('docker', ['info', '--format', '{{json .}}']));
-      if (docker.NCPU < 6 || docker.MemTotal < 12 * 1024 ** 3)
+      if (docker.NCPU < 6 || docker.MemTotal < 12 * 1024 ** 3) {
         throw new Failure('environment', 'Docker requires at least 6 CPUs and 12 GiB memory');
+      }
       const disk = statfsSync(root);
-      if (disk.bavail * disk.bsize < 20 * 1024 ** 3)
+      if (disk.bavail * disk.bsize < 20 * 1024 ** 3) {
         throw new Failure('environment', 'At least 20 GiB free disk is required');
-      const clusters = (await execute('kind', ['get', 'clusters'])).trim().split('\n');
-      if (clusters.includes(options.cluster))
+      }
+      const clusterList = await execute('kind', ['get', 'clusters']);
+      const clusters = clusterList.trim().split('\n');
+      if (clusters.includes(options.cluster)) {
         throw new Failure(
           'environment',
           `Kind cluster ${options.cluster} already exists; it will not be reused or deleted`,
         );
+      }
       await execute('kubectl', ['version', '--client', '-o', 'json']);
-      for (const port of [38080, 38081, 37546, 35211, 30004]) await freePort(port);
+      for (const port of [38_080, 38_081, 37_546, 35_211, 30_004]) {
+        await Processes.freePort(port);
+      }
       let source = options['solo-version'];
       if (options['solo-tarball']) {
         source = path.resolve(options['solo-tarball']);
         const metadata = JSON.parse(await execute('tar', ['-xOf', source, 'package/package.json']));
-        if (metadata.name !== '@hiero-ledger/solo') throw new Failure('invalid', 'solo-tarball is not a Solo package');
+        if (metadata.name !== '@hiero-ledger/solo') {
+          throw new Failure('invalid', 'solo-tarball is not a Solo package');
+        }
         result.soloSource = {
           kind: 'local-tarball',
           sourceSha: options['solo-version'],
-          integrity: integrity(source),
+          integrity: Packages.integrity(source),
           sourceShaVerified: false,
         };
       } else if (options.unreleased) {
@@ -177,14 +177,16 @@ async function run(arguments_) {
           source,
         ]);
         await execute('git', ['-C', checkout, 'checkout', '--detach', 'FETCH_HEAD']);
-        if ((await execute('git', ['-C', checkout, 'rev-parse', 'HEAD'])).trim() !== source)
+        const head = await execute('git', ['-C', checkout, 'rev-parse', 'HEAD']);
+        if (head.trim() !== source) {
           throw new Failure('kit', 'Solo checkout SHA mismatch');
+        }
         await execute('npm', ['ci', '--no-audit', '--no-fund'], {cwd: checkout});
         await execute(path.join(checkout, 'node_modules/.bin/tsc'), [], {cwd: checkout});
         await execute(process.execPath, [path.join(checkout, 'resources/post-build-script.js')], {cwd: checkout});
         const packed = path.join(root, 'solo-pack');
         mkdirSync(packed);
-        source = await packSolo(checkout, packed, {
+        source = await Packages.packSolo(checkout, packed, {
           ...runtime,
           timeout: remaining(),
           log: path.join(artifacts, 'setup.log'),
@@ -192,12 +194,14 @@ async function run(arguments_) {
         result.soloSource = {
           kind: 'commit',
           sourceSha: options['solo-version'],
-          integrity: integrity(source),
+          integrity: Packages.integrity(source),
           sourceShaVerified: true,
         };
-      } else result.soloSource = {kind: 'release', version: source};
+      } else {
+        result.soloSource = {kind: 'release', version: source};
+      }
       try {
-        await install(soloDirectory, options.unreleased ? `file:${source}` : source, result.candidates, {
+        await Packages.install(soloDirectory, options.unreleased ? `file:${source}` : source, result.candidates, {
           ...runtime,
           timeout: remaining(),
           log: path.join(artifacts, 'setup.log'),
@@ -205,7 +209,7 @@ async function run(arguments_) {
       } catch (error) {
         throw new Failure('environment', `Solo install failed: ${error.message}`, {cause: error});
       }
-      result.identity = await identity(soloDirectory, result.candidates, {...runtime, timeout: remaining()});
+      result.identity = await Packages.identity(soloDirectory, result.candidates, {...runtime, timeout: remaining()});
       mark('P3', before);
       soloBinary = path.join(soloDirectory, 'node_modules/.bin/solo');
       writeFileSync(
@@ -239,7 +243,7 @@ async function run(arguments_) {
       writeFileSync(values, 'mirrorNode:\n  --pinger: false\n');
       watcher = new PodWatcher(runtime, error => controller.abort(error));
       watcher.start();
-      const args = [
+      const commandArguments = [
         'one-shot',
         'falcon',
         'deploy',
@@ -254,14 +258,18 @@ async function run(arguments_) {
         '--metrics-server',
         '--quiet-mode',
       ];
-      for (const flag of ['consensus-node-version', 'mirror-node-version'])
-        if (options[flag]) args.push(`--${flag}`, options[flag]);
+      for (const flag of ['consensus-node-version', 'mirror-node-version']) {
+        if (options[flag]) {
+          commandArguments.push(`--${flag}`, options[flag]);
+        }
+      }
       attemptedDeploy = true;
       try {
-        await execute(soloBinary, args);
+        await execute(soloBinary, commandArguments);
       } catch (error) {
         throw (
-          watcher.error || new Failure(classifyDeploy(error.output || error.message), error.message, {cause: error})
+          watcher.error ||
+          new Failure(Contract.classifyDeploy(error.output || error.message), error.message, {cause: error})
         );
       }
       mark('P2', before);
@@ -303,61 +311,72 @@ async function run(arguments_) {
         readProbes();
         await watcher.snapshot();
         watcher.state.stable();
-        if (watcher.error) throw watcher.error;
+        if (watcher.error) {
+          throw watcher.error;
+        }
       });
     }
     mark('P4', started + result.stages.setup.milliseconds + result.stages.deploy.milliseconds);
-    complete(result);
+    Contract.complete(result);
     result.outcome = 'pass';
   } catch (error) {
     readProbes();
     primary = watcher?.error || (error instanceof Failure ? error : new Failure('kit', error.message));
     result.reason = primary.reason;
-    result.error = redact(primary.message);
+    result.error = Contract.redact(primary.message);
     result.failedStage = currentStage;
-    if (watcher?.error) result.probes.P4 = {status: 'fail', message: result.error};
-    else if (currentStage === 'inputs' || !result.probes.P1) result.probes.P1 = {status: 'fail', message: result.error};
-    else if (currentStage === 'deploy' && !result.probes.P2) result.probes.P2 = {status: 'fail', message: result.error};
-    else if (currentStage === 'setup') result.probes.P3 = {status: 'fail', message: result.error};
-    else if (!Object.values(result.probes).some(probe => probe.status === 'fail'))
+    if (watcher?.error) {
+      result.probes.P4 = {status: 'fail', message: result.error};
+    } else if (currentStage === 'inputs' || !result.probes.P1) {
+      result.probes.P1 = {status: 'fail', message: result.error};
+    } else if (currentStage === 'deploy' && !result.probes.P2) {
+      result.probes.P2 = {status: 'fail', message: result.error};
+    } else if (currentStage === 'setup') {
+      result.probes.P3 = {status: 'fail', message: result.error};
+    } else if (!Object.values(result.probes).some(probe => probe.status === 'fail')) {
       result.probes[currentStage === 'load' ? 'P8' : 'P7'] = {status: 'fail', message: result.error};
+    }
   } finally {
     await watcher?.stop();
     currentStage = 'cleanup';
     if (result.outcome === 'pass') {
       try {
-        complete(result, watcher?.error);
+        Contract.complete(result, watcher?.error);
       } catch (error) {
         primary = error;
         result.outcome = 'fail';
         result.reason = error.reason || 'kit';
-        result.error = redact(error.message);
+        result.error = Contract.redact(error.message);
         result.failedStage = 'stability';
         result.probes.P4 = {status: 'fail', message: result.error};
       }
     }
     result.resources = watcher?.metrics;
-    if (watcher) result.finalPods = [...watcher.state.pods.values()];
+    if (watcher) {
+      result.finalPods = [...watcher.state.pods.values()];
+    }
     const cleanupEnd = Math.min(Date.now() + LIMITS.cleanup, started + LIMITS.total);
-    const cleanupCommand = async (name, program, args, cap) => {
+    const cleanupCommand = async (name, program, commandArguments, cap) => {
       try {
-        await command(program, args, {
-          env,
+        await Processes.command(program, commandArguments, {
+          env: environment,
           cwd: root,
           timeout: Math.max(1, Math.min(cap, cleanupEnd - Date.now())),
           log: path.join(artifacts, `${name}.log`),
         });
         result.cleanup[name] = {passed: true};
       } catch (error) {
-        result.cleanup[name] = {passed: false, error: redact(error.message)};
+        result.cleanup[name] = {passed: false, error: Contract.redact(error.message)};
       }
     };
     let ownsCluster = false;
     if (options) {
       try {
-        ownsCluster =
-          (await command('kubectl', ['config', 'current-context'], {env, timeout: 5000})).trim() ===
-          `kind-${options.cluster}`;
+        const context = await Processes.command('kubectl', ['config', 'current-context'], {
+          env: environment,
+          timeout: 5000,
+        });
+        ownsCluster = context.trim() === `kind-${options.cluster}`;
       } catch {
         /* An untouched empty kubeconfig owns no cluster. */
       }
@@ -378,35 +397,38 @@ async function run(arguments_) {
           25_000,
         );
       }
-      if (attemptedDeploy)
+      if (attemptedDeploy) {
         await cleanupCommand(
           'destroy',
           soloBinary,
           ['one-shot', 'falcon', 'destroy', '--deployment', 'solo-tck', '--quiet-mode'],
           90_000,
         );
+      }
       await cleanupCommand('deleteCluster', 'kind', ['delete', 'cluster', '--name', options.cluster], 45_000);
-    } else result.cleanup.cluster = {passed: true, detail: 'No owned cluster was created; nothing deleted'};
+    } else {
+      result.cleanup.cluster = {passed: true, detail: 'No owned cluster was created; nothing deleted'};
+    }
     const logs = path.join(root, 'home/logs');
     if (existsSync(logs)) {
       mkdirSync(path.join(artifacts, 'solo-logs'));
       for (const filename of readdirSync(logs).filter(name => name.endsWith('.log'))) {
         writeFileSync(
           path.join(artifacts, 'solo-logs', filename),
-          redact(readFileSync(path.join(logs, filename), 'utf8')),
+          Contract.redact(readFileSync(path.join(logs, filename), 'utf8')),
         );
       }
     }
     result.elapsedMilliseconds = Date.now() - started;
     result.completedAt = new Date().toISOString();
     const resultFile = path.join(artifacts, 'tck-result.json');
-    writeFileSync(resultFile, redact(JSON.stringify(result, null, 2)) + '\n');
-    writeFileSync(path.join(artifacts, 'junit.xml'), junit(result));
+    writeFileSync(resultFile, Contract.redact(JSON.stringify(result, null, 2)) + '\n');
+    writeFileSync(path.join(artifacts, 'junit.xml'), Contract.junit(result));
     const summary =
       `## Solo TCK js-sdk\n\nOutcome: **${result.outcome}**${result.reason ? ` (${result.reason})` : ''}\n\n` +
       '| Probe | Result | Milliseconds |\n| --- | --- | --- |\n' +
       Object.entries(result.probes)
-        .sort()
+        .toSorted()
         .map(([id, probe]) => `| ${id} | ${probe.status} | ${probe.milliseconds ?? ''} |`)
         .join('\n') +
       `\n\nSolo: \`${options?.['solo-version'] || 'not selected'}\`\n\nElapsed: ${result.elapsedMilliseconds}ms. Cleanup: ${JSON.stringify(result.cleanup)}\n` +
@@ -417,12 +439,15 @@ async function run(arguments_) {
           `Expected: P1-P8 pass. Observed: ${result.error}. Reason: ${result.reason}. Attach tck-result.json, junit.xml and the collected logs.\n`
         : '');
     writeFileSync(path.join(artifacts, 'summary.md'), summary);
-    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
-    if (process.env.GITHUB_OUTPUT)
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+    }
+    if (process.env.GITHUB_OUTPUT) {
       appendFileSync(
         process.env.GITHUB_OUTPUT,
         `outcome=${result.outcome}\nreason=${result.reason}\nresult-file=${resultFile}\nresult-dir=${artifacts}\n`,
       );
+    }
     console.log(`Solo TCK: ${result.outcome}${result.reason ? ` (${result.reason})` : ''}. Result: ${resultFile}`);
     process.removeListener('SIGINT', interrupt);
     process.removeListener('SIGTERM', terminate);
@@ -434,7 +459,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   try {
     process.exitCode = await run(process.argv.slice(2));
   } catch (error) {
-    console.error(`Solo TCK kit failure: ${redact(error.message)}`);
+    console.error(`Solo TCK kit failure: ${Contract.redact(error.message)}`);
     process.exitCode = EXIT.kit;
   }
 }

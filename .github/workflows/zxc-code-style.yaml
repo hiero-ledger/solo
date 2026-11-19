@@ -114,6 +114,21 @@ jobs:
         run: |
           task check
 
+      - name: Check TCK Lint Rejects Exported Functions
+        # Negative control: tck/ is plain ESM, so prove the class-only rule still reaches it.
+        run: |
+          if output=$(printf '// SPDX-License-Identifier: Apache-2.0\n\nexport function violation() {}\n' |
+            npx eslint --stdin --stdin-filename tck/src/negative-control.mjs 2>&1); then
+            echo "✘ ESLint accepted an exported function in tck/"
+            exit 1
+          fi
+          if ! grep -q 'solo/no-exported-function' <<<"${output}"; then
+            echo "✘ ESLint failed for an unexpected reason:"
+            echo "${output}"
+            exit 1
+          fi
+          echo "✔ ESLint rejects exported functions in tck/"
+
       - name: Upload Lint Results to Codacy
         # Codacy's quality gate flags new lint warnings on the PR, so the target branch no longer has to be re-linted here.
         # Not blocking: a Codacy outage or missing repository setting must not fail Code Style.

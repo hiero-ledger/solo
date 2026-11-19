@@ -272,6 +272,7 @@ export default [
       'node_modules/**/*', // Node modules
       'coverage/**/*', // Coverage files
       '**/*.*js', // JavaScript files
+      '!tck/**/*.mjs', // ...except the TCK kit, which ships as plain ESM (docs/design/test/solo-tck-conformance-gate.md §3)
     ],
   },
   {
@@ -494,6 +495,23 @@ export default [
       'solo/exported-interface-in-own-file': 'error',
       'solo/require-explicit-shell': 'error',
       'solo/patch-inject-token-matches-inject': 'error',
+    },
+  },
+  {...tsEslint.configs.disableTypeChecked, files: ['tck/**/*.mjs']},
+  {
+    // The TCK kit is plain ESM but follows the same class-based conventions as src/.
+    files: ['tck/**/*.mjs'],
+    languageOptions: {parser: tsEslint.parser},
+    plugins: {solo: soloLocalPlugin},
+    rules: {
+      'solo/no-exported-function': 'error',
+      'solo/require-explicit-shell': 'error',
+      // Type annotations and access modifiers do not exist in plain JavaScript.
+      '@typescript-eslint/typedef': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-member-accessibility': 'off',
+      // Static-only classes are Solo's grouping convention (see no-extraneous-class allowStaticOnly above).
+      'unicorn/no-static-only-class': 'off',
     },
   },
   {
