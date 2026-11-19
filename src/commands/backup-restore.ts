@@ -1513,10 +1513,12 @@ export class BackupRestoreCommand extends BaseCommand {
       return true;
     }
 
-    const placeholderHash: string =
-      '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fake';
-    const fileHashPlaceholder: string =
-      '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fakehash';
+    // The synthetic rows follow the boundary hash's algorithm: 32 bytes from a SHA-256 consensus node (v0.79+), 48
+    // bytes before. Mirror node stores DigestAlgorithm by ordinal (SHA_384 = 0, SHA_256 = 1).
+    const sha256HashHexLength: number = 64;
+    const digestAlgorithm: number = boundaryHash.length === sha256HashHexLength ? 1 : 0;
+    const placeholderHash: string = 'fake'.padStart(boundaryHash.length, '0');
+    const fileHashPlaceholder: string = 'fakehash'.padStart(boundaryHash.length, '0');
 
     const insertStatements: string[] = [];
     for (let n: number = importerMax + 1; n <= firstAvailableAbove - 1; n++) {
@@ -1530,7 +1532,7 @@ export class BackupRestoreCommand extends BaseCommand {
       const consensusEnd: string = `(SELECT consensus_end + ${(n - importerMax) * 2} FROM record_file WHERE index = ${importerMax})`;
       insertStatements.push(
         'INSERT INTO record_file (name, load_start, load_end, hash, prev_hash, consensus_start, consensus_end, count, digest_algorithm, version, file_hash, index, sidecar_count) ' +
-          `VALUES ('${n.toString().padStart(19, '0')}.blk', 0, 0, '${hashValue}', ${previousHashValue}, ${consensusBase}, ${consensusEnd}, 0, 0, 7, '${fileHashPlaceholder}', ${n}, 0);`,
+          `VALUES ('${n.toString().padStart(19, '0')}.blk', 0, 0, '${hashValue}', ${previousHashValue}, ${consensusBase}, ${consensusEnd}, 0, ${digestAlgorithm}, 7, '${fileHashPlaceholder}', ${n}, 0);`,
       );
     }
 
@@ -1625,17 +1627,9 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Decompress block N's .blk.zstd on the block node side (zstd is not in the image, but
-   * Node's zlib provides it on the solo side), then scan the resulting bytes for the
-   * BlockFooter wire pattern and extract `previous_block_root_hash` (field 1, 48 bytes).
-   *
-   * Wire format:
-   *   - Block: `repeated BlockItem items = 1` → each BlockItem is `0a <varlen> <bytes>`
-   *   - BlockItem.block_footer = field 12 (wire type 2) → tag byte `0x62` followed by varlen
-   *   - BlockFooter.previous_block_root_hash = field 1 (bytes) → `0a 30 <48 bytes>`
-   *
-   * The full pattern inside the file: `62 <varlen> 0a 30 <48 bytes hash>`. We find the
-   * first BlockFooter tag and the first `0a 30` length-prefix after it.
+   * Read block N's .blk.zstd from the block node (zstd is not in the image, but Node's zlib
+   * provides it on the solo side), decompress it, and return the BlockFooter's
+   * `previous_block_root_hash` as hex. See {@link findPreviousBlockRootHash} for the wire format.
    */
   private async extractPreviousBlockRootHash(
     blockNodeContainer: Container,
@@ -1686,30 +1680,54 @@ export class BackupRestoreCommand extends BaseCommand {
       rawBytes = zstdDecompress(rawCompressed);
     }
 
-    // Search for the BlockFooter pattern. Tag byte 98 = (field 12 << 3) | wire-type-2.
-    // The footer's first field is `previous_block_root_hash` = field 1 (bytes, 48 bytes
-    // for SHA-384). Look for `98 <varint length> 10 48 <48 bytes>`. Length varint can be
-    // 1 or 2 bytes. Using decimal literals to avoid hex casing rule conflicts.
+    return BackupRestoreCommand.findPreviousBlockRootHash(rawBytes);
+  }
+
+  /**
+   * Scan a decompressed block for its BlockFooter and return `previous_block_root_hash` as hex.
+   *
+   * Wire format (decimal literals avoid hex casing rule conflicts):
+   *   - Block: `repeated BlockItem items = 1` → each BlockItem is `0a <varlen> <bytes>`
+   *   - BlockItem.block_footer = field 12 (wire type 2) → tag byte `0x62` followed by varlen
+   *   - BlockFooter.previous_block_root_hash = field 1 (bytes) → `0a <len> <hash>`, where len is 32 (`0x20`, SHA-256,
+   *     consensus node v0.79+) or 48 (`0x30`, SHA-384, older consensus nodes)
+   *
+   * A candidate only counts when its declared footer length holds the whole hash field and fits in the buffer, so a
+   * stray `0x62` byte inside another block item does not match.
+   */
+  private static findPreviousBlockRootHash(blockBytes: Buffer): string | undefined {
     const blockFooterTag: number = 98; // (12 << 3) | 2
     const previousHashTag: number = 10; // (1 << 3) | 2
-    const previousHashLength: number = 48; // SHA-384 byte length
+    const supportedHashLengths: ReadonlySet<number> = new Set<number>([32, 48]); // SHA-256, SHA-384
+    const varintPayloadMask: number = 127;
     const varintHighBit: number = 128;
-    for (let index: number = 0; index < rawBytes.length - 52; index++) {
-      if (rawBytes[index] !== blockFooterTag) {
+    const maximumVarintBytes: number = 5;
+    for (let index: number = 0; index < blockBytes.length; index++) {
+      if (blockBytes[index] !== blockFooterTag) {
         continue;
       }
-      // Skip the varint-encoded BlockFooter length
-      let varintEnd: number = index + 1;
-      while (varintEnd < rawBytes.length && (rawBytes[varintEnd] & varintHighBit) !== 0) {
-        varintEnd++;
+      let footerLength: number = 0;
+      let cursor: number = index + 1;
+      let terminated: boolean = false;
+      for (let byteIndex: number = 0; byteIndex < maximumVarintBytes && cursor < blockBytes.length; byteIndex++) {
+        const byte: number = blockBytes[cursor++];
+        footerLength += (byte & varintPayloadMask) * 2 ** (7 * byteIndex);
+        if ((byte & varintHighBit) === 0) {
+          terminated = true;
+          break;
+        }
       }
-      varintEnd++; // include the final byte
+      if (!terminated) {
+        continue;
+      }
+      const hashLength: number = blockBytes[cursor + 1];
       if (
-        varintEnd + 50 <= rawBytes.length &&
-        rawBytes[varintEnd] === previousHashTag &&
-        rawBytes[varintEnd + 1] === previousHashLength
+        blockBytes[cursor] === previousHashTag &&
+        supportedHashLengths.has(hashLength) &&
+        footerLength >= hashLength + 2 &&
+        cursor + footerLength <= blockBytes.length
       ) {
-        return rawBytes.subarray(varintEnd + 2, varintEnd + 2 + previousHashLength).toString('hex');
+        return blockBytes.subarray(cursor + 2, cursor + 2 + hashLength).toString('hex');
       }
     }
     return undefined;

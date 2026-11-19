@@ -7,7 +7,7 @@ This example demonstrates how to deploy a complete Hedera network with previous 
 This test scenario performs the following operations:
 
 1. **Deploy with Previous Versions**: Deploys a network with consensus nodes, block node, mirror node, relay, and explorer using previous versions
-2. **Upgrade Components**: Upgrades each component individually to the current version
+2. **Upgrade Components**: Upgrades each component individually. The mirror node, relay and explorer go to the current version. The consensus node and block node go to `TEST_UPGRADE_TO_VERSION` and `TEST_UPGRADE_TO_BLOCK_NODE_VERSION` in `version-test.ts`, because a consensus node from v0.79.1 on must be redeployed rather than upgraded in place
 3. **Network Upgrade with Local Build**: Upgrades the consensus network using the `--local-build-path` flag
 4. **Functionality Verification**: Creates accounts, verifies Explorer API responses, and tests Relay functionality
 

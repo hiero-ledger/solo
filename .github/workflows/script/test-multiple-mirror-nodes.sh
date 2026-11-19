@@ -46,7 +46,9 @@ BLOCK_NODE_PORT="${BLOCK_NODE_PORT:-19082}"
 
 # The mirror node version deployed first, and the one the mirror nodes are upgraded to (the default of this checkout)
 PREVIOUS_MIRROR_NODE_VERSION="${PREVIOUS_MIRROR_NODE_VERSION:-v0.162.0}"
-CURRENT_MIRROR_NODE_VERSION="${CURRENT_MIRROR_NODE_VERSION:-$(sed -n "s/^export const MIRROR_NODE_VERSION: string = .*|| '\(v[0-9.]*\)'.*/\1/p" version.ts 2>/dev/null)}"
+# shellcheck source=helper.sh
+source "$(dirname "${BASH_SOURCE[0]}")/helper.sh"
+CURRENT_MIRROR_NODE_VERSION="${CURRENT_MIRROR_NODE_VERSION:-$(extract_version MIRROR_NODE_VERSION version.ts)}"
 
 # Timeouts
 TRAFFIC_TIMEOUT_SECONDS="${TRAFFIC_TIMEOUT_SECONDS:-300}"

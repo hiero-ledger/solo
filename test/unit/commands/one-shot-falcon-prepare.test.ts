@@ -86,6 +86,17 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     expect(parsed.relayNode[optionFromFlag(Flags.relayReleaseTag)]).to.equal('0.50.0');
   });
 
+  // falcon deploy reads the current flags; leaving them empty silently deployed Solo's default versions
+  it('writes the versions to the current version flags, not only the deprecated ones', (): void => {
+    const config: FalconPrepareConfig = createDefaultConfig({releaseTag: 'v0.99.0', chartVersion: '0.99.0'});
+    const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
+    const parsed: Record<string, Record<string, string>> = yaml.parse(output);
+
+    expect(parsed.network[optionFromFlag(Flags.consensusNodeVersion)]).to.equal('v0.99.0');
+    expect(parsed.setup[optionFromFlag(Flags.consensusNodeVersion)]).to.equal('v0.99.0');
+    expect(parsed.blockNode[optionFromFlag(Flags.blockNodeVersion)]).to.equal('0.99.0');
+  });
+
   it('should apply mirror ingress setting', (): void => {
     const config: FalconPrepareConfig = createDefaultConfig({enableMirrorIngress: false});
     const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);

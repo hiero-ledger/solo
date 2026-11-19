@@ -1293,7 +1293,7 @@ export class Flags {
       deprecated: {
         since: '0.94.0',
         removalIssue: 6174,
-        reason: 'Consensus node v0.79.0 and later embed the WRAPS proving parameters, so it has no effect on them.',
+        reason: 'Consensus node v0.79.1 and later embed the WRAPS proving parameters, so it has no effect on them.',
       },
     },
   };
@@ -1307,7 +1307,7 @@ export class Flags {
       deprecated: {
         since: '0.94.0',
         removalIssue: 6174,
-        reason: 'Consensus node v0.79.0 and later embed the WRAPS proving parameters, so it has no effect on them.',
+        reason: 'Consensus node v0.79.1 and later embed the WRAPS proving parameters, so it has no effect on them.',
       },
     },
   };

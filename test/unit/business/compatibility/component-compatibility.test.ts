@@ -40,7 +40,8 @@ describe('ComponentCompatibility', (): void => {
       ['an all-pre-16-slot tuple', tuple('v0.75.1', '0.40.1', 'v0.160.0')],
       ['a 16-slot pair below the SHA-256 floor', tuple('v0.77.2', '0.41.0', 'v0.163.0')],
       ['the CN v0.79 matrix', tuple('v0.79.0', '0.45.0', 'v0.165.0')],
-      ['newer block and mirror nodes with an older consensus node', tuple('v0.78.0', '0.45.0', 'v0.165.0')],
+      ['a newer mirror node with an older consensus node', tuple('v0.78.0', '0.44.3', 'v0.165.0')],
+      ['the early SHA-256 + TSS-Nova matrix', tuple('v0.80.0-alpha.4', '0.45.0-rc5', 'v0.165.2-rc1')],
       ['a consensus node alone', tuple('v0.79.0')],
       ['a consensus node without a block node', tuple('v0.79.0', undefined, 'v0.165.0')],
     ];
@@ -69,6 +70,12 @@ describe('ComponentCompatibility', (): void => {
       ).to.deep.equal([ComponentTypes.BlockNode]);
     });
 
+    it('rejects a SHA-256 block node with an older consensus node', (): void => {
+      expect(requiredComponents(ComponentCompatibility.findViolations(tuple('v0.78.1', '0.45.0')))).to.deep.equal([
+        ComponentTypes.ConsensusNode,
+      ]);
+    });
+
     it('rejects a mirror node below the SHA-256 floor', (): void => {
       expect(
         requiredComponents(ComponentCompatibility.findViolations(tuple('v0.79.0', '0.45.0', 'v0.164.0'))),
@@ -91,9 +98,18 @@ describe('ComponentCompatibility', (): void => {
     });
 
     describe('pre-release boundaries', (): void => {
-      it('applies the SHA-256 floor to consensus node pre-releases', (): void => {
-        expect(ComponentCompatibility.findViolations(tuple('v0.79.0-alpha.1', '0.44.2'))).to.have.lengthOf(1);
-        expect(ComponentCompatibility.findViolations(tuple('v0.79.0-rc.1', '0.44.2'))).to.have.lengthOf(1);
+      // the v0.79.0 pre-releases still hash with SHA-384, so they pair with the pre-SHA-256 block node
+      it('does not apply the SHA-256 floor to v0.79.0 pre-releases', (): void => {
+        expect(ComponentCompatibility.findViolations(tuple('v0.79.0-alpha.2', '0.44.2'))).to.be.empty;
+        expect(
+          requiredComponents(ComponentCompatibility.findViolations(tuple('v0.79.0-alpha.2', '0.45.0'))),
+        ).to.deep.equal([ComponentTypes.ConsensusNode]);
+      });
+
+      it('applies the SHA-256 floor to pre-releases of later versions', (): void => {
+        expect(
+          requiredComponents(ComponentCompatibility.findViolations(tuple('v0.80.0-alpha.4', '0.44.2'))),
+        ).to.deep.equal([ComponentTypes.BlockNode]);
       });
 
       it('lets pre-releases of the minimum version satisfy the floor', (): void => {
@@ -189,23 +205,23 @@ describe('ComponentCompatibility', (): void => {
 
     it('rejects upgrading a consensus node across the redeploy boundary', (): void => {
       expect((): void =>
-        ComponentCompatibility.assertUpgradeInPlace(ComponentTypes.ConsensusNode, '0.78.2', 'v0.79.0', false, logger),
+        ComponentCompatibility.assertUpgradeInPlace(ComponentTypes.ConsensusNode, '0.79.0', 'v0.79.1', false, logger),
       )
         .to.throw(ComponentUpgradeRequiresRedeploySoloError)
         .with.property('message')
-        .that.matches(/Consensus node cannot be upgraded in place from 0\.78\.2 to v0\.79\.0/);
+        .that.matches(/Consensus node cannot be upgraded in place from 0\.79\.0 to v0\.79\.1/);
     });
 
     it('treats a pre-release of the boundary version as crossing it', (): void => {
-      expect(ComponentCompatibility.findCrossedTransition(ComponentTypes.ConsensusNode, 'v0.78.2', 'v0.79.0-alpha.1'))
-        .to.not.be.undefined;
+      expect(ComponentCompatibility.findCrossedTransition(ComponentTypes.ConsensusNode, 'v0.79.0', 'v0.79.1-rc.1')).to
+        .not.be.undefined;
     });
 
     it('allows upgrades on either side of the boundary', (): void => {
-      expect(ComponentCompatibility.findCrossedTransition(ComponentTypes.ConsensusNode, 'v0.77.2', 'v0.78.2')).to.be
+      expect(ComponentCompatibility.findCrossedTransition(ComponentTypes.ConsensusNode, 'v0.78.2', 'v0.79.0')).to.be
         .undefined;
-      expect(ComponentCompatibility.findCrossedTransition(ComponentTypes.ConsensusNode, 'v0.79.0-alpha.1', 'v0.79.1'))
-        .to.be.undefined;
+      expect(ComponentCompatibility.findCrossedTransition(ComponentTypes.ConsensusNode, 'v0.79.1-rc.1', 'v0.79.2')).to
+        .be.undefined;
     });
 
     it('only applies a boundary to its own component', (): void => {
@@ -221,7 +237,7 @@ describe('ComponentCompatibility', (): void => {
 
     it('logs instead of throwing when force is set', (): void => {
       expect((): void =>
-        ComponentCompatibility.assertUpgradeInPlace(ComponentTypes.ConsensusNode, 'v0.78.2', 'v0.79.0', true, logger),
+        ComponentCompatibility.assertUpgradeInPlace(ComponentTypes.ConsensusNode, 'v0.79.0', 'v0.79.1', true, logger),
       ).to.not.throw();
       expect(warn.calledOnce).to.be.true;
       expect(showUser.calledOnce).to.be.true;

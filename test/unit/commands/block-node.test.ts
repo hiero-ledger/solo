@@ -76,7 +76,10 @@ interface BlockNodeCommandInternal {
     namespace: NamespaceName,
     context: string,
   ) => Promise<{id: number; releaseName: string; isChartInstalled: boolean; isLegacyChartInstalled: boolean}>;
-  prepareValuesArgForBlockNode: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
+  prepareValuesArgForBlockNode: (
+    configuration: Record<string, unknown>,
+    consensusNodeVersion?: string,
+  ) => Promise<HelmChartValues>;
   getLivenessCheckPortNumber: (chartVersion: string, componentImage?: string, componentImageArchive?: string) => number;
   isLocalImageAvailableInDocker: (componentImage: string) => boolean;
   updateBlockNodeVersionInRemoteConfig: (config: Record<string, unknown>) => Promise<void>;
@@ -874,6 +877,41 @@ describe('BlockNodeCommand unit tests', (): void => {
       const compatibilityInternal: CompatibilityInternal = internal('0.75.1');
 
       expect((): void => compatibilityInternal.assertBlockNodeCompatibility('0.41.0', '0.75.1', true)).to.not.throw();
+    });
+  });
+
+  describe('TSS values', (): void => {
+    interface TssValuesInternal {
+      remoteConfig: {configuration: {state: {tssEnabled?: boolean}}};
+      shouldApplyTssValues: (forceOverlay: boolean, consensusNodeVersion: string) => boolean;
+    }
+
+    const internal: (tssEnabled?: boolean) => TssValuesInternal = (tssEnabled?: boolean): TssValuesInternal => {
+      const tssValuesInternal: TssValuesInternal = blockNodeCommand as unknown as TssValuesInternal;
+      tssValuesInternal.remoteConfig = {configuration: {state: {tssEnabled}}};
+      return tssValuesInternal;
+    };
+
+    it('follows tssEnabled once the consensus network recorded it', (): void => {
+      expect(internal(true).shouldApplyTssValues(false, 'v0.78.1')).to.equal(true);
+      expect(internal(false).shouldApplyTssValues(false, 'v0.80.0-alpha.4')).to.equal(false);
+    });
+
+    // Regression: a block node added before `consensus network deploy` got the 24 MB default heap and ran out of
+    // memory on the genesis WRAPS proof of a TSS-Nova consensus node.
+    it('applies before tssEnabled is recorded when the consensus node always generates WRAPS proofs', (): void => {
+      expect(internal().shouldApplyTssValues(false, 'v0.80.0-alpha.4')).to.equal(true);
+      expect(internal().shouldApplyTssValues(false, 'v0.79.1')).to.equal(true);
+    });
+
+    it('does not apply before tssEnabled is recorded for consensus nodes without embedded WRAPS', (): void => {
+      expect(internal().shouldApplyTssValues(false, 'v0.79.0')).to.equal(false);
+      expect(internal().shouldApplyTssValues(false, 'v0.78.1')).to.equal(false);
+    });
+
+    it('applies whenever the overlay is forced', (): void => {
+      expect(internal(false).shouldApplyTssValues(true, 'v0.78.1')).to.equal(true);
+      expect(internal().shouldApplyTssValues(true, 'v0.75.1')).to.equal(true);
     });
   });
 });

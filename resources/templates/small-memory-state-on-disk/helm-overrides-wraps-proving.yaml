@@ -1,0 +1,10 @@
+# Consensus node v0.79.1+ (the TSS-Nova library, MINIMUM_CN_VERSION_FOR_EMBEDDED_WRAPS_PARAMETERS in version.ts)
+# builds the genesis WRAPS proof inside the node. That aggregation is native memory outside the JVM heap and
+# peaks at ~3 GiB (measured 3.0 GiB on v0.80.0-alpha.4), so the 896Mi cap from helm-overrides.yaml OOM-kills
+# the node every time it reaches the AGGREGATE phase. Helm merges values files in order, so this file is
+# applied after helm-overrides.yaml and only raises the limit; the small-memory request and heap stay as-is.
+defaults:
+  root:
+    resources:
+      limits:
+        memory: 3584Mi

@@ -348,14 +348,16 @@ export class BlockNodeCommand extends BaseCommand {
     }
   }
 
+  /**
+   * @param consensusNodeVersion - the version of the consensus node this block node serves
+   */
   private async prepareValuesArgForBlockNode(
     config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
+    consensusNodeVersion: string,
   ): Promise<HelmChartValues> {
     const chartValues: HelmChartValues = new HelmChartValues().file(constants.BLOCK_NODE_VALUES_FILE);
 
-    // Block node can be deployed before consensus deploy persists tssEnabled into remote config.
-    // The explicit CLI switch allows users to opt into TSS sizing and message limits in that order-of-operations.
-    if (this.remoteConfig.configuration.state.tssEnabled || config.blockNodeTssOverlay) {
+    if (this.shouldApplyTssValues(config.blockNodeTssOverlay, consensusNodeVersion)) {
       chartValues.file(constants.BLOCK_NODE_TSS_VALUES_FILE);
     }
 
@@ -462,6 +464,28 @@ export class BlockNodeCommand extends BaseCommand {
     return `${parsedReference.registry}/${parsedReference.repository}`;
   }
 
+  /**
+   * Whether the block node gets the TSS values, which size it to receive and verify TSS proofs. A block node is often
+   * deployed before `consensus network deploy` records tssEnabled in remote config. Until then TSS will follow the
+   * --tss default (on), so the values apply when the consensus node version always generates WRAPS proofs: from
+   * TSS-Nova the genesis blocks carry a WRAPS proof that the default block node heap cannot hold. `forceOverlay`
+   * (--block-node-tss-overlay) applies them regardless.
+   */
+  private shouldApplyTssValues(forceOverlay: boolean, consensusNodeVersion: string): boolean {
+    if (forceOverlay) {
+      return true;
+    }
+
+    const tssEnabled: Optional<boolean> = this.remoteConfig.configuration.state.tssEnabled;
+    if (typeof tssEnabled === 'boolean') {
+      return tssEnabled;
+    }
+
+    return new SemanticVersion<string>(consensusNodeVersion).greaterThanOrEqual(
+      versions.MINIMUM_CN_VERSION_FOR_EMBEDDED_WRAPS_PARAMETERS,
+    );
+  }
+
   private shouldConfigureRsaMirrorBootstrapSource(): boolean {
     const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
       this.remoteConfig.configuration.versions?.consensusNode?.toString() || versions.HEDERA_PLATFORM_VERSION,
@@ -497,6 +521,11 @@ export class BlockNodeCommand extends BaseCommand {
       return requestedReleaseTag;
     }
 
+    return this.deployedConsensusNodeVersion();
+  }
+
+  /** The consensus node version recorded in remote config, or solo's default when none is recorded. */
+  private deployedConsensusNodeVersion(): string {
     return this.remoteConfig.configuration.versions?.consensusNode?.toString() ?? versions.HEDERA_PLATFORM_VERSION;
   }
 
@@ -1046,7 +1075,10 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareValuesArgForBlockNode(config);
+            config.chartValues = await this.prepareValuesArgForBlockNode(
+              config,
+              this.resolveConsensusNodeVersionForCompatibility(argv),
+            );
           },
         },
         this.loadImageIntoKindTask(),
@@ -1476,11 +1508,7 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             // On upgrade the consensus network is already deployed, so remote config is ground truth.
-            this.assertBlockNodeCompatibility(
-              config.upgradeVersion,
-              this.remoteConfig.configuration.versions?.consensusNode?.toString() ?? versions.HEDERA_PLATFORM_VERSION,
-              config.force,
-            );
+            this.assertBlockNodeCompatibility(config.upgradeVersion, this.deployedConsensusNodeVersion(), config.force);
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
@@ -1504,7 +1532,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareValuesArgForBlockNode(config);
+            config.chartValues = await this.prepareValuesArgForBlockNode(config, this.deployedConsensusNodeVersion());
           },
         },
         this.loadImageIntoKindTask(),
