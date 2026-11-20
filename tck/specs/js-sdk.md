@@ -16,6 +16,8 @@ and the mirror pinger are disabled so the kit owns the test load. Resource limit
 | P7 | Solo creates a funded account and updates its ED25519 key. The candidate SDK reads the installed key and uses it to sign P5. |
 | P8 | Sustain 20 transactions per second for 120 seconds, alternating transfers and topic messages. All 2,400 submissions receive SUCCESS receipts. Mirror REST confirms the final transfer and message; P4 still holds. |
 
+All probes are required; this lane has no report-only probes.
+
 P1 and P3 happen before deployment. P7 then P5 then P6 run before P8. P4 spans the other probes and is finalized
 before cleanup. Pod errors during cleanup are not workload stability failures. Setup/install, pod backends and
 network failure attribution follow the [runner contract](../README.md#contract-and-reports); attribution never

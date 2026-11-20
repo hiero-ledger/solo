@@ -22,7 +22,7 @@ outputs:
     description: pass or fail
     value: ${{ steps.run.outputs.outcome }}
   reason:
-    description: Empty on pass; candidate, invalid, environment, kit or unknown on failure
+    description: Empty on pass; candidate, solo, invalid, environment, kit or unknown on failure
     value: ${{ steps.run.outputs.reason }}
   result-file:
     description: Final JSON report, written after cleanup

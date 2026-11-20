@@ -3,7 +3,12 @@
 import {parseArgs} from 'node:util';
 
 export const PROBES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'];
-export const EXIT = {candidate: 1, invalid: 2, environment: 3, kit: 4, unknown: 5};
+// `solo` is reserved for assertions about Solo's own behaviour; no probe assigns it yet.
+export const EXIT = {candidate: 1, invalid: 2, environment: 3, kit: 4, unknown: 5, solo: 6};
+// Probes that run and are recorded but cannot fail the run. None in this lane yet.
+export const REPORT_ONLY = [];
+// Raise when a tck-result.json field is removed, renamed or changes meaning.
+export const SCHEMA_VERSION = 1;
 export const PACKAGES = ['@hiero-ledger/sdk', '@hiero-ledger/proto', '@hiero-ledger/cryptography'];
 // Solo one-shot's fixed Mirror REST port; never read from run state, so probes cannot be redirected.
 export const MIRROR_URL = 'http://127.0.0.1:38081';
@@ -105,7 +110,8 @@ export class Contract {
     if (watchFailure) {
       throw watchFailure;
     }
-    if (!PROBES.every(id => result.probes[id]?.status === 'pass')) {
+    const reportOnly = result.reportOnly ?? [];
+    if (!PROBES.every(id => reportOnly.includes(id) || result.probes[id]?.status === 'pass')) {
       throw new Failure('kit', 'Cannot pass: at least one required probe did not pass.');
     }
   }
@@ -124,16 +130,25 @@ export class Contract {
   }
 
   static junit(result) {
+    const reportOnly = result.reportOnly ?? [];
+    let failures = 0;
+    let skipped = 0;
     const cases = PROBES.map(id => {
       const probe = result.probes[id];
-      let content = '<skipped message="Not reached; overall run failed"/>';
-      if (probe?.status === 'pass') {
-        content = '';
+      let content = '';
+      if (probe?.status === 'fail' && reportOnly.includes(id)) {
+        // A report-only probe must not read as passed, nor fail the suite.
+        skipped++;
+        content = `<skipped message="Report-only probe failed: ${Contract.#xml(probe.message)}"/>`;
       } else if (probe?.status === 'fail') {
+        failures++;
         content = `<failure message="${Contract.#xml(probe.message)}"/>`;
+      } else if (!probe) {
+        skipped++;
+        content = '<skipped message="Not reached; overall run failed"/>';
       }
       return `<testcase classname="solo-tck.js-sdk" name="${id}" time="${(probe?.milliseconds || 0) / 1000}">${content}</testcase>`;
     });
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="Solo TCK js-sdk" tests="8" failures="${PROBES.filter(id => result.probes[id]?.status === 'fail').length}" skipped="${PROBES.filter(id => !result.probes[id]).length}">${cases.join('')}</testsuite>\n`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="Solo TCK js-sdk" tests="8" failures="${failures}" skipped="${skipped}">${cases.join('')}</testsuite>\n`;
   }
 }

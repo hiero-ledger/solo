@@ -87,14 +87,18 @@ cleanup and results. Inner limits are setup/install 3 minutes, deploy 8, probes 
 deadlines and cancellation stops their process groups. Cleanup success is reported separately and does not change
 the probe verdict, as proposed in the design.
 
+`tck-result.json` carries `schemaVersion` 1; removing, renaming or changing the meaning of a field raises it. Its
+`reportOnly` list names probes that run and are recorded but cannot fail the run; a report-only failure appears in
+JUnit as skipped, never as passed.
+
 The final `artifacts/` directory contains `tck-result.json`, `junit.xml`, `summary.md`, command logs, sanitized Solo
 logs, and failure diagnostics. Results are written after cleanup and include requested inputs, observed package
 identity, pod images/resource limits, recorded chart-version lines, probe times, load counts and resource peaks.
 Generated account keys are kept in private working state outside that directory. Failure summaries include a draft
 for manual issue triage; the kit never posts anything.
 
-Exit codes are 0 pass, 1 candidate, 2 invalid input, 3 environment, 4 kit defect, 5 unknown. Every nonzero exit fails
-the action. A missing probe cannot pass. A startup error such as `NodeAccountId not recognized: 0.0.2` stays red with
+Exit codes are 0 pass, 1 candidate, 2 invalid input, 3 environment, 4 kit defect, 5 unknown, 6 Solo (reserved for
+assertions about Solo's own behaviour; no probe assigns it yet). Every nonzero exit fails the action. A missing probe cannot pass. A startup error such as `NodeAccountId not recognized: 0.0.2` stays red with
 reason `unknown`; it does not automatically blame the SDK. Backend pod failures in this SDK lane are likewise
 `unknown`, except noncandidate image-pull errors, which are `environment`.
 

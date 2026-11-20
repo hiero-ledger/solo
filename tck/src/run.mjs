@@ -13,7 +13,7 @@ import {
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {Contract, Failure, EXIT, LIMITS} from './contract.mjs';
+import {Contract, Failure, EXIT, LIMITS, REPORT_ONLY, SCHEMA_VERSION} from './contract.mjs';
 import {Processes} from './process.mjs';
 import {Packages} from './packages.mjs';
 import {PodWatcher} from './pods.mjs';
@@ -38,11 +38,13 @@ async function run(arguments_) {
   const started = Date.now();
   const controller = new AbortController();
   const result = {
+    schemaVersion: SCHEMA_VERSION,
     kitVersion: version,
     lane: 'js-sdk',
     outcome: 'fail',
     reason: '',
     probes: {},
+    reportOnly: REPORT_ONLY,
     stages: {},
     cleanup: {},
     startedAt: new Date(started).toISOString(),

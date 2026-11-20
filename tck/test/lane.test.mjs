@@ -78,6 +78,19 @@ test('missing probes cannot pass, and JUnit preserves failures and missing probe
   assert.throws(() => Contract.complete(result), failure('unknown'));
 });
 
+test('a failed report-only probe is recorded but cannot fail the run', () => {
+  const result = {probes: {}, reportOnly: ['P8']};
+  for (const id of PROBES) {
+    result.probes[id] = {status: 'pass'};
+  }
+  result.probes.P8 = {status: 'fail', message: 'slow'};
+  Contract.complete(result);
+  assert.match(Contract.junit(result), /failures="0" skipped="1"/);
+  assert.match(Contract.junit(result), /Report-only probe failed: slow/);
+  result.probes.P7 = {status: 'fail', message: 'required'};
+  assert.throws(() => Contract.complete(result), failure('kit'));
+});
+
 test('JUnit excludes terminal control characters', () => {
   assert.ok(!Contract.junit({probes: {P2: {status: 'fail', message: '\u001B[31mfailed\u0000'}}}).includes('\u001B'));
   assert.ok(!Contract.junit({probes: {P2: {status: 'fail', message: '\u0000'}}}).includes('\u0000'));
@@ -305,6 +318,8 @@ test('CLI rejects unverified releases and writes a final failing result and JUni
   const result = JSON.parse(readFileSync(file, 'utf8'));
   assert.equal(result.outcome, 'fail');
   assert.equal(result.reason, 'invalid');
+  assert.equal(result.schemaVersion, 1);
+  assert.deepEqual(result.reportOnly, []);
   assert.equal(result.cleanup.cluster.detail, 'No owned cluster was created; nothing deleted');
   assert.match(readFileSync(path.join(path.dirname(file), 'junit.xml'), 'utf8'), /failures="1"/);
 });
