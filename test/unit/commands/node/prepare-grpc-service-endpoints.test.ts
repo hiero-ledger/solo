@@ -12,8 +12,11 @@ import * as constants from '../../../../src/core/constants.js';
 
 type PrepareGrpcServiceEndpointsTask = (context_: NodeAddContext) => void;
 
-function prepareGrpcServiceEndpoints(config: Partial<NodeAddConfigClass>): ServiceEndpoint[] {
+function prepareGrpcServiceEndpoints(config: Partial<NodeAddConfigClass>, configManager?: unknown): ServiceEndpoint[] {
   const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+  if (configManager !== undefined) {
+    (nodeCommandTasks as unknown as {configManager: unknown}).configManager = configManager;
+  }
   const context_: NodeAddContext = {
     config: {
       namespace: NamespaceName.of('solo'),
@@ -88,5 +91,79 @@ describe('NodeCommandTasks.prepareGrpcServiceEndpoints', (): void => {
 
     expect(endpoints).to.have.lengthOf(2);
     expect(endpoints[1]._port).to.equal(38_211);
+  });
+
+  it('does not append host endpoint when publishHostEndpoints is false (Test B)', (): void => {
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints({
+      publishHostEndpoints: false,
+    });
+
+    expect(endpoints).to.have.lengthOf(1);
+    expect(endpoints[0]._domainName).to.equal('network-node4-svc.solo.svc.cluster.local');
+  });
+
+  it('does not append host endpoint when defaulted to false from CLI registration without mapping (Test C)', (): void => {
+    const mockConfigManager: {wasFlagProvidedByUser: () => boolean; getFlag: () => boolean} = {
+      wasFlagProvidedByUser: (): boolean => false,
+      getFlag: (): boolean => false,
+    };
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints({publishHostEndpoints: false}, mockConfigManager);
+
+    expect(endpoints).to.have.lengthOf(1);
+    expect(endpoints[0]._domainName).to.equal('network-node4-svc.solo.svc.cluster.local');
+  });
+
+  it('infers host endpoint when serviceEndpointPortMapping is provided and flag is omitted (Test D)', (): void => {
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints({
+      serviceEndpointPortMapping: {nodeAliasToPort: {node4: 38_211}},
+    });
+
+    expect(endpoints).to.have.lengthOf(2);
+    expect(endpoints[0]._domainName).to.equal('network-node4-svc.solo.svc.cluster.local');
+    expect(endpoints[1]._port).to.equal(38_211);
+  });
+
+  it('infers host endpoint when flag was defaulted to false from CLI registration and mapping is present (Test D)', (): void => {
+    const mockConfigManager: {wasFlagProvidedByUser: () => boolean; getFlag: () => boolean} = {
+      wasFlagProvidedByUser: (): boolean => false,
+      getFlag: (): boolean => false,
+    };
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints(
+      {
+        publishHostEndpoints: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node4: 38_211}},
+      },
+      mockConfigManager,
+    );
+
+    expect(endpoints).to.have.lengthOf(2);
+    expect(endpoints[1]._port).to.equal(38_211);
+  });
+
+  it('does not append host endpoint when publishHostEndpoints is explicitly false even with serviceEndpointPortMapping (Test E)', (): void => {
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints({
+      publishHostEndpoints: false,
+      serviceEndpointPortMapping: {nodeAliasToPort: {node4: 38_211}},
+    });
+
+    expect(endpoints).to.have.lengthOf(1);
+    expect(endpoints[0]._domainName).to.equal('network-node4-svc.solo.svc.cluster.local');
+  });
+
+  it('does not append host endpoint when publishHostEndpoints was explicitly provided as false via CLI even with mapping (Test E)', (): void => {
+    const mockConfigManager: {wasFlagProvidedByUser: () => boolean; getFlag: () => boolean} = {
+      wasFlagProvidedByUser: (): boolean => true,
+      getFlag: (): boolean => false,
+    };
+    const endpoints: ServiceEndpoint[] = prepareGrpcServiceEndpoints(
+      {
+        publishHostEndpoints: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node4: 38_211}},
+      },
+      mockConfigManager,
+    );
+
+    expect(endpoints).to.have.lengthOf(1);
+    expect(endpoints[0]._domainName).to.equal('network-node4-svc.solo.svc.cluster.local');
   });
 });

@@ -2226,6 +2226,69 @@ export class NodeCommandTasks {
     return constants.GRPC_LOCAL_PORT + nodeId;
   }
 
+  /**
+   * Determines if the publishHostEndpoints feature is explicitly enabled for port forwarding.
+   * Preserves backward compatibility by ensuring local port forwarding is not altered
+   * unless the feature is explicitly enabled.
+   */
+  public isPublishHostEndpointsEnabled(config: {publishHostEndpoints?: boolean}): boolean {
+    if (this.configManager?.wasFlagProvidedByUser(flags.publishHostEndpoints)) {
+      return Boolean(this.configManager.getFlag<boolean>(flags.publishHostEndpoints));
+    }
+    return Boolean(config.publishHostEndpoints || this.configManager?.getFlag<boolean>(flags.publishHostEndpoints));
+  }
+
+  /**
+   * Evaluates whether host-reachable consensus node endpoints should be published in the address book.
+   *
+   * Precedence order:
+   * 1. Explicit user CLI configuration (--publish-host-endpoints / --no-publish-host-endpoints).
+   * 2. Explicit config / ConfigManager true value.
+   * 3. Explicit programmatic/test false value when ConfigManager was not involved.
+   * 4. Inferred configuration from serviceEndpointPortMapping when publishHostEndpoints was omitted or defaulted.
+   * 5. Default: false.
+   */
+  public shouldPublishHostEndpoints(
+    config: {
+      publishHostEndpoints?: boolean;
+      serviceEndpointPortMapping?: EndpointPortMapping;
+    },
+    nodeAlias: NodeAlias,
+  ): boolean {
+    // 1. Explicit CLI flag provided by user takes precedence over inference
+    if (this.configManager?.wasFlagProvidedByUser(flags.publishHostEndpoints)) {
+      return Boolean(config.publishHostEndpoints ?? this.configManager.getFlag<boolean>(flags.publishHostEndpoints));
+    }
+
+    // 2. Explicitly enabled on config object or via ConfigManager
+    if (
+      config.publishHostEndpoints === true ||
+      this.configManager?.getFlag<boolean>(flags.publishHostEndpoints) === true
+    ) {
+      return true;
+    }
+
+    // 3. Explicitly disabled in programmatic / unit test config without ConfigManager
+    if (config.publishHostEndpoints === false && this.configManager === undefined) {
+      return false;
+    }
+
+    // 4. Inferred configuration: when the flag was omitted or defaulted to false from CLI registration,
+    // infer true if serviceEndpointPortMapping specifies a port for this node alias or a defaultPort
+    const hasServiceEndpointOverride: boolean = Boolean(
+      config.serviceEndpointPortMapping &&
+      (config.serviceEndpointPortMapping.nodeAliasToPort?.[nodeAlias] !== undefined ||
+        config.serviceEndpointPortMapping.defaultPort !== undefined),
+    );
+
+    if (hasServiceEndpointOverride) {
+      return true;
+    }
+
+    // 5. Default fallback to false
+    return false;
+  }
+
   public setGrpcWebEndpoint(
     nodeAliasesProperty: string,
     subcommandType: NodeSubcommandType,
@@ -2325,13 +2388,7 @@ export class NodeCommandTasks {
 
           const serviceEndpoints: ServiceEndpoint[] = [grpcServiceEndpoint];
 
-          const shouldPublishHostEndpoints: boolean = Boolean(
-            config.publishHostEndpoints ??
-            this.configManager?.getFlag<boolean>(flags.publishHostEndpoints) ??
-            (config.serviceEndpointPortMapping &&
-              (config.serviceEndpointPortMapping.nodeAliasToPort?.[nodeAlias] !== undefined ||
-                config.serviceEndpointPortMapping.defaultPort !== undefined)),
-          );
+          const shouldPublishHostEndpoints: boolean = this.shouldPublishHostEndpoints(config, nodeAlias);
 
           if (shouldPublishHostEndpoints) {
             const hostAddress: string =
@@ -2661,7 +2718,9 @@ export class NodeCommandTasks {
             const nodeAlias: NodeAlias =
               (pod.labels?.['solo.hedera.com/node-name'] as NodeAlias) ??
               Templates.renderNodeAliasFromNumber(Templates.renderComponentIdFromNodeId(nodeId));
-            const localPort: number = this.resolveHostGrpcPort(nodeAlias, nodeId, config.serviceEndpointPortMapping);
+            const localPort: number = this.isPublishHostEndpointsEnabled(config)
+              ? this.resolveHostGrpcPort(nodeAlias, nodeId, config.serviceEndpointPortMapping)
+              : constants.GRPC_LOCAL_PORT + nodeId;
 
             await this.remoteConfig.configuration.components.managePortForward(
               undefined,
@@ -4181,13 +4240,7 @@ export class NodeCommandTasks {
 
         context_.grpcServiceEndpoints = prepareEndpoints(config.endpointType, endpoints, servicePort);
 
-        const shouldPublishHostEndpoints: boolean = Boolean(
-          config.publishHostEndpoints ??
-          this.configManager?.getFlag<boolean>(flags.publishHostEndpoints) ??
-          (config.serviceEndpointPortMapping &&
-            (config.serviceEndpointPortMapping.nodeAliasToPort?.[config.nodeAlias] !== undefined ||
-              config.serviceEndpointPortMapping.defaultPort !== undefined)),
-        );
+        const shouldPublishHostEndpoints: boolean = this.shouldPublishHostEndpoints(config, config.nodeAlias);
 
         if (shouldPublishHostEndpoints) {
           const hostAddress: string =

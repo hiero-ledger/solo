@@ -19,6 +19,7 @@ import {
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {AccountManager} from '../../../../src/core/account-manager.js';
 import {NodeSubcommandType} from '../../../../src/core/enumerations.js';
+import {Flags as flags} from '../../../../src/commands/flags.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {SdkHederaClient} from '../../../../src/integration/hedera/impl/sdk-hedera-client.js';
@@ -278,6 +279,290 @@ describe('NodeCommandTasks admin key signing', (): void => {
       expect(node1Endpoints).to.have.lengthOf(1);
       expect(node1Endpoints[0].getPort).to.equal(50_211);
     });
+
+    it('publishes dual endpoints when inferred from serviceEndpointPortMapping with flag omitted', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[1].getPort).to.equal(36_211);
+    });
+
+    it('does not publish host endpoint when publishHostEndpoints is explicitly false even with serviceEndpointPortMapping', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+
+    it('does not publish host endpoint when publishHostEndpoints is explicitly false', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: false,
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+  });
+
+  describe('shouldPublishHostEndpoints', (): void => {
+    it('returns true when publishHostEndpoints is true (Test A)', (): void => {
+      expect(tasks.shouldPublishHostEndpoints({publishHostEndpoints: true}, 'node1')).to.be.true;
+    });
+
+    it('returns false when publishHostEndpoints is explicitly false without ConfigManager (Test B)', (): void => {
+      expect(tasks.shouldPublishHostEndpoints({publishHostEndpoints: false}, 'node1')).to.be.false;
+    });
+
+    it('returns false when defaulted to false from CLI registration without mapping (Test C)', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => false,
+        getFlag: (): boolean => false,
+      };
+
+      expect(tasks.shouldPublishHostEndpoints({publishHostEndpoints: false}, 'node1')).to.be.false;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('infers true when serviceEndpointPortMapping maps node and flag is omitted (Test D)', (): void => {
+      expect(
+        tasks.shouldPublishHostEndpoints({serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}}}, 'node1'),
+      ).to.be.true;
+    });
+
+    it('infers true when serviceEndpointPortMapping maps defaultPort and flag is omitted (Test D)', (): void => {
+      expect(
+        tasks.shouldPublishHostEndpoints(
+          {serviceEndpointPortMapping: {defaultPort: 36_211, nodeAliasToPort: {}}},
+          'node1',
+        ),
+      ).to.be.true;
+    });
+
+    it('infers true when flag was defaulted from CLI registration and mapping is present (Test D)', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => false,
+        getFlag: (): boolean => false,
+      };
+
+      expect(
+        tasks.shouldPublishHostEndpoints(
+          {
+            publishHostEndpoints: false,
+            serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
+          },
+          'node1',
+        ),
+      ).to.be.true;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('returns false when publishHostEndpoints was explicitly provided as false via CLI even with mapping (Test E)', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (f: unknown): boolean => f === flags.publishHostEndpoints,
+        getFlag: (): boolean => false,
+      };
+
+      expect(
+        tasks.shouldPublishHostEndpoints(
+          {
+            publishHostEndpoints: false,
+            serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
+          },
+          'node1',
+        ),
+      ).to.be.false;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('returns false when publishHostEndpoints is explicitly false in config without ConfigManager even with mapping (Test E)', (): void => {
+      expect(
+        tasks.shouldPublishHostEndpoints(
+          {
+            publishHostEndpoints: false,
+            serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
+          },
+          'node1',
+        ),
+      ).to.be.false;
+    });
+
+    it('returns false for an unmapped node when serviceEndpointPortMapping only maps other nodes', (): void => {
+      expect(
+        tasks.shouldPublishHostEndpoints({serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}}}, 'node1'),
+      ).to.be.false;
+    });
+  });
+
+  describe('isPublishHostEndpointsEnabled', (): void => {
+    it('returns false by default when publishHostEndpoints is omitted', (): void => {
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.false;
+    });
+
+    it('returns false when publishHostEndpoints is false even with serviceEndpointPortMapping', (): void => {
+      expect(
+        tasks.isPublishHostEndpointsEnabled({
+          publishHostEndpoints: false,
+        }),
+      ).to.be.false;
+    });
+
+    it('returns true when publishHostEndpoints is explicitly true in config', (): void => {
+      expect(tasks.isPublishHostEndpointsEnabled({publishHostEndpoints: true})).to.be.true;
+    });
+
+    it('returns true when user provided publishHostEndpoints as true on CLI', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => true,
+        getFlag: (): boolean => true,
+      };
+
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.true;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('returns false when user explicitly provided publishHostEndpoints as false on CLI', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => true,
+        getFlag: (): boolean => false,
+      };
+
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.false;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('returns false when publishHostEndpoints was defaulted to false on CLI', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => false,
+        getFlag: (): boolean => false,
+      };
+
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.false;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+  });
+
+  describe('enablePortForwarding local port resolution', (): void => {
+    let managePortForwardStub: SinonStub;
+
+    beforeEach((): void => {
+      managePortForwardStub = sinon.stub().resolves(35_211);
+      const mockPods: {podReference: {name: string}; labels: Record<string, string>}[] = [
+        {
+          podReference: {name: 'haproxy-node1-abc'},
+          labels: {'solo.hedera.com/node-id': '0', 'solo.hedera.com/node-name': 'node1'},
+        },
+        {
+          podReference: {name: 'haproxy-node2-def'},
+          labels: {'solo.hedera.com/node-id': '1', 'solo.hedera.com/node-name': 'node2'},
+        },
+      ];
+
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        getFlag: sinon.stub(),
+        wasFlagProvidedByUser: sinon.stub().returns(false),
+      };
+      (tasks as unknown as {k8Factory: unknown}).k8Factory = {
+        getK8: (): unknown => ({
+          pods: (): unknown => ({
+            list: (): Promise<unknown[]> => Promise.resolve(mockPods),
+          }),
+        }),
+      };
+      (tasks as unknown as {remoteConfig: unknown}).remoteConfig = {
+        configuration: {
+          components: {
+            managePortForward: managePortForwardStub,
+          },
+        },
+        persist: sinon.stub().resolves(),
+      };
+    });
+
+    afterEach((): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('preserves legacy GRPC_LOCAL_PORT + nodeId when feature is disabled (Test A)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: false,
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212
+    });
+
+    it('preserves legacy GRPC_LOCAL_PORT + nodeId when feature is disabled with serviceEndpointPortMapping configured (Test B)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212 (NOT 36211!)
+    });
+
+    it('uses configured host port when publishHostEndpoints is enabled with serviceEndpointPortMapping (Test C)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: true,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(36_211); // node2 -> 36211
+    });
+
+    it('uses GRPC_LOCAL_PORT + nodeId when publishHostEndpoints is enabled without mapping (Test D)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: true,
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212
+    });
   });
 
   describe('resolveHostGrpcPort', (): void => {
@@ -293,7 +578,7 @@ describe('NodeCommandTasks admin key signing', (): void => {
     });
 
     it('prefers active RemoteConfig HAProxy port forward when CLI mapping is absent', (): void => {
-      const mockComponent = {
+      const mockComponent: {metadata: {portForwardConfigs: {podPort: number; localPort: number}[]}} = {
         metadata: {
           portForwardConfigs: [{podPort: constants.GRPC_PORT, localPort: 37_211}],
         },
