@@ -156,6 +156,7 @@ describe('NetworkCommand unit tests', (): void => {
       options.k8Factory.default().pods = sinon.stub().returns({
         waitForRunningPhase: sinon.stub(),
         waitForReadyStatus: sinon.stub(),
+        list: sinon.stub().resolves([]),
       });
       options.k8Factory.default().secrets = sinon.stub().returns({
         createOrReplace: sinon.stub().resolves(true),
@@ -174,6 +175,7 @@ describe('NetworkCommand unit tests', (): void => {
       options.k8Factory.getK8().pods = sinon.stub().returns({
         waitForRunningPhase: sinon.stub(),
         waitForReadyStatus: sinon.stub(),
+        list: sinon.stub().resolves([]),
       });
       options.k8Factory.getK8().secrets = sinon.stub().returns({
         createOrReplace: sinon.stub().resolves(true),
@@ -183,7 +185,23 @@ describe('NetworkCommand unit tests', (): void => {
       });
       options.k8Factory.getK8().manifests = sinon.stub().returns({
         applyManifest: sinon.stub().resolves(),
+        installManifest: sinon.stub().resolves(),
         patchObject: sinon.stub().resolves(),
+      });
+      options.k8Factory.getK8().storageClasses = sinon.stub().returns({
+        list: sinon.stub().resolves([{name: 'standard', provisioner: 'rancher.io/local-path', isDefault: true}]),
+      });
+      // Must report at least one already-bound claim: the bind wait only returns once every claim is Bound, so an
+      // empty list would spin for the whole PVC_BOUND_MAX_ATTEMPTS budget.
+      options.k8Factory.getK8().pvcs = sinon.stub().returns({
+        readAll: sinon.stub().resolves([
+          {
+            pvcReference: {name: {toString: (): string => 'hgcapp-data-saved-pvc-network-node1-0'}},
+            phase: 'Bound',
+            requestedStorageBytes: 1024,
+            storageClassName: 'standard',
+          },
+        ]),
       });
       options.k8Factory.getK8().logger = options.logger;
 
@@ -499,6 +517,20 @@ describe('NetworkCommand unit tests', (): void => {
       } finally {
         sinon.restore();
       }
+    });
+
+    it('deletes only the consensus node volume claims on destroy', async (): Promise<void> => {
+      const list: SinonStub = sinon.stub().resolves(['hgcapp-data-saved-pvc-network-node1-0']);
+      const deleteClaim: SinonStub = sinon.stub().resolves();
+      options.k8Factory.getK8().pvcs = sinon.stub().returns({list, delete: deleteClaim});
+      const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+
+      // @ts-expect-error - to access private method
+      await networkCommand.deletePvcs(namespace, ['kind-solo-e2e']);
+
+      expect(list).to.have.been.calledOnceWithExactly(namespace, [constants.SOLO_NODE_PVC_LABEL_SELECTOR]);
+      expect(deleteClaim).to.have.been.calledOnce;
+      expect(deleteClaim.firstCall.args[0].name.toString()).to.equal('hgcapp-data-saved-pvc-network-node1-0');
     });
 
     it('rejects --verify-pvc-mounts when PVCs are disabled', async (): Promise<void> => {
