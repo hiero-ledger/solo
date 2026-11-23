@@ -2,6 +2,7 @@
 
 import 'reflect-metadata';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {runCapture} from './utilities.js';
@@ -21,6 +22,27 @@ process.chdir(projectRoot);
 
 const OUTPUT_FILE: string = path.join(projectRoot, 'docs/site/build/solo-cli.md');
 const SOLO_COMMAND: string = 'npm run solo --silent --';
+
+// Each `solo --help` call is an npm process plus a Node process that loads all of Solo. Spawning one per command at
+// once (~160 of them) peaks above 20 GB and takes down CI runners, so cap how many run at the same time.
+const MAX_CONCURRENT_SOLO_COMMANDS: number = Math.min(os.availableParallelism(), 8);
+let runningSoloCommands: number = 0;
+const waitingSoloCommands: (() => void)[] = [];
+
+async function runSolo(soloArguments: string): Promise<string> {
+  while (runningSoloCommands >= MAX_CONCURRENT_SOLO_COMMANDS) {
+    await new Promise<void>((resolve: () => void): void => {
+      waitingSoloCommands.push(resolve);
+    });
+  }
+  runningSoloCommands++;
+  try {
+    return await runCapture(`${SOLO_COMMAND} ${soloArguments}`);
+  } finally {
+    runningSoloCommands--;
+    waitingSoloCommands.shift()?.();
+  }
+}
 
 type SoloCommand = {
   output: string;
@@ -51,8 +73,8 @@ type ThirdLevelCommand = {
 async function getTopLevelCommands(): Promise<SoloCommand> {
   try {
     const soloCommand: SoloCommand = {
-      output: await runCapture(`${SOLO_COMMAND} --help`),
-      versionOutput: await runCapture(`${SOLO_COMMAND} --version`),
+      output: await runSolo('--help'),
+      versionOutput: await runSolo('--version'),
       topLevelCommands: [],
     };
     console.log(`${chalk.cyan('✔ Finished retrieving top level commands')}`);
@@ -94,7 +116,7 @@ async function getTopLevelCommands(): Promise<SoloCommand> {
 
 async function getSecondLevelCommands(topLevelCommand: TopLevelCommand): Promise<void> {
   try {
-    topLevelCommand.output = await runCapture(`${SOLO_COMMAND} ${topLevelCommand.topCommand} --help`);
+    topLevelCommand.output = await runSolo(`${topLevelCommand.topCommand} --help`);
     console.log(`${chalk.cyan('✔ Finished top level command: ')}${chalk.gray(topLevelCommand.topCommand)}`);
     const commands: string[] = topLevelCommand.output
       .split('\n')
@@ -122,7 +144,7 @@ async function getThirdLevelCommands(secondLevelCommand: SecondLevelCommand): Pr
     secondCommand,
   }: SecondLevelCommand = secondLevelCommand;
   try {
-    secondLevelCommand.output = await runCapture(`${SOLO_COMMAND} ${topCommand} ${secondCommand} --help`);
+    secondLevelCommand.output = await runSolo(`${topCommand} ${secondCommand} --help`);
     console.log(`${chalk.cyan('✔ Finished second level command: ')}${chalk.gray(`${topCommand} ${secondCommand}`)}`);
 
     const commands: string[] = secondLevelCommand.output
@@ -153,9 +175,7 @@ async function getOutputForThirdLevelCommand(thirdLevelCommand: ThirdLevelComman
     thirdCommand,
   }: ThirdLevelCommand = thirdLevelCommand;
   try {
-    thirdLevelCommand.output = await runCapture(
-      `${SOLO_COMMAND} ${topCommand} ${secondCommand} ${thirdCommand} --help`,
-    );
+    thirdLevelCommand.output = await runSolo(`${topCommand} ${secondCommand} ${thirdCommand} --help`);
     console.log(
       `${chalk.cyan('✔ Finished third level command: ')}${chalk.gray(`${topCommand} ${secondCommand} ${thirdCommand}`)}`,
     );
