@@ -239,8 +239,8 @@ never files issues itself.
 Every non-zero exit fails the step. There is no neutral or skipped result.
 
 Exit 6 exists so that an assertion about Solo's own behaviour has somewhere to land. No probe uses it yet; the
-capabilities that will are keyed in §17. Without it those failures would arrive as `unknown`, which §10.5 routes to
-human attribution, and the routing in §14 would send them to the wrong team.
+capabilities that will are keyed in §17. Without it those failures would arrive as `unknown`, which §10.5 sends
+through a baseline comparison and human attribution even though the evidence already names Solo.
 
 ## 5. Version selection
 
@@ -537,15 +537,15 @@ a failure non-blocking: the reason routes the triage, it never gates.
 | `environment` | The preflight or the Solo install failed; or the deploy failed before any candidate pod existed, with a known environment error (Kind create, a registry timeout); or a non-candidate image cannot be pulled |
 | `candidate`   | The evidence names the candidate: a candidate container that is not Ready in time, crash-loops, is OOM-killed or has an image error; a failed identity check; a failed probe that the lane spec marks as the candidate's, after the probes before it passed (for example a mirror REST read in the MN lane after the consensus transaction succeeded) |
 | `kit`         | An unexpected error in the kit's own code, or evidence it could not write                                                  |
-| `solo`        | The evidence names Solo: a deployed value does not match the input that asked for it, or Solo accepted an input it should have rejected. Reserved; no probe assigns it yet (§17) |
+| `solo`        | The evidence names Solo: a deployed value does not match the input that asked for it, or Solo accepted an input it should have rejected. In the `solo` lane, where Solo is the candidate, this is reported as `candidate`. Reserved; no probe assigns it yet (§17) |
 | `unknown`     | Every other failure: the run is red, but the evidence does not point at one part                                           |
 
 Reporting and attribution are separate. Every reason fails the check, so a wrong reason can never turn into a pass.
 The reason only says where the evidence points; `unknown` says that it points nowhere yet, and people attribute the
 failure (§10.5).
 
-Until Solo has a distinct exit code for invalid input (#6223), the kit recognizes Solo's compatibility error by its
-message.
+Since Solo 0.98.0 a rejected input exits with 2 (#6415), so the kit classifies it by that code rather than by the
+wording of Solo's compatibility error.
 
 Worked examples:
 
@@ -982,7 +982,7 @@ adoption have their own exit criteria in the plan. Operational triage and defect
 | A one-shot flag for the block node (today only `ONE_SHOT_WITH_BLOCK_NODE`)          | in #6223       | `block-node` lane; the env var works meanwhile                   |
 | The reverse SHA-256 rule (BN 0.45 with an older CN), and the real CN boundary       | #6202          | `block-node` and `consensus-node` lanes                          |
 | Synchronize action metadata with Solo releases and exclude `tck/` from npm | #6234, PR #6235 | Co-release publication; revise independent-release suppression rules (OPEN-09) |
-| A distinct exit code for invalid input, and JSON output of what is deployed         | in #6223       | Exact `invalid` reasons and richer results; the kit reads `kubectl` meanwhile |
+| JSON output of what is deployed                                                     | in #6223       | Richer results; the kit reads `kubectl` meanwhile. The distinct invalid-input exit code shipped in 0.98.0 (#6415) |
 
 The MN lane itself needs none of these: it runs with Explorer and Relay off, and turns the pinger off through the
 `mirrorNode` section key (§12).
@@ -1023,7 +1023,7 @@ release verification and adoption gates as any other lane change (§6.4, §14).
 | --- | --- | --- | --- |
 | DEFER-01 | Configuration read-back | §3 "no Solo internals"; §15 Solo-side output | Extension |
 | DEFER-02 | Declared-versus-realised topology | nothing | Extension |
-| DEFER-03 | Input-rejection semantics | §15, #6223 | Extension |
+| DEFER-03 | Input-rejection semantics | nothing | Extension |
 | DEFER-04 | CLI surface and deprecation contract | §7.1 every lane deploys | New check category |
 | DEFER-05 | Upgrade and update lanes | §7.2 P4, §3, §9 | Architecture |
 | DEFER-06 | Multiple modes and topologies | §7.1 | Architecture |
@@ -1058,9 +1058,9 @@ the network still behaves. Additive, as per-lane probes under §7.3. No rule blo
 An input Solo cannot honour must be rejected rather than silently replaced by a default, and the kit asserts the
 rejection. Where Solo deliberately does not correct a value for the user, it must fail with an error.
 
-The Solo-side prerequisite is already tracked in §15 as a distinct exit code for invalid input (#6223). Until that
-lands, §10.2 recognises Solo's compatibility error by its message, which is too weak to assert against. Once the code
-exists these are ordinary probes, with the `solo` reason when Solo accepts something it should have refused.
+The Solo-side prerequisite has shipped: since Solo 0.98.0 a rejected input exits with 2 (#6415), which is strong
+enough to assert against. These are ordinary probes, with the `solo` reason when Solo accepts something it should
+have refused.
 
 ### DEFER-04 CLI surface and deprecation contract
 
