@@ -139,8 +139,8 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
           if (!manifestImage) {
             task.title += ' - ' + chalk.yellow('not in the manifest, skipped');
-            this.recordFailure(
-              `${reference} is not listed in the image cache manifest and was not cached; the cluster will pull it directly.`,
+            this.recordUncached(
+              `${reference} is not in the image cache manifest; the cluster pulls it from its registry.`,
             );
             return;
           }
@@ -515,6 +515,12 @@ export class ImageCacheHandler implements CacheOperationHandler {
   // summary of what did not make it into the cache or the cluster, without aborting the run.
   private recordFailure(message: string): void {
     this.recordMessage(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP, 'Image cache failures', message);
+  }
+
+  // Records an image the manifest does not list. Not a failure: the cluster pulls it from its registry as it
+  // would without a cache, so it gets its own informational summary rather than joining the failures.
+  private recordUncached(message: string): void {
+    this.recordMessage(constants.CACHE_IMAGE_UNCACHED_MESSAGE_GROUP, 'Images pulled from their registries', message);
   }
 
   // Records housekeeping the pull performed on the cache directory, shown as its own end-of-run summary so
