@@ -140,7 +140,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
           if (!manifestImage) {
             task.title += ' - ' + chalk.yellow('not in the manifest, skipped');
             this.recordUncached(
-              `${reference} is not in the image cache manifest; the cluster pulls it from its registry.`,
+              `${reference} is not in the image cache manifest; if the deployment uses it, the cluster pulls it from its registry.`,
             );
             return;
           }
