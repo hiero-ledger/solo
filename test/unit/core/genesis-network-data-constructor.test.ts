@@ -4,7 +4,6 @@ import {type AccountId, PrivateKey, type PublicKey} from '@hiero-ledger/sdk';
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
-import crypto from 'node:crypto';
 import {GenesisNetworkDataConstructor} from '../../../src/core/genesis-network-models/genesis-network-data-constructor.js';
 import {type AccountManager} from '../../../src/core/account-manager.js';
 import {type KeyManager} from '../../../src/core/key-manager.js';
@@ -59,11 +58,12 @@ describe('core/genesis-network-data-constructor', (): void => {
     return serviceMap;
   }
 
-  const tlsCertificateDer: Uint8Array = new Uint8Array([4, 5, 6]);
+  const tlsCertificateHash: Buffer = Buffer.from([4, 5, 6]);
 
   const keyManager: KeyManager = {
-    getDerFromPem: (pem: string): Uint8Array =>
-      pem === 'tls-certificate-pem' ? tlsCertificateDer : new Uint8Array([1, 2, 3]),
+    getDerFromPem: (): Uint8Array => new Uint8Array([1, 2, 3]),
+    getGrpcCertificateHash: (pem: string): Buffer =>
+      pem === 'tls-certificate-pem' ? tlsCertificateHash : Buffer.alloc(0),
   } as unknown as KeyManager;
 
   const accountManager: AccountManager = {
@@ -136,9 +136,9 @@ describe('core/genesis-network-data-constructor', (): void => {
     ]);
   });
 
-  it('should set the grpc certificate hash to the SHA-384 of the gRPC TLS certificate', async (): Promise<void> => {
+  it('should set the grpc certificate hash from the PEM gRPC TLS certificate', async (): Promise<void> => {
     const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData();
-    const expectedHash: string = crypto.createHash('sha384').update(tlsCertificateDer).digest('base64');
+    const expectedHash: string = tlsCertificateHash.toString('base64');
 
     for (const nodeAlias of nodeAliases) {
       expect(genesisNetworkData.nodes[nodeAlias].grpcCertificateHash).to.equal(expectedHash);
@@ -219,6 +219,7 @@ describe('core/genesis-network-data-constructor', (): void => {
     } as unknown as AccountManager;
     const keyManagerStub: KeyManager = {
       getDerFromPem: sinon.stub().returns(Uint8Array.from([1, 2, 3])),
+      getGrpcCertificateHash: sinon.stub().returns(Buffer.from([4, 5, 6])),
     } as unknown as KeyManager;
 
     try {

@@ -4019,8 +4019,10 @@ export class NodeCommandTasks {
         const config: NodeAddConfigClass = context_.config;
         const tlsCertFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
         const tlsCertFullPath: string = PathEx.joinWithRealPath(config.keysDir, tlsCertFile);
-        const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(tlsCertFullPath);
-        context_.tlsCertHash = crypto.createHash('sha384').update(tlsCertDer).digest();
+        context_.tlsCertHash = this.keyManager.getGrpcCertificateHash(
+          fs.readFileSync(tlsCertFullPath, 'utf8'),
+          tlsCertFullPath,
+        );
       },
     };
   }
@@ -4205,8 +4207,10 @@ export class NodeCommandTasks {
 
         if (config.tlsPublicKey && config.tlsPrivateKey) {
           this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-          const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-          updateOptions.certificateHash = crypto.createHash('sha384').update(tlsCertDer).digest();
+          updateOptions.certificateHash = this.keyManager.getGrpcCertificateHash(
+            fs.readFileSync(config.tlsPublicKey, 'utf8'),
+            config.tlsPublicKey,
+          );
 
           const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
           const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
