@@ -16,6 +16,8 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {KubernetesQuantity} from '../business/utils/kubernetes-quantity.js';
 import {type PvcMountFinding} from './pvc-mount-finding.js';
 import {PvcMountFindingKind} from './pvc-mount-finding-kind.js';
+import {Helpers} from './helpers.js';
+import {Duration} from './time/duration.js';
 
 /**
  * Verifies that a pod's PersistentVolumeClaim mounts are backed by the storage the claims asked
@@ -38,6 +40,12 @@ export class PvcMountVerifier {
    * the failure this detects is off by an order of magnitude, not a few percent.
    */
   private static readonly CAPACITY_TOLERANCE: number = 0.9;
+
+  /**
+   * Upper bound for one probe. The probe is a best-effort check, and an exec through the API server can stall
+   * indefinitely on a container that is not serving, which would otherwise stall the whole deploy.
+   */
+  private static readonly PROBE_TIMEOUT: Duration = Duration.ofMinutes(1);
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -69,12 +77,14 @@ export class PvcMountVerifier {
 
     const requestedBytesByClaimName: Map<string, number> = await this.readRequestedBytesByClaimName(namespace, context);
 
-    const findings: PvcMountFinding[] = [];
-    for (const pod of pods) {
-      findings.push(...(await this.verifyPod(namespace, context, pod, requestedBytesByClaimName)));
-    }
+    // Probes go through the API server one exec at a time, so a sequential walk grows with pods and containers.
+    const findingsByPod: PvcMountFinding[][] = await Promise.all(
+      pods.map((pod: Pod): Promise<PvcMountFinding[]> =>
+        this.verifyPod(namespace, context, pod, requestedBytesByClaimName),
+      ),
+    );
 
-    return findings;
+    return findingsByPod.flat();
   }
 
   /** Requested size in bytes of every claim in the namespace, keyed by claim name. */
@@ -189,7 +199,11 @@ export class PvcMountVerifier {
     let output: string;
     try {
       const podContainer: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-      output = await podContainer.execContainer(['/bin/sh', '-c', script]);
+      output = await Helpers.withTimeout(
+        podContainer.execContainer(['/bin/sh', '-c', script]),
+        PvcMountVerifier.PROBE_TIMEOUT,
+        `probe did not finish within ${PvcMountVerifier.PROBE_TIMEOUT.toMillis()}ms`,
+      );
     } catch (error: Error | unknown) {
       // An unverifiable mount is not a failed one: containers without a shell, or exec being
       // unavailable, must not be reported as a storage problem.
