@@ -87,7 +87,7 @@ export const SOLO_CHART_EDGE_VERSION: string =
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
   constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.80.0-alpha.4';
 export const MIRROR_NODE_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || 'v0.165.2-rc1';
+  constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || 'v0.167.1';
 export const EXPLORER_EDGE_VERSION: string =
   constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION') || EXPLORER_VERSION;
 export const HEDERA_JSON_RPC_RELAY_EDGE_VERSION: string =
@@ -129,24 +129,27 @@ export const MINIMUM_CN_VERSION_FOR_16_SLOT_BLOCK_PROOF: string = 'v0.77.0-0';
 export const MINIMUM_BLOCK_NODE_VERSION_FOR_16_SLOT_BLOCK_PROOF: string = 'v0.41.0-0';
 
 // Consensus node v0.79 hashes blocks and state with SHA-256 instead of SHA-384. Block node 0.45+ only
-// accepts SHA-256 block hashes (it rejects a SHA-384 block with UNSUPPORTED_STREAM_FORMAT), and mirror
-// node 0.165+ is needed to consume them, so the consensus and block node form a matched pair. There is
-// deliberately no '-0' suffix on the consensus node bound: the v0.79.0 pre-releases still hash with
-// SHA-384, while v0.80.0 pre-releases sort above v0.79.0 and do hash with SHA-256.
+// accepts SHA-256 block hashes (it rejects a SHA-384 block with UNSUPPORTED_STREAM_FORMAT), so the consensus
+// and block node form a matched pair. Mirror node 0.166+ is needed to consume them: per the block node's
+// version-compatibility doc, an older mirror node cannot verify the TSS block proofs of a v0.79.0+ consensus node. There is
+// deliberately no '-0' suffix on the consensus node bound: v0.79.0-rc.2 is the first build that hashes with
+// SHA-256 (blockStream.digestType and Cryptography.DEFAULT_DIGEST_TYPE), the earlier v0.79.0 pre-releases still
+// hash with SHA-384, and v0.80.0 pre-releases sort above v0.79.0 and do hash with SHA-256.
 export const MINIMUM_CN_VERSION_FOR_SHA256_HASHING: string = 'v0.79.0';
 export const MINIMUM_BLOCK_NODE_VERSION_FOR_SHA256_HASHING: string = 'v0.45.0-0';
-export const MINIMUM_MIRROR_NODE_VERSION_FOR_SHA256_HASHING: string = 'v0.165.0-0';
+export const MINIMUM_MIRROR_NODE_VERSION_FOR_SHA256_HASHING: string = 'v0.166.0-0';
 
-// Consensus node v0.79.1 adopts the TSS-Nova library, which does not convert existing keys or proofs, so a
-// network on an older version cannot be upgraded across this boundary; it has to be redeployed.
-export const CN_VERSION_REQUIRING_REDEPLOY: string = 'v0.79.1-0';
+// Consensus node v0.79.0 adopts the TSS-Nova library (hedera-cryptography 3.23.0, first in v0.79.0-rc.2), which
+// does not convert existing keys or proofs, so a network on an older version cannot be upgraded across this
+// boundary; it has to be redeployed. No '-0' suffix, for the same reason as MINIMUM_CN_VERSION_FOR_SHA256_HASHING.
+export const CN_VERSION_REQUIRING_REDEPLOY: string = 'v0.79.0';
 
 // hiero-consensus-node#27506 adopts the TSS-Nova library, which embeds the WRAPS proving parameters, so from
 // this version the consensus node needs no proving key: Solo no longer downloads it, copies it into the pods,
 // or sets tss.wrapsEnabled and TSS_LIB_WRAPS_ARTIFACTS_PATH, which the node no longer reads. The node instead
 // builds the genesis WRAPS proof itself, which peaks at about 3 GiB of native memory, so this is also the
 // version from which one-shot lifts the small-memory container limit (see helm-overrides-wraps-proving.yaml).
-export const MINIMUM_CN_VERSION_FOR_EMBEDDED_WRAPS_PARAMETERS: string = 'v0.79.1-0';
+export const MINIMUM_CN_VERSION_FOR_EMBEDDED_WRAPS_PARAMETERS: string = 'v0.79.0';
 
 export function getSoloVersion(): Version {
   // In SEA mode the bootstrap (sea/sea-main.template.cjs) sets SOLO_SEA_VERSION before any

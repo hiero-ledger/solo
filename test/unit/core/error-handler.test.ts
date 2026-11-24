@@ -19,7 +19,7 @@ import {KubeIllegalArgumentError} from '../../../src/integration/kube/errors/kub
 function incompatibleTuple(): SoloError {
   return new SoloErrors.validation.componentVersionIncompatible(
     ['mirror node v0.164.2 cannot run with consensus node v0.79.0'],
-    ['Bump the mirror node to 0.165.0 or newer'],
+    ['Bump the mirror node to 0.166.0 or newer'],
   );
 }
 

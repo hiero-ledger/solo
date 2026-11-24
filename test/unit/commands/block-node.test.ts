@@ -901,11 +901,11 @@ describe('BlockNodeCommand unit tests', (): void => {
     // memory on the genesis WRAPS proof of a TSS-Nova consensus node.
     it('applies before tssEnabled is recorded when the consensus node always generates WRAPS proofs', (): void => {
       expect(internal().shouldApplyTssValues(false, 'v0.80.0-alpha.4')).to.equal(true);
-      expect(internal().shouldApplyTssValues(false, 'v0.79.1')).to.equal(true);
+      expect(internal().shouldApplyTssValues(false, 'v0.79.0')).to.equal(true);
     });
 
     it('does not apply before tssEnabled is recorded for consensus nodes without embedded WRAPS', (): void => {
-      expect(internal().shouldApplyTssValues(false, 'v0.79.0')).to.equal(false);
+      expect(internal().shouldApplyTssValues(false, 'v0.79.0-rc.1')).to.equal(false);
       expect(internal().shouldApplyTssValues(false, 'v0.78.1')).to.equal(false);
     });
 
