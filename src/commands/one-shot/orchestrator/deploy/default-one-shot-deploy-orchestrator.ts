@@ -1049,11 +1049,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     }
   }
 
-  // Surfaces any images that failed to cache or load during the run, and any cache files the pull removed.
-  // Each group is only shown when it has messages, so a clean run prints nothing.
+  // Surfaces any cache files the pull removed, any images the cache manifest does not list (pulled from their
+  // registries, which is expected), and any images that failed to cache or load during the run. Only the last is
+  // a warning. Each group is only shown when it has messages, so a clean run prints nothing.
   private showCacheImageMessages(): void {
     if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_MAINTENANCE_MESSAGE_GROUP)) {
       this.logger.showMessageGroup(constants.CACHE_IMAGE_MAINTENANCE_MESSAGE_GROUP);
+    }
+    if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_UNCACHED_MESSAGE_GROUP)) {
+      this.logger.showMessageGroup(constants.CACHE_IMAGE_UNCACHED_MESSAGE_GROUP);
     }
     if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP)) {
       this.logger.showMessageGroup(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP, MessageLevel.WARN);
@@ -1378,10 +1382,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     const relayChainId: string = `${config.relayNodeConfiguration[chainIdKey] ?? ''}`.trim();
 
     const chainId: string = networkChainId || config.chainId || (flags.chainId.definition.defaultValue as string);
-    // A values file bypasses flag validation, so the resolved chain ID is checked here
-    FlagValidation.assertAllValid([flags.chainId], {[flags.chainId.name]: chainId});
-    // The consensus node parses contracts.chainId as a decimal integer, so a hex chain ID (0x12a) is passed as 298
-    config.chainId = String(Number(chainId));
+    // A values file bypasses flag validation, and the consensus node parses contracts.chainId as decimal only
+    config.chainId = String(FlagValidation.validatedNumber(flags.chainId, chainId));
 
     // Number() lets the relay's hex form (0x12a) match the decimal chain ID (298)
     if (relayChainId && Number(relayChainId) !== Number(config.chainId)) {

@@ -153,6 +153,7 @@ import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
 import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
 import {MirrorNodeBlockNodeSourceUnavailableSoloError} from './classes/validation/mirror-node-block-node-source-unavailable-solo-error.js';
+import {MirrorNodeBucketSourceUnavailableSoloError} from './classes/validation/mirror-node-bucket-source-unavailable-solo-error.js';
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
@@ -247,6 +248,9 @@ import {DomainNameParseFailedSoloError} from './classes/validation/domain-name-p
 import {UnknownTemplateDependencySoloError} from './classes/validation/unknown-template-dependency-solo-error.js';
 import {NoConsensusNodesFoundSoloError} from './classes/validation/no-consensus-nodes-found-solo-error.js';
 import {ServiceTypeMismatchSoloError} from './classes/validation/service-type-mismatch-solo-error.js';
+import {StorageClassInstallForbiddenSoloError} from './classes/validation/storage-class-install-forbidden-solo-error.js';
+import {StorageClassNameConflictSoloError} from './classes/validation/storage-class-name-conflict-solo-error.js';
+import {StorageClassNotFoundSoloError} from './classes/validation/storage-class-not-found-solo-error.js';
 import {BackupConfigNotFoundSoloError} from './classes/validation/backup-config-not-found-solo-error.js';
 import {BackupConfigInvalidSoloError} from './classes/validation/backup-config-invalid-solo-error.js';
 import {BackupConfigReadFailedSoloError} from './classes/validation/backup-config-read-failed-solo-error.js';
@@ -287,6 +291,11 @@ import {HelmChartPullNoArchiveSoloError} from './classes/system/helm-chart-pull-
 import {ContainerEngineNotFoundSoloError} from './classes/system/container-engine-not-found-solo-error.js';
 import {ContainerEngineStartFailedSoloError} from './classes/system/container-engine-start-failed-solo-error.js';
 import {KindClusterContainerNotFoundSoloError} from './classes/system/kind-cluster-container-not-found-solo-error.js';
+import {SelfUpdateDownloadFailedSoloError} from './classes/system/self-update-download-failed-solo-error.js';
+import {SelfUpdateAssetUnavailableSoloError} from './classes/system/self-update-asset-unavailable-solo-error.js';
+import {SelfUpdateVerificationFailedSoloError} from './classes/system/self-update-verification-failed-solo-error.js';
+import {SelfUpdateInstallFailedSoloError} from './classes/system/self-update-install-failed-solo-error.js';
+import {SelfUpdateFolderNotWritableSoloError} from './classes/system/self-update-folder-not-writable-solo-error.js';
 import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.js';
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
@@ -312,6 +321,9 @@ import {PodNotReadySoloError} from './classes/system/pod-not-ready-solo-error.js
 import {PvcMountVerificationFailedSoloError} from './classes/system/pvc-mount-verification-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
+import {PvcBindTimeoutSoloError} from './classes/system/pvc-bind-timeout-solo-error.js';
+import {PvcPodsStrandedSoloError} from './classes/system/pvc-pods-stranded-solo-error.js';
+import {PvcPodsUnschedulableSoloError} from './classes/system/pvc-pods-unschedulable-solo-error.js';
 import {KubernetesApiInvalidResponseSoloError} from './classes/system/kubernetes-api-invalid-response-solo-error.js';
 import {IngressClassListFailedSoloError} from './classes/system/ingress-class-list-failed-solo-error.js';
 import {MultipleItemsFoundSoloError} from './classes/system/multiple-items-found-solo-error.js';
@@ -338,6 +350,7 @@ import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
 import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
 import {UncaughtFatalErrorSoloError} from './classes/internal/uncaught-fatal-error-solo-error.js';
+import {InternalArgumentGuardSoloError} from './classes/internal/internal-argument-guard-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -673,6 +686,7 @@ export class SoloErrors {
     readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
     readonly mirrorNodeBlockNodeSourceUnavailable: typeof MirrorNodeBlockNodeSourceUnavailableSoloError;
+    readonly mirrorNodeBucketSourceUnavailable: typeof MirrorNodeBucketSourceUnavailableSoloError;
     readonly invalidHbarAmount: typeof InvalidHbarAmountSoloError;
     readonly invalidFileIdFormat: typeof InvalidFileIdFormatSoloError;
     readonly invalidEndpointFormat: typeof InvalidEndpointFormatSoloError;
@@ -703,6 +717,9 @@ export class SoloErrors {
     readonly unknownTemplateDependency: typeof UnknownTemplateDependencySoloError;
     readonly noConsensusNodesFound: typeof NoConsensusNodesFoundSoloError;
     readonly serviceTypeMismatch: typeof ServiceTypeMismatchSoloError;
+    readonly storageClassNotFound: typeof StorageClassNotFoundSoloError;
+    readonly storageClassNameConflict: typeof StorageClassNameConflictSoloError;
+    readonly storageClassInstallForbidden: typeof StorageClassInstallForbiddenSoloError;
     readonly backupConfigNotFound: typeof BackupConfigNotFoundSoloError;
     readonly backupConfigInvalid: typeof BackupConfigInvalidSoloError;
     readonly backupConfigReadFailed: typeof BackupConfigReadFailedSoloError;
@@ -766,6 +783,7 @@ export class SoloErrors {
     relayInvalidComponentId: RelayInvalidComponentIdSoloError,
     mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
     mirrorNodeBlockNodeSourceUnavailable: MirrorNodeBlockNodeSourceUnavailableSoloError,
+    mirrorNodeBucketSourceUnavailable: MirrorNodeBucketSourceUnavailableSoloError,
     invalidHbarAmount: InvalidHbarAmountSoloError,
     invalidFileIdFormat: InvalidFileIdFormatSoloError,
     invalidEndpointFormat: InvalidEndpointFormatSoloError,
@@ -796,6 +814,9 @@ export class SoloErrors {
     unknownTemplateDependency: UnknownTemplateDependencySoloError,
     noConsensusNodesFound: NoConsensusNodesFoundSoloError,
     serviceTypeMismatch: ServiceTypeMismatchSoloError,
+    storageClassNotFound: StorageClassNotFoundSoloError,
+    storageClassNameConflict: StorageClassNameConflictSoloError,
+    storageClassInstallForbidden: StorageClassInstallForbiddenSoloError,
     backupConfigNotFound: BackupConfigNotFoundSoloError,
     backupConfigInvalid: BackupConfigInvalidSoloError,
     backupConfigReadFailed: BackupConfigReadFailedSoloError,
@@ -883,6 +904,11 @@ export class SoloErrors {
     readonly containerEngineNotFound: typeof ContainerEngineNotFoundSoloError;
     readonly containerEngineStartFailed: typeof ContainerEngineStartFailedSoloError;
     readonly kindClusterContainerNotFound: typeof KindClusterContainerNotFoundSoloError;
+    readonly selfUpdateDownloadFailed: typeof SelfUpdateDownloadFailedSoloError;
+    readonly selfUpdateAssetUnavailable: typeof SelfUpdateAssetUnavailableSoloError;
+    readonly selfUpdateVerificationFailed: typeof SelfUpdateVerificationFailedSoloError;
+    readonly selfUpdateInstallFailed: typeof SelfUpdateInstallFailedSoloError;
+    readonly selfUpdateFolderNotWritable: typeof SelfUpdateFolderNotWritableSoloError;
     readonly fileNotFound: typeof FileNotFoundSoloError;
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
@@ -907,6 +933,9 @@ export class SoloErrors {
     readonly podNotReady: typeof PodNotReadySoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
+    readonly pvcBindTimeout: typeof PvcBindTimeoutSoloError;
+    readonly pvcPodsStranded: typeof PvcPodsStrandedSoloError;
+    readonly pvcPodsUnschedulable: typeof PvcPodsUnschedulableSoloError;
     readonly pvcMountVerificationFailed: typeof PvcMountVerificationFailedSoloError;
     readonly kubernetesApiInvalidResponse: typeof KubernetesApiInvalidResponseSoloError;
     readonly ingressClassListFailed: typeof IngressClassListFailedSoloError;
@@ -981,6 +1010,11 @@ export class SoloErrors {
     containerEngineNotFound: ContainerEngineNotFoundSoloError,
     containerEngineStartFailed: ContainerEngineStartFailedSoloError,
     kindClusterContainerNotFound: KindClusterContainerNotFoundSoloError,
+    selfUpdateDownloadFailed: SelfUpdateDownloadFailedSoloError,
+    selfUpdateAssetUnavailable: SelfUpdateAssetUnavailableSoloError,
+    selfUpdateVerificationFailed: SelfUpdateVerificationFailedSoloError,
+    selfUpdateInstallFailed: SelfUpdateInstallFailedSoloError,
+    selfUpdateFolderNotWritable: SelfUpdateFolderNotWritableSoloError,
     fileNotFound: FileNotFoundSoloError,
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,
@@ -1005,6 +1039,9 @@ export class SoloErrors {
     podNotReady: PodNotReadySoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
+    pvcBindTimeout: PvcBindTimeoutSoloError,
+    pvcPodsStranded: PvcPodsStrandedSoloError,
+    pvcPodsUnschedulable: PvcPodsUnschedulableSoloError,
     pvcMountVerificationFailed: PvcMountVerificationFailedSoloError,
     kubernetesApiInvalidResponse: KubernetesApiInvalidResponseSoloError,
     ingressClassListFailed: IngressClassListFailedSoloError,
@@ -1040,6 +1077,7 @@ export class SoloErrors {
     readonly injectedFailure: typeof InjectedFailureSoloError;
     readonly pipelineCancelled: typeof PipelineCancelledSoloError;
     readonly uncaughtFatalError: typeof UncaughtFatalErrorSoloError;
+    readonly argumentGuard: typeof InternalArgumentGuardSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -1053,5 +1091,6 @@ export class SoloErrors {
     injectedFailure: InjectedFailureSoloError,
     pipelineCancelled: PipelineCancelledSoloError,
     uncaughtFatalError: UncaughtFatalErrorSoloError,
+    argumentGuard: InternalArgumentGuardSoloError,
   });
 }

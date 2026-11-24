@@ -10,6 +10,7 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {MirrorNodeCommand} from '../../../src/commands/mirror-node.js';
 import * as constants from '../../../src/core/constants.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {SecretType} from '../../../src/integration/kube/resources/secret/secret-type.js';
 import {KubePodNotFoundError} from '../../../src/integration/kube/errors/kube-pod-not-found-error.js';
 import {KubePodNotReadyError} from '../../../src/integration/kube/errors/kube-pod-not-ready-error.js';
 import {KubePodReadinessFailedError} from '../../../src/integration/kube/errors/kube-pod-readiness-failed-error.js';
@@ -56,6 +57,7 @@ interface MirrorNodeCommandInternal {
     _remoteConfig?: MirrorNodeRemoteConfigTestState;
     phase?: 'loaded' | 'not_loaded';
     getContexts?: () => string[];
+    getConsensusNodes?: () => {cluster: string}[];
   };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
@@ -66,6 +68,7 @@ interface MirrorNodeCommandInternal {
   configManager: {wasFlagProvidedByUser: sinon.SinonStub};
   initializeSharedPostgresDatabaseTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   primePostgresSecretTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
+  ensureUploaderSecretTask: () => SoloListrTask<MirrorNodeUploaderSecretTaskContext>;
   waitForMirrorNodeSchemaTask: () => SoloListrTask<MirrorNodeSchemaWaitTaskContext>;
   enableDebuggerPortForwardingTask: () => SoloListrTask<MirrorNodeDebuggerTaskContext>;
   k8Factory: {getK8: (context: string) => Record<string, unknown>};
@@ -110,6 +113,14 @@ interface MirrorNodeDatabaseTaskContext {
   config: {
     useExternalDatabase: boolean;
     installSharedResources: boolean;
+  };
+}
+
+interface MirrorNodeUploaderSecretTaskContext {
+  config: {
+    namespace: NamespaceName;
+    clusterContext: string;
+    clusterReference: string;
   };
 }
 
@@ -263,8 +274,11 @@ function withMirrorNodes(
 function withBlockNodes(
   mirrorNodeCommandInternal: MirrorNodeCommandInternal,
   blockNodes: {metadata: {cluster: string; id: number; namespace: string}}[],
+  consensusNodeClusters: string[] = ['cluster-a'],
 ): void {
   mirrorNodeCommandInternal.remoteConfig = {
+    getConsensusNodes: (): {cluster: string}[] =>
+      consensusNodeClusters.map((cluster: string): {cluster: string} => ({cluster})),
     configuration: {
       components: {state: {blockNodes}},
       clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
@@ -287,6 +301,37 @@ function integrationValues(
     mirrorNodeSource,
     mirrorNodeVersion: '0.163.0',
   });
+}
+
+interface SharedResourcesInstallContext {
+  config: {
+    useExternalDatabase: boolean;
+    chartValues: HelmChartValues;
+    namespace: NamespaceName;
+    clusterContext: string;
+    chartDirectory: string;
+    soloChartVersion: string;
+    pvcStorageClass: string;
+    installSharedResources?: boolean;
+  };
+}
+
+interface SharedResourcesTaskWrapper {
+  newListr: (
+    subTasks: SoloListrTask<SharedResourcesInstallContext>[],
+  ) => SoloListrTask<SharedResourcesInstallContext>[];
+}
+
+interface MirrorNodeSharedResourcesInstallInternal {
+  chartManager: {isChartInstalled: sinon.SinonStub};
+  storageClassHelper: {resolveStorageClass: sinon.SinonStub};
+  sharedResourceManager: {
+    enablePostgres: sinon.SinonStub;
+    enableRedis: sinon.SinonStub;
+    setSchedulingChartValues: sinon.SinonStub;
+    installChart: sinon.SinonStub;
+  };
+  enableSharedResourcesTask: () => SoloListrTask<SharedResourcesInstallContext>;
 }
 
 describe('MirrorNodeCommand unit tests', (): void => {
@@ -657,6 +702,88 @@ describe('MirrorNodeCommand unit tests', (): void => {
     });
   });
 
+  describe('--pvc-storage-class', (): void => {
+    const namespace: NamespaceName = NamespaceName.of('solo');
+
+    function configWith(pvcStorageClass: string): SharedResourcesInstallContext['config'] {
+      return {
+        useExternalDatabase: false,
+        chartValues: new HelmChartValues(),
+        namespace,
+        clusterContext: 'kind-a',
+        chartDirectory: '',
+        soloChartVersion: '0.0.0',
+        pvcStorageClass,
+      };
+    }
+
+    function stubInternal(isAlreadyInstalled: boolean): MirrorNodeSharedResourcesInstallInternal {
+      const internal: MirrorNodeSharedResourcesInstallInternal =
+        mirrorNodeCommand as unknown as MirrorNodeSharedResourcesInstallInternal;
+      internal.chartManager = {isChartInstalled: sinon.stub().resolves(isAlreadyInstalled)};
+      internal.storageClassHelper = {resolveStorageClass: sinon.stub().resolves('fast-ssd')};
+      internal.sharedResourceManager = {
+        enablePostgres: sinon.stub(),
+        enableRedis: sinon.stub(),
+        setSchedulingChartValues: sinon.stub(),
+        installChart: sinon.stub().resolves(!isAlreadyInstalled),
+      };
+      return internal;
+    }
+
+    async function runInstallSubtask(
+      internal: MirrorNodeSharedResourcesInstallInternal,
+      config: SharedResourcesInstallContext['config'],
+    ): Promise<void> {
+      const wrapper: SharedResourcesTaskWrapper = {
+        newListr: (
+          subTasks: SoloListrTask<SharedResourcesInstallContext>[],
+        ): SoloListrTask<SharedResourcesInstallContext>[] => subTasks,
+      };
+      const subTasks: SoloListrTask<SharedResourcesInstallContext>[] = await (
+        internal.enableSharedResourcesTask().task as unknown as (
+          context: unknown,
+          task: SharedResourcesTaskWrapper,
+        ) => Promise<SoloListrTask<SharedResourcesInstallContext>[]>
+      )({}, wrapper);
+      const install: SoloListrTask<SharedResourcesInstallContext> = subTasks.find(
+        (subTask: SoloListrTask<SharedResourcesInstallContext>): boolean =>
+          subTask.title === 'Install Shared Resources chart',
+      );
+      await (install.task as (context: SharedResourcesInstallContext) => Promise<void>)({config});
+    }
+
+    it('is accepted by mirror node add and upgrade', (): void => {
+      expect(MirrorNodeCommand.DEPLOY_FLAGS_LIST.optional).to.include(Flags.pvcStorageClass);
+      expect(MirrorNodeCommand.UPGRADE_FLAGS_LIST.optional).to.include(Flags.pvcStorageClass);
+    });
+
+    it('selects the StorageClass for the shared resources chart that is installed', async (): Promise<void> => {
+      const internal: MirrorNodeSharedResourcesInstallInternal = stubInternal(false);
+      const config: SharedResourcesInstallContext['config'] = configWith('fast-ssd');
+
+      await runInstallSubtask(internal, config);
+
+      expect(internal.storageClassHelper.resolveStorageClass.calledOnceWithExactly('kind-a', 'fast-ssd')).to.equal(
+        true,
+      );
+      const chartValues: Record<string, unknown> = internal.sharedResourceManager.installChart.firstCall
+        .args[4] as Record<string, unknown>;
+      expect(chartValues['global.storageClass']).to.equal('fast-ssd');
+      expect(config.installSharedResources).to.equal(true);
+    });
+
+    it('does not resolve a StorageClass when the shared resources chart is already installed', async (): Promise<void> => {
+      const internal: MirrorNodeSharedResourcesInstallInternal = stubInternal(true);
+      const config: SharedResourcesInstallContext['config'] = configWith('fast-ssd');
+
+      await runInstallSubtask(internal, config);
+
+      expect(internal.storageClassHelper.resolveStorageClass.called).to.equal(false);
+      expect(config.installSharedResources).to.equal(false);
+    });
+  });
+
   describe('destroySharedResourcesTask', (): void => {
     it('waits for the shared resources pods to terminate after uninstalling the chart and deleting its PVCs', async (): Promise<void> => {
       const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
@@ -719,6 +846,26 @@ describe('MirrorNodeCommand unit tests', (): void => {
       withBlockNodes(mirrorNodeCommandInternal, []);
 
       expect(integrationValues(mirrorNodeCommandInternal, 'auto').isEmpty()).to.be.true;
+    });
+
+    it('fails fast with bucket and with auto in a cluster that has no consensus nodes', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      withBlockNodes(mirrorNodeCommandInternal, [], ['cluster-b']);
+
+      for (const source of ['bucket', 'auto']) {
+        expect((): HelmChartValues => integrationValues(mirrorNodeCommandInternal, source)).to.throw(
+          'cannot import from the bucket in cluster cluster-a',
+        );
+      }
+    });
+
+    it('imports from the block node in a cluster that has no consensus nodes', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      withBlockNodes(mirrorNodeCommandInternal, [blockNode], ['cluster-b']);
+
+      expect(integrationValues(mirrorNodeCommandInternal, 'block-node').isEmpty()).to.be.false;
     });
 
     it('fails with block-node instead of silently falling back to the bucket', (): void => {
@@ -1030,6 +1177,72 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(getSkipFunction(mirrorNodeCommandInternal.primePostgresSecretTask())(context)).to.equal(true);
   });
 
+  describe('ensureUploaderSecretTask', (): void => {
+    const context: MirrorNodeUploaderSecretTaskContext = {
+      config: {
+        namespace: NamespaceName.of('test-namespace'),
+        clusterContext: 'test-context',
+        clusterReference: 'test-cluster',
+      },
+    };
+
+    const runTask = async (secretExists: boolean): Promise<{createOrReplace: sinon.SinonStub}> => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      const secrets: {exists: sinon.SinonStub; createOrReplace: sinon.SinonStub} = {
+        exists: sinon.stub().resolves(secretExists),
+        createOrReplace: sinon.stub().resolves(true),
+      };
+      sinon.stub(mirrorNodeCommandInternal.k8Factory, 'getK8').returns({secrets: (): typeof secrets => secrets});
+
+      await mirrorNodeCommandInternal.ensureUploaderSecretTask().task(context, {} as never);
+      return secrets;
+    };
+
+    it('should create an empty uploader secret when the cluster has none', async (): Promise<void> => {
+      const secrets: {createOrReplace: sinon.SinonStub} = await runTask(false);
+
+      expect(secrets.createOrReplace).to.have.been.calledOnceWith(
+        context.config.namespace,
+        constants.UPLOADER_SECRET_NAME,
+        SecretType.OPAQUE,
+        {},
+      );
+    });
+
+    it('should skip a cluster that hosts consensus nodes because the network chart creates the secret', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'test-cluster'}]);
+
+      const skip: (context: MirrorNodeUploaderSecretTaskContext) => boolean =
+        mirrorNodeCommandInternal.ensureUploaderSecretTask().skip as (
+          context: MirrorNodeUploaderSecretTaskContext,
+        ) => boolean;
+
+      expect(skip(context)).to.equal(true);
+    });
+
+    it('should not skip a cluster without consensus nodes', (): void => {
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+        mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+      sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'other-cluster'}]);
+
+      const skip: (context: MirrorNodeUploaderSecretTaskContext) => boolean =
+        mirrorNodeCommandInternal.ensureUploaderSecretTask().skip as (
+          context: MirrorNodeUploaderSecretTaskContext,
+        ) => boolean;
+
+      expect(skip(context)).to.equal(false);
+    });
+
+    it('should leave an existing uploader secret untouched', async (): Promise<void> => {
+      const secrets: {createOrReplace: sinon.SinonStub} = await runTask(true);
+
+      expect(secrets.createOrReplace).to.not.have.been.called;
+    });
+  });
+
   it('should disable record and balance downloaders when block node integration is enabled', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
@@ -1090,6 +1303,8 @@ describe('MirrorNodeCommand unit tests', (): void => {
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
 
+    sinon.stub(mirrorNodeCommandInternal.remoteConfig, 'getConsensusNodes').returns([{cluster: 'kind-a'}]);
+
     try {
       mirrorNodeCommandInternal.remoteConfig._remoteConfig = {
         clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
@@ -1128,6 +1343,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
     try {
       mirrorNodeCommandInternal.remoteConfig = {
+        getConsensusNodes: (): {cluster: string}[] => [{cluster: 'kind-a'}],
         configuration: {
           clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
           components: {

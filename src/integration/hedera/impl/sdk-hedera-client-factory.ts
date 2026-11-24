@@ -45,8 +45,4 @@ export class SdkHederaClientFactory implements HederaClientFactory {
 
     return new SdkHederaClient(client, this.logger);
   }
-
-  public wrap(sdkClient: Client): HederaClient {
-    return new SdkHederaClient(sdkClient, this.logger);
-  }
 }

@@ -13,6 +13,7 @@ import {KubePodCreationFailedError} from '../../integration/kube/errors/kube-pod
 import {KubePodTerminationTimeoutError} from '../../integration/kube/errors/kube-pod-termination-timeout-error.js';
 import {KubeApiInvalidResponseError} from '../../integration/kube/errors/kube-api-invalid-response-error.js';
 import {KubeContainerInvalidPathError} from '../../integration/kube/errors/kube-container-invalid-path-error.js';
+import {KubeCopySourceChangedError} from '../../integration/kube/errors/kube-copy-source-changed-error.js';
 import {KubePvcCreationFailedError} from '../../integration/kube/errors/kube-pvc-creation-failed-error.js';
 import {KubeIngressClassListFailedError} from '../../integration/kube/errors/kube-ingress-class-list-failed-error.js';
 
@@ -63,6 +64,9 @@ export class KubeErrorTranslator {
     if (error instanceof KubeContainerInvalidPathError) {
       return new SoloErrors.system.containerInvalidPath(error.context, error.path);
     }
+    if (error instanceof KubeCopySourceChangedError) {
+      return new SoloErrors.system.fileCopyFailed(error);
+    }
     if (error instanceof KubeMultipleItemsFoundError) {
       return new SoloErrors.system.multipleItemsFound(error.filters);
     }
@@ -76,10 +80,10 @@ export class KubeErrorTranslator {
       return new SoloErrors.system.ingressClassListFailed(error);
     }
     if (error instanceof KubeMissingArgumentError) {
-      return new SoloErrors.validation.missingArgument(error.argumentDescription);
+      return new SoloErrors.internal.argumentGuard(error.argumentDescription, undefined, error);
     }
     if (error instanceof KubeIllegalArgumentError) {
-      return new SoloErrors.validation.illegalArgument(error.reason);
+      return new SoloErrors.internal.argumentGuard(error.reason, undefined, error);
     }
     return undefined;
   }

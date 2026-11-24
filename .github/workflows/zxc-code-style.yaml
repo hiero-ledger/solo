@@ -52,7 +52,7 @@ jobs:
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
 
@@ -113,6 +113,21 @@ jobs:
       - name: Check Code Style
         run: |
           task check
+
+      - name: Check TCK Lint Rejects Exported Functions
+        # Negative control: tck/ is plain ESM, so prove the class-only rule still reaches it.
+        run: |
+          if output=$(printf '// SPDX-License-Identifier: Apache-2.0\n\nexport function violation() {}\n' |
+            npx eslint --stdin --stdin-filename tck/src/negative-control.mjs 2>&1); then
+            echo "✘ ESLint accepted an exported function in tck/"
+            exit 1
+          fi
+          if ! grep -q 'solo/no-exported-function' <<<"${output}"; then
+            echo "✘ ESLint failed for an unexpected reason:"
+            echo "${output}"
+            exit 1
+          fi
+          echo "✔ ESLint rejects exported functions in tck/"
 
       - name: Upload Lint Results to Codacy
         # Codacy's quality gate flags new lint warnings on the PR, so the target branch no longer has to be re-linted here.

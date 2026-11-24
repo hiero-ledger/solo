@@ -554,6 +554,17 @@ export class Flags {
     },
   };
 
+  public static readonly targetVersion: CommandFlag = {
+    constName: 'targetVersion',
+    name: 'target-version',
+    definition: {
+      describe: 'Release to install, for example v0.97.0; newer or older. Defaults to the latest release',
+      defaultValue: '',
+      type: 'string',
+      disablePrompt: true,
+    },
+  };
+
   public static readonly freezeBlockDrainSeconds: CommandFlag = {
     constName: 'freezeBlockDrainSeconds',
     name: 'freeze-block-drain-seconds',
@@ -1181,8 +1192,10 @@ export class Flags {
     name: 'delete-pvcs',
     definition: {
       describe:
-        'Delete the persistent volume claims. If both --delete-pvcs and --delete-secrets are set to true, the namespace will be deleted.',
-      defaultValue: false,
+        'Delete the consensus node persistent volume claims (default: true). Set to false to keep the volume data, ' +
+        'which a later deploy into the same namespace will reattach. Claims of other components are not touched. ' +
+        'If both --delete-pvcs and --delete-secrets are set to true, the namespace will be deleted.',
+      defaultValue: true,
       type: 'boolean',
       promptText: 'Would you like to delete persistent volume claims upon uninstall? ',
     },
@@ -1724,8 +1737,8 @@ export class Flags {
     constName: 'persistentVolumeClaims',
     name: 'pvcs',
     definition: {
-      describe: 'Enable persistent volume claims to store data outside the pod, required for consensus node add',
-      defaultValue: false,
+      describe: 'Enable persistent volume claims to store data outside the pod',
+      defaultValue: true,
       type: 'boolean',
       promptText: 'Would you like to enable persistent volume claims to store data outside the pod? ',
     },
@@ -1735,6 +1748,17 @@ export class Flags {
     ): Promise<boolean> {
       return await Flags.prompt('toggle', task, input, Flags.persistentVolumeClaims);
     },
+  };
+
+  public static readonly pvcStorageClass: CommandFlag = {
+    constName: 'pvcStorageClass',
+    name: 'pvc-storage-class',
+    definition: {
+      describe: 'StorageClass name for PersistentVolumeClaims; auto-detected from the cluster when not set',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly verifyPersistentVolumeClaimMounts: CommandFlag = {
@@ -2643,7 +2667,8 @@ export class Flags {
     constName: 'numberOfConsensusNodes',
     name: 'num-consensus-nodes',
     definition: {
-      describe: 'Used to specify desired number of consensus nodes for pre-genesis deployments',
+      describe:
+        'Used to specify desired number of consensus nodes for pre-genesis deployments (an additional cluster defaults to 0 in quiet mode)',
       type: 'number',
       promptText: 'Enter number of consensus nodes to add to the provided cluster (must be zero or a positive number):',
     },
@@ -2652,7 +2677,7 @@ export class Flags {
         Flags.prompt('number', task, input, Flags.numberOfConsensusNodes);
 
       input = await promptForInput();
-      while (input === undefined) {
+      while (input === undefined || Number.isNaN(input) || input < 0) {
         input = await promptForInput();
       }
 
@@ -3039,6 +3064,7 @@ export class Flags {
     Flags.releaseTag,
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
+    Flags.targetVersion,
     Flags.freezeBlockDrainSeconds,
     Flags.resumeFromFreeze,
     Flags.skipNodeStart,
@@ -3138,6 +3164,7 @@ export class Flags {
     Flags.rollback,
     Flags.parallelDeploy,
     Flags.edgeEnabled,
+    Flags.pvcStorageClass,
   ];
 
   /** Resets the definition.disablePrompt for all flags */

@@ -8,6 +8,7 @@ import {checkNamespace, parseNodeAliases, splitFlagInput} from '../../core/helpe
 import {GenesisNetworkDataConstructor} from '../../core/genesis-network-models/genesis-network-data-constructor.js';
 import fs from 'node:fs';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
+import {ChainIdResolver} from '../../core/chain-id-resolver.js';
 import {Flags as flags} from '../flags.js';
 import {type AnyObject, type ArgvStruct} from '../../types/aliases.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
@@ -412,6 +413,13 @@ export class NodeCommandConfigs {
     if (Object.keys(this.remoteConfig.configuration.state.consensusNodes).length === 0) {
       throw new SoloErrors.validation.noConsensusNodesForNodeAdd(config.deployment);
     }
+
+    config.chainId = await ChainIdResolver.resolve(
+      this.configManager,
+      this.localConfig,
+      this.remoteConfig,
+      config.deployment,
+    );
 
     context_.adminKey = argv[flags.adminKey?.name]
       ? PrivateKey.fromStringED25519(argv[flags.adminKey?.name])

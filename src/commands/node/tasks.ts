@@ -33,7 +33,6 @@ import {GenesisKeyResolver} from '../../core/genesis-key-resolver.js';
 import {
   AccountId,
   type AccountInfo,
-  type Client,
   FileId,
   Long,
   PrivateKey,
@@ -127,6 +126,8 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {type PvcDetail} from '../../integration/kube/resources/pvc/pvc-detail.js';
+import {KubernetesQuantity} from '../../business/utils/kubernetes-quantity.js';
 import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
 import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {helmValuesHelper} from '../../core/helm-values-helper.js';
@@ -1233,11 +1234,7 @@ export class NodeCommandTasks {
             postUpgradeSystemFiles,
           );
         }
-        context_.upgradeZipHash = await this._uploadUpgradeZip(
-          context_.upgradeZipFile,
-          this.accountManager.hederaClientFor(config.nodeClient),
-          deployment,
-        );
+        context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
   }
@@ -1351,7 +1348,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
@@ -1402,7 +1399,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, deployment} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(context_.config.nodeClient);
+        const nodeClient: HederaClient = context_.config.nodeClient;
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
 
@@ -1447,8 +1444,10 @@ export class NodeCommandTasks {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
-        const nodeClient: HederaClient = this.accountManager.hederaClientFor(
-          await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment),
+        const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
+          namespace,
+          this.remoteConfig.getClusterRefs(),
+          deployment,
         );
         const futureDate: Date = new Date();
         this.logger.debug(`Current time: ${futureDate}`);
@@ -2220,7 +2219,7 @@ export class NodeCommandTasks {
 
           const grpcProxyPort: number = +networkNodeService.envoyProxyGrpcWebPort;
 
-          const nodeClient: Client = await this.accountManager.loadNodeClient(
+          const nodeClient: HederaClient = await this.accountManager.loadNodeClient(
             namespace,
             this.remoteConfig.getClusterRefs(),
             deployment,
@@ -2286,7 +2285,7 @@ export class NodeCommandTasks {
           );
           let updateStatus: HederaTransactionStatus;
           try {
-            updateStatus = await this.accountManager.hederaClientFor(nodeClient).updateNode({
+            updateStatus = await nodeClient.updateNode({
               nodeId: Number(networkNodeService.nodeId),
               grpcWebProxyEndpoint,
               serviceEndpoints: [grpcServiceEndpoint],
@@ -2423,6 +2422,8 @@ export class NodeCommandTasks {
                   yamlRoot,
                   deploymentName,
                   applicationPropertiesPath,
+                  // node add resolves the chain ID from the deployment when --chain-id is not given
+                  {chainId: config.chainId},
                 );
               }
             },
@@ -3014,6 +3015,55 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Records the state of the deployment's persistent volume claims. A claim that never binds keeps its pod
+   * unscheduled, so without this the bundle shows a stuck pod and no indication of why. Scoped to the deployment's
+   * own namespace and clusters so the output cannot be confused with another deployment on a shared cluster.
+   */
+  public collectPvcState(outputDirectory?: string): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Collect persistent volume claim state',
+      task: async ({config: {namespace, contexts}}): Promise<void> => {
+        const targetDirectory: string = outputDirectory
+          ? PathEx.resolve(outputDirectory)
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
+
+        for (const context of contexts) {
+          try {
+            const claims: PvcDetail[] = await this.k8Factory.getK8(context).pvcs().readAll(namespace);
+            const lines: string[] = claims.map((claim: PvcDetail): string => {
+              const size: string =
+                claim.requestedStorageBytes === undefined
+                  ? '<unknown>'
+                  : KubernetesQuantity.format(claim.requestedStorageBytes);
+              return `${claim.pvcReference.name.toString()}\t${claim.phase}\t${size}\t${claim.storageClassName ?? '<default>'}`;
+            });
+            const bound: number = claims.filter(
+              (claim: PvcDetail): boolean => claim.phase === constants.PVC_PHASE_BOUND,
+            ).length;
+
+            const contextDirectory: string = PathEx.join(targetDirectory, context);
+            if (!fs.existsSync(contextDirectory)) {
+              fs.mkdirSync(contextDirectory, {recursive: true});
+            }
+
+            const outputFile: string = PathEx.join(contextDirectory, 'persistent-volume-claims.txt');
+            fs.writeFileSync(
+              outputFile,
+              `namespace: ${namespace.name}\nbound: ${bound}/${claims.length}\n\n` +
+                `NAME\tPHASE\tREQUESTED\tSTORAGECLASS\n${lines.join('\n')}\n`,
+              'utf8',
+            );
+            this.logger.info(`Saved ${claims.length} persistent volume claim(s) state to ${outputFile}`);
+          } catch (error) {
+            // Best-effort collection: a failure here must not abort the rest of the diagnostics gathering.
+            this.logger.warn(`Failed to collect persistent volume claim state for context ${context}: ${error}`);
+          }
+        }
+      },
+    };
+  }
+
   private isDefaultFlagValue(flag: CommandFlag): boolean {
     const value: string | boolean | number = this.configManager.getFlag(flag);
     const defaultValue: string | boolean | number = flags.allFlagsMap.get(flag.name).definition.defaultValue;
@@ -3265,6 +3315,8 @@ export class NodeCommandTasks {
                     MINIMUM_SOLO_CHART_VERSION,
                   );
 
+                  // reuseValues=true keeps the release's stored values, including the StorageClass that
+                  // `network deploy` chose for volume claims (defaults.volumeClaims.storageClassName)
                   await this.chartManager.upgrade(
                     config.namespace,
                     constants.SOLO_DEPLOYMENT_CHART,
@@ -4197,7 +4249,7 @@ export class NodeCommandTasks {
 
         let nodeUpdateStatus: HederaTransactionStatus;
         try {
-          nodeUpdateStatus = await this.accountManager.hederaClientFor(config.nodeClient).updateNode(updateOptions);
+          nodeUpdateStatus = await config.nodeClient.updateNode(updateOptions);
         } catch (error) {
           throw new SoloErrors.component.nodeUpdateTransactionError(error);
         }
@@ -4757,6 +4809,8 @@ export class NodeCommandTasks {
               .clone()
               .add(valuesFilesMap[clusterReference]);
 
+            // reuseValues=true keeps the release's stored values, including the StorageClass that
+            // `network deploy` chose for volume claims (defaults.volumeClaims.storageClassName)
             await this.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
@@ -5416,9 +5470,7 @@ export class NodeCommandTasks {
 
         let nodeDeleteStatus: HederaTransactionStatus;
         try {
-          nodeDeleteStatus = await this.accountManager
-            .hederaClientFor(config.nodeClient)
-            .deleteNode(nodeId, config.adminKey);
+          nodeDeleteStatus = await config.nodeClient.deleteNode(nodeId, config.adminKey);
         } catch (error) {
           throw new SoloErrors.component.nodeDeleteTransactionError(error);
         }
@@ -5458,7 +5510,7 @@ export class NodeCommandTasks {
             config.namespace,
           );
 
-          nodeCreateStatus = await this.accountManager.hederaClientFor(config.nodeClient).createNode({
+          nodeCreateStatus = await config.nodeClient.createNode({
             accountId: context_.newNode.accountId,
             gossipEndpoints: context_.gossipEndpoints,
             serviceEndpoints: context_.grpcServiceEndpoints,
@@ -5696,6 +5748,15 @@ export class NodeCommandTasks {
           fs.mkdirSync(outputDirectory, {recursive: true});
         }
 
+        // Every collection gets its own timestamped snapshot folder so pod files left by earlier runs are never
+        // mistaken for this deployment's. The analyzer reads the latest snapshot by default.
+        const collectedAt: Date = new Date();
+        const snapshotDirectory: string = PathEx.join(
+          outputDirectory,
+          collectedAt.toISOString().replaceAll(':', '-').replaceAll('.', '-'),
+        );
+        fs.mkdirSync(snapshotDirectory, {recursive: true});
+
         for (const context of contextList) {
           const k8: K8 = this.k8Factory.getK8(context);
 
@@ -5719,7 +5780,7 @@ export class NodeCommandTasks {
                 allPods.push(newPodInfo);
                 // If it is block node pod, download *.log files from '/opt/hiero/block-node/logs'
                 if ('block node' === config.name) {
-                  await this.downloadBlockNodeLogFiles(newPodInfo, outputDirectory);
+                  await this.downloadBlockNodeLogFiles(newPodInfo, snapshotDirectory);
                 }
               }
             }
@@ -5728,12 +5789,15 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.info(`Logs will be saved to: ${outputDirectory}`);
+        this.logger.info(`Logs will be saved to: ${snapshotDirectory}`);
         this.logger.info(`Found ${allPods.length} Hiero component pods`);
         // Download logs from each pod
         for (const podInfo of allPods) {
-          await this.downloadPodLogs(podInfo, outputDirectory);
+          await this.downloadPodLogs(podInfo, snapshotDirectory);
         }
+
+        // Older snapshots are never analyzed and `debug` zips the whole logs directory, so keep only the last few.
+        DiagnosticsAnalyzer.pruneOldSnapshots(outputDirectory);
 
         task.title = `Downloaded logs from ${allPods.length} Hiero component pods`;
       },

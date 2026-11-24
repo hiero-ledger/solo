@@ -105,10 +105,13 @@ import {OsPackageManager} from '../package-managers/os-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
+import {StorageClassHelper} from '../storage-class-helper.js';
 import {ROOT_DIR} from '../constants.js';
 import {CacheCommandDefinition} from '../../commands/command-definitions/cache-command-definition.js';
 import {InitCommandDefinition} from '../../commands/init/init-command-definition.js';
 import {CacheCommand} from '../../commands/cache.js';
+import {UpdateCommand} from '../../commands/update.js';
+import {UpdateCommandDefinition} from '../../commands/command-definitions/update-command-definition.js';
 import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
 import {DockerClient} from '../../integration/container-engine/docker-client.js';
 import {ContainerEngineResourceInspector} from '../../integration/container-engine/container-engine-resource-inspector.js';
@@ -191,6 +194,7 @@ export class Container {
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
       new SingletonContainer(InjectTokens.CacheCommand, CacheCommand),
+      new SingletonContainer(InjectTokens.UpdateCommand, UpdateCommand),
       new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
@@ -215,6 +219,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
       new SingletonContainer(InjectTokens.SharedResourceManager, SharedResourceManager),
+      new SingletonContainer(InjectTokens.StorageClassHelper, StorageClassHelper),
 
       // Cache
       new SingletonContainer(InjectTokens.CacheHandlerRegistry, DefaultCacheHandlerRegistry),
@@ -238,6 +243,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
       new SingletonContainer(InjectTokens.CacheCommandDefinition, CacheCommandDefinition),
+      new SingletonContainer(InjectTokens.UpdateCommandDefinition, UpdateCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
       new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
     ];

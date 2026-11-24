@@ -44,6 +44,7 @@ export class InjectTokens {
   public static NetworkCommand: symbol = Symbol.for('NetworkCommand');
   public static RelayCommand: symbol = Symbol.for('RelayCommand');
   public static CacheCommand: symbol = Symbol.for('CacheCommand');
+  public static UpdateCommand: symbol = Symbol.for('UpdateCommand');
   public static ClusterCommandTasks: symbol = Symbol.for('ClusterCommandTasks');
   public static ClusterCommandHandlers: symbol = Symbol.for('ClusterCommandHandlers');
   public static NodeCommandTasks: symbol = Symbol.for('NodeCommandTasks');
@@ -79,6 +80,7 @@ export class InjectTokens {
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
   public static PostgresSharedResource: symbol = Symbol.for('PostgresSharedResource');
   public static SharedResourceManager: symbol = Symbol.for('SharedResourceManager');
+  public static StorageClassHelper: symbol = Symbol.for('StorageClassHelper');
 
   // Dependencies
   public static DependencyManager: symbol = Symbol.for('DependencyManager');
@@ -131,6 +133,7 @@ export class InjectTokens {
   public static MirrorCommandDefinition: symbol = Symbol.for('MirrorCommandDefinition');
   public static RelayCommandDefinition: symbol = Symbol.for('RelayCommandDefinition');
   public static CacheCommandDefinition: symbol = Symbol.for('CacheCommandDefinition');
+  public static UpdateCommandDefinition: symbol = Symbol.for('UpdateCommandDefinition');
   public static OneShotCommandDefinition: symbol = Symbol.for('OneShotCommandDefinition');
   public static RapidFireCommandDefinition: symbol = Symbol.for('RapidFireCommandDefinition');
 }
