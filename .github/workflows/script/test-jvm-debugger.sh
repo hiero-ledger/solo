@@ -24,9 +24,10 @@
 
 set -eo pipefail
 
-# Hard overall timeout for the entire script (default 5 minutes).
-# This prevents the script from hanging indefinitely in any phase.
-SCRIPT_TIMEOUT_SECONDS="${SCRIPT_TIMEOUT_SECONDS:-300}"
+# Hard overall timeout for the entire script (default 10 minutes).
+# This prevents the script from hanging indefinitely in any phase. The budget covers Kind cluster
+# creation and a full network deploy, which waits for persistent volume claims to bind and mount.
+SCRIPT_TIMEOUT_SECONDS="${SCRIPT_TIMEOUT_SECONDS:-600}"
 if [[ -z "${_JVM_DEBUGGER_TEST_WRAPPED:-}" ]]; then
   export _JVM_DEBUGGER_TEST_WRAPPED=1
   exec timeout --kill-after=10 "$SCRIPT_TIMEOUT_SECONDS" "$0" "$@"
