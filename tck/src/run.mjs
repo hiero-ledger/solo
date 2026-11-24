@@ -16,6 +16,7 @@ import {fileURLToPath} from 'node:url';
 import {Contract, Failure, EXIT, LIMITS, REPORT_ONLY, SCHEMA_VERSION} from './contract.mjs';
 import {Processes} from './process.mjs';
 import {Packages} from './packages.mjs';
+import {Companions} from './companions.mjs';
 import {PodWatcher} from './pods.mjs';
 
 const kit = fileURLToPath(new URL('..', import.meta.url));
@@ -125,6 +126,12 @@ async function run(arguments_) {
     result.requested = options;
     await stage('setup', LIMITS.setup, async () => {
       const before = Date.now();
+      if (options['companion-builds']) {
+        result.companions = await Companions.load(options['companion-builds'], options.component, options, {
+          ...runtime,
+          timeout: remaining(),
+        });
+      }
       result.candidates = await Packages.candidates(path.resolve(options['candidate-packages']), {
         ...runtime,
         timeout: remaining(),
@@ -241,7 +248,8 @@ async function run(arguments_) {
         ]);
       }
       const values = path.join(root, 'falcon-values.yaml');
-      writeFileSync(values, 'mirrorNode:\n  --pinger: false\n');
+      const falcon = Companions.falcon(result.companions?.components ?? [], {mirrorNode: {'--pinger': false}});
+      writeFileSync(values, falcon.values);
       watcher = new PodWatcher(runtime, error => controller.abort(error));
       watcher.start();
       const commandArguments = [
@@ -264,6 +272,7 @@ async function run(arguments_) {
           commandArguments.push(`--${flag}`, options[flag]);
         }
       }
+      commandArguments.push(...falcon.flags);
       attemptedDeploy = true;
       try {
         await execute(soloBinary, commandArguments);
@@ -294,6 +303,9 @@ async function run(arguments_) {
               .map(line => line.trim()),
           ),
         }));
+      if (result.companions) {
+        await Companions.observe(result.companions.components, [...watcher.state.pods.values()], runtime);
+      }
     });
     for (const [mode, limit] of [
       ['probes', LIMITS.probes],
@@ -328,6 +340,8 @@ async function run(arguments_) {
     result.failedStage = currentStage;
     if (watcher?.error) {
       result.probes.P4 = {status: 'fail', message: result.error};
+    } else if (primary.probe) {
+      result.probes[primary.probe] = {status: 'fail', message: result.error};
     } else if (currentStage === 'inputs' || !result.probes.P1) {
       result.probes.P1 = {status: 'fail', message: result.error};
     } else if (currentStage === 'deploy' && !result.probes.P2) {
@@ -432,7 +446,16 @@ async function run(arguments_) {
         .toSorted()
         .map(([id, probe]) => `| ${id} | ${probe.status} | ${probe.milliseconds ?? ''} |`)
         .join('\n') +
-      `\n\nSolo: \`${options?.['solo-version'] || 'not selected'}\`\n\nElapsed: ${result.elapsedMilliseconds}ms. Cleanup: ${JSON.stringify(result.cleanup)}\n` +
+      `\n\nSolo: \`${options?.['solo-version'] || 'not selected'}\`\n\n` +
+      (result.companions
+        ? `Companions: ${result.companions.components
+            .map(
+              companion =>
+                `${companion.component} ${companion.version} from ${companion.source.repository}@${companion.source.commit} (${companion.observed ? 'observed' : 'not observed'})`,
+            )
+            .join('; ')}\n\n`
+        : '') +
+      `Elapsed: ${result.elapsedMilliseconds}ms. Cleanup: ${JSON.stringify(result.cleanup)}\n` +
       (result.error
         ? `\nFailure at ${result.failedStage}: ${result.error}\n\n### Issue draft for manual triage\n\n` +
           `Title: Solo TCK js-sdk fails at ${result.failedStage}\n\n` +

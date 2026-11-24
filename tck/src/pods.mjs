@@ -74,6 +74,8 @@ export class PodState {
       containers: [...(pod.spec?.initContainers || []), ...(pod.spec?.containers || [])].map(container => ({
         name: container.name,
         image: container.image,
+        imagePullPolicy: container.imagePullPolicy,
+        imageID: containers.find(status => status.name === container.name)?.imageID,
         resources: container.resources,
       })),
     });

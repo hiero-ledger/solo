@@ -17,6 +17,9 @@ inputs:
   mirror-node-version:
     description: Explicit companion override; otherwise Solo uses its own default
     required: false
+  companion-builds:
+    description: Path to a companion-builds manifest of branch-built companions (schema version 1)
+    required: false
 outputs:
   outcome:
     description: pass or fail
@@ -44,11 +47,13 @@ runs:
         TCK_SOLO_VERSION: ${{ inputs.solo-version }}
         TCK_CN_VERSION: ${{ inputs.consensus-node-version }}
         TCK_MN_VERSION: ${{ inputs.mirror-node-version }}
+        TCK_COMPANION_BUILDS: ${{ inputs.companion-builds }}
       run: |
         args=(--component "${TCK_COMPONENT}" --candidate-packages "${TCK_PACKAGES}")
         if [[ -n "${TCK_SOLO_VERSION}" ]]; then args+=(--solo-version "${TCK_SOLO_VERSION}"); fi
         if [[ -n "${TCK_CN_VERSION}" ]]; then args+=(--consensus-node-version "${TCK_CN_VERSION}"); fi
         if [[ -n "${TCK_MN_VERSION}" ]]; then args+=(--mirror-node-version "${TCK_MN_VERSION}"); fi
+        if [[ -n "${TCK_COMPANION_BUILDS}" ]]; then args+=(--companion-builds "${TCK_COMPANION_BUILDS}"); fi
         node "${TCK_PATH}/src/run.mjs" "${args[@]}"
     - name: Upload Solo TCK evidence
       if: ${{ always() && steps.run.outputs.result-dir != '' }}

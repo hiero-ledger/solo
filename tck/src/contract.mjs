@@ -25,6 +25,8 @@ export class Failure extends Error {
   constructor(reason, message, options) {
     super(message, options);
     this.reason = reason;
+    // The probe a failure belongs to when its stage alone does not identify it.
+    this.probe = options?.probe;
   }
 }
 
@@ -43,6 +45,7 @@ export class Contract {
             'cluster-name',
             'consensus-node-version',
             'mirror-node-version',
+            'companion-builds',
           ].map(name => [name, {type: 'string'}]),
         ),
       }));
