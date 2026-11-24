@@ -280,14 +280,26 @@ describe('NodeCommandTasks admin key signing', (): void => {
       expect(node1Endpoints[0].getPort).to.equal(50_211);
     });
 
-    it('publishes dual endpoints when inferred from serviceEndpointPortMapping with flag omitted', async (): Promise<void> => {
+    it('does not publish host endpoint when serviceEndpointPortMapping is provided without publishHostEndpoints', async (): Promise<void> => {
       await setGrpcWebEndpoint(tasks, {
         serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
       });
 
       const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+
+    it('normalizes 0.0.0.0 externalAddress to 127.0.0.1 in published host endpoint', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        externalAddress: '0.0.0.0',
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
       expect(node1Endpoints).to.have.lengthOf(2);
-      expect(node1Endpoints[1].getPort).to.equal(36_211);
+      expect(node1Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
     });
 
     it('does not publish host endpoint when publishHostEndpoints is explicitly false even with serviceEndpointPortMapping', async (): Promise<void> => {
@@ -331,22 +343,22 @@ describe('NodeCommandTasks admin key signing', (): void => {
       (tasks as unknown as {configManager: unknown}).configManager = undefined;
     });
 
-    it('infers true when serviceEndpointPortMapping maps node and flag is omitted (Test D)', (): void => {
+    it('does not infer true when serviceEndpointPortMapping maps node and flag is omitted', (): void => {
       expect(
         tasks.shouldPublishHostEndpoints({serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}}}, 'node1'),
-      ).to.be.true;
+      ).to.be.false;
     });
 
-    it('infers true when serviceEndpointPortMapping maps defaultPort and flag is omitted (Test D)', (): void => {
+    it('does not infer true when serviceEndpointPortMapping maps defaultPort and flag is omitted', (): void => {
       expect(
         tasks.shouldPublishHostEndpoints(
           {serviceEndpointPortMapping: {defaultPort: 36_211, nodeAliasToPort: {}}},
           'node1',
         ),
-      ).to.be.true;
+      ).to.be.false;
     });
 
-    it('infers true when flag was defaulted from CLI registration and mapping is present (Test D)', (): void => {
+    it('does not infer true when flag was defaulted from CLI registration and mapping is present', (): void => {
       (tasks as unknown as {configManager: unknown}).configManager = {
         wasFlagProvidedByUser: (): boolean => false,
         getFlag: (): boolean => false,
@@ -360,11 +372,11 @@ describe('NodeCommandTasks admin key signing', (): void => {
           },
           'node1',
         ),
-      ).to.be.true;
+      ).to.be.false;
       (tasks as unknown as {configManager: unknown}).configManager = undefined;
     });
 
-    it('returns false when publishHostEndpoints was explicitly provided as false via CLI even with mapping (Test E)', (): void => {
+    it('returns false when publishHostEndpoints was explicitly provided as false via CLI even with mapping', (): void => {
       (tasks as unknown as {configManager: unknown}).configManager = {
         wasFlagProvidedByUser: (f: unknown): boolean => f === flags.publishHostEndpoints,
         getFlag: (): boolean => false,
@@ -382,7 +394,7 @@ describe('NodeCommandTasks admin key signing', (): void => {
       (tasks as unknown as {configManager: unknown}).configManager = undefined;
     });
 
-    it('returns false when publishHostEndpoints is explicitly false in config without ConfigManager even with mapping (Test E)', (): void => {
+    it('returns false when publishHostEndpoints is explicitly false in config without ConfigManager even with mapping', (): void => {
       expect(
         tasks.shouldPublishHostEndpoints(
           {
@@ -391,12 +403,6 @@ describe('NodeCommandTasks admin key signing', (): void => {
           },
           'node1',
         ),
-      ).to.be.false;
-    });
-
-    it('returns false for an unmapped node when serviceEndpointPortMapping only maps other nodes', (): void => {
-      expect(
-        tasks.shouldPublishHostEndpoints({serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}}}, 'node1'),
       ).to.be.false;
     });
   });
@@ -477,7 +483,11 @@ describe('NodeCommandTasks admin key signing', (): void => {
         }),
       };
       (tasks as unknown as {remoteConfig: unknown}).remoteConfig = {
+        getClusterRefs: (): Record<string, string> => ({}),
+        getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
+        getContexts: (): string[] => ['context-1'],
         configuration: {
+          clusters: [{namespace: namespace.name, dnsBaseDomain: 'cluster.local'}],
           components: {
             managePortForward: managePortForwardStub,
           },
@@ -563,6 +573,31 @@ describe('NodeCommandTasks admin key signing', (): void => {
       expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
       expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212
     });
+
+    it('maintains consistency when service-endpoint-port is set without publish-host-endpoints (maintainer scenario)', async (): Promise<void> => {
+      // 1. In setGrpcWebEndpoint: address book does not publish host endpoint (only cluster IP)
+      await setGrpcWebEndpoint(tasks, {
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      });
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints).to.have.lengthOf(1);
+      expect(node2Endpoints[0].getPort).to.equal(50_211);
+
+      // 2. In enablePortForwarding: port forwarding preserves legacy port (35212 for node2)
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      };
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212, NOT 36211!
+    });
   });
 
   describe('resolveHostGrpcPort', (): void => {
@@ -603,6 +638,137 @@ describe('NodeCommandTasks admin key signing', (): void => {
 
       const portNode2: number = tasks.resolveHostGrpcPort('node2', 1);
       expect(portNode2).to.equal(constants.GRPC_LOCAL_PORT + 1);
+    });
+  });
+
+  describe('buildHostServiceEndpoint', (): void => {
+    it('normalizes wildcard 0.0.0.0 to 127.0.0.1 in IPv4 ServiceEndpoint', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {externalAddress: '0.0.0.0'},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal(constants.LOCAL_HOST);
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+    });
+
+    it('preserves valid IPv4 externalAddress', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {externalAddress: '192.168.1.150'},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal('192.168.1.150');
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getIpAddressV4).to.deep.equal(new Uint8Array([192, 168, 1, 150]));
+    });
+
+    it('constructs domainName ServiceEndpoint for domain names', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {domainNamesMapping: {node1: 'node1.example.com'}},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal('node1.example.com');
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getDomainName).to.equal('node1.example.com');
+    });
+
+    it('falls back to constants.LOCAL_HOST when no address is specified', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal(constants.LOCAL_HOST);
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+    });
+
+    it('resolves custom host port from serviceEndpointPortMapping', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}}},
+        'node2',
+        1,
+      );
+      expect(result.hostPort).to.equal(36_211);
+      expect(result.hostServiceEndpoint.getPort).to.equal(36_211);
     });
   });
 

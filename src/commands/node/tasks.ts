@@ -2227,8 +2227,8 @@ export class NodeCommandTasks {
   }
 
   /**
-   * Determines if the publishHostEndpoints feature is explicitly enabled for port forwarding.
-   * Preserves backward compatibility by ensuring local port forwarding is not altered
+   * Determines if the publishHostEndpoints feature is explicitly enabled for port forwarding and endpoint publishing.
+   * Preserves backward compatibility by ensuring local port forwarding and address book publishing are not altered
    * unless the feature is explicitly enabled.
    */
   public isPublishHostEndpointsEnabled(config: {publishHostEndpoints?: boolean}): boolean {
@@ -2239,54 +2239,64 @@ export class NodeCommandTasks {
   }
 
   /**
-   * Evaluates whether host-reachable consensus node endpoints should be published in the address book.
-   *
-   * Precedence order:
-   * 1. Explicit user CLI configuration (--publish-host-endpoints / --no-publish-host-endpoints).
-   * 2. Explicit config / ConfigManager true value.
-   * 3. Explicit programmatic/test false value when ConfigManager was not involved.
-   * 4. Inferred configuration from serviceEndpointPortMapping when publishHostEndpoints was omitted or defaulted.
-   * 5. Default: false.
+   * Evaluates whether host-reachable consensus node endpoints should be published.
+   * Delegates to {@link isPublishHostEndpointsEnabled} to ensure consistent feature flag resolution.
    */
   public shouldPublishHostEndpoints(
     config: {
       publishHostEndpoints?: boolean;
       serviceEndpointPortMapping?: EndpointPortMapping;
     },
-    nodeAlias: NodeAlias,
+    _nodeAlias?: NodeAlias,
   ): boolean {
-    // 1. Explicit CLI flag provided by user takes precedence over inference
-    if (this.configManager?.wasFlagProvidedByUser(flags.publishHostEndpoints)) {
-      return Boolean(config.publishHostEndpoints ?? this.configManager.getFlag<boolean>(flags.publishHostEndpoints));
+    return this.isPublishHostEndpointsEnabled(config);
+  }
+
+  /**
+   * Centralized helper to build the host-reachable ServiceEndpoint for a consensus node.
+   * Resolves the host address (normalizing wildcard 0.0.0.0 to 127.0.0.1) and host port,
+   * constructing the appropriate IPv4 or domain-based ServiceEndpoint.
+   */
+  private buildHostServiceEndpoint(
+    config: {
+      domainNamesMapping?: Record<NodeAlias, string>;
+      externalAddress?: string;
+      serviceEndpointPortMapping?: EndpointPortMapping;
+    },
+    nodeAlias: NodeAlias,
+    nodeId: number,
+  ): {
+    hostAddress: string;
+    hostPort: number;
+    hostServiceEndpoint: ServiceEndpoint;
+  } {
+    let hostAddress: string =
+      config.domainNamesMapping?.[nodeAlias] ||
+      config.externalAddress ||
+      this.configManager?.getFlag<string>(flags.externalAddress) ||
+      constants.LOCAL_HOST;
+
+    if (hostAddress === '0.0.0.0') {
+      hostAddress = constants.LOCAL_HOST;
     }
 
-    // 2. Explicitly enabled on config object or via ConfigManager
-    if (
-      config.publishHostEndpoints === true ||
-      this.configManager?.getFlag<boolean>(flags.publishHostEndpoints) === true
-    ) {
-      return true;
-    }
+    const hostPort: number = this.resolveHostGrpcPort(nodeAlias, nodeId, config.serviceEndpointPortMapping);
 
-    // 3. Explicitly disabled in programmatic / unit test config without ConfigManager
-    if (config.publishHostEndpoints === false && this.configManager === undefined) {
-      return false;
-    }
+    const hostServiceEndpoint: ServiceEndpoint = isIpV4Address(hostAddress)
+      ? new ServiceEndpoint({
+          port: hostPort,
+          ipAddressV4: parseIpAddressToUint8Array(hostAddress),
+        })
+      : new ServiceEndpoint({
+          port: hostPort,
+          domainName: hostAddress,
+        });
 
-    // 4. Inferred configuration: when the flag was omitted or defaulted to false from CLI registration,
-    // infer true if serviceEndpointPortMapping specifies a port for this node alias or a defaultPort
-    const hasServiceEndpointOverride: boolean = Boolean(
-      config.serviceEndpointPortMapping &&
-      (config.serviceEndpointPortMapping.nodeAliasToPort?.[nodeAlias] !== undefined ||
-        config.serviceEndpointPortMapping.defaultPort !== undefined),
-    );
-
-    if (hasServiceEndpointOverride) {
-      return true;
-    }
-
-    // 5. Default fallback to false
-    return false;
+    return {
+      hostAddress,
+      hostPort,
+      hostServiceEndpoint,
+    };
   }
 
   public setGrpcWebEndpoint(
@@ -2388,34 +2398,19 @@ export class NodeCommandTasks {
 
           const serviceEndpoints: ServiceEndpoint[] = [grpcServiceEndpoint];
 
-          const shouldPublishHostEndpoints: boolean = this.shouldPublishHostEndpoints(config, nodeAlias);
+          const shouldPublishHostEndpoints: boolean = this.isPublishHostEndpointsEnabled(config);
 
           if (shouldPublishHostEndpoints) {
-            const hostAddress: string =
-              config.domainNamesMapping?.[nodeAlias] ||
-              config.externalAddress ||
-              this.configManager?.getFlag<string>(flags.externalAddress) ||
-              constants.LOCAL_HOST;
-            const hostPort: number = this.resolveHostGrpcPort(
+            const {hostAddress, hostPort, hostServiceEndpoint} = this.buildHostServiceEndpoint(
+              config,
               nodeAlias,
               Number(networkNodeService.nodeId),
-              config.serviceEndpointPortMapping,
             );
 
             const isDuplicate: boolean =
               hostPort === networkNodeService.nodeServiceGrpcPort && hostAddress === grpcIpAddress;
 
             if (!isDuplicate) {
-              const hostServiceEndpoint: ServiceEndpoint = isIpV4Address(hostAddress)
-                ? new ServiceEndpoint({
-                    port: hostPort,
-                    ipAddressV4: parseIpAddressToUint8Array(hostAddress),
-                  })
-                : new ServiceEndpoint({
-                    port: hostPort,
-                    domainName: hostAddress,
-                  });
-
               serviceEndpoints.push(hostServiceEndpoint);
             }
           }
@@ -4240,29 +4235,14 @@ export class NodeCommandTasks {
 
         context_.grpcServiceEndpoints = prepareEndpoints(config.endpointType, endpoints, servicePort);
 
-        const shouldPublishHostEndpoints: boolean = this.shouldPublishHostEndpoints(config, config.nodeAlias);
+        const shouldPublishHostEndpoints: boolean = this.isPublishHostEndpointsEnabled(config);
 
         if (shouldPublishHostEndpoints) {
-          const hostAddress: string =
-            config.domainNamesMapping?.[config.nodeAlias] ||
-            config.externalAddress ||
-            this.configManager?.getFlag<string>(flags.externalAddress) ||
-            constants.LOCAL_HOST;
-          const hostPort: number = this.resolveHostGrpcPort(
+          const {hostAddress, hostPort, hostServiceEndpoint} = this.buildHostServiceEndpoint(
+            config,
             config.nodeAlias,
             Templates.nodeIdFromNodeAlias(config.nodeAlias),
-            config.serviceEndpointPortMapping,
           );
-
-          const hostServiceEndpoint: ServiceEndpoint = isIpV4Address(hostAddress)
-            ? new ServiceEndpoint({
-                port: hostPort,
-                ipAddressV4: parseIpAddressToUint8Array(hostAddress),
-              })
-            : new ServiceEndpoint({
-                port: hostPort,
-                domainName: hostAddress,
-              });
 
           const isDuplicate: boolean = context_.grpcServiceEndpoints.some(
             (ep: ServiceEndpoint): boolean =>
