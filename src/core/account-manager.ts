@@ -78,11 +78,6 @@ export class AccountManager {
     return this._hederaClient;
   }
 
-  /** @deprecated the SDK client behind the Hedera client, only for E2E tests that still build SDK transactions themselves */
-  public get _nodeClient(): Optional<Client> {
-    return this._hederaClient?.sdkClient;
-  }
-
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
