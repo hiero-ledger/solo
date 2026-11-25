@@ -227,18 +227,25 @@ async function run(arguments_) {
       const before = Date.now();
       // Local-only mode creates a fresh named cluster; Falcon reuses this isolated kubeconfig.
       if (options.cluster !== 'solo-cluster') {
-        await execute('kind', [
-          'create',
-          'cluster',
-          '--name',
-          options.cluster,
-          '--image',
-          'kindest/node:v1.31.9',
-          '--config',
-          path.join(soloDirectory, 'node_modules/@hiero-ledger/solo/resources/kind-config.yaml'),
-          '--kubeconfig',
-          kubeconfig,
-        ]);
+        try {
+          await execute('kind', [
+            'create',
+            'cluster',
+            '--name',
+            options.cluster,
+            '--image',
+            'kindest/node:v1.31.9',
+            '--config',
+            path.join(soloDirectory, 'node_modules/@hiero-ledger/solo/resources/kind-config.yaml'),
+            '--kubeconfig',
+            kubeconfig,
+          ]);
+        } catch (error) {
+          // Nothing of the candidate exists before its cluster does.
+          throw controller.signal.aborted
+            ? error
+            : new Failure('environment', `Kind cluster creation failed: ${error.message}`, {cause: error});
+        }
       }
       const values = path.join(root, 'falcon-values.yaml');
       writeFileSync(values, 'mirrorNode:\n  --pinger: false\n');
@@ -268,9 +275,16 @@ async function run(arguments_) {
       try {
         await execute(soloBinary, commandArguments);
       } catch (error) {
-        throw (
-          watcher.error ||
-          new Failure(Contract.classifyDeploy(error.output || error.message), error.message, {cause: error})
+        // An interrupted deploy did not run to its end, so its pod state names nothing.
+        if (watcher.error || controller.signal.aborted) {
+          throw watcher.error || error;
+        }
+        const notReady = watcher.state.notReady();
+        const reason = Contract.classifyDeploy(error, notReady);
+        throw new Failure(
+          reason,
+          reason === 'candidate' ? `Candidate not Ready: ${notReady.pods.join(', ')}. ${error.message}` : error.message,
+          {cause: error},
         );
       }
       mark('P2', before);

@@ -57,8 +57,18 @@ test('lane inputs cannot add flags, unsupported lanes or silently claim a local 
 });
 
 test('deploy errors stay red without claiming the SDK caused a Solo bug', () => {
-  assert.equal(Contract.classifyDeploy('NodeAccountId not recognized: 0.0.2'), 'unknown');
-  assert.equal(Contract.classifyDeploy('Unsupported component version'), 'invalid');
+  const startup = {exitCode: 1, message: 'NodeAccountId not recognized: 0.0.2'};
+  assert.equal(Contract.classifyDeploy(startup), 'unknown');
+  assert.equal(Contract.classifyDeploy(startup, {pods: ['node-0'], candidate: false}), 'unknown');
+  // The wording alone no longer decides; Solo's exit code does.
+  assert.equal(Contract.classifyDeploy({exitCode: 1, message: 'Unsupported component version'}), 'unknown');
+});
+
+test('a deploy Solo rejected is invalid, and one that left the candidate unready names the candidate', () => {
+  assert.equal(Contract.classifyDeploy({exitCode: 2}, {pods: ['mirror-importer'], candidate: true}), 'invalid');
+  assert.equal(Contract.classifyDeploy({exitCode: 1}, {pods: ['mirror-importer'], candidate: true}), 'candidate');
+  // A deploy the kit stopped at its deadline has no exit code; the candidate never becoming Ready still counts.
+  assert.equal(Contract.classifyDeploy({}, {pods: ['mirror-importer'], candidate: true}), 'candidate');
 });
 
 test('missing probes cannot pass, and JUnit preserves failures and missing probes', () => {
@@ -126,6 +136,14 @@ test('command cancellation propagates and a nonzero executable cannot become a p
   await assert.rejects(Processes.command(process.execPath, ['-e', 'process.exit(7)']), /exited 7/);
 });
 
+test('a command failure carries the exit code only when the program exited on its own', async () => {
+  await assert.rejects(Processes.command(process.execPath, ['-e', 'process.exit(2)']), error => error.exitCode === 2);
+  await assert.rejects(
+    Processes.command(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {timeout: 40}),
+    error => error.exitCode === undefined,
+  );
+});
+
 test('test keys are redacted, including keys emitted by Solo', () => {
   const key = `302e020100300506032b657004220420${'a'.repeat(64)}`;
   assert.equal(Contract.redact(`key=${key}, custom=secret`, ['secret']), 'key=<REDACTED_TEST_KEY>, custom=<REDACTED>');
@@ -170,7 +188,28 @@ for (const [name, status, reason] of [
     value.status.containerStatuses = [{name: 'main', ...status}];
     assert.throws(() => new PodState().observe(value), failure(reason));
   });
+
+  test(`pod negative control: ${name} in a candidate container names the candidate`, () => {
+    const value = pod();
+    value.status.containerStatuses = [{name: 'main', ...status}];
+    assert.throws(() => new PodState(['test:v1']).observe(value), failure('candidate'));
+    // A candidate elsewhere in the deployment does not make this container's failure the candidate's.
+    assert.throws(() => new PodState(['other:v1']).observe(value), failure(reason));
+  });
 }
+
+test('a candidate image matches whether or not the runtime reports the implicit Docker Hub prefix', () => {
+  for (const [candidate, reported] of [
+    ['hiero/importer:1.0.0', 'docker.io/hiero/importer:1.0.0'],
+    ['postgres:16', 'docker.io/library/postgres:16'],
+    ['docker.io/hiero/importer:1.0.0', 'hiero/importer:1.0.0'],
+  ]) {
+    const value = pod();
+    value.spec.containers[0].image = reported;
+    value.status.containerStatuses[0] = {name: 'main', restartCount: 2, state: {waiting: {reason: 'CrashLoopBackOff'}}};
+    assert.throws(() => new PodState([candidate]).observe(value), failure('candidate'));
+  }
+});
 
 test('post-deploy restart, UID replacement, deletion and NotReady all fail stability', () => {
   for (const change of ['restart', 'replace', 'delete', 'notReady']) {
@@ -202,6 +241,67 @@ test('a persistent noncandidate image pull failure fails after five minutes', ()
   value.status.containerStatuses[0].state = {waiting: {reason: 'ImagePullBackOff'}};
   state.observe(value, 1000);
   assert.throws(() => state.observe(value, 301_000), failure('environment'));
+  const candidate = new PodState(['test:v1']);
+  candidate.observe(value, 1000);
+  assert.throws(() => candidate.observe(value, 301_000), failure('candidate'));
+});
+
+function unreadyPod(name, image, ready) {
+  return pod({
+    metadata: {name, uid: name},
+    spec: {containers: [{name: 'main', image}]},
+    status: {
+      phase: 'Running',
+      conditions: [{type: 'Ready', status: ready ? 'True' : 'False'}],
+      containerStatuses: [{name: 'main', ready, restartCount: 0, state: {running: {}}}],
+    },
+  });
+}
+
+test('a candidate that stays unready while everything else is Ready names the candidate', () => {
+  const state = new PodState(['importer:v1']);
+  state.observe(unreadyPod('postgres', 'postgres:16', true), 0);
+  state.observe(unreadyPod('importer', 'importer:v1', false), 0);
+  // Still starting: red, but not yet the candidate's.
+  assert.deepEqual(state.notReady(179_999), {pods: ['importer'], candidate: false});
+  assert.throws(() => state.stable(179_999), failure('unknown'));
+  assert.deepEqual(state.notReady(180_000), {pods: ['importer'], candidate: true});
+  assert.throws(() => state.stable(180_000), failure('candidate'));
+  // Becoming Ready resets the clock.
+  state.observe(unreadyPod('importer', 'importer:v1', true), 180_000);
+  assert.equal(state.notReady(180_000), undefined);
+  state.observe(unreadyPod('importer', 'importer:v1', false), 200_000);
+  assert.equal(state.notReady(380_000 - 1).candidate, false);
+  assert.equal(state.notReady(380_000).candidate, true);
+});
+
+test('a candidate waiting on an unready dependency, or an unready non-candidate, does not name the candidate', () => {
+  const state = new PodState(['importer:v1']);
+  state.observe(unreadyPod('postgres', 'postgres:16', false), 0);
+  state.observe(unreadyPod('importer', 'importer:v1', false), 0);
+  assert.deepEqual(state.notReady(600_000), {pods: ['postgres', 'importer'], candidate: false});
+  assert.throws(() => state.stable(600_000), failure('unknown'));
+  // A pending pod with no container statuses yet cannot name anything.
+  const pending = new PodState(['importer:v1']);
+  pending.observe(pod({metadata: {name: 'importer', uid: 'a'}, status: {phase: 'Pending'}}), 0);
+  assert.equal(pending.notReady(600_000).candidate, false);
+  // A completed init container is not unready.
+  const initialized = new PodState(['importer:v1']);
+  const value = unreadyPod('importer', 'importer:v1', false);
+  value.spec.initContainers = [{name: 'migrate', image: 'busybox:1.36.1'}];
+  value.status.initContainerStatuses = [
+    {name: 'migrate', ready: false, restartCount: 0, state: {terminated: {exitCode: 0}}},
+  ];
+  initialized.observe(value, 0);
+  assert.equal(initialized.notReady(180_000).candidate, true);
+});
+
+test('pod evidence records which containers run a candidate image', () => {
+  const state = new PodState(['importer:v1']);
+  state.observe(unreadyPod('importer', 'importer:v1', true), 0);
+  state.observe(unreadyPod('postgres', 'postgres:16', true), 0);
+  assert.equal(state.pods.get('importer').containers[0].candidate, true);
+  assert.equal(state.pods.get('postgres').containers[0].candidate, false);
 });
 
 test('empty workload cannot pass stability and metrics are converted without inventing zero samples', () => {

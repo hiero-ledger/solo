@@ -81,12 +81,13 @@ export class Contract {
     return {...values, 'solo-version': version, cluster, unreleased: commit};
   }
 
-  static classifyDeploy(message) {
-    if (/incompatible|not compatible|unsupported.*version/i.test(message)) {
+  // Since Solo 0.98.0 (#6415) a rejected input exits with 2. Otherwise only pod evidence names the candidate:
+  // an SDK rejection during Solo startup does not prove whether the SDK or Solo is wrong.
+  static classifyDeploy(error, notReady) {
+    if (error.exitCode === 2) {
       return 'invalid';
     }
-    // SDK rejection during Solo startup does not prove whether the SDK or Solo is wrong.
-    return 'unknown';
+    return notReady?.candidate ? 'candidate' : 'unknown';
   }
 
   static redact(text, secrets = []) {
