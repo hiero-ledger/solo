@@ -1476,6 +1476,27 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  /**
+   * Values for the mirror ingress controller. The ingress class and controller class are cluster-scoped and
+   * share their names with the mirror nodes of other deployments, so the controller watches only its own
+   * namespace; otherwise it would also pick up their ingresses and could route to another deployment's
+   * mirror node. User values files are applied last and can still override any of these.
+   */
+  private prepareIngressControllerChartValues(config: MirrorNodeDeployConfigClass): HelmChartValues {
+    const chartValues: HelmChartValues = new HelmChartValues()
+      .file(constants.INGRESS_CONTROLLER_VALUES_FILE)
+      .add(HelmSchedulingValues.buildSchedulingChartValues(config.chartValues, 'controller'));
+    if (config.mirrorStaticIp !== '') {
+      chartValues.setLiteral('controller.service.loadBalancerIP', config.mirrorStaticIp);
+    }
+    return chartValues
+      .setLiteral('fullnameOverride', config.resourceNames.ingressControllerName(config.namespace.name))
+      .setLiteral('controller.ingressClass', config.resourceNames.ingressClassName)
+      .setLiteral('controller.extraArgs.controller-class', config.resourceNames.ingressControllerClass)
+      .setLiteral('controller.extraArgs.watch-namespace', config.namespace.name)
+      .filesFromCommaSeparatedInput(config.ingressControllerValueFile);
+  }
+
   private enableMirrorNodeTask(commandType: MirrorNodeCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable mirror-node',
@@ -1509,31 +1530,13 @@ export class MirrorNodeCommand extends BaseCommand {
               task: async (context_): Promise<void> => {
                 const config: MirrorNodeDeployConfigClass = context_.config;
 
-                const mirrorIngressControllerChartValues: HelmChartValues = new HelmChartValues().file(
-                  constants.INGRESS_CONTROLLER_VALUES_FILE,
-                );
-                mirrorIngressControllerChartValues.add(
-                  HelmSchedulingValues.buildSchedulingChartValues(config.chartValues, 'controller'),
-                );
-                if (config.mirrorStaticIp !== '') {
-                  mirrorIngressControllerChartValues.setLiteral(
-                    'controller.service.loadBalancerIP',
-                    context_.config.mirrorStaticIp,
-                  );
-                }
-                mirrorIngressControllerChartValues
-                  .setLiteral('fullnameOverride', config.resourceNames.ingressControllerName(config.namespace.name))
-                  .setLiteral('controller.ingressClass', config.resourceNames.ingressClassName)
-                  .setLiteral('controller.extraArgs.controller-class', config.resourceNames.ingressControllerClass)
-                  .filesFromCommaSeparatedInput(config.ingressControllerValueFile);
-
                 await this.chartManager.upgrade(
                   config.namespace,
                   config.ingressReleaseName,
                   constants.INGRESS_CONTROLLER_RELEASE_NAME,
                   constants.INGRESS_CONTROLLER_RELEASE_NAME,
                   INGRESS_CONTROLLER_VERSION,
-                  mirrorIngressControllerChartValues,
+                  this.prepareIngressControllerChartValues(config),
                   context_.config.clusterContext,
                   false,
                   true,
