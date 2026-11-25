@@ -24,6 +24,7 @@ import {type SoloListrTask} from '../../../../src/types/index.js';
 import {type AnyListrContext} from '../../../../src/types/aliases.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
+import * as constants from '../../../../src/core/constants.js';
 
 const IMAGE_REFERENCE: string = 'docker.io/library/busybox:1.36.1';
 const TAR_FILE: string = 'docker.io__library__busybox__1.36.1.tar';
@@ -279,7 +280,7 @@ describe('ImageCacheHandler pull', (): void => {
     expect(context.config.results).to.have.lengthOf(0);
   });
 
-  it('skips an image the manifest does not list', async (): Promise<void> => {
+  it('reports an image the manifest does not list as pulled from its registry, not as a failure', async (): Promise<void> => {
     sinon.stub(CacheManifestClient, 'fetchImages').resolves([]);
     const fetchFile: SinonStub = stubDownloader({});
 
@@ -287,7 +288,11 @@ describe('ImageCacheHandler pull', (): void => {
 
     expect(fetchFile).to.not.have.been.called;
     expect(context.config.results).to.have.lengthOf(0);
-    expect(loggerStub.addMessageGroupMessage).to.have.been.called;
+    expect(loggerStub.addMessageGroupMessage).to.have.been.calledWithMatch(
+      constants.CACHE_IMAGE_UNCACHED_MESSAGE_GROUP,
+      sinon.match(IMAGE_REFERENCE),
+    );
+    expect(loggerStub.addMessageGroupMessage).to.not.have.been.calledWith(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP);
   });
 
   it('skips downloading and records no failures when the manifest is unpublished', async (): Promise<void> => {

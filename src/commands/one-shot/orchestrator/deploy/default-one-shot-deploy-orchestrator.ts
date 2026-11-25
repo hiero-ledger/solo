@@ -1035,11 +1035,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     }
   }
 
-  // Surfaces any images that failed to cache or load during the run, and any cache files the pull removed.
-  // Each group is only shown when it has messages, so a clean run prints nothing.
+  // Surfaces any cache files the pull removed, any images the cache manifest does not list (pulled from their
+  // registries, which is expected), and any images that failed to cache or load during the run. Only the last is
+  // a warning. Each group is only shown when it has messages, so a clean run prints nothing.
   private showCacheImageMessages(): void {
     if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_MAINTENANCE_MESSAGE_GROUP)) {
       this.logger.showMessageGroup(constants.CACHE_IMAGE_MAINTENANCE_MESSAGE_GROUP);
+    }
+    if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_UNCACHED_MESSAGE_GROUP)) {
+      this.logger.showMessageGroup(constants.CACHE_IMAGE_UNCACHED_MESSAGE_GROUP);
     }
     if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP)) {
       this.logger.showMessageGroup(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP, MessageLevel.WARN);
