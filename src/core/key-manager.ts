@@ -19,7 +19,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as selfsigned from 'selfsigned';
-import {webcrypto} from 'node:crypto';
+import {createHash, webcrypto} from 'node:crypto';
 type NodeCryptoKey = webcrypto.CryptoKey;
 
 // eslint-disable-next-line n/no-unsupported-features/node-builtins
@@ -550,6 +550,34 @@ export class KeyManager {
       throw new SoloErrors.component.platformKeyFileMissing(source);
     }
     return new Uint8Array(decodedDers[0]);
+  }
+
+  /**
+   * Compute the gRPC certificate hash a consensus node publishes in the address book (`grpc_certificate_hash`).
+   *
+   * Per HAPI `node_create.proto` the hash is the SHA-384 of the certificate in PEM format, UTF-8 encoded. SDK
+   * clients (e.g. the Java SDK's `HederaTrustManager`) verify it by re-encoding the certificate the node presents
+   * as canonical PEM and hashing that, so the PEM is rebuilt from the DER bytes here instead of hashing the PEM
+   * as supplied — otherwise a different line wrapping or CRLF line endings would yield a hash no client can match.
+   * @param certPem - the gRPC TLS certificate in PEM format
+   * @param [source] - optional identifier of where the PEM came from, used in error messages
+   * @returns the raw 48-byte SHA-384 digest
+   */
+  public getGrpcCertificateHash(certPem: string, source?: string): Buffer {
+    const canonicalPem: string = KeyManager.toCanonicalPemCertificate(this.getDerFromPem(certPem, source));
+    return createHash('sha384').update(canonicalPem, 'utf8').digest();
+  }
+
+  /**
+   * Encode DER certificate bytes as PEM the way BouncyCastle's `PemWriter` and OpenSSL do: 64-character base64
+   * lines, `\n` line endings and a trailing newline.
+   */
+  private static toCanonicalPemCertificate(der: Uint8Array): string {
+    const base64Lines: string[] =
+      Buffer.from(der)
+        .toString('base64')
+        .match(/.{1,64}/g) ?? [];
+    return `-----BEGIN CERTIFICATE-----\n${base64Lines.join('\n')}\n-----END CERTIFICATE-----\n`;
   }
 
   /**
