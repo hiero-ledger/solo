@@ -35,6 +35,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     public domainNamesMapping?: Record<NodeAlias, string>,
     public gossipEndpointPortMapping?: EndpointPortMapping,
     public serviceEndpointPortMapping?: EndpointPortMapping,
+    public publishHostEndpoints?: boolean,
+    public externalAddress?: string,
   ) {
     this.initializationPromise = (async (): Promise<void> => {
       for (const consensusNode of consensusNodes) {
@@ -92,11 +94,31 @@ export class GenesisNetworkDataConstructor implements ToJSON {
           // Add service endpoints
           nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, servicePort);
           nodeDataWrapper.addServiceEndpoint(domainName ?? networkNodeService.externalAddress, servicePort + 1);
+
+          if (this.publishHostEndpoints) {
+            const hostAddress: string = this.resolveHostAddress(consensusNode.name);
+            const hostPort: number =
+              serviceEndpointPortMapping?.nodeAliasToPort?.[consensusNode.name] ??
+              constants.GRPC_LOCAL_PORT + +networkNodeService.nodeId;
+            if (hostAddress !== (domainName ?? networkNodeService.externalAddress) || hostPort !== servicePort) {
+              nodeDataWrapper.addServiceEndpoint(hostAddress, hostPort);
+            }
+          }
         } catch (error) {
           throw new SoloErrors.component.genesisDataGenerationFailed(error);
         }
       }
     })();
+  }
+
+  private resolveHostAddress(nodeAlias: NodeAlias): string {
+    let hostAddress: string = this.domainNamesMapping?.[nodeAlias] || this.externalAddress || constants.LOCAL_HOST;
+
+    if (hostAddress === '0.0.0.0') {
+      hostAddress = constants.LOCAL_HOST;
+    }
+
+    return hostAddress;
   }
 
   public static validateAdminPublicKeys(
@@ -131,6 +153,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     domainNamesMapping?: Record<NodeAlias, string>,
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
+    publishHostEndpoints?: boolean,
+    externalAddress?: string,
   ): Promise<GenesisNetworkDataConstructor> {
     let adminPublicKeyMap: Map<NodeAlias, string> = new Map();
 
@@ -155,6 +179,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
       domainNamesMapping,
       gossipEndpointPortMapping,
       serviceEndpointPortMapping,
+      publishHostEndpoints,
+      externalAddress,
     );
 
     await instance.load();

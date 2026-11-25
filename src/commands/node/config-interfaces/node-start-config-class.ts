@@ -25,4 +25,6 @@ export interface NodeStartConfigClass extends NodeCommonConfigWithNodeAliases, C
   gossipEndpointPortMapping?: EndpointPortMapping;
   serviceEndpointPort?: string;
   serviceEndpointPortMapping?: EndpointPortMapping;
+  publishHostEndpoints?: boolean;
+  externalAddress?: string;
 }

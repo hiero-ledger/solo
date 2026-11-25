@@ -67,6 +67,8 @@ export interface NetworkDeployConfigClass {
   gossipEndpointPortMapping?: EndpointPortMapping;
   serviceEndpointPort?: string;
   serviceEndpointPortMapping?: EndpointPortMapping;
+  publishHostEndpoints?: boolean;
+  externalAddress?: string;
   blockNodeComponents: BlockNodeStateSchema[];
   debugNodeAlias: NodeAlias;
   app: string;

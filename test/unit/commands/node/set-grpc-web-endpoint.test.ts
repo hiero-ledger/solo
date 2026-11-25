@@ -12,6 +12,7 @@ import {
   ReceiptStatusError,
   Status,
   TransactionId,
+  type ServiceEndpoint,
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
@@ -108,10 +109,13 @@ async function runTask(task: SoloListrTask<AnyListrContext>, config: Record<stri
   await task.task({config} as unknown as AnyListrContext, {} as unknown as SoloListrTaskWrapper<AnyListrContext>);
 }
 
-async function setGrpcWebEndpoint(tasks: NodeCommandTasks): Promise<void> {
+async function setGrpcWebEndpoint(
+  tasks: NodeCommandTasks,
+  configOverrides: Record<string, unknown> = {},
+): Promise<void> {
   await runTask(
     tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START) as unknown as SoloListrTask<AnyListrContext>,
-    {namespace, deployment: 'solo-deployment', nodeAliases, consensusNodes},
+    {namespace, deployment: 'solo-deployment', nodeAliases, consensusNodes, ...configOverrides},
   );
 }
 
@@ -138,6 +142,7 @@ describe('NodeCommandTasks admin key signing', (): void => {
   let logger: FakeLogger;
   let tasks: NodeCommandTasks;
   let signSpy: SinonSpy;
+  let setServiceEndpointsSpy: SinonSpy;
   let executeStub: SinonStub;
 
   beforeEach((): void => {
@@ -148,6 +153,7 @@ describe('NodeCommandTasks admin key signing', (): void => {
     logger = {debug: sinon.stub(), showUser: sinon.stub()};
     tasks = createTasks(adminKeySecrets, client, logger);
     signSpy = sinon.spy(NodeUpdateTransaction.prototype, 'sign');
+    setServiceEndpointsSpy = sinon.spy(NodeUpdateTransaction.prototype, 'setServiceEndpoints');
     executeStub = sinon.stub(NodeUpdateTransaction.prototype, 'execute').resolves(responseWithStatus(Status.Success));
   });
 
@@ -186,6 +192,536 @@ describe('NodeCommandTasks admin key signing', (): void => {
 
       await expect(setGrpcWebEndpoint(tasks)).to.be.rejectedWith(SoloError);
       expect(logger.showUser.called).to.be.false;
+    });
+
+    it('publishes only internal cluster IP endpoint by default', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks);
+
+      expect(setServiceEndpointsSpy.callCount).to.equal(2);
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+      expect(node1Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 1]));
+
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints).to.have.lengthOf(1);
+      expect(node2Endpoints[0].getPort).to.equal(50_211);
+      expect(node2Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 2]));
+    });
+
+    it('publishes dual endpoints (internal + host) when publishHostEndpoints is true', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {publishHostEndpoints: true});
+
+      expect(setServiceEndpointsSpy.callCount).to.equal(2);
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+      expect(node1Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 1]));
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(node1Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints).to.have.lengthOf(2);
+      expect(node2Endpoints[0].getPort).to.equal(50_211);
+      expect(node2Endpoints[0].getIpAddressV4).to.deep.equal(new Uint8Array([10, 0, 0, 2]));
+      expect(node2Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT + 1);
+      expect(node2Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+    });
+
+    it('publishes custom host ports when serviceEndpointPortMapping is provided', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints[1].getPort).to.equal(36_211);
+    });
+
+    it('publishes host endpoint with domain name when domainNamesMapping is provided', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        domainNamesMapping: {node1: 'node1.solo.local'},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[1].getDomainName).to.equal('node1.solo.local');
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+
+      expect(node1Endpoints[1].getIpAddressV4).to.be.null;
+    });
+
+    it('publishes host endpoint with custom external address when provided', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        externalAddress: '192.168.1.150',
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([192, 168, 1, 150]));
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+    });
+
+    it('deduplicates when host endpoint matches internal endpoint', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        externalAddress: '10.0.0.1',
+        serviceEndpointPortMapping: {nodeAliasToPort: {node1: 50_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+
+    it('does not publish host endpoint when serviceEndpointPortMapping is provided without publishHostEndpoints', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+
+    it('normalizes 0.0.0.0 externalAddress to 127.0.0.1 in published host endpoint', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: true,
+        externalAddress: '0.0.0.0',
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(2);
+      expect(node1Endpoints[1].getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+      expect(node1Endpoints[1].getPort).to.equal(constants.GRPC_LOCAL_PORT);
+    });
+
+    it('does not publish host endpoint when publishHostEndpoints is explicitly false even with serviceEndpointPortMapping', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node1: 36_211}},
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+
+    it('does not publish host endpoint when publishHostEndpoints is explicitly false', async (): Promise<void> => {
+      await setGrpcWebEndpoint(tasks, {
+        publishHostEndpoints: false,
+      });
+
+      const node1Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.firstCall.args[0] as ServiceEndpoint[];
+      expect(node1Endpoints).to.have.lengthOf(1);
+      expect(node1Endpoints[0].getPort).to.equal(50_211);
+    });
+  });
+
+  describe('isPublishHostEndpointsEnabled', (): void => {
+    it('returns false by default when publishHostEndpoints is omitted', (): void => {
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.false;
+    });
+
+    it('returns false when publishHostEndpoints is false even with serviceEndpointPortMapping', (): void => {
+      expect(
+        tasks.isPublishHostEndpointsEnabled({
+          publishHostEndpoints: false,
+        }),
+      ).to.be.false;
+    });
+
+    it('returns true when publishHostEndpoints is explicitly true in config', (): void => {
+      expect(tasks.isPublishHostEndpointsEnabled({publishHostEndpoints: true})).to.be.true;
+    });
+
+    it('returns true when user provided publishHostEndpoints as true on CLI', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => true,
+        getFlag: (): boolean => true,
+      };
+
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.true;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('returns false when user explicitly provided publishHostEndpoints as false on CLI', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => true,
+        getFlag: (): boolean => false,
+      };
+
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.false;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('returns false when publishHostEndpoints was defaulted to false on CLI', (): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        wasFlagProvidedByUser: (): boolean => false,
+        getFlag: (): boolean => false,
+      };
+
+      expect(tasks.isPublishHostEndpointsEnabled({})).to.be.false;
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+  });
+
+  describe('enablePortForwarding local port resolution', (): void => {
+    let managePortForwardStub: SinonStub;
+
+    beforeEach((): void => {
+      managePortForwardStub = sinon.stub().resolves(35_211);
+      const mockPods: {podReference: {name: string}; labels: Record<string, string>}[] = [
+        {
+          podReference: {name: 'haproxy-node1-abc'},
+          labels: {'solo.hedera.com/node-id': '0', 'solo.hedera.com/node-name': 'node1'},
+        },
+        {
+          podReference: {name: 'haproxy-node2-def'},
+          labels: {'solo.hedera.com/node-id': '1', 'solo.hedera.com/node-name': 'node2'},
+        },
+      ];
+
+      (tasks as unknown as {configManager: unknown}).configManager = {
+        getFlag: sinon.stub(),
+        wasFlagProvidedByUser: sinon.stub().returns(false),
+      };
+      (tasks as unknown as {k8Factory: unknown}).k8Factory = {
+        getK8: (): unknown => ({
+          pods: (): unknown => ({
+            list: (): Promise<unknown[]> => Promise.resolve(mockPods),
+          }),
+        }),
+      };
+      (tasks as unknown as {remoteConfig: unknown}).remoteConfig = {
+        getClusterRefs: (): Record<string, string> => ({}),
+        getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
+        getContexts: (): string[] => ['context-1'],
+        configuration: {
+          clusters: [{namespace: namespace.name, dnsBaseDomain: 'cluster.local'}],
+          components: {
+            managePortForward: managePortForwardStub,
+          },
+        },
+        persist: sinon.stub().resolves(),
+      };
+    });
+
+    afterEach((): void => {
+      (tasks as unknown as {configManager: unknown}).configManager = undefined;
+    });
+
+    it('preserves legacy GRPC_LOCAL_PORT + nodeId when feature is disabled (Test A)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: false,
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212
+    });
+
+    it('preserves legacy GRPC_LOCAL_PORT + nodeId when feature is disabled with serviceEndpointPortMapping configured (Test B)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212 (NOT 36211!)
+    });
+
+    it('uses configured host port when publishHostEndpoints is enabled with serviceEndpointPortMapping (Test C)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: true,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(36_211); // node2 -> 36211
+    });
+
+    it('uses GRPC_LOCAL_PORT + nodeId when publishHostEndpoints is enabled without mapping (Test D)', async (): Promise<void> => {
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        publishHostEndpoints: true,
+      };
+
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212
+    });
+
+    it('maintains consistency when service-endpoint-port is set without publish-host-endpoints (maintainer scenario)', async (): Promise<void> => {
+      // 1. In setGrpcWebEndpoint: address book does not publish host endpoint (only cluster IP)
+      await setGrpcWebEndpoint(tasks, {
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      });
+      const node2Endpoints: ServiceEndpoint[] = setServiceEndpointsSpy.secondCall.args[0] as ServiceEndpoint[];
+      expect(node2Endpoints).to.have.lengthOf(1);
+      expect(node2Endpoints[0].getPort).to.equal(50_211);
+
+      // 2. In enablePortForwarding: port forwarding preserves legacy port (35212 for node2)
+      const config: Record<string, unknown> = {
+        namespace,
+        consensusNodes,
+        forcePortForward: true,
+        isChartInstalled: false,
+        serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}},
+      };
+      await (tasks.enablePortForwarding(true).task as (context_: {config: Record<string, unknown>}) => Promise<void>)({
+        config,
+      });
+      expect(managePortForwardStub.callCount).to.equal(2);
+      expect(managePortForwardStub.args[0][3]).to.equal(constants.GRPC_LOCAL_PORT); // node1 -> 35211
+      expect(managePortForwardStub.args[1][3]).to.equal(constants.GRPC_LOCAL_PORT + 1); // node2 -> 35212, NOT 36211!
+    });
+  });
+
+  describe('resolveHostGrpcPort', (): void => {
+    it('prefers explicit per-node CLI serviceEndpointPortMapping and ignores shared defaultPort to avoid collision', (): void => {
+      const port: number = tasks.resolveHostGrpcPort('node2', 1, {nodeAliasToPort: {node2: 36_211}});
+      expect(port).to.equal(36_211);
+
+      const defaultPortNode1: number = tasks.resolveHostGrpcPort('node1', 0, {
+        defaultPort: 50_211,
+        nodeAliasToPort: {},
+      });
+      expect(defaultPortNode1).to.equal(constants.GRPC_LOCAL_PORT);
+
+      const defaultPortNode2: number = tasks.resolveHostGrpcPort('node2', 1, {
+        defaultPort: 50_211,
+        nodeAliasToPort: {},
+      });
+      expect(defaultPortNode2).to.equal(constants.GRPC_LOCAL_PORT + 1);
+    });
+
+    it('prefers active RemoteConfig HAProxy port forward when CLI mapping is absent', (): void => {
+      const mockComponent: {metadata: {portForwardConfigs: {podPort: number; localPort: number}[]}} = {
+        metadata: {
+          portForwardConfigs: [{podPort: constants.GRPC_PORT, localPort: 37_211}],
+        },
+      };
+      (tasks as unknown as {remoteConfig: unknown}).remoteConfig = {
+        configuration: {
+          components: {
+            getComponentById: (_type: unknown, id: number): unknown => {
+              return id === 2 ? mockComponent : undefined; // node2 -> componentId 2
+            },
+          },
+        },
+      };
+
+      const port: number = tasks.resolveHostGrpcPort('node2', 1);
+      expect(port).to.equal(37_211);
+    });
+
+    it('falls back to deterministic default (GRPC_LOCAL_PORT + nodeId)', (): void => {
+      const portNode1: number = tasks.resolveHostGrpcPort('node1', 0);
+      expect(portNode1).to.equal(constants.GRPC_LOCAL_PORT);
+
+      const portNode2: number = tasks.resolveHostGrpcPort('node2', 1);
+      expect(portNode2).to.equal(constants.GRPC_LOCAL_PORT + 1);
+    });
+  });
+
+  describe('buildHostServiceEndpoint', (): void => {
+    it('normalizes wildcard 0.0.0.0 to 127.0.0.1 in IPv4 ServiceEndpoint', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {externalAddress: '0.0.0.0'},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal(constants.LOCAL_HOST);
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+    });
+
+    it('preserves valid IPv4 externalAddress', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {externalAddress: '192.168.1.150'},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal('192.168.1.150');
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getIpAddressV4).to.deep.equal(new Uint8Array([192, 168, 1, 150]));
+    });
+
+    it('constructs domainName ServiceEndpoint for domain names', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {domainNamesMapping: {node1: 'node1.example.com'}},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal('node1.example.com');
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getDomainName).to.equal('node1.example.com');
+    });
+
+    it('falls back to constants.LOCAL_HOST when no address is specified', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {},
+        'node1',
+        0,
+      );
+      expect(result.hostAddress).to.equal(constants.LOCAL_HOST);
+      expect(result.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(result.hostServiceEndpoint.getIpAddressV4).to.deep.equal(new Uint8Array([127, 0, 0, 1]));
+    });
+
+    it('resolves custom host port from serviceEndpointPortMapping', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const result: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {serviceEndpointPortMapping: {nodeAliasToPort: {node2: 36_211}}},
+        'node2',
+        1,
+      );
+      expect(result.hostPort).to.equal(36_211);
+      expect(result.hostServiceEndpoint.getPort).to.equal(36_211);
+    });
+
+    it('does not use shared defaultPort from serviceEndpointPortMapping to avoid collision', (): void => {
+      const helper: (
+        config: Record<string, unknown>,
+        nodeAlias: NodeAlias,
+        nodeId: number,
+      ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = (
+        tasks as unknown as {
+          buildHostServiceEndpoint: (
+            config: Record<string, unknown>,
+            nodeAlias: NodeAlias,
+            nodeId: number,
+          ) => {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint};
+        }
+      ).buildHostServiceEndpoint;
+
+      const resultNode1: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {serviceEndpointPortMapping: {defaultPort: 50_211, nodeAliasToPort: {}}},
+        'node1',
+        0,
+      );
+      const resultNode2: {hostAddress: string; hostPort: number; hostServiceEndpoint: ServiceEndpoint} = helper.call(
+        tasks,
+        {serviceEndpointPortMapping: {defaultPort: 50_211, nodeAliasToPort: {}}},
+        'node2',
+        1,
+      );
+      expect(resultNode1.hostPort).to.equal(constants.GRPC_LOCAL_PORT);
+      expect(resultNode2.hostPort).to.equal(constants.GRPC_LOCAL_PORT + 1);
     });
   });
 
