@@ -640,7 +640,8 @@ jobs:
           set -euo pipefail
           gh release upload --clobber "v${RELEASE_VERSION}" cache-manifest.json --repo "${GITHUB_REPOSITORY}"
 
-  # Attaches the Linux and macOS SEA binaries, install.sh and SHA256SUMS to the GitHub Release.
+  # Attaches the Linux, macOS and Windows SEA binaries, install.sh, install.ps1 and SHA256SUMS to the
+  # GitHub Release.
   publish-installer:
     name: Publish Installer Assets
     runs-on: hiero-solo-linux-medium
@@ -662,7 +663,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: installers/linux
+          sparse-checkout: installers
 
       - name: Download Linux SEA Binaries
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -678,14 +679,22 @@ jobs:
           path: sea-artifacts
           merge-multiple: true
 
+      - name: Download Windows SEA Binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: solo-win32-*
+          path: sea-artifacts
+          merge-multiple: true
+
       - name: Stage Release Assets
         run: |
           set -euo pipefail
           # The SEA artifacts also hold build intermediates (.blob, .cjs, .json); publish only the binaries.
           [[ -f sea-artifacts/solo-linux-x64 ]] || { echo "::error::the solo-linux-x64 SEA binary was not built"; exit 1; }
           binaries=(solo-linux-x64)
-          # A failed arm64, musl or macOS leg must not block the x64 assets; install.sh then points those users to npm.
-          for binary in solo-linux-arm64 solo-linux-x64-musl solo-linux-arm64-musl solo-darwin-arm64 solo-darwin-x64; do
+          # A failed arm64, musl, macOS or Windows leg must not block the x64 assets; the install scripts then
+          # point those users to npm.
+          for binary in solo-linux-arm64 solo-linux-x64-musl solo-linux-arm64-musl solo-darwin-arm64 solo-darwin-x64 solo-win32-x64.exe; do
             if [[ -f "sea-artifacts/${binary}" ]]; then
               binaries+=("${binary}")
             else
@@ -696,9 +705,9 @@ jobs:
           for binary in "${binaries[@]}"; do
             cp "sea-artifacts/${binary}" release-assets/
           done
-          cp installers/linux/install.sh release-assets/
+          cp installers/linux/install.sh installers/windows/install.ps1 release-assets/
           chmod 755 release-assets/*
-          (cd release-assets && sha256sum "${binaries[@]}" install.sh > SHA256SUMS)
+          (cd release-assets && sha256sum "${binaries[@]}" install.sh install.ps1 > SHA256SUMS)
           cat release-assets/SHA256SUMS
 
       - name: Upload Release Assets

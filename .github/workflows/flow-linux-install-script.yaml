@@ -14,10 +14,11 @@
 # limitations under the License.
 ##
 
-# Tests the install script (installers/linux/install.sh) on every supported Linux distribution and on
-# macOS: the script-logic harness with a stand-in binary, then a real install of the SEA binary built in
-# this run for the runner's platform, architecture and libc, served from a local release directory over
-# file://. Tracked by hiero-ledger/solo#5725 (Linux) and #5724 (macOS).
+# Tests the install scripts (installers/linux/install.sh, installers/windows/install.ps1) on every
+# supported Linux distribution, on macOS and on Windows: the script-logic harness with a stand-in binary
+# where one can run, then a real install of the SEA binary built in this run for the runner's platform,
+# architecture and libc, served from a local release directory over file://.
+# Tracked by hiero-ledger/solo#5725 (Linux), #5724 (macOS) and #5723 (Windows).
 name: 'Install Script'
 
 on:
@@ -26,7 +27,7 @@ on:
     branches:
       - main
     paths:
-      - 'installers/linux/**'
+      - 'installers/**'
       - 'sea/**'
       - '.github/workflows/flow-linux-install-script.yaml'
 
@@ -65,8 +66,12 @@ jobs:
           - runner: macos-15-intel
             arch: x64
             platform: darwin
+          - runner: windows-latest
+            arch: x64
+            platform: win32
+            extension: '.exe'
     env:
-      SEA_ASSET: solo-${{ matrix.platform || 'linux' }}-${{ matrix.arch }}${{ matrix.libc == 'musl' && '-musl' || '' }}
+      SEA_ASSET: solo-${{ matrix.platform || 'linux' }}-${{ matrix.arch }}${{ matrix.libc == 'musl' && '-musl' || '' }}${{ matrix.extension }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
@@ -519,3 +524,96 @@ jobs:
             tee "${RUNNER_TEMP}/rosetta-install.log"
           grep -qF 'downloading solo-darwin-arm64 ' "${RUNNER_TEMP}/rosetta-install.log"
           "${HOME}/.solo/bin/solo" --version
+
+  # There is no script-logic harness for Windows: every case needs a stand-in solo binary, and Windows
+  # cannot launch a shell script named solo.exe the way the POSIX harness does. These steps run the real
+  # SEA binary instead. A one-shot deploy is not included, because Kind needs Linux containers, which a
+  # GitHub-hosted Windows runner cannot run (hiero-ledger/solo#4293 procures the hardware for that).
+  install-script-windows:
+    name: 'Install Script (windows, x64)'
+    needs: build-sea
+    runs-on: windows-latest
+    env:
+      SEA_ASSET: solo-win32-x64.exe
+      INSTALL_DIRECTORY: ${{ github.workspace }}\.solo-prefix
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download SEA Binary
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ env.SEA_ASSET }}
+          path: sea-binary
+
+      - name: Stage Local Release
+        run: |
+          $releaseDirectory = Join-Path $env:RUNNER_TEMP 'release\latest\download'
+          New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
+          Copy-Item "sea-binary\$env:SEA_ASSET" (Join-Path $releaseDirectory $env:SEA_ASSET) -Force
+          $hash = (Get-FileHash -LiteralPath (Join-Path $releaseDirectory $env:SEA_ASSET) -Algorithm SHA256).Hash.ToLower()
+          # The same format sha256sum writes, which the release job uses and install.ps1 parses.
+          Set-Content -LiteralPath (Join-Path $releaseDirectory 'SHA256SUMS') -Value "$hash  $env:SEA_ASSET"
+          # A Windows path has to be spelled with forward slashes to be a file:// URL.
+          "RELEASE_URL=file:///$(($env:RUNNER_TEMP -replace '\\', '/'))/release" >>$env:GITHUB_ENV
+
+      # Run it the way `irm ... | iex` does, from a script block rather than a file on disk, so the
+      # execution policy never applies.
+      - name: Install SEA Binary
+        run: |
+          $installer = [scriptblock]::Create((Get-Content installers/windows/install.ps1 -Raw))
+          & $installer -BaseUrl $env:RELEASE_URL
+
+          $target = Join-Path $HOME '.solo\bin\solo.exe'
+          if (-not (Test-Path -LiteralPath $target)) { throw "the installer left no binary at $target" }
+          $expectedVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $actualVersion = & $target --version | Out-String
+          Write-Host "installed: $actualVersion"
+          if ($actualVersion -notlike "*$expectedVersion*") { throw "expected version $expectedVersion" }
+
+      - name: Verify PATH Configuration
+        run: |
+          $userPath = (Get-ItemProperty -Path 'HKCU:\Environment' -Name Path).Path
+          $binDirectory = Join-Path $HOME '.solo\bin'
+          if ($userPath -notlike "*$binDirectory*") { throw "$binDirectory is not in the user PATH: $userPath" }
+
+          # A second install must not append the directory again.
+          $installer = [scriptblock]::Create((Get-Content installers/windows/install.ps1 -Raw))
+          & $installer -BaseUrl $env:RELEASE_URL
+          $userPath = (Get-ItemProperty -Path 'HKCU:\Environment' -Name Path).Path
+          $occurrences = ($userPath -split ';' | Where-Object {$_.TrimEnd('\') -eq $binDirectory}).Count
+          if ($occurrences -ne 1) { throw "the user PATH holds $binDirectory $occurrences times" }
+          & (Join-Path $HOME '.solo\bin\solo.exe') --version
+
+      # A -Prefix install is the caller's to put on PATH, so it must not touch the user PATH.
+      - name: Install to a Custom Prefix
+        run: |
+          $before = (Get-ItemProperty -Path 'HKCU:\Environment' -Name Path).Path
+          $installer = [scriptblock]::Create((Get-Content installers/windows/install.ps1 -Raw))
+          & $installer -BaseUrl $env:RELEASE_URL -Prefix $env:INSTALL_DIRECTORY
+          & (Join-Path $env:INSTALL_DIRECTORY 'solo.exe') --version
+          $after = (Get-ItemProperty -Path 'HKCU:\Environment' -Name Path).Path
+          if ($before -ne $after) { throw 'a -Prefix install changed the user PATH' }
+
+      - name: Reject a Tampered Binary
+        run: |
+          $staged = Join-Path $env:RUNNER_TEMP "release\latest\download\$env:SEA_ASSET"
+          [System.IO.File]::WriteAllBytes($staged, ([System.IO.File]::ReadAllBytes($staged) + [byte]0))
+          $installer = [scriptblock]::Create((Get-Content installers/windows/install.ps1 -Raw))
+          try {
+            & $installer -BaseUrl $env:RELEASE_URL -Prefix (Join-Path $env:RUNNER_TEMP 'tampered')
+            throw 'the installer accepted a binary that does not match SHA256SUMS'
+          } catch {
+            if ("$_" -notlike '*checksum mismatch*') { throw }
+            Write-Host "rejected as expected: $_"
+          }

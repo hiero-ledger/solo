@@ -1,2 +1,7 @@
 *.jar filter=lfs diff=lfs merge=lfs -text
 * text=auto
+
+# install.ps1 ships as a release asset and is listed in SHA256SUMS. It will also be Authenticode
+# signed (hiero-ledger/solo#5867), and any later edit including a line-ending change invalidates that
+# signature, so it stays byte-for-byte as committed on every checkout.
+installers/windows/install.ps1 -text
