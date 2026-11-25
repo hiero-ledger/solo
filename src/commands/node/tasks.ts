@@ -1888,6 +1888,7 @@ export class NodeCommandTasks {
             config.domainNamesMapping,
             config.gossipEndpointPortMapping,
             config.serviceEndpointPortMapping,
+            config.externalAddress,
           );
 
           for (const nodeAlias of config.nodeAliases) {
@@ -2065,6 +2066,7 @@ export class NodeCommandTasks {
             config.domainNamesMapping,
             config.gossipEndpointPortMapping,
             config.serviceEndpointPortMapping,
+            config.externalAddress,
           );
         }
 
@@ -2193,14 +2195,9 @@ export class NodeCommandTasks {
     nodeId: number,
     serviceEndpointPortMapping?: EndpointPortMapping,
   ): number {
-    // 1. Explicit CLI mapping
-    if (serviceEndpointPortMapping) {
-      if (serviceEndpointPortMapping.nodeAliasToPort?.[nodeAlias] !== undefined) {
-        return serviceEndpointPortMapping.nodeAliasToPort[nodeAlias];
-      }
-      if (serviceEndpointPortMapping.defaultPort !== undefined) {
-        return serviceEndpointPortMapping.defaultPort;
-      }
+    // 1. Explicit per-node CLI mapping
+    if (serviceEndpointPortMapping?.nodeAliasToPort?.[nodeAlias] !== undefined) {
+      return serviceEndpointPortMapping.nodeAliasToPort[nodeAlias];
     }
 
     // 2. Active RemoteConfig HAProxy port-forward
@@ -2236,20 +2233,6 @@ export class NodeCommandTasks {
       return Boolean(this.configManager.getFlag<boolean>(flags.publishHostEndpoints));
     }
     return Boolean(config.publishHostEndpoints || this.configManager?.getFlag<boolean>(flags.publishHostEndpoints));
-  }
-
-  /**
-   * Evaluates whether host-reachable consensus node endpoints should be published.
-   * Delegates to {@link isPublishHostEndpointsEnabled} to ensure consistent feature flag resolution.
-   */
-  public shouldPublishHostEndpoints(
-    config: {
-      publishHostEndpoints?: boolean;
-      serviceEndpointPortMapping?: EndpointPortMapping;
-    },
-    _nodeAlias?: NodeAlias,
-  ): boolean {
-    return this.isPublishHostEndpointsEnabled(config);
   }
 
   /**
@@ -2484,6 +2467,7 @@ export class NodeCommandTasks {
     domainNamesMapping?: Record<NodeAlias, string>,
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
+    externalAddress?: string,
   ): Promise<string> {
     const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
     const networkNodeServiceMap: Map<NodeAlias, NetworkNodeServices> = await this.accountManager.getNodeServiceMap(
@@ -2513,6 +2497,8 @@ export class NodeCommandTasks {
     }
 
     const publishHostEndpoints: boolean = this.configManager.getFlag<boolean>(flags.publishHostEndpoints);
+    const resolvedExternalAddress: string =
+      externalAddress || this.configManager.getFlag<string>(flags.externalAddress);
 
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
@@ -2524,6 +2510,7 @@ export class NodeCommandTasks {
       gossipEndpointPortMapping,
       serviceEndpointPortMapping,
       publishHostEndpoints,
+      resolvedExternalAddress,
     );
 
     const networkJson: string = PathEx.join(stagingDirectory, fileName);

@@ -76,6 +76,7 @@ describe('core/genesis-network-data-constructor', (): void => {
     gossipEndpointPortMapping?: EndpointPortMapping,
     serviceEndpointPortMapping?: EndpointPortMapping,
     publishHostEndpoints?: boolean,
+    externalAddress?: string,
   ): Promise<GenesisNetworkDataConstructor> {
     return await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
@@ -87,6 +88,7 @@ describe('core/genesis-network-data-constructor', (): void => {
       gossipEndpointPortMapping,
       serviceEndpointPortMapping,
       publishHostEndpoints,
+      externalAddress,
     );
   }
 
@@ -147,6 +149,66 @@ describe('core/genesis-network-data-constructor', (): void => {
       constants.GRPC_LOCAL_PORT,
       ...secureGrpcPorts(constants.GRPC_PORT),
       constants.GRPC_LOCAL_PORT + 1,
+    ]);
+  });
+
+  it('should honor externalAddress when publishHostEndpoints is true in genesis', async (): Promise<void> => {
+    const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData(
+      undefined,
+      undefined,
+      true,
+      '192.168.1.150',
+    );
+
+    const node1Endpoints: ServiceEndpoint[] = genesisNetworkData.nodes.node1.serviceEndpoint;
+    expect(node1Endpoints).to.have.lengthOf(3);
+    const hostEndpoint: ServiceEndpoint = node1Endpoints[2];
+    expect(hostEndpoint.port).to.equal(constants.GRPC_LOCAL_PORT);
+    expect(Buffer.from(hostEndpoint.ipAddressV4 as string, 'base64')).to.deep.equal(Buffer.from([192, 168, 1, 150]));
+  });
+
+  it('should normalize 0.0.0.0 externalAddress to 127.0.0.1 in genesis', async (): Promise<void> => {
+    const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData(
+      undefined,
+      undefined,
+      true,
+      '0.0.0.0',
+    );
+
+    const node1Endpoints: ServiceEndpoint[] = genesisNetworkData.nodes.node1.serviceEndpoint;
+    expect(node1Endpoints).to.have.lengthOf(3);
+    const hostEndpoint: ServiceEndpoint = node1Endpoints[2];
+    expect(hostEndpoint.port).to.equal(constants.GRPC_LOCAL_PORT);
+    expect(Buffer.from(hostEndpoint.ipAddressV4 as string, 'base64')).to.deep.equal(Buffer.from([127, 0, 0, 1]));
+  });
+
+  it('should not use defaultPort for host endpoints in genesis to avoid collision', async (): Promise<void> => {
+    const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData(
+      undefined,
+      {defaultPort: 50_211, nodeAliasToPort: {}},
+      true,
+    );
+
+    expect(servicePorts(genesisNetworkData)).to.deep.equal([
+      ...secureGrpcPorts(constants.GRPC_PORT),
+      constants.GRPC_LOCAL_PORT,
+      ...secureGrpcPorts(constants.GRPC_PORT),
+      constants.GRPC_LOCAL_PORT + 1,
+    ]);
+  });
+
+  it('should use per-node port mapping for host endpoints in genesis', async (): Promise<void> => {
+    const genesisNetworkData: GenesisNetworkDataConstructor = await buildGenesisNetworkData(
+      undefined,
+      {nodeAliasToPort: {node2: 36_211}},
+      true,
+    );
+
+    expect(servicePorts(genesisNetworkData)).to.deep.equal([
+      ...secureGrpcPorts(constants.GRPC_PORT),
+      constants.GRPC_LOCAL_PORT,
+      ...secureGrpcPorts(36_211),
+      36_211,
     ]);
   });
 
