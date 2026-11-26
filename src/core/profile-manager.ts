@@ -582,18 +582,39 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    const applicationPropertiesText: string = lines.join('\n');
-    const tssEnabled: boolean = this.remoteConfig.configuration.state.tssEnabled ?? true;
-    const streamMode: string = Helpers.resolveBlockStreamModeForConsensusVersion(
-      Helpers.parseBlockStreamMode(applicationPropertiesText),
+    const streamMode: string = this.resolveBlockStreamMode(
+      lines.join('\n'),
       this.remoteConfig.configuration.versions.consensusNode,
-      hasDeployedBlockNodes,
-      Helpers.parseStreamWrappedRecordBlocks(applicationPropertiesText),
-      tssEnabled,
+      this.remoteConfig.configuration.state.tssEnabled ?? true,
     );
     Helpers.updateBlockStreamPropertiesForMode(lines, streamMode);
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
+  }
+
+  /**
+   * Resolves the block stream mode the consensus node runs with, from the deployed block nodes and the stream
+   * mode already in application.properties.
+   */
+  private resolveBlockStreamMode(
+    applicationPropertiesText: string,
+    consensusNodeVersion: SemanticVersion<string>,
+    tssEnabled: boolean,
+  ): string {
+    let hasDeployedBlockNodes: boolean = false;
+    try {
+      hasDeployedBlockNodes = this.remoteConfig.configuration.components.state.blockNodes.length > 0;
+    } catch {
+      // The remote config is not loaded yet, so no block node is known to be deployed
+    }
+
+    return Helpers.resolveBlockStreamModeForConsensusVersion(
+      Helpers.parseBlockStreamMode(applicationPropertiesText),
+      consensusNodeVersion,
+      hasDeployedBlockNodes,
+      Helpers.parseStreamWrappedRecordBlocks(applicationPropertiesText),
+      tssEnabled,
+    );
   }
 
   private async updateApplicationPropertiesWithChainId(
@@ -667,7 +688,21 @@ export class ProfileManager {
       // Guard
     }
 
-    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+    const supportsTss: boolean = !releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+    // With a record stream only, the consensus node does no TSS work. If hinTS were on, genesis would still write
+    // hinTS state that nothing advances, and a v0.79+ node rejects that state as legacy on every restart.
+    const recordStreamOnly: boolean =
+      supportsTss && this.resolveBlockStreamMode(lines.join('\n'), releaseTag, tssEnabled) === 'RECORDS';
+
+    if (recordStreamOnly) {
+      if (!ProfileManager.hasApplicationProperty(lines, 'tss.hintsEnabled')) {
+        Helpers.upsertApplicationProperty(lines, 'tss.hintsEnabled', 'false');
+      }
+
+      if (!ProfileManager.hasApplicationProperty(lines, 'tss.historyEnabled')) {
+        Helpers.upsertApplicationProperty(lines, 'tss.historyEnabled', 'false');
+      }
+    } else if (supportsTss && tssEnabled) {
       if (!ProfileManager.hasApplicationProperty(lines, 'tss.hintsEnabled')) {
         Helpers.upsertApplicationProperty(lines, 'tss.hintsEnabled', 'true');
       }
