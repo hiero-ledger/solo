@@ -73,3 +73,8 @@ release qualification.
 The [integration requirements](./solo-tck-conformance-gate.md#16-integration-requirements) identify the remaining
 release-workflow, branch-artifact, action-adapter, resource-profile and consumer-policy contracts. They are
 implementation prerequisites with explicit validation gates, rather than claims that those capabilities already run.
+
+The [deferred capabilities](./solo-tck-conformance-gate.md#17-deferred-capabilities) record what a later version is
+expected to cover — configuration read-back, topology assertions, input-rejection semantics, the CLI and deprecation
+contract, upgrade lanes, multiple modes and deployment paths beyond Falcon — and which of this design's rules each one
+would have to change. They are deferred, not rejected, and nothing in v1 depends on them.

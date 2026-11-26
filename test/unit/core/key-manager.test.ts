@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {describe, it} from 'mocha';
+import {before, describe, it} from 'mocha';
 
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import os from 'node:os';
 import sinon from 'sinon';
 import {KeyManager} from '../../../src/core/key-manager.js';
@@ -103,6 +104,47 @@ describe('KeyManager', (): void => {
     expect(fs.readFileSync(nodeKeyFiles.certificateFile, 'utf8')).to.equal(storedOnce);
 
     fs.rmSync(temporaryDirectory, {recursive: true});
+  }).timeout(Duration.ofSeconds(20).toMillis());
+
+  describe('getGrpcCertificateHash', (): void => {
+    let certificatePem: string;
+    let certificateDer: Buffer;
+
+    before(async (): Promise<void> => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'grpc-cert-hash-'));
+      const files: PrivateKeyAndCertificateObject = await keyManager.storeTLSKey(
+        'node1',
+        await keyManager.generateGrpcTlsKey('node1'),
+        temporaryDirectory,
+      );
+      certificatePem = fs.readFileSync(files.certificateFile, 'utf8');
+      certificateDer = Buffer.from(keyManager.getDerFromPem(certificatePem));
+      fs.rmSync(temporaryDirectory, {recursive: true});
+    });
+
+    it('should hash the canonical PEM encoding of the certificate, not the DER bytes', (): void => {
+      // OpenSSL writes the same canonical PEM the Java SDK re-encodes the presented certificate into
+      const canonicalPem: string = new crypto.X509Certificate(certificateDer).toString();
+      const expected: Buffer = crypto.createHash('sha384').update(canonicalPem, 'utf8').digest();
+
+      const hash: Buffer = keyManager.getGrpcCertificateHash(certificatePem);
+
+      expect(hash).to.have.lengthOf(48);
+      expect(hash.equals(expected)).to.be.true;
+      expect(hash.equals(crypto.createHash('sha384').update(certificateDer).digest())).to.be.false;
+    });
+
+    it('should not depend on the line endings or wrapping of the supplied PEM', (): void => {
+      const base64: string = certificateDer.toString('base64');
+      const rewrapped: string = [
+        '-----BEGIN CERTIFICATE-----',
+        ...(base64.match(/.{1,76}/g) ?? []),
+        '-----END CERTIFICATE-----',
+      ].join('\r\n');
+
+      expect(keyManager.getGrpcCertificateHash(rewrapped).equals(keyManager.getGrpcCertificateHash(certificatePem))).to
+        .be.true;
+    });
   }).timeout(Duration.ofSeconds(20).toMillis());
 
   it('createTlsSecret should remove the generated cert and key from disk after storing them in the secret', async (): Promise<void> => {

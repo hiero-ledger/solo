@@ -177,9 +177,10 @@ export class NetworkTest extends BaseCommandTest {
               constants.NODE_TLS_KEYS_SECRET_NAME,
               Templates.renderTLSPemPublicKeyFile(nodeAlias),
             );
+            // HAPI requires the SHA-384 of the canonical PEM certificate, as SDK clients verify it, not of the DER
             const expectedCertificateHash: string = crypto
               .createHash('sha384')
-              .update(new crypto.X509Certificate(tlsCertificatePem).raw)
+              .update(new crypto.X509Certificate(tlsCertificatePem).toString(), 'utf8')
               .digest('hex');
             expect(Buffer.from(nodeAddress.nodeCertHash).toString('utf8'), `${label} certificate hash`).to.equal(
               expectedCertificateHash,

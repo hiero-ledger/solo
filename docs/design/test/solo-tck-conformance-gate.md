@@ -205,17 +205,21 @@ and so on ([`mirror-node-module-images.ts`](https://github.com/hiero-ledger/solo
 | Output        | Values                                                                        |
 | ------------- | ----------------------------------------------------------------------------- |
 | `outcome`     | `pass` or `fail`                                                              |
-| `reason`      | empty on a pass; `candidate`, `invalid`, `environment`, `kit` or `unknown` (§10.2) |
+| `reason`      | empty on a pass; `candidate`, `solo`, `invalid`, `environment`, `kit` or `unknown` (§10.2) |
 | `result-file` | path of `tck-result.json`                                                     |
 
 The kit uploads these files as the artifact `solo-tck-<component>-<run attempt>`:
 
-- `tck-result.json`: kit version, lane, outcome, reason, failed stage and probe; requested versions (inputs, defaults
+- `tck-result.json`: a `schemaVersion` integer, starting at 1; kit version, lane, outcome, reason, failed stage and probe; requested versions (inputs, defaults
   and overrides); observed versions (every container image from `kubectl`, the chart versions Solo records); the
   candidate identity evidence; source SHAs and observed identities of branch-built companions; every probe with its
   result and time; resource peaks; stage times and the load profile/phase configuration and captured measurements.
 - `junit.xml`: one test case per probe, for CI test views.
 - Solo's logs and, on a failure, pod state, events and `solo deployment diagnostics all`.
+
+`schemaVersion` identifies the shape of `tck-result.json` so later readers can detect a change. Adding a field keeps
+the version; removing one, renaming one or changing the meaning of an existing field raises it. A reader that does not
+recognise the version must treat the file as unreadable rather than guess.
 
 The job summary shows the same table in markdown. On a failure it also shows a ready-to-file Solo issue body. The kit
 never files issues itself.
@@ -230,8 +234,13 @@ never files issues itself.
 | 3    | `environment` | The run failed before the candidate was touched, or a non-candidate image cannot be pulled |
 | 4    | `kit`         | The kit itself failed, for example an unexpected error or a result it could not write      |
 | 5    | `unknown`     | The run failed, and the evidence does not point at one part                                |
+| 6    | `solo`        | The evidence names Solo: it did not honour an input, or it accepted one it should have rejected |
 
 Every non-zero exit fails the step. There is no neutral or skipped result.
+
+Exit 6 exists so that an assertion about Solo's own behaviour has somewhere to land. No probe uses it yet; the
+capabilities that will are keyed in §17. Without it those failures would arrive as `unknown`, which §10.5 sends
+through a baseline comparison and human attribution even though the evidence already names Solo.
 
 ## 5. Version selection
 
@@ -400,6 +409,16 @@ turns the block node on, for example. A run in which any target container does n
 No skips: the kit release fixes each lane's probe list. A probe that cannot run yet is not in the lane until it can,
 and it arrives through a new verified release pin. The result lists every probe, and a probe that did not run counts as failed.
 
+**Report-only probes.** A probe may enter a lane report-only: it runs, its result is recorded, and it cannot fail the
+run. This is the mechanism §8 already applies to memory ceilings, stated once here so every probe can use it. Without
+it, adding a probe to a lane that is already a required check turns previously green pull requests red for a change
+their author did not make, which is how a required check gets bypassed instead of adopted.
+
+A report-only probe is marked as such in the lane spec and in the result, so "did not fail" is never read as "passed".
+It becomes required the same way a ceiling activates: after enough observations on that lane's `main` runs to show it
+is not a false red, reviewed by the component team, and shipped at a new verified pin. A probe that is required from
+its first release does not need this path.
+
 ### 7.2 Required in every lane
 
 | ID  | Probe       | Passes when                                                                                    |
@@ -518,14 +537,15 @@ a failure non-blocking: the reason routes the triage, it never gates.
 | `environment` | The preflight or the Solo install failed; or the deploy failed before any candidate pod existed, with a known environment error (Kind create, a registry timeout); or a non-candidate image cannot be pulled |
 | `candidate`   | The evidence names the candidate: a candidate container that is not Ready in time, crash-loops, is OOM-killed or has an image error; a failed identity check; a failed probe that the lane spec marks as the candidate's, after the probes before it passed (for example a mirror REST read in the MN lane after the consensus transaction succeeded) |
 | `kit`         | An unexpected error in the kit's own code, or evidence it could not write                                                  |
+| `solo`        | The evidence names Solo: a deployed value does not match the input that asked for it, or Solo accepted an input it should have rejected. In the `solo` lane, where Solo is the candidate, this is reported as `candidate`. Reserved; no probe assigns it yet (§17) |
 | `unknown`     | Every other failure: the run is red, but the evidence does not point at one part                                           |
 
 Reporting and attribution are separate. Every reason fails the check, so a wrong reason can never turn into a pass.
 The reason only says where the evidence points; `unknown` says that it points nowhere yet, and people attribute the
 failure (§10.5).
 
-Until Solo has a distinct exit code for invalid input (#6223), the kit recognizes Solo's compatibility error by its
-message.
+Since Solo 0.98.0 a rejected input exits with 2 (#6415), so the kit classifies it by that code rather than by the
+wording of Solo's compatibility error.
 
 Worked examples:
 
@@ -945,7 +965,7 @@ implementation issues.
 | nightly          | Solo team               | Solo team             | not required       | none                                | Solo team, rotating    |
 
 "First triage" covers reason `candidate`. The other reasons go elsewhere first: `invalid` to the caller, `environment`
-to a re-run (and to CI and release engineering if it repeats), `kit` and `unknown` to the Solo team.
+to a re-run (and to CI and release engineering if it repeats), `kit`, `solo` and `unknown` to the Solo team.
 
 The architecture handoff comprises the caller and deployment contracts, release rules, lane order, role
 responsibilities and acceptance criteria. Implementation, releases, resource measurements and required-check
@@ -962,7 +982,7 @@ adoption have their own exit criteria in the plan. Operational triage and defect
 | A one-shot flag for the block node (today only `ONE_SHOT_WITH_BLOCK_NODE`)          | in #6223       | `block-node` lane; the env var works meanwhile                   |
 | The reverse SHA-256 rule (BN 0.45 with an older CN), and the real CN boundary       | #6202          | `block-node` and `consensus-node` lanes                          |
 | Synchronize action metadata with Solo releases and exclude `tck/` from npm | #6234, PR #6235 | Co-release publication; revise independent-release suppression rules (OPEN-09) |
-| A distinct exit code for invalid input, and JSON output of what is deployed         | in #6223       | Exact `invalid` reasons and richer results; the kit reads `kubectl` meanwhile |
+| JSON output of what is deployed                                                     | in #6223       | Richer results; the kit reads `kubectl` meanwhile. The distinct invalid-input exit code shipped in 0.98.0 (#6415) |
 
 The MN lane itself needs none of these: it runs with Explorer and Relay off, and turns the pinger off through the
 `mirrorNode` section key (§12).
@@ -989,3 +1009,112 @@ links from the implementation plan. They describe the validation gates for imple
 | OPEN-13 | Triggers and forks | Define runtime path filters, large-runner access and fork policy without exposing secrets or write tokens. | CI/release engineering and component teams |
 | OPEN-14 | Explorer | Add API coverage inside the MN lane after component-image isolation; retain the initial MN topology without Explorer. | Solo and MN teams |
 | OPEN-15 | Solo compatibility | Implement released-kit/candidate-Solo and development-kit/released-Solo checks, plus the transition and upkeep policy in §13. | Solo team |
+
+## 17. Deferred capabilities
+
+These capabilities are deferred, not rejected. v1 is unchanged: one lane per component, one deploy path, and a run
+that deploys, probes and destroys. Each entry names the rules a later implementation must change, so the work is a
+known amendment rather than a contradiction rediscovered during delivery.
+
+Nothing here is scheduled. An entry becomes work when a consumer asks for it (DEFER-08) and it passes the same
+release verification and adoption gates as any other lane change (§6.4, §14).
+
+| ID | Capability | Must change | Nature |
+| --- | --- | --- | --- |
+| DEFER-01 | Configuration read-back | §3 "no Solo internals"; §15 Solo-side output | Extension |
+| DEFER-02 | Declared-versus-realised topology | nothing | Extension |
+| DEFER-03 | Input-rejection semantics | nothing | Extension |
+| DEFER-04 | CLI surface and deprecation contract | §7.1 every lane deploys | New check category |
+| DEFER-05 | Upgrade and update lanes | §7.2 P4, §3, §9 | Architecture |
+| DEFER-06 | Multiple modes and topologies | §7.1 | Architecture |
+| DEFER-07 | Deployment paths beyond Falcon | §3 | Architecture |
+| DEFER-08 | Consumer-driven requirements | nothing | Process |
+
+An extension adds probes within the existing contract. A new check category needs its own budget and result shape.
+An architecture change reverses a rule this document states deliberately, and the reason for that rule has to survive
+the change.
+
+### DEFER-01 Configuration read-back
+
+Capture everything applied, including `application.properties`, Helm values and every override, and assert it took
+effect rather than assuming it did. An example: a run that asked for TSS should prove TSS is enabled in the deployed
+network.
+
+A seam exists. §5.5 already records requested against observed, and §4.2's result carries the observed container
+images and the chart versions Solo records. Extending that to arbitrary configuration meets §3's rule that the kit
+imports nothing from Solo's `src/` and reads cluster state only through the pinned `kubectl`. A later version needs a
+stated read-back contract: which configuration is observable through the CLI and `kubectl`, and what Solo must expose
+for the rest. §15 already tracks "JSON output of what is deployed" as the Solo-side half of this.
+
+Failures here are Solo's, not the candidate's, and use the `solo` reason (§10.2).
+
+### DEFER-02 Declared-versus-realised topology
+
+Assert that the deployed topology matches the request: one block node means exactly one, and zero means the rest of
+the network still behaves. Additive, as per-lane probes under §7.3. No rule blocks it.
+
+### DEFER-03 Input-rejection semantics
+
+An input Solo cannot honour must be rejected rather than silently replaced by a default, and the kit asserts the
+rejection. Where Solo deliberately does not correct a value for the user, it must fail with an error.
+
+The Solo-side prerequisite has shipped: since Solo 0.98.0 a rejected input exits with 2 (#6415), which is strong
+enough to assert against. These are ordinary probes, with the `solo` reason when Solo accepts something it should
+have refused.
+
+### DEFER-04 CLI surface and deprecation contract
+
+Assert that the command-line switches a caller depends on exist in the Solo version under test; that a component
+exposes its removal date; that using a deprecated argument prints a deprecation message; that a deprecated argument
+keeps working for the whole deprecation window; and that an unknown argument is refused with a message that names it.
+
+These need no cluster, so they do not fit the lane model, which requires every lane to deploy its candidate (§7.1).
+A later version should define a separate check category with its own runtime budget rather than forcing them into a
+lane whose cost is dominated by a deploy.
+
+### DEFER-05 Upgrade and update lanes
+
+Exercise upgrade and update flows for each component, not only a first deploy.
+
+Three rules must change together:
+
+- **§7.2 P4** reads "no restart from the end of the deploy to the end of the run". An upgrade is a restart, so P4 as
+  written fails every upgrade. It has to distinguish an expected restart from an unexpected one without weakening the
+  stability guarantee for ordinary lanes.
+- **§3**'s flow is linear: deploy, probe, destroy. An upgrade lane needs deploy, upgrade, probe again, and has to say
+  what is asserted before and after.
+- **§9**'s budget has no room. Deploy alone is capped at eight minutes inside a thirty-minute end-to-end allowance, so
+  a second deployment phase needs its own measurement and probably its own budget.
+
+A cheaper first step, if the budget allows it, is a separate lane name per flow rather than a mode on an existing
+lane, which leaves P4 and §7.1 untouched.
+
+### DEFER-06 Multiple modes and topologies
+
+§7.1 refuses a suite, scope or topology input on pull-request lanes, so that a caller cannot select a set of tests
+that never deploys its own component. That guarantee is the point; the ban is only the mechanism. A later mode input
+must preserve it, for example by keeping the candidate's deployment mandatory in every mode, rather than deleting the
+rule.
+
+### DEFER-07 Deployment paths beyond Falcon
+
+§3 fixes one deploy path, `solo one-shot falcon deploy`. The Falcon values file, the per-component section keys and
+the single-cluster-owner rule all assume it. Supporting another path is the largest change here and should be treated
+as a new deployment contract, starting from the adapter rules in §16 OPEN-03.
+
+Note what this does not cover: the isolation rules in §3 give every run its own `SOLO_HOME`, `KUBECONFIG`, deployment
+and namespace, and make the kit refuse to adopt an existing cluster. Running the probes against a long-lived
+deployment that someone else owns is therefore a different tool that shares the probe code, not a mode of this one.
+
+### DEFER-08 Consumer-driven requirements
+
+Before extending the kit, ask each component team what it needs and record the answers:
+
+- What do you need to see in your CI pipelines to validate your work?
+- What do you need locally?
+
+The lanes should follow those answers rather than our assumptions about them. Local execution is documented in
+`tck/README.md`; whether it meets each team's needs is unverified.
+
+Open question: whether these capabilities are expressed as spec-driven tests, extending the per-lane specifications
+in §7.4.
