@@ -231,16 +231,17 @@ never files issues itself.
 | 0    |               | Pass: every required probe passed                                                          |
 | 1    | `candidate`   | The evidence names the candidate: its container crashed, was OOM-killed, had an image error or never became Ready; the identity check failed; or a probe the lane spec marks as the candidate's failed |
 | 2    | `invalid`     | Bad inputs, an unsupported Solo version, or a version tuple Solo rejects before deploy     |
-| 3    | `environment` | The run failed before the candidate was touched, or a non-candidate image cannot be pulled |
+| 3    | `environment` | The run failed before the candidate was touched, a non-candidate image cannot be pulled, or kubectl failed while observing a branch companion |
 | 4    | `kit`         | The kit itself failed, for example an unexpected error or a result it could not write      |
 | 5    | `unknown`     | The run failed, and the evidence does not point at one part                                |
 | 6    | `solo`        | The evidence names Solo: it did not honour an input, or it accepted one it should have rejected |
 
 Every non-zero exit fails the step. There is no neutral or skipped result.
 
-Exit 6 exists so that an assertion about Solo's own behaviour has somewhere to land. No probe uses it yet; the
-capabilities that will are keyed in §17. Without it those failures would arrive as `unknown`, which §10.5 sends
-through a baseline comparison and human attribution even though the evidence already names Solo.
+Exit 6 exists so that an assertion about Solo's own behaviour has somewhere to land. P3 uses it for a branch
+companion that never ran (§4.1); the other capabilities that will are keyed in §17. Without it those failures would
+arrive as `unknown`, which §10.5 sends through a baseline comparison and human attribution even though the evidence
+already names Solo.
 
 ## 5. Version selection
 
@@ -391,7 +392,7 @@ The Solo release workflow must establish:
    | An unsupported Solo version                  | exit 2, `invalid` |
    | A companion override Solo rejects            | exit 2, `invalid` |
    | Missing branch-companion input/artifact | exit 2, `invalid` |
-   | Supplied branch companion not observed running | fail, `unknown` until attributed; no release fallback |
+   | Supplied branch companion not observed running | exit 6, `solo`; no release fallback |
 
 4. Permit publication only for the artifacts/ref verified above, preserving Solo's Latest release and installer.
 
@@ -534,10 +535,10 @@ a failure non-blocking: the reason routes the triage, it never gates.
 | Reason        | When                                                                                                                       |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `invalid`     | P1 failed, or Solo rejected the version tuple before deploying                                                             |
-| `environment` | The preflight or the Solo install failed; or the deploy failed before any candidate pod existed, with a known environment error (Kind create, a registry timeout); or a non-candidate image cannot be pulled |
+| `environment` | The preflight or the Solo install failed; or the deploy failed before any candidate pod existed, with a known environment error (Kind create, a registry timeout); or a non-candidate image cannot be pulled; or kubectl fails while P3 observes a branch companion |
 | `candidate`   | The evidence names the candidate: a candidate container that is not Ready in time, crash-loops, is OOM-killed or has an image error; a failed identity check; a failed probe that the lane spec marks as the candidate's, after the probes before it passed (for example a mirror REST read in the MN lane after the consensus transaction succeeded) |
 | `kit`         | An unexpected error in the kit's own code, or evidence it could not write                                                  |
-| `solo`        | The evidence names Solo: a deployed value does not match the input that asked for it, or Solo accepted an input it should have rejected. In the `solo` lane, where Solo is the candidate, this is reported as `candidate`. Reserved; no probe assigns it yet (§17) |
+| `solo`        | The evidence names Solo: a deployed value does not match the input that asked for it, or Solo accepted an input it should have rejected. In the `solo` lane, where Solo is the candidate, this is reported as `candidate`. P3 assigns it to a supplied branch companion that never ran (§4.1); other read-back checks are deferred (§17) |
 | `unknown`     | Every other failure: the run is red, but the evidence does not point at one part                                           |
 
 Reporting and attribution are separate. Every reason fails the check, so a wrong reason can never turn into a pass.

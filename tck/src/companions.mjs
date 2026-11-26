@@ -62,10 +62,23 @@ export class Companions {
     return new Failure('invalid', `Invalid companion-builds: ${message}`);
   }
 
+  // Solo was handed this build and deployed something else, so the evidence names Solo (design §10.2).
   static #unobserved(component, detail) {
-    return new Failure('unknown', `Supplied ${component} companion was never observed running: ${detail}`, {
+    return new Failure('solo', `Supplied ${component} companion was never observed running: ${detail}`, {
       probe: 'P3',
     });
+  }
+
+  // A kubectl failure says nothing about the companion, so it is reported as the environment's.
+  static async #kubectl(arguments_, timeout, action, runtime) {
+    try {
+      return await Processes.command('kubectl', arguments_, {...runtime, timeout});
+    } catch (error) {
+      if (runtime.signal?.aborted) {
+        throw error;
+      }
+      throw new Failure('environment', `Cannot ${action}: ${error.message}`, {probe: 'P3', cause: error});
+    }
   }
 
   static #object(value) {
@@ -328,12 +341,25 @@ export class Companions {
     return {values, flags};
   }
 
-  static parseChecksums(output, component) {
+  // Hashes only the jars that exist, so a missing build reaches compareJars instead of failing the exec.
+  static hashScript(directory = CONSENSUS_NODE_DATA) {
+    return (
+      `cd ${directory} 2>/dev/null || exit 0; files=; ` +
+      'for file in apps/*.jar lib/*.jar; do if [ -f "$file" ]; then files="$files $file"; fi; done; ' +
+      'if [ -z "$files" ]; then exit 0; fi; ' +
+      // Same tool fallback as Solo's saved-state hashing; each prints `<hex>  <file>` or `<hex> *<file>`.
+      'if command -v sha256sum >/dev/null; then sha256sum $files; ' +
+      'elif command -v shasum >/dev/null; then shasum -a 256 $files; ' +
+      'else openssl dgst -sha256 -r $files; fi'
+    );
+  }
+
+  static parseChecksums(output) {
     const files = {};
     for (const line of output.split('\n').filter(Boolean)) {
       const match = /^([\da-f]{64}) [ *](.+)$/.exec(line.trim());
       if (!match) {
-        throw Companions.#unobserved(component, `unexpected checksum output: ${line}`);
+        throw new Failure('kit', `Unexpected checksum output: ${line}`, {probe: 'P3'});
       }
       files[match[2]] = match[1];
     }
@@ -398,10 +424,11 @@ export class Companions {
 
   static async #observeJars(companion, runtime) {
     const listing = JSON.parse(
-      await Processes.command(
-        'kubectl',
+      await Companions.#kubectl(
         ['get', 'pods', '-n', 'solo-tck', '-l', 'solo.hedera.com/type=network-node', '-o', 'json'],
-        {...runtime, timeout: 10_000},
+        10_000,
+        'list the consensus node pods',
+        runtime,
       ),
     );
     const names = listing.items.map(item => item.metadata.name);
@@ -410,42 +437,20 @@ export class Companions {
     }
     const pods = [];
     for (const name of names) {
-      let output;
-      try {
-        output = await Processes.command(
-          'kubectl',
-          [
-            'exec',
-            '-n',
-            'solo-tck',
-            name,
-            '-c',
-            'root-container',
-            '--',
-            'sh',
-            '-c',
-            // Same tool fallback as Solo's saved-state hashing; every tool prints `<hex>  <file>` or `<hex> *<file>`.
-            `cd ${CONSENSUS_NODE_DATA} && files='apps/*.jar lib/*.jar' && ` +
-              'if command -v sha256sum >/dev/null; then sha256sum $files; ' +
-              'elif command -v shasum >/dev/null; then shasum -a 256 $files; ' +
-              'else openssl dgst -sha256 -r $files; fi',
-          ],
-          {...runtime, timeout: 60_000},
-        );
-      } catch (error) {
-        if (runtime.signal?.aborted) {
-          throw error;
-        }
-        throw Companions.#unobserved('consensus-node', `cannot hash the jars in ${name}: ${error.message}`);
-      }
-      const observed = Companions.parseChecksums(output, 'consensus-node');
+      const output = await Companions.#kubectl(
+        ['exec', '-n', 'solo-tck', name, '-c', 'root-container', '--', 'sh', '-c', Companions.hashScript()],
+        60_000,
+        `hash the jars in ${name}`,
+        runtime,
+      );
+      const observed = Companions.parseChecksums(output);
       Companions.compareJars(companion.artifacts.buildPath.jars, observed, name);
       pods.push({pod: name, sha256: Companions.#digest(observed)});
     }
     return {pods};
   }
 
-  // Proves every supplied companion ran its supplied artifact; a companion never observed fails as unknown.
+  // Proves every supplied companion ran its supplied artifact; a companion never observed fails as solo.
   static async observe(components, pods, runtime) {
     for (const companion of components) {
       companion.observed = companion.artifacts.buildPath

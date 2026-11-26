@@ -88,7 +88,8 @@ because build provenance belongs to the caller), the sha256 of every artifact (e
 tree) and what ran after deployment. P3 requires every node pod's `data/apps` and `data/lib` jars to match
 `buildPath` exactly, and every MN module except the disabled monitor to run from a Ready container with the supplied
 image and `imagePullPolicy: Never`. A companion that is never observed running, including one replaced by another
-tag of the same image, fails P3 with reason `unknown`. There is no release fallback.
+tag of the same image, fails P3 with reason `solo`, because Solo did not deploy what it was given. A kubectl failure
+while observing is `environment`. There is no release fallback.
 
 ## Action interface
 
@@ -136,8 +137,8 @@ identity, pod images/resource limits, recorded chart-version lines, probe times,
 Generated account keys are kept in private working state outside that directory. Failure summaries include a draft
 for manual issue triage; the kit never posts anything.
 
-Exit codes are 0 pass, 1 candidate, 2 invalid input, 3 environment, 4 kit defect, 5 unknown, 6 Solo (reserved for
-assertions about Solo's own behaviour; no probe assigns it yet). Every nonzero exit fails the action. A missing probe cannot pass. A startup error such as `NodeAccountId not recognized: 0.0.2` stays red with
+Exit codes are 0 pass, 1 candidate, 2 invalid input, 3 environment, 4 kit defect, 5 unknown, 6 Solo (a deployed
+value does not match its input, such as a branch companion that never ran). Every nonzero exit fails the action. A missing probe cannot pass. A startup error such as `NodeAccountId not recognized: 0.0.2` stays red with
 reason `unknown`; it does not automatically blame the SDK. Backend pod failures in this SDK lane are likewise
 `unknown`, except noncandidate image-pull errors, which are `environment`.
 

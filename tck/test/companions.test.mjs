@@ -288,7 +288,7 @@ test('a Mirror Node companion is observed only when every running module runs it
     image: mirrorModules[0],
     imageID: 'sha256:importer',
   });
-  const unobserved = failure('unknown', /never observed running/);
+  const unobserved = failure('solo', /never observed running/);
   for (const [name, scenario] of [
     ['missing module', mirrorPods().filter(pod => !pod.name.includes('web3'))],
     ['released fallback', mirrorPods({importer: {image: 'gcr.io/mirrornode/hedera-mirror-importer:0.164.2'}})],
@@ -308,7 +308,7 @@ test('a Mirror Node companion is observed only when every running module runs it
 test('a consensus node companion is observed only when every node pod holds exactly the buildPath jars', () => {
   const expected = {'apps/HederaNode.jar': sha256('node'), 'lib/first.jar': sha256('first')};
   const output = `${sha256('node')}  apps/HederaNode.jar\n${sha256('first')} *lib/first.jar\n`;
-  const observed = Companions.parseChecksums(output, 'consensus-node');
+  const observed = Companions.parseChecksums(output);
   assert.deepEqual(observed, expected);
   Companions.compareJars(expected, observed, 'network-node1-0');
   for (const [name, jars, pattern] of [
@@ -318,13 +318,57 @@ test('a consensus node companion is observed only when every node pod holds exac
   ]) {
     assert.throws(
       () => Companions.compareJars(expected, jars, 'network-node1-0'),
-      error => failure('unknown', pattern)(error) && error.probe === 'P3',
+      error => failure('solo', pattern)(error) && error.probe === 'P3',
       name,
     );
   }
   assert.throws(
-    () => Companions.parseChecksums('sha256sum: apps/*.jar: No such file or directory', 'consensus-node'),
-    failure('unknown', /unexpected checksum output/),
+    () => Companions.parseChecksums('sha256sum: apps/*.jar: No such file or directory'),
+    error => failure('kit', /Unexpected checksum output/)(error) && error.probe === 'P3',
+  );
+});
+
+test('the in-pod hash script lists only jars that exist, so a missing build is reported as unobserved', async context => {
+  const {directory, write} = await workspace(context);
+  const hash = async folder => Processes.command('sh', ['-c', Companions.hashScript(path.join(directory, folder))]);
+  const loaded = await Companions.load(write({schemaVersion: 1, components: [consensusEntry()]}), 'js-sdk');
+  const {jars} = loaded.components[0].artifacts.buildPath;
+  Companions.compareJars(jars, Companions.parseChecksums(await hash('cn/data')), 'network-node1-0');
+  for (const [folder, pattern] of [
+    ['cn/apps-only', /missing lib\/first.jar, lib\/second.jar/],
+    ['cn/absent', /missing apps\/HederaNode.jar, lib\/first.jar, lib\/second.jar/],
+  ]) {
+    const observed = Companions.parseChecksums(await hash(folder));
+    assert.throws(() => Companions.compareJars(jars, observed, 'network-node1-0'), failure('solo', pattern), folder);
+  }
+});
+
+test('a kubectl failure while observing a consensus node companion is reported as environment', async context => {
+  const {directory} = await workspace(context);
+  const bin = path.join(directory, 'bin');
+  mkdirSync(bin);
+  writeFileSync(
+    path.join(bin, 'kubectl'),
+    '#!/bin/sh\n' +
+      'if [ "$1" = get ]; then echo \'{"items":[{"metadata":{"name":"network-node1-0"}}]}\'; exit 0; fi\n' +
+      'if [ -n "$KUBECTL_FAIL" ]; then echo "error: unable to upgrade connection" >&2; exit 1; fi\n' +
+      'for last; do :; done\nexec sh -c "$last"\n',
+    {mode: 0o755},
+  );
+  const companion = {
+    component: 'consensus-node',
+    artifacts: {buildPath: {jars: {'apps/HederaNode.jar': sha256('node')}}},
+  };
+  const environment = {...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`};
+  await assert.rejects(
+    Companions.observe([companion], [], {env: {...environment, KUBECTL_FAIL: '1'}}),
+    error =>
+      failure('environment', /Cannot hash the jars in network-node1-0: .*unable to upgrade connection/)(error) &&
+      error.probe === 'P3',
+  );
+  // The pod has no build at the consensus node data path, so the exec succeeds and the jars are missing.
+  await assert.rejects(Companions.observe([companion], [], {env: environment}), error =>
+    failure('solo', /network-node1-0 jars differ from buildPath: missing apps\/HederaNode.jar/)(error),
   );
 });
 
