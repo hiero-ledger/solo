@@ -3,7 +3,7 @@
 // Release verification for the kit Solo co-releases (design §6.3, §6.4). The Solo release workflow runs these steps;
 // any failure blocks the release, so a published kit ref and its supported list are always the ones verified.
 import {spawnSync} from 'node:child_process';
-import {mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -201,17 +201,11 @@ export class Release {
     });
   }
 
+  // One listing and one read per result, with no separate check of a path that could change in between.
   static #results(directory) {
-    const results = [];
-    for (const name of readdirSync(directory)) {
-      const file = path.join(directory, name);
-      if (statSync(file).isDirectory()) {
-        results.push(...Release.#results(file));
-      } else if (name === 'tck-result.json') {
-        results.push(JSON.parse(readFileSync(file, 'utf8')));
-      }
-    }
-    return results;
+    return readdirSync(directory, {recursive: true})
+      .filter(file => path.basename(file) === 'tck-result.json')
+      .map(file => JSON.parse(readFileSync(path.join(directory, file), 'utf8')));
   }
 
   static async #npmJson(arguments_) {
