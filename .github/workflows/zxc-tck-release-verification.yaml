@@ -17,10 +17,6 @@ on:
         description: 'The Solo version being released, for example 0.100.0'
         type: string
         required: true
-  # TEMPORARY (remove before merge): proves this workflow on real runners from its own pull request.
-  pull_request:
-    paths:
-      - .github/workflows/zxc-tck-release-verification.yaml
 
 permissions:
   contents: read
@@ -55,7 +51,7 @@ jobs:
       - name: Plan Verification
         id: plan
         env:
-          RELEASE_VERSION: ${{ inputs.version || '0.100.0' }} # TEMPORARY fallback for the pull_request trigger
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           node tck/src/release.mjs plan --version "${RELEASE_VERSION}" --commit "${GITHUB_SHA}" --out plan.json
           echo "entries=$(jq -c '.entries' plan.json)" >> "${GITHUB_OUTPUT}"
@@ -111,7 +107,7 @@ jobs:
         # The release being cut, built and packed from the verified commit as the release job builds it.
         if: ${{ matrix.entry.source == 'release' }}
         env:
-          RELEASE_VERSION: ${{ inputs.version || '0.100.0' }} # TEMPORARY fallback for the pull_request trigger
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           npm ci
