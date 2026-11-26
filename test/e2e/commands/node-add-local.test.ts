@@ -21,8 +21,11 @@ import {randomBytes} from 'node:crypto';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 describe('Node add with hedera local build', (): void => {
-  const localData: string = process.env.TMP_CN_LOCAL_DATA ?? '../hiero-consensus-node/hedera-node/data';
-  const localBuildPath: string = [`node1=${localData}/`, localData, `node3=${localData}`].join(',');
+  const localBuildPath: string = [
+    'node1=../hiero-consensus-node/hedera-node/data/',
+    '../hiero-consensus-node/hedera-node/data',
+    'node3=../hiero-consensus-node/hedera-node/data',
+  ].join(',');
 
   const suffix: string = localBuildPath.slice(0, 5);
   const namespace: NamespaceName = NamespaceName.of(`node-add${suffix}`);

@@ -41,7 +41,7 @@ describe('ComponentCompatibility', (): void => {
       ['a 16-slot pair below the SHA-256 floor', tuple('v0.77.2', '0.41.0', 'v0.163.0')],
       ['the CN v0.79 matrix', tuple('v0.79.0', '0.45.0', 'v0.166.0')],
       ['a newer mirror node with an older consensus node', tuple('v0.78.0', '0.44.3', 'v0.166.0')],
-      ['the default CN v0.79 matrix', tuple('v0.79.4', '0.47.0', 'v0.167.1')],
+      ['the default CN v0.79 matrix', tuple('v0.79.2', '0.47.0', 'v0.167.1')],
       ['a consensus node alone', tuple('v0.79.0')],
       ['a consensus node without a block node', tuple('v0.79.0', undefined, 'v0.166.0')],
     ];
