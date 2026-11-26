@@ -10,7 +10,8 @@ authoritative rules and rationale. The conventions below are the ones violated m
   as `static` methods. Do **not** write `export function foo(...)` or `export const foo = () => …` at
   module scope. Pure data — constants, types, simple factories — may still be exported. A helper used
   by only one class becomes a `private static` member of that class. (§3.4.5, §10.3.1–§10.3.2; enforced
-  by the `solo/no-exported-function` ESLint rule — an error in `src/integration/**`.)
+  by the `solo/no-exported-function` ESLint rule — an error in `src/**/*.ts` and in the plain-ESM TCK
+  kit, `tck/**/*.mjs`.)
 
   ```ts
   // ❌ Avoid

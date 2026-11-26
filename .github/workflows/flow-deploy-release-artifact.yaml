@@ -188,6 +188,17 @@ jobs:
           full_pname=$(clean_pkg_name "${pname}-${RELEASE_VERSION}.tgz")
           echo "hl-package-name=${full_pname}" | tee -a "${GITHUB_OUTPUT}"
 
+  # The Solo TCK ships in this release, so it must pass release verification first (design §6.4). Any failure
+  # blocks the release; on success the verified supported list is committed with the release.
+  tck-verification:
+    name: TCK Release Verification
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
+    needs:
+      - prepare-release
+    uses: $/.github/workflows/zxc-tck-release-verification.yaml
+    with:
+      version: ${{ needs.prepare-release.outputs.version }}
+
   create-github-release:
     name: 'Create GitHub Release'
     runs-on: hiero-solo-linux-medium
@@ -197,6 +208,7 @@ jobs:
     needs:
       - prepare-release
       - get-package-info
+      - tck-verification
     outputs:
       need-hl-publish: ${{ steps.verify-hl-package.outputs.need-hl-publish }}
     steps:
@@ -313,6 +325,26 @@ jobs:
       - name: Install Dependencies
         run: jf npm ci
 
+      - name: Confirm the Release Commit Was Verified
+        # TCK verification ran on the triggering commit; a branch that moved since would publish an unverified ref.
+        run: |
+          head=$(git rev-parse HEAD)
+          if [[ "${head}" != "${GITHUB_SHA}" ]]; then
+            echo "::error file=flow-deploy-release-artifact.yaml::${GITHUB_REF_NAME} moved to ${head} after TCK verification of ${GITHUB_SHA}; re-run the release"
+            exit 1
+          fi
+
+      - name: Download the Verified TCK Supported List
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tck-solo-versions
+          path: tck
+
+      - name: Show the Verified TCK Supported List
+        run: |
+          cat tck/solo-versions.json
+          git diff --stat -- tck/solo-versions.json
+
       - name: Publish Semantic Release
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -333,6 +365,23 @@ jobs:
           if [[ -d "dist" ]]; then
             ls -l dist
           fi
+
+      - name: Add the Solo TCK Supported List to the Release Notes
+        # Commit titles already describe kit changes; the supported list and default change inside the release commit,
+        # so the release notes state them (design §6.2). A dry run prints the section without editing a release.
+        if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && !cancelled() && !failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+          DRY_RUN_ENABLED_INPUT: ${{ inputs.dry-run-enabled }}
+        run: |
+          set -o pipefail
+          FLAGS=()
+          if [[ "${DRY_RUN_ENABLED_INPUT}" != "true" ]]; then
+            FLAGS+=(--publish)
+          fi
+          node tck/src/release.mjs notes --version "${RELEASE_VERSION}" --commit "${GITHUB_SHA}" \
+            --policy tck/solo-versions.json "${FLAGS[@]}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Rebuild dist after release version bump
         if: ${{ !cancelled() && !failure() }}
@@ -441,6 +490,14 @@ jobs:
         if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
         run: |
           bash scripts/verify-package-version-consistency.sh "output/hl/*.tgz"
+
+      - name: Verify the Hiero-Ledger Package Excludes the TCK
+        # Consumers fetch the kit from the Git ref; the npm package must not carry it (design §6.1).
+        if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' }}
+        run: |
+          for tarball in output/hl/*.tgz; do
+            node tck/src/release.mjs exclusion --tarball "${tarball}"
+          done
 
       - name: Verify Hiero-Ledger Package is Created
         id: verify-hl-package
@@ -709,6 +766,50 @@ jobs:
         run: |
           set -euo pipefail
           gh release upload --clobber "v${RELEASE_VERSION}" release-assets/* --repo "${GITHUB_REPOSITORY}"
+
+  # Reads the published release back against what TCK verification passed (design §6.1 step 5): the tag carries the
+  # verified commit plus only the release files, the verified supported list and kit version, an action GitHub serves,
+  # and Solo's own assets and releases/latest. A mismatch needs a corrected release; published refs are immutable.
+  tck-readback:
+    name: TCK Publication Readback
+    runs-on: hiero-solo-linux-medium
+    permissions:
+      contents: read
+    if: ${{ needs.prepare-release.outputs.need-hl-release == 'true' && inputs.dry-run-enabled != true && !cancelled() && needs.publish-installer.result == 'success' }}
+    needs:
+      - prepare-release
+      - create-github-release
+      - publish-installer
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@aebdcf6156ab6691adf63218240e476564a1ed4c # v2.23.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Use Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Download the Verified TCK Supported List
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tck-solo-versions
+          path: verified
+
+      - name: Read Back the Published Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          node tck/src/release.mjs readback --version "${RELEASE_VERSION}" --commit "${GITHUB_SHA}" \
+            --policy verified/solo-versions.json --branch "${GITHUB_REF_NAME}"
 
   docs-automation:
     name: Docs Automation
