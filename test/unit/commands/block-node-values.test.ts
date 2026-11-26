@@ -28,6 +28,9 @@ interface BlockNodeValuesConfig {
     persistence?: BlockNodePersistenceConfig;
     initContainers?: Array<{name: string; image: string}>;
   };
+  plugins?: {
+    names?: string | null;
+  };
 }
 
 describe('Block node default values', (): void => {
@@ -56,6 +59,18 @@ describe('Block node default values', (): void => {
     expect(parsedValues.blockNode?.config?.ROSTER_BOOTSTRAP_TSS_BLOCK_NODE_SOURCES_PATH).to.equal(
       '/opt/hiero/block-node/backfill/block-node-sources.json',
     );
+  });
+
+  it('should keep the block node plugins baked into the image', (): void => {
+    const valuesContent: string = fs.readFileSync(constants.BLOCK_NODE_VALUES_FILE, 'utf8');
+    const parsedValues: BlockNodeValuesConfig = yaml.parse(valuesContent) as BlockNodeValuesConfig;
+
+    // Helm drops a null user value, so a null `plugins.names` is indistinguishable from leaving it unset. From the
+    // block-node-server chart that carries hiero-ledger/hiero-block-node#4063 that falls back to the `lfh` profile
+    // and renders the `resolve-plugins` init container, which downloads plugins from Maven: the plugins baked into
+    // the solo-dev image are ignored, and resolution fails outright for an unreleased or locally built block node.
+    // An explicit empty string is the one spelling that keeps the plugins baked into the image on both charts.
+    expect(parsedValues.plugins?.names, 'plugins.names must be an explicit empty string, never null').to.equal('');
   });
 
   it('should pin the init container image instead of the chart floating busybox tag', (): void => {

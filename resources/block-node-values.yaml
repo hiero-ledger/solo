@@ -12,8 +12,10 @@ image:
   repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
 
 # Disable chart-time plugin resolution and use plugins bundled in the image.
+# Must stay an explicit empty string: Helm drops a null user value, so `names:` alone is indistinguishable from
+# leaving it unset, and the chart then falls back to its own plugin profile and resolves them from Maven.
 plugins:
-  names:
+  names: ''
 
 blockNode:
   # Pin the init container image: the chart default is the floating `busybox` tag (pulled on every
