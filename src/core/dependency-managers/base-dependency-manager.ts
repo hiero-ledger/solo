@@ -119,27 +119,14 @@ export abstract class BaseDependencyManager extends ShellRunner {
       return this.globalExecutablePath;
     }
 
-    const executableNames: string[] = OperatingSystem.isWin32()
-      ? [`${this.executableName}.exe`, `${this.executableName}.cmd`, this.executableName]
-      : [this.executableName];
-
     const pathDirectories: string[] = SubprocessEnvironment.currentPath().split(path.delimiter).filter(Boolean);
     this.logger.debug(`Searching PATH for ${this.executableName}: [${pathDirectories.join(', ')}]`);
 
-    for (const directory of pathDirectories) {
-      for (const name of executableNames) {
-        const candidate: string = path.join(directory, name);
-        try {
-          // On Windows X_OK is not supported and silently degrades to F_OK;
-          // executability is determined by file extension (.exe/.cmd) already.
-          fs.accessSync(candidate, OperatingSystem.isWin32() ? fs.constants.F_OK : fs.constants.X_OK);
-          this.logger.debug(`Found ${this.executableName} at ${candidate}`);
-          this.globalExecutablePath = candidate;
-          return candidate;
-        } catch {
-          // not found or not executable in this directory — continue
-        }
-      }
+    const [firstCandidate]: string[] = this.findExecutablesOnPath(pathDirectories, true);
+    if (firstCandidate) {
+      this.logger.debug(`Found ${this.executableName} at ${firstCandidate}`);
+      this.globalExecutablePath = firstCandidate;
+      return firstCandidate;
     }
 
     this.logger.warn(`${this.executableName} was not found in PATH`);
@@ -147,25 +134,105 @@ export abstract class BaseDependencyManager extends ShellRunner {
   }
 
   /**
+   * Lists the executables named like this dependency in the given PATH directories, in PATH order.
+   * @param pathDirectories - the directories to scan
+   * @param stopAtFirst - return as soon as one is found
+   */
+  private findExecutablesOnPath(pathDirectories: string[], stopAtFirst: boolean = false): string[] {
+    const executableNames: string[] = OperatingSystem.isWin32()
+      ? [`${this.executableName}.exe`, `${this.executableName}.cmd`, this.executableName]
+      : [this.executableName];
+
+    const found: string[] = [];
+    for (const directory of pathDirectories) {
+      for (const name of executableNames) {
+        const candidate: string = path.join(directory, name);
+        try {
+          // On Windows X_OK is not supported and silently degrades to F_OK;
+          // executability is determined by file extension (.exe/.cmd) already.
+          fs.accessSync(candidate, OperatingSystem.isWin32() ? fs.constants.F_OK : fs.constants.X_OK);
+          found.push(candidate);
+          if (stopAtFirst) {
+            return found;
+          }
+        } catch {
+          // not found or not executable in this directory — continue
+        }
+      }
+    }
+    return found;
+  }
+
+  /**
+   * Explains a rejected PATH candidate: solo only considers the first match on PATH (that is what the
+   * bare command name resolves to), so a later, newer install is shadowed. Logs those shadowed installs
+   * with their versions so the cause is visible. Purely informational; never changes which binary is used.
+   */
+  private async logShadowedPathCandidates(rejectedCandidate: string): Promise<void> {
+    const pathDirectories: string[] = SubprocessEnvironment.currentPath().split(path.delimiter).filter(Boolean);
+    const shadowed: string[] = this.findExecutablesOnPath(pathDirectories).filter(
+      (candidate: string): boolean => candidate !== rejectedCandidate,
+    );
+    if (shadowed.length === 0) {
+      return;
+    }
+
+    const described: string[] = await Promise.all(
+      shadowed.map(async (candidate: string): Promise<string> => {
+        try {
+          return `${candidate} (${await this.getVersion(candidate)})`;
+        } catch {
+          // informational only: an unrunnable shadowed candidate is reported without a version
+          return `${candidate} (version unknown)`;
+        }
+      }),
+    );
+    this.logger.info(
+      `${this.executableName} at ${rejectedCandidate} is first on PATH and was rejected; solo does not look past it. ` +
+        `Other ${this.executableName} installs further down PATH: ${described.join(', ')}. ` +
+        `Put the one you want first on PATH (or in ${this.installationDirectory}) to use it.`,
+    );
+  }
+
+  /**
    * Check if the given installation meets version requirements
    */
   public async installationMeetsRequirements(executableWithPath: string): Promise<boolean> {
+    this.logger.debug(
+      `Checking ${this.executableName} at ${executableWithPath} against required version >= ${this.getRequiredVersion()}: ${this.describeExecutable(executableWithPath)}`,
+    );
     let version: string;
     try {
       version = await this.getVersion(executableWithPath);
     } catch (error) {
-      this.logger.debug(
-        `Failed to get version for ${this.executableName} at ${executableWithPath}: ${error instanceof Error ? error.message : error}`,
+      this.logger.info(
+        `Failed to get version for ${this.executableName} at ${executableWithPath}, so it is treated as not meeting requirements: ${error instanceof Error ? error.message : error}`,
       );
       return false;
     }
     if (new SemanticVersion<string>(version).greaterThanOrEqual(this.getRequiredVersion())) {
+      this.logger.debug(
+        `${this.executableName} at ${executableWithPath} is version ${version}, which meets the required version >= ${this.getRequiredVersion()}`,
+      );
       return true;
     }
     this.logger.info(
       `Found version ${version} of ${this.executableName} at ${executableWithPath}, which does not meet the required version ${this.getRequiredVersion()}`,
     );
     return false;
+  }
+
+  /**
+   * Describes a candidate executable (existence, symlink target, size, mode) for diagnostic logging.
+   */
+  private describeExecutable(executableWithPath: string): string {
+    try {
+      const stats: fs.Stats = fs.lstatSync(executableWithPath);
+      const target: string = stats.isSymbolicLink() ? `, symlink -> ${fs.realpathSync(executableWithPath)}` : '';
+      return `exists (size=${stats.size} bytes, mode=${(stats.mode & 0o777).toString(8)}${target})`;
+    } catch (error) {
+      return `not accessible (${error instanceof Error ? error.message : error})`;
+    }
   }
 
   /**
@@ -178,6 +245,9 @@ export abstract class BaseDependencyManager extends ShellRunner {
         return true;
       } else {
         this.logger.info(`${this.executableName}${path ? ` at ${path}` : ''} is not a compatible global installation`);
+        if (path) {
+          await this.logShadowedPathCandidates(path);
+        }
       }
     } catch (error) {
       this.logger.debug(
@@ -289,8 +359,10 @@ export abstract class BaseDependencyManager extends ShellRunner {
     await this.preInstall();
 
     // If not installed, download and install
-    this.logger.debug(
-      `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally. ` +
+    this.logger.info(
+      `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally ` +
+        `[local ${this.localExecutableWithPath}: ${this.describeExecutable(this.localExecutableWithPath)}; ` +
+        `global: ${this.allowGlobalInstallation() ? this.globalExecutablePath || 'not found in PATH' : 'not considered'}]. ` +
         `Downloading and installing it into ${this.installationDirectory}...`,
     );
     this.logger.debug(`Downloading and installing ${this.executableName} executable...`);
@@ -308,6 +380,11 @@ export abstract class BaseDependencyManager extends ShellRunner {
     }
 
     // In case there is an existing local installation, which did not meet the requirements - remove it
+    if (this.isInstalledLocally()) {
+      this.logger.info(
+        `Replacing existing local ${this.executableName} at ${this.localExecutableWithPath} (it did not meet the requirements, see earlier log lines for the reason)`,
+      );
+    }
     this.uninstallLocal();
 
     try {

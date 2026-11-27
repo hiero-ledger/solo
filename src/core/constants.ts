@@ -65,6 +65,8 @@ export const NETAVARK: string = 'netavark';
 export const AARDVARK_DNS: string = 'aardvark-dns';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
+/** Upper bound for a single `kubectl exec` attempt; a call exceeding it is killed and reported instead of hanging. */
+export const KUBECTL_EXEC_TIMEOUT_MS: number = 600_000;
 export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
