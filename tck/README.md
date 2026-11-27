@@ -53,9 +53,48 @@ To reuse a previously built Solo tarball locally, also pass `--solo-tarball /abs
 `--solo-version` source SHA. The report records the tarball integrity and explicitly marks the source SHA as
 caller-asserted, not independently verified. This option is not exposed by the composite action.
 
+## Branch-built companions
+
+`--companion-builds <manifest.json>` supplies built companions next to the candidate, using the schema version 1
+manifest from design §4.1. The `js-sdk` lane deploys CN and MN, so it accepts those two companions:
+
+| Component | Artifact fields | Falcon wiring |
+| --- | --- | --- |
+| `consensus-node` | `buildPath`: the built `data` folder with `apps/*.jar` and `lib/*.jar` | `setup` `--local-build-path`; `--consensus-node-version v<version>` |
+| `mirror-node` | `image`: the prefix Solo expands; `archive`: a `docker save` of all six module images; `chartDir` | `mirrorNode` `--component-image`, `--component-image-archive`, `--mirror-node-chart-dir`; `--mirror-node-version v<version>` |
+
+```json
+{
+  "schemaVersion": 1,
+  "components": [
+    {
+      "component": "consensus-node",
+      "source": {"repository": "hiero-ledger/hiero-consensus-node", "commit": "<full source commit SHA>"},
+      "version": "0.80.0-tck.38712.1",
+      "buildPath": "cn/data"
+    }
+  ]
+}
+```
+
+Paths resolve relative to the manifest. Before any cluster exists, P1 rejects with exit 2: a schema version other
+than 1; an unknown, duplicated or candidate component; a component the lane does not deploy; unknown fields, because
+the manifest is not a passthrough for Helm values or CLI flags; a source that is not `owner/name` at a full commit
+SHA; a version that is not semver; a missing artifact; an image tag that differs from `version`; an archive without
+every image, which for MN is the full module set; and a version override for a component the manifest supplies.
+
+`tck-result.json` records the manifest's sha256 and, per companion, the declared source (`sourceShaVerified: false`,
+because build provenance belongs to the caller), the sha256 of every artifact (each CN jar, the archive, the chart
+tree) and what ran after deployment. P3 requires every node pod's `data/apps` and `data/lib` jars to match
+`buildPath` exactly, and every MN module except the disabled monitor to run from a Ready container with the supplied
+image and `imagePullPolicy: Never`. A companion that is never observed running, including one replaced by another
+tag of the same image, fails P3 with reason `solo`, because Solo did not deploy what it was given. A kubectl failure
+while observing is `environment`. There is no release fallback.
+
 ## Action interface
 
-`tck/action.yml` exposes `component`, `candidate-packages`, `solo-version` and the two companion overrides above.
+`tck/action.yml` exposes `component`, `candidate-packages`, `solo-version`, the two companion overrides above and
+`companion-builds`.
 It selects Node 22, runs the lane, and uploads its evidence even when the run fails. It needs only `contents: read`
 and no secrets. The caller builds its candidate and owns its 30-minute job deadline, build included.
 
@@ -70,8 +109,9 @@ SDK caller switch are separate changes.
 
 See [the lane spec](specs/js-sdk.md) and [the SDK assumptions exercised](specs/js-sdk-assumptions.md).
 
-* P1 validates the lane, packages and Solo selection.
-* P3 proves one copy of each candidate package by tarball sha512 and both SDK resolutions from Solo's package.
+* P1 validates the lane, packages, Solo selection and any companion-builds manifest.
+* P3 proves one copy of each candidate package by tarball sha512 and both SDK resolutions from Solo's package. After
+  deployment it proves that every supplied companion runs its supplied artifact.
 * P2 uses `solo one-shot falcon deploy`, CN and MN only, pinger off, default resource limits, metrics server on.
 * P7 creates an account through Solo, changes its key through Solo, and reads that key through the candidate SDK.
 * P5 obtains SUCCESS receipts for a transfer, topic creation and topic message.
@@ -97,8 +137,8 @@ identity, pod images/resource limits, recorded chart-version lines, probe times,
 Generated account keys are kept in private working state outside that directory. Failure summaries include a draft
 for manual issue triage; the kit never posts anything.
 
-Exit codes are 0 pass, 1 candidate, 2 invalid input, 3 environment, 4 kit defect, 5 unknown, 6 Solo (reserved for
-assertions about Solo's own behaviour; no probe assigns it yet). Every nonzero exit fails the action. A missing probe cannot pass. A startup error such as `NodeAccountId not recognized: 0.0.2` stays red with
+Exit codes are 0 pass, 1 candidate, 2 invalid input, 3 environment, 4 kit defect, 5 unknown, 6 Solo (a deployed
+value does not match its input, such as a branch companion that never ran). Every nonzero exit fails the action. A missing probe cannot pass. A startup error such as `NodeAccountId not recognized: 0.0.2` stays red with
 reason `unknown`; it does not automatically blame the SDK. Backend pod failures in this SDK lane are likewise
 `unknown`, except noncandidate image-pull errors, which are `environment`.
 

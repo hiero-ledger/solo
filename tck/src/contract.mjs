@@ -3,7 +3,7 @@
 import {parseArgs} from 'node:util';
 
 export const PROBES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'];
-// `solo` is reserved for assertions about Solo's own behaviour; no probe assigns it yet.
+// `solo`: a deployed value does not match its input; P3 assigns it to a branch companion that never ran.
 export const EXIT = {candidate: 1, invalid: 2, environment: 3, kit: 4, unknown: 5, solo: 6};
 // Probes that run and are recorded but cannot fail the run. None in this lane yet.
 export const REPORT_ONLY = [];
@@ -25,6 +25,8 @@ export class Failure extends Error {
   constructor(reason, message, options) {
     super(message, options);
     this.reason = reason;
+    // The probe a failure belongs to when its stage alone does not identify it.
+    this.probe = options?.probe;
   }
 }
 
@@ -43,6 +45,7 @@ export class Contract {
             'cluster-name',
             'consensus-node-version',
             'mirror-node-version',
+            'companion-builds',
           ].map(name => [name, {type: 'string'}]),
         ),
       }));
