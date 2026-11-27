@@ -143,7 +143,7 @@ cache pull post-install, registers an uninstall entry, and is signed with Authen
 | Signing / SmartScreen trust | Signed `solo.exe` and script (§6.4); `iex` of a remote script can be flagged by antivirus | Signed installer, uninstaller and `solo.exe`; better SmartScreen reputation |
 | Add/Remove Programs entry   | None                                                                                      | Yes                                                                         |
 | Uninstall                   | Needs `solo uninstall` (not yet built)                                                    | Built in, plus the entry                                                    |
-| Upgrade                     | Needs `solo upgrade` (not yet built)                                                      | Re-run installer                                                            |
+| Upgrade                     | `solo update` (#6441); on Windows it points at the release instead of swapping in place   | Re-run installer                                                            |
 | Enterprise deployment       | Awkward                                                                                   | Standard                                                                    |
 | Offline / air-gapped        | Needs network unless assets are pre-staged                                                | Self-contained                                                              |
 | Time to first release       | Short                                                                                     | Long (certificate, pipeline)                                                |
@@ -202,6 +202,12 @@ script must:
 1. Check the downloaded `solo.exe` against `SHA256SUMS` (`Get-FileHash`).
 2. Check `Get-AuthenticodeSignature solo.exe`: `Status` must be `Valid` and the signer subject or thumbprint
    must match Solo's certificate.
+
+As shipped in #5723, step 2 cannot be a hard requirement yet: the published binary carries no signature until
+#5867 provisions the certificate, so a `Valid` status is reported, a broken one (`HashMismatch`, `Invalid`)
+aborts, and `NotSigned` only warns. The warning becomes a failure, and the signer subject check is added, in the
+same change that starts signing the binary. Step 1 gates every install in the meantime, with the `SHA256SUMS`
+cosign signature verified as on Linux when cosign happens to be installed (Windows has none by default).
 
 Build constraints from the SEA binary (#5716):
 
