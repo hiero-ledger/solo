@@ -1480,7 +1480,7 @@ export class MirrorNodeCommand extends BaseCommand {
    * Values for the mirror ingress controller. The ingress class and controller class are cluster-scoped and
    * share their names with the mirror nodes of other deployments, so the controller watches only its own
    * namespace; otherwise it would also pick up their ingresses and could route to another deployment's
-   * mirror node. User values files are applied last and can still override any of these.
+   * mirror node. Helm applies --set-literal after every values file, so user values files cannot override these.
    */
   private prepareIngressControllerChartValues(config: MirrorNodeDeployConfigClass): HelmChartValues {
     const chartValues: HelmChartValues = new HelmChartValues()

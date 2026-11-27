@@ -643,9 +643,8 @@ describe('MirrorNodeCommand unit tests', (): void => {
   });
 
   describe('prepareIngressControllerChartValues', (): void => {
-    const prepare: (resourceNames: MirrorNodeResourceNames, ingressControllerValueFile?: string) => string[] = (
+    const prepare: (resourceNames: MirrorNodeResourceNames) => string[] = (
       resourceNames: MirrorNodeResourceNames,
-      ingressControllerValueFile?: string,
     ): string[] =>
       (mirrorNodeCommand as unknown as MirrorNodeCommandInternal)
         .prepareIngressControllerChartValues({
@@ -653,7 +652,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
           mirrorStaticIp: '',
           namespace: NamespaceName.of('solo-two'),
           resourceNames,
-          ingressControllerValueFile,
+          ingressControllerValueFile: '',
         })
         .toArguments();
 
@@ -666,20 +665,6 @@ describe('MirrorNodeCommand unit tests', (): void => {
           `controller.extraArgs.controller-class=${resourceNames.ingressControllerClass}`,
         );
       }
-    });
-
-    it('applies the user ingress controller values file last so it can override the watched namespace', (): void => {
-      const userValuesFile: string = PathEx.join(
-        fs.mkdtempSync(PathEx.join(os.tmpdir(), 'mirror-ingress-')),
-        'ingress.yaml',
-      );
-      fs.writeFileSync(userValuesFile, '{}');
-
-      const valueArguments: string[] = prepare(MirrorNodeResourceNames.primary(), userValuesFile);
-
-      expect(valueArguments.indexOf(PathEx.resolve(userValuesFile))).to.be.greaterThan(
-        valueArguments.indexOf('controller.extraArgs.watch-namespace=solo-two'),
-      );
     });
   });
 
