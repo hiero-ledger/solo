@@ -60,11 +60,35 @@ It selects Node 22, runs the lane, and uploads its evidence even when the run fa
 and no secrets. The caller builds its candidate and owns its 30-minute job deadline, build included.
 
 The action's shared release identifies its source. `solo-versions.json` independently records the qualified default
-and supported CLI releases, which can differ from the action version. Until a kit revision has completed release
-verification, that file intentionally has no default and an empty `supported` list. An explicit full Solo SHA is
-required. A released version cannot bypass this check. After the containing Solo fix is released, Linux verification
-must pass before adding that release to the list and making it the default. Shared Solo release publication and the
-SDK caller switch are separate changes.
+and supported CLI releases, which can differ from the action version. Only Solo's release workflow writes it, from
+release verification below; nobody edits it by hand. Until a release has passed verification, the file has no default
+and an empty `supported` list, so an explicit full Solo SHA is required. A released version cannot bypass this check.
+The SDK caller switch is a separate change.
+
+## Release verification
+
+Every Solo release verifies the kit it ships before publishing it (`.github/workflows/zxc-tck-release-verification.yaml`,
+design §6.3 and §6.4). `src/release.mjs` holds each step:
+
+1. `plan` lists the Solo releases to verify: the release being cut, packed from the verified commit, and each release
+   already in `supported` that is still in Solo's support window (README "Current Releases"). A release outside the
+   window leaves the list. A release that was never supported is not added; only a release that is being cut can join.
+   A prerelease is verified against the list but never joins it.
+2. Each planned release runs every implemented lane, with the released SDK that Solo release ships (`sdk`) as the
+   candidate.
+3. `controls` runs the negative controls of the implemented lanes, each of which must fail with its expected exit code
+   and reason. `exclusion` proves the Solo npm package leaves out `tck/`.
+4. `admit` writes the new `solo-versions.json`: every verified release, newest as default. **Any failed, missing or
+   ambiguous result blocks the Solo release.** The release commit carries the file (`.releaserc`).
+5. The release job refuses to publish if its branch moved past the verified commit, and checks the packed npm tarball
+   again. `notes` adds a Solo TCK section to the GitHub release notes: the supported list, the default, what changed
+   in them, and the `uses:` pin for this release. Kit changes themselves need no changelog; their `feat(tck):` and
+   `fix(tck):` commits are already in Solo's release notes.
+6. After publication, `readback` checks the tag: the verified commit plus only the release files, the verified list
+   and kit version, `tck/action.yml` served at the tag, the Solo TCK section in the release notes, and Solo's own
+   assets and `releases/latest`.
+
+Run the workflow by hand (`workflow_dispatch` with the version being released) to verify without releasing.
 
 ## Contract and reports
 

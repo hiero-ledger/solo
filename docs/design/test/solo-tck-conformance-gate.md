@@ -119,7 +119,6 @@ tck/
   package.json         Solo-aligned version and the kit's locked probe dependencies
   package-lock.json
   solo-versions.json   default and supported CLI versions, populated by release verification
-  CHANGELOG.md         kit changes included in the corresponding Solo release notes
   src/                 plain ESM JavaScript, no build step
   specs/               one test spec and one "what Solo assumes" inventory per lane
   test/                unit tests, and the negative controls run before each release
@@ -357,7 +356,9 @@ A caller's behavior changes only when it changes the action SHA, the candidate, 
 override. A `uses:` SHA is immutable; release names in comments identify it without becoming moving execution pins.
 
 Release notes identify action input/output changes, new probes, stricter limits, runtime changes and changes to
-`default` or `supported`. Interface changes follow Solo's release-version policy and include caller migration
+`default` or `supported`. The kit keeps no changelog of its own: its conventional commits (`feat(tck):`, `fix(tck):`)
+appear in Solo's generated release notes, and the release workflow adds a Solo TCK section stating the supported list,
+the default and what changed in them, since those change inside the release commit, which no commit title describes. Interface changes follow Solo's release-version policy and include caller migration
 instructions. A Solo change that also needs a TCK change must preserve the released-kit compatibility check or
 provide an explicit transition (§13); a passing new-kit/new-CLI pair cannot mask a regression for existing callers.
 

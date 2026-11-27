@@ -184,9 +184,18 @@ Key rules enforced as ESLint **errors** (not warnings):
 - **No exported functions** — Behavior (resolvers, orchestrators, computations) is grouped on a class
   as `static` methods; do **not** `export function`/`export const fn = () => …` at module scope. Pure
   data (constants, types, simple factories) may be exported. A helper used by only one class becomes a
-  `private static` member of that class. Enforced by the `solo/no-exported-function` lint rule (an
-  **error** in `src/integration/**`, a warning elsewhere while legacy functions are migrated). See
-  §3.4.5 and §10.3.1–§10.3.2 of the style guide.
+  `private static` member of that class. Enforced by the `solo/no-exported-function` lint rule, an
+  **error** in `src/**/*.ts` and in the TCK kit's `tck/**/*.mjs`. See §3.4.5 and §10.3.1–§10.3.2 of
+  the style guide.
+
+### TCK Kit (`tck/`) — Plain ESM, Same Conventions
+
+The TCK kit under `tck/` ships as plain ESM (`.mjs`), not TypeScript, and is excluded from the Solo npm
+package. ESLint still applies Solo's class-based conventions to it: `solo/no-exported-function` and
+`solo/require-explicit-shell` are errors there. Only the rules that need TypeScript syntax (type
+annotations, access modifiers) are switched off. CI proves the class-only rule reaches `tck/` with a
+negative control in `.github/workflows/zxc-code-style.yaml`. Run the kit's tests with
+`npm test --prefix tck`.
 
 Run `task format` to auto-fix formatting and lint issues before committing. Note that
 `task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations
