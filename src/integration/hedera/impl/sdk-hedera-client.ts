@@ -64,9 +64,17 @@ export class SdkHederaClient implements HederaClient {
   };
 
   public constructor(
-    public readonly sdkClient: Client,
+    private readonly sdkClient: Client,
     private readonly logger: SoloLogger,
   ) {}
+
+  public get network(): Record<string, string> {
+    const network: Record<string, string> = {};
+    for (const [endpoint, accountId] of Object.entries(this.sdkClient.network)) {
+      network[endpoint] = accountId.toString();
+    }
+    return network;
+  }
 
   public get isShutDown(): boolean {
     return this.sdkClient.isClientShutDown;

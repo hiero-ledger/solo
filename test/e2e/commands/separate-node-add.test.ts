@@ -17,16 +17,7 @@ import {type Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type DeploymentName} from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
-import {
-  AccountCreateTransaction,
-  type AccountInfo,
-  AccountInfoQuery,
-  Hbar,
-  HbarUnit,
-  PrivateKey,
-  type TransactionReceipt,
-  type TransactionResponse,
-} from '@hiero-ledger/sdk';
+import {type AccountId, type AccountInfo, Hbar, HbarUnit, PrivateKey} from '@hiero-ledger/sdk';
 import {sleep} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
@@ -149,15 +140,9 @@ export function testSeparateNodeAdd(
       // get random integer between 100 and 1000
       const amount: number = Math.floor(Math.random() * (1000 - 100) + 100);
 
-      const newAccount: TransactionResponse = await new AccountCreateTransaction()
-        .setKeyWithoutAlias(privateKey.publicKey)
-        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-        .execute(accountManager._nodeClient);
-
-      // Get the new account ID
-      const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);
+      const newAccountId: AccountId = await accountManager.hederaClient.createAccount(privateKey, amount, false);
       const accountInfo: {accountId: string; balance: number} = {
-        accountId: getReceipt.accountId.toString(),
+        accountId: newAccountId.toString(),
         balance: amount,
       };
 
@@ -189,9 +174,9 @@ export function testSeparateNodeAdd(
         argv.getArg<boolean>(flags.forcePortForward),
       );
 
-      const accountInfoAfterRestart: AccountInfo = await new AccountInfoQuery()
-        .setAccountId(accountInfo.accountId)
-        .execute(accountManager._nodeClient);
+      const accountInfoAfterRestart: AccountInfo = await accountManager.hederaClient.getAccountInfo(
+        accountInfo.accountId,
+      );
 
       expect(accountInfoAfterRestart.balance).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
     }).timeout(Duration.ofMinutes(10).toMillis());
