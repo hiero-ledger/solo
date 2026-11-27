@@ -4,7 +4,7 @@ import {SoloErrors} from './errors/solo-errors.js';
 import * as Base64 from 'js-base64';
 import * as constants from './constants.js';
 import {IGNORED_NODE_ACCOUNT_ID} from './constants.js';
-import {AccountId, type AccountInfo, type Client, FileId, type Key, KeyList, Long, PrivateKey} from '@hiero-ledger/sdk';
+import {AccountId, type AccountInfo, FileId, type Key, KeyList, Long, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloError} from './errors/solo-error.js'; // kept for instanceof checks
 import {Templates} from './templates.js';
 import {GenesisKeyResolver} from './genesis-key-resolver.js';

@@ -96,8 +96,13 @@ function createTasks(
           ]),
         ),
       loadNodeClient: async (): Promise<SdkHederaClient> => hederaClient,
-    }),
-    remoteConfig,
+    },
+    remoteConfig: {
+      getClusterRefs: (): Record<string, string> => ({}),
+      getConsensusNodes: (): FakeConsensusNode[] => consensusNodes,
+      getContexts: (): string[] => ['context-1'],
+      configuration: {clusters: [{namespace: namespace.name, dnsBaseDomain: 'cluster.local'}]},
+    },
     logger,
   });
 
