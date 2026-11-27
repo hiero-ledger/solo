@@ -86,6 +86,7 @@ interface MirrorNodeCommandInternal {
   ) => boolean;
   prepareHelmChartValues: (config: Record<string, unknown>) => Promise<HelmChartValues>;
   prepareResourceNameChartValues: (config: Record<string, unknown>) => Promise<HelmChartValues>;
+  prepareIngressControllerChartValues: (config: Record<string, unknown>) => HelmChartValues;
   hasOtherMirrorNodes: (id: number, clusterReference: string, namespace: NamespaceName) => boolean;
   disableSharedResourceComponents: () => SoloListrTask<MirrorNodeDestroyTaskContext>;
   destroySharedResourcesTask: () => SoloListrTask<MirrorNodeSharedResourcesDestroyTaskContext>;
@@ -638,6 +639,32 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
       expect(secrets.read).to.have.been.calledWith({name: 'solo'}, 'mirror-passwords-2');
       expect(chartValues.toArguments()).to.include('web3.db.password=kept-password');
+    });
+  });
+
+  describe('prepareIngressControllerChartValues', (): void => {
+    const prepare: (resourceNames: MirrorNodeResourceNames) => string[] = (
+      resourceNames: MirrorNodeResourceNames,
+    ): string[] =>
+      (mirrorNodeCommand as unknown as MirrorNodeCommandInternal)
+        .prepareIngressControllerChartValues({
+          chartValues: new HelmChartValues(),
+          mirrorStaticIp: '',
+          namespace: NamespaceName.of('solo-two'),
+          resourceNames,
+          ingressControllerValueFile: '',
+        })
+        .toArguments();
+
+    it('restricts the controller to its own namespace so it ignores the mirror ingresses of other deployments', (): void => {
+      for (const resourceNames of [MirrorNodeResourceNames.primary(), MirrorNodeResourceNames.forId(2)]) {
+        const valueArguments: string[] = prepare(resourceNames);
+        expect(valueArguments).to.include('controller.extraArgs.watch-namespace=solo-two');
+        expect(valueArguments).to.include(`controller.ingressClass=${resourceNames.ingressClassName}`);
+        expect(valueArguments).to.include(
+          `controller.extraArgs.controller-class=${resourceNames.ingressControllerClass}`,
+        );
+      }
     });
   });
 
