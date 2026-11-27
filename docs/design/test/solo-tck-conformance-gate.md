@@ -386,6 +386,8 @@ The Solo release workflow must establish:
    | -------------------------------------------- | --------------- |
    | A module image missing from the archive      | exit 2, `invalid` |
    | A candidate image whose process exits at start | exit 1, `candidate`, within 2 minutes |
+   | A candidate image that starts but never becomes Ready | exit 1, `candidate` |
+   | A non-candidate image that cannot be pulled  | exit 3, `environment` |
    | A lane whose deploy leaves a default image in a target container | exit 1, `candidate` (identity) |
    | A probe that cannot find its transaction on the mirror node | exit 1, `candidate` |
    | An unsupported Solo version                  | exit 2, `invalid` |
@@ -535,7 +537,7 @@ a failure non-blocking: the reason routes the triage, it never gates.
 | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `invalid`     | P1 failed, or Solo rejected the version tuple before deploying                                                             |
 | `environment` | The preflight or the Solo install failed; or the deploy failed before any candidate pod existed, with a known environment error (Kind create, a registry timeout); or a non-candidate image cannot be pulled |
-| `candidate`   | The evidence names the candidate: a candidate container that is not Ready in time, crash-loops, is OOM-killed or has an image error; a failed identity check; a failed probe that the lane spec marks as the candidate's, after the probes before it passed (for example a mirror REST read in the MN lane after the consensus transaction succeeded) |
+| `candidate`   | The evidence names the candidate: a candidate container that crash-loops, is OOM-killed or has an image error; or that stays unready for three minutes while every other container is Ready, since a candidate waiting on an unready dependency does not name itself; a failed identity check; a failed probe that the lane spec marks as the candidate's, after the probes before it passed (for example a mirror REST read in the MN lane after the consensus transaction succeeded) |
 | `kit`         | An unexpected error in the kit's own code, or evidence it could not write                                                  |
 | `solo`        | The evidence names Solo: a deployed value does not match the input that asked for it, or Solo accepted an input it should have rejected. In the `solo` lane, where Solo is the candidate, this is reported as `candidate`. Reserved; no probe assigns it yet (§17) |
 | `unknown`     | Every other failure: the run is red, but the evidence does not point at one part                                           |

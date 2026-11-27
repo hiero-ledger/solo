@@ -99,8 +99,15 @@ for manual issue triage; the kit never posts anything.
 
 Exit codes are 0 pass, 1 candidate, 2 invalid input, 3 environment, 4 kit defect, 5 unknown, 6 Solo (reserved for
 assertions about Solo's own behaviour; no probe assigns it yet). Every nonzero exit fails the action. A missing probe cannot pass. A startup error such as `NodeAccountId not recognized: 0.0.2` stays red with
-reason `unknown`; it does not automatically blame the SDK. Backend pod failures in this SDK lane are likewise
-`unknown`, except noncandidate image-pull errors, which are `environment`.
+reason `unknown`; it does not automatically blame the SDK. Solo exiting with 2 (Solo 0.98.0 and later) means it
+rejected the input: `invalid`. A failed Kind cluster creation is `environment`, whether the kit created the
+local-only cluster or Falcon created `solo-cluster`: a deploy that fails and leaves no cluster failed before any
+candidate pod existed.
+
+A pod failure is `candidate` only when the failing container runs a candidate image: a crash loop, an OOM kill, an
+image error, or staying unready for three minutes while every other container is Ready. The same failure in any
+other container is `unknown`, except image errors, which are `environment`. The js-sdk candidate is npm packages, so
+no container runs a candidate image and this lane never reports `candidate` from pod evidence.
 
 ## Test
 

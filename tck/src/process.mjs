@@ -78,6 +78,8 @@ export class Processes {
               'unknown',
               `${program} exited ${code ?? termination}: ${secret ? '(test account output withheld)' : Contract.redact(stderr || stdout).slice(-2400)}`,
             );
+          // A program that exited on its own reports why through its code; one the kit stopped has none.
+          error.exitCode = failure ? undefined : code;
           error.output = secret ? '(test account output withheld)' : Contract.redact(`${stdout}\n${stderr}`);
           reject(error);
         } else {

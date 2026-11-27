@@ -5,10 +5,30 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {Failure} from './contract.mjs';
 import {Processes} from './process.mjs';
 
+// How long a candidate container may stay unready before that alone names the candidate.
+const READY_GRACE = 180_000;
+
 export class PodState {
   pods = new Map();
   baseline;
   pullFailures = new Map();
+  unreadySince = new Map();
+
+  // Images whose containers run the candidate; none when the candidate is not a container image (js-sdk).
+  constructor(candidateImages = []) {
+    this.candidateImages = new Set(candidateImages.map(image => PodState.#reference(image)));
+  }
+
+  // The runtime may report an image with the implicit Docker Hub prefixes its spec omitted.
+  static #reference(image) {
+    return String(image)
+      .replace(/^docker\.io\//, '')
+      .replace(/^library\//, '');
+  }
+
+  #candidate(...images) {
+    return images.some(image => image && this.candidateImages.has(PodState.#reference(image)));
+  }
 
   observe(event, now = Date.now()) {
     const pod = event.object || event;
@@ -32,28 +52,47 @@ export class PodState {
       }
       return;
     }
+    const specs = [...(pod.spec?.initContainers || []), ...(pod.spec?.containers || [])];
     const containers = [...(pod.status?.initContainerStatuses || []), ...(pod.status?.containerStatuses || [])];
+    const candidates = new Set(
+      specs
+        .filter(spec => this.#candidate(spec.image, containers.find(status => status.name === spec.name)?.image))
+        .map(spec => spec.name),
+    );
+    const unready = [];
     for (const container of containers) {
       const key = `${pod.metadata.uid}/${container.name}`;
       const waiting = container.state?.waiting?.reason;
+      const candidate = candidates.has(container.name);
+      // The evidence names the candidate only when the failing container runs a candidate image.
+      const failure = (otherwise, message) =>
+        new Failure(candidate ? 'candidate' : otherwise, `${message}: ${name}/${container.name}`);
       if ([container.state?.terminated?.reason, container.lastState?.terminated?.reason].includes('OOMKilled')) {
-        throw new Failure('unknown', `OOMKilled: ${name}/${container.name}`);
+        throw failure('unknown', 'OOMKilled');
       }
       if (['ErrImageNeverPull', 'InvalidImageName'].includes(waiting)) {
-        throw new Failure('environment', `${waiting}: ${name}/${container.name}`);
+        throw failure('environment', waiting);
       }
       if (container.restartCount >= 2 && waiting === 'CrashLoopBackOff') {
-        throw new Failure('unknown', `Crash loop: ${name}/${container.name}`);
+        throw failure('unknown', 'Crash loop');
       }
       if (['ImagePullBackOff', 'ErrImagePull'].includes(waiting)) {
         if (!this.pullFailures.has(key)) {
           this.pullFailures.set(key, now);
         }
         if (now - this.pullFailures.get(key) >= 300_000) {
-          throw new Failure('environment', `Image pull failed for five minutes: ${name}/${container.name}`);
+          throw failure('environment', 'Image pull failed for five minutes');
         }
       } else {
         this.pullFailures.delete(key);
+      }
+      if (container.ready || container.state?.terminated?.exitCode === 0) {
+        this.unreadySince.delete(key);
+      } else {
+        unready.push(container.name);
+        if (!this.unreadySince.has(key)) {
+          this.unreadySince.set(key, now);
+        }
       }
       const baseline = this.baseline?.get(name);
       if (
@@ -71,22 +110,42 @@ export class PodState {
         pod.status?.phase === 'Succeeded' ||
         pod.status?.conditions?.some(condition => condition.type === 'Ready' && condition.status === 'True'),
       restarts: Object.fromEntries(containers.map(container => [container.name, container.restartCount])),
-      containers: [...(pod.spec?.initContainers || []), ...(pod.spec?.containers || [])].map(container => ({
+      unready,
+      containers: specs.map(container => ({
         name: container.name,
         image: container.image,
+        candidate: candidates.has(container.name),
         resources: container.resources,
       })),
     });
   }
 
-  stable() {
+  // Which pods are not Ready, and whether that names the candidate: every unready container runs a candidate
+  // image and has been unready for the grace period. A candidate waiting on an unready dependency is not named.
+  notReady(now = Date.now()) {
+    const pods = [...this.pods.values()].filter(pod => !pod.ready);
+    if (pods.length === 0) {
+      return;
+    }
+    const candidate = pods.every(
+      pod =>
+        pod.unready.length > 0 &&
+        pod.unready.every(
+          name =>
+            pod.containers.find(container => container.name === name)?.candidate &&
+            now - this.unreadySince.get(`${pod.uid}/${name}`) >= READY_GRACE,
+        ),
+    );
+    return {pods: pods.map(pod => pod.name), candidate};
+  }
+
+  stable(now = Date.now()) {
     if (this.pods.size === 0) {
       throw new Failure('unknown', 'No workload pods found');
     }
-    for (const pod of this.pods.values()) {
-      if (!pod.ready) {
-        throw new Failure('unknown', `Pod is not Ready: ${pod.name}`);
-      }
+    const notReady = this.notReady(now);
+    if (notReady) {
+      throw new Failure(notReady.candidate ? 'candidate' : 'unknown', `Pod is not Ready: ${notReady.pods.join(', ')}`);
     }
     if (this.baseline) {
       for (const name of this.baseline.keys()) {
