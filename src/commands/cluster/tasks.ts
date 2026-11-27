@@ -3,6 +3,7 @@
 import {Listr} from 'listr2';
 import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../types/aliases.js';
 import * as constants from '../../core/constants.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 import chalk from 'chalk';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
@@ -45,6 +46,10 @@ import {type ContainerEngineState} from '../../integration/container-engine/cont
 import {type KindClusterContainer} from '../../integration/container-engine/kind-cluster-container.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 import {Helpers} from '../../core/helpers.js';
+
+const SOLO_CLUSTER_ROLE_LABELS: Record<string, string> = {'solo.hedera.com/type': 'cluster-role'};
+const GRAFANA_ALLOY_VALUES_FILE: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'grafana-alloy-values.yaml');
+const LOKI_VALUES_FILE: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'loki-values.yaml');
 
 @injectable()
 export class ClusterCommandTasks {
@@ -580,7 +585,7 @@ export class ClusterCommandTasks {
             constants.LOKI_CHART,
             constants.GRAFANA_CHART_REPO,
             versions.LOKI_VERSION,
-            new HelmChartValues().file(constants.LOKI_VALUES_FILE),
+            new HelmChartValues().file(LOKI_VALUES_FILE),
             context_.config.context,
             'Loki',
             SoloErrors.deployment.lokiInstallFailed,
@@ -642,7 +647,7 @@ export class ClusterCommandTasks {
           constants.GRAFANA_ALLOY_CHART,
           constants.GRAFANA_CHART_REPO,
           versions.GRAFANA_ALLOY_VERSION,
-          new HelmChartValues().file(constants.GRAFANA_ALLOY_VALUES_FILE),
+          new HelmChartValues().file(GRAFANA_ALLOY_VALUES_FILE),
           context_.config.context,
           'Grafana Alloy',
           SoloErrors.deployment.grafanaAlloyInstallFailed,
@@ -703,7 +708,7 @@ export class ClusterCommandTasks {
           throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
         }
         if (existingPodMonitorRole) {
-          const ownership: string = Object.entries(constants.SOLO_CLUSTER_ROLE_LABELS).every(
+          const ownership: string = Object.entries(SOLO_CLUSTER_ROLE_LABELS).every(
             ([labelKey, labelValue]: [string, string]): boolean =>
               existingPodMonitorRole.labels?.[labelKey] === labelValue,
           )
@@ -734,7 +739,7 @@ export class ClusterCommandTasks {
                 verbs: ['create'],
               },
             ],
-            constants.SOLO_CLUSTER_ROLE_LABELS,
+            SOLO_CLUSTER_ROLE_LABELS,
           );
           this.logger.showUserUnlessOneShot(
             `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,

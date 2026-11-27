@@ -8,6 +8,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
+import {SOLO_MIRROR_POSTGRES_NAME_LABEL, SOLO_MIRROR_REDIS_NAME_LABEL} from '../core/pod-label-selectors.js';
 import {entityId, extractContextFromConsensusNodes, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
@@ -59,6 +60,11 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
 import {OneShotCommandDefinition} from './command-definitions/one-shot-command-definition.js';
 import {ConsensusNodePathTemplates} from '../core/consensus-node-path-templates.js';
+
+const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
+  constants.RESOURCES_DIR,
+  'mirror-postgres-truncate.sql',
+);
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -786,7 +792,7 @@ export class AccountCommand extends BaseCommand {
           title: 'Truncate mirror postgres data',
           skip: (): boolean => this.remoteConfig.configuration.state.mirrorNodes.length === 0,
           task: async (): Promise<void> => {
-            const truncateSql: string = fs.readFileSync(constants.MIRROR_POSTGRES_TRUNCATE_SQL_FILE, 'utf8');
+            const truncateSql: string = fs.readFileSync(MIRROR_POSTGRES_TRUNCATE_SQL_FILE, 'utf8');
             for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
               if (!context) {
@@ -795,7 +801,7 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const k8: K8 = this.k8Factory.getK8(context);
-              const postgresPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]);
+              const postgresPods: Pod[] = await k8.pods().list(namespace, [SOLO_MIRROR_POSTGRES_NAME_LABEL]);
               if (postgresPods.length === 0) {
                 throw new SoloErrors.system.postgresPodNotFound(namespace.name ?? String(namespace));
               }
@@ -858,7 +864,7 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const k8: K8 = this.k8Factory.getK8(context);
-              const redisPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_REDIS_NAME_LABEL]);
+              const redisPods: Pod[] = await k8.pods().list(namespace, [SOLO_MIRROR_REDIS_NAME_LABEL]);
 
               for (const redisPod of redisPods) {
                 const redisContainerReference: ContainerReference = ContainerReference.of(

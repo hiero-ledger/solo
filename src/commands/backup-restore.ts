@@ -26,6 +26,11 @@ import {
 } from '../types/index.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
+import {
+  SOLO_MIRROR_GRPC_NAME_LABEL,
+  SOLO_MIRROR_IMPORTER_NAME_LABEL,
+  SOLO_MIRROR_REDIS_NAME_LABEL,
+} from '../core/pod-label-selectors.js';
 import {NetworkNodes} from '../core/network-nodes.js';
 import {extractContextFromConsensusNodes, Helpers, sleep} from '../core/helpers.js';
 import {Duration} from '../core/time/duration.js';
@@ -948,25 +953,15 @@ export class BackupRestoreCommand extends BaseCommand {
 
       processedContexts.add(mirrorContext);
 
-      await this.restartPodsMatchingLabels(
-        mirrorContext,
-        namespace,
-        [constants.SOLO_MIRROR_REDIS_NAME_LABEL],
-        'mirror redis',
-      );
+      await this.restartPodsMatchingLabels(mirrorContext, namespace, [SOLO_MIRROR_REDIS_NAME_LABEL], 'mirror redis');
 
       // grpc and importer may be in CrashLoopBackOff after Redis restarted with the restored
       // password. Delete their pods now so they start fresh with the restored secret credentials.
+      await this.restartPodsMatchingLabels(mirrorContext, namespace, [SOLO_MIRROR_GRPC_NAME_LABEL], 'mirror grpc');
       await this.restartPodsMatchingLabels(
         mirrorContext,
         namespace,
-        [constants.SOLO_MIRROR_GRPC_NAME_LABEL],
-        'mirror grpc',
-      );
-      await this.restartPodsMatchingLabels(
-        mirrorContext,
-        namespace,
-        [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL],
+        [SOLO_MIRROR_IMPORTER_NAME_LABEL],
         'mirror importer',
       );
     }

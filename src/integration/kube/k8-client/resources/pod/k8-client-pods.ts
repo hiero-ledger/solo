@@ -44,6 +44,9 @@ import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
 import {sleep} from '../../../../../core/helpers.js';
 
+const POD_CONDITION_READY: string = 'Ready';
+const POD_CONDITION_STATUS_TRUE: string = 'True';
+
 export class K8ClientPods extends K8ClientBase implements Pods {
   /**
    * Waiting reasons for container states that are non-recoverable (image unavailable in registry,
@@ -367,8 +370,8 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     const podReadyCondition: Map<string, string> = new Map<string, string>().set(
-      constants.POD_CONDITION_READY,
-      constants.POD_CONDITION_STATUS_TRUE,
+      POD_CONDITION_READY,
+      POD_CONDITION_STATUS_TRUE,
     );
 
     try {

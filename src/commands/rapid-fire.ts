@@ -3,6 +3,7 @@
 import {Listr} from 'listr2';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import * as constants from '../core/constants.js';
+import {NETWORK_LOAD_GENERATOR_POD_LABELS, SOLO_MIRROR_REST_NAME_LABEL} from '../core/pod-label-selectors.js';
 import {NetworkLoadGeneratorLibraries} from '../core/network-load-generator-libraries.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -53,6 +54,8 @@ import {NlgResultStatus} from './rapid-fire/nlg-result-status.js';
 import {type RapidFireFailureDiagnostics} from './rapid-fire/rapid-fire-failure-diagnostics.js';
 import {type RttProbeResult} from './rapid-fire/rtt-probe-result.js';
 import {type RttSample} from './rapid-fire/rtt-sample.js';
+
+const MIRROR_REST_CONTAINER_PORT: number = 5551;
 
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
@@ -220,7 +223,7 @@ export class RapidFireCommand extends BaseCommand {
                 .pods()
                 .waitForReadyStatus(
                   config.namespace,
-                  constants.NETWORK_LOAD_GENERATOR_POD_LABELS,
+                  NETWORK_LOAD_GENERATOR_POD_LABELS,
                   constants.NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS,
                   constants.NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY,
                 );
@@ -232,7 +235,7 @@ export class RapidFireCommand extends BaseCommand {
               const nlgPods: Pod[] = await this.k8Factory
                 .getK8(config.context)
                 .pods()
-                .list(config.namespace, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
+                .list(config.namespace, NETWORK_LOAD_GENERATOR_POD_LABELS);
               const k8Containers: Containers = this.k8Factory.getK8(config.context).containers();
 
               for (const pod of nlgPods) {
@@ -425,7 +428,7 @@ export class RapidFireCommand extends BaseCommand {
     const restPods: Pod[] = await this.k8Factory
       .getK8(config.context)
       .pods()
-      .list(mirrorNamespace, [constants.SOLO_MIRROR_REST_NAME_LABEL]);
+      .list(mirrorNamespace, [SOLO_MIRROR_REST_NAME_LABEL]);
     const mirrorRestPod: Pod | undefined = restPods[0];
 
     if (!mirrorRestPod) {
@@ -435,13 +438,13 @@ export class RapidFireCommand extends BaseCommand {
     }
 
     this.logger.info(
-      `Forwarding localhost:${port} → ${mirrorRestPod.podReference.name.name}:${constants.MIRROR_REST_CONTAINER_PORT}`,
+      `Forwarding localhost:${port} → ${mirrorRestPod.podReference.name.name}:${MIRROR_REST_CONTAINER_PORT}`,
     );
     const portForwarder: number = await this.k8Factory
       .getK8(config.context)
       .pods()
       .readByReference(mirrorRestPod.podReference)
-      .portForward(port, constants.MIRROR_REST_CONTAINER_PORT, true);
+      .portForward(port, MIRROR_REST_CONTAINER_PORT, true);
     await sleep(Duration.ofSeconds(2));
 
     return {port, portForwarder};
@@ -632,7 +635,7 @@ export class RapidFireCommand extends BaseCommand {
         const nlgPods: Pod[] = await this.k8Factory
           .getK8(context_.config.context)
           .pods()
-          .list(context_.config.namespace, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
+          .list(context_.config.namespace, NETWORK_LOAD_GENERATOR_POD_LABELS);
         const k8Containers: Containers = this.k8Factory.getK8(context_.config.context).containers();
 
         for (const pod of nlgPods) {
@@ -1203,7 +1206,7 @@ export class RapidFireCommand extends BaseCommand {
         const nlgPods: Pod[] = await this.k8Factory
           .getK8(context_.config.context)
           .pods()
-          .list(context_.config.namespace, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
+          .list(context_.config.namespace, NETWORK_LOAD_GENERATOR_POD_LABELS);
         const k8Containers: Containers = this.k8Factory.getK8(context_.config.context).containers();
 
         for (const pod of nlgPods) {

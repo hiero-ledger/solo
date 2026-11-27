@@ -3,7 +3,13 @@
 import fs from 'node:fs';
 import yaml from 'yaml';
 import * as constants from '../../core/constants.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 import {type FalconPrepareSpec} from './falcon-prepare-spec.js';
+
+const ONE_SHOT_FALCON_PREPARE_SPEC_FILE: string = PathEx.joinWithRealPath(
+  constants.RESOURCES_DIR,
+  'one-shot-falcon-prepare.yaml',
+);
 
 /**
  * Loads and caches the bundled `one-shot-falcon-prepare.yaml` spec that drives
@@ -14,7 +20,7 @@ export class FalconPrepareSpecLoader {
 
   public static load(): FalconPrepareSpec {
     if (!FalconPrepareSpecLoader.cached) {
-      const content: string = fs.readFileSync(constants.ONE_SHOT_FALCON_PREPARE_SPEC_FILE, 'utf8');
+      const content: string = fs.readFileSync(ONE_SHOT_FALCON_PREPARE_SPEC_FILE, 'utf8');
       FalconPrepareSpecLoader.cached = yaml.parse(content) as FalconPrepareSpec;
     }
     return FalconPrepareSpecLoader.cached;

@@ -31,6 +31,9 @@ import {MissingActiveClusterError} from '../integration/kube/errors/missing-acti
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type GitClient} from '../integration/git/git-client.js';
 
+const DEFAULT_CLUSTER: string = 'solo-cluster';
+const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
+
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
   // Podman is installed via Homebrew rather than the native package manager because some distros
@@ -353,7 +356,7 @@ export class ClusterTaskManager extends ShellRunner {
               await this.podmanDependencyManager.setupConfig();
               const podmanExecutable: string = await this.podmanDependencyManager.getExecutable();
               try {
-                await this.run(podmanExecutable, ['machine', 'inspect', constants.PODMAN_MACHINE_NAME], {
+                await this.run(podmanExecutable, ['machine', 'inspect', PODMAN_MACHINE_NAME], {
                   environmentVariablesToAppend: podmanEnvironment,
                   commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
                 });
@@ -361,13 +364,13 @@ export class ClusterTaskManager extends ShellRunner {
                 if (error.message.includes('VM does not exist')) {
                   await this.run(
                     podmanExecutable,
-                    ['machine', 'init', constants.PODMAN_MACHINE_NAME, '--memory=16384'], // 16GB
+                    ['machine', 'init', PODMAN_MACHINE_NAME, '--memory=16384'], // 16GB
                     {
                       environmentVariablesToAppend: podmanEnvironment,
                       commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
                     },
                   );
-                  await this.run(podmanExecutable, ['machine', 'start', constants.PODMAN_MACHINE_NAME], {
+                  await this.run(podmanExecutable, ['machine', 'start', PODMAN_MACHINE_NAME], {
                     environmentVariablesToAppend: podmanEnvironment,
                     commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
                   });
@@ -410,7 +413,7 @@ export class ClusterTaskManager extends ShellRunner {
           .build();
 
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
-          constants.DEFAULT_CLUSTER,
+          DEFAULT_CLUSTER,
           clusterCreateOptions,
         );
 

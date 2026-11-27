@@ -52,6 +52,16 @@ import {optionFromFlag} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
 
+const DEFAULT_CERT_MANAGER_NAMESPACE: NamespaceName = NamespaceName.of('cert-manager');
+// TODO: remove after migrated to resources/solo-config.yaml
+const CERT_MANAGER_NAME_SPACE: string = 'cert-manager';
+const CERT_MANAGER_CRDS: string[] = [
+  'certificaterequests.cert-manager.io',
+  'certificates.cert-manager.io',
+  'clusterissuers.cert-manager.io',
+  'issuers.cert-manager.io',
+];
+
 type MirrorNodeServiceUrls = {
   rest: string;
   restjava: string;
@@ -383,9 +393,9 @@ export class ExplorerCommand extends BaseCommand {
         const presentCrds: Map<string, Record<string, string>> = await ClusterCrdProbe.probe(
           this.k8Factory,
           config.clusterContext,
-          constants.CERT_MANAGER_CRDS,
+          CERT_MANAGER_CRDS,
         );
-        const needInstall: boolean = presentCrds.size < constants.CERT_MANAGER_CRDS.length;
+        const needInstall: boolean = presentCrds.size < CERT_MANAGER_CRDS.length;
         const foundCrdVersions: Set<string> = new Set<string>(
           [...presentCrds.values()].map((crdLabels: Record<string, string>): string =>
             SharedClusterResourceReport.versionFromLabels(crdLabels),
@@ -397,7 +407,7 @@ export class ExplorerCommand extends BaseCommand {
             this.logger,
             'cert-manager CRDs',
             config.clusterContext,
-            `all ${constants.CERT_MANAGER_CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
+            `all ${CERT_MANAGER_CRDS.length} CRDs already present (${[...foundCrdVersions].join(', ')})`,
           );
         }
 
@@ -406,7 +416,7 @@ export class ExplorerCommand extends BaseCommand {
           // as they will fail to be created due to the order of the installation being dependent on the cert-manager
           // being installed first
           await this.chartManager.upgrade(
-            NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
+            NamespaceName.of(CERT_MANAGER_NAME_SPACE),
             constants.SOLO_CERT_MANAGER_CHART,
             constants.SOLO_CERT_MANAGER_CHART,
             config.chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),
@@ -425,7 +435,7 @@ export class ExplorerCommand extends BaseCommand {
           .getK8(config.clusterContext)
           .pods()
           .waitForReadyStatus(
-            constants.DEFAULT_CERT_MANAGER_NAMESPACE,
+            DEFAULT_CERT_MANAGER_NAMESPACE,
             ['app.kubernetes.io/component=webhook', `app.kubernetes.io/instance=${constants.SOLO_CERT_MANAGER_CHART}`],
             constants.PODS_READY_MAX_ATTEMPTS,
             constants.PODS_READY_DELAY,
@@ -437,7 +447,7 @@ export class ExplorerCommand extends BaseCommand {
         }
 
         await this.chartManager.upgrade(
-          NamespaceName.of(constants.CERT_MANAGER_NAME_SPACE),
+          NamespaceName.of(CERT_MANAGER_NAME_SPACE),
           constants.SOLO_CERT_MANAGER_CHART,
           constants.SOLO_CERT_MANAGER_CHART,
           config.chartDirectory || SoloChartRepository.resolveUrl(soloChartVersion),

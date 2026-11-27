@@ -6,6 +6,7 @@ import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
+import {SOLO_MIRROR_IMPORTER_NAME_LABEL} from '../core/pod-label-selectors.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -85,6 +86,14 @@ import {type MirrorNodeModuleImageReference} from './mirror-node-module-image-re
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
 import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
+
+const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
+const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
+const REDIS_SENTINEL_IMAGE_REPOSITORY: string = 'mirrornode/redis-sentinel';
+// Container name of the importer inside the mirror node importer pod (the hedera-mirror umbrella chart's subchart alias).
+const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('importer');
+const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'mirror-node-values.yaml');
+const MIRROR_NODE_SECRETS_BACKUP_NAME: string = 'mirror-node-secrets-backup';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -877,7 +886,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     const k8: K8 = this.k8Factory.getK8(config.clusterContext);
-    const secretName: string = constants.MIRROR_NODE_SECRETS_BACKUP_NAME;
+    const secretName: string = MIRROR_NODE_SECRETS_BACKUP_NAME;
     let existingData: Record<string, string> = {};
     if (await k8.secrets().exists(config.namespace, secretName)) {
       const existingSecret: Secret = await k8.secrets().read(config.namespace, secretName);
@@ -1240,12 +1249,12 @@ export class MirrorNodeCommand extends BaseCommand {
                   'global.storageClass': resolvedStorageClass,
                   'redis.host': constants.REDIS_HOST,
                   'redis.image.registry': constants.REDIS_IMAGE_REGISTRY,
-                  'redis.image.repository': constants.REDIS_IMAGE_REPOSITORY,
+                  'redis.image.repository': REDIS_IMAGE_REPOSITORY,
                   'redis.image.tag': versions.REDIS_IMAGE_VERSION,
                   'redis.replica.replicaCount': constants.REDIS_REPLICA_REPLICACOUNT,
                   'redis.sentinel.enabled': constants.REDIS_SENTINEL_ENABLED,
-                  'redis.sentinel.image.registry': constants.REDIS_SENTINEL_IMAGE_REGISTRY,
-                  'redis.sentinel.image.repository': constants.REDIS_SENTINEL_IMAGE_REPOSITORY,
+                  'redis.sentinel.image.registry': REDIS_SENTINEL_IMAGE_REGISTRY,
+                  'redis.sentinel.image.repository': REDIS_SENTINEL_IMAGE_REPOSITORY,
                   'redis.sentinel.image.tag': versions.REDIS_SENTINEL_IMAGE_VERSION,
                   'redis.sentinel.masterSet': constants.REDIS_SENTINEL_MASTER_SET,
                   'redis.sentinel.getMasterTimeout': constants.REDIS_SENTINEL_GETMASTERTIMEOUT,
@@ -2005,7 +2014,7 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             // predefined values first
-            config.chartValues = new HelmChartValues().file(constants.MIRROR_NODE_VALUES_FILE);
+            config.chartValues = new HelmChartValues().file(MIRROR_NODE_VALUES_FILE);
 
             // user defined values later to override predefined values
             config.chartValues.add(await this.prepareHelmChartValues(config));
@@ -2300,7 +2309,7 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             // predefined values first
-            config.chartValues = new HelmChartValues().file(constants.MIRROR_NODE_VALUES_FILE);
+            config.chartValues = new HelmChartValues().file(MIRROR_NODE_VALUES_FILE);
 
             // user defined values later to override predefined values
             config.chartValues.add(await this.prepareHelmChartValues(config));
@@ -2734,7 +2743,7 @@ export class MirrorNodeCommand extends BaseCommand {
             await this.k8Factory
               .getK8(context_.config.clusterContext)
               .secrets()
-              .delete(context_.config.namespace, constants.MIRROR_NODE_SECRETS_BACKUP_NAME);
+              .delete(context_.config.namespace, MIRROR_NODE_SECRETS_BACKUP_NAME);
           },
         },
         this.disableMirrorNodeComponents(),
@@ -2772,7 +2781,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Download Java Flight Recorder logs from mirror node importer pod',
       task: async ({config}, task): Promise<void> => {
         // Select the importer by name+component only so both modern (mirror-<id>) and legacy (mirror) release names match.
-        const labels: string[] = [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL, 'app.kubernetes.io/component=importer'];
+        const labels: string[] = [SOLO_MIRROR_IMPORTER_NAME_LABEL, 'app.kubernetes.io/component=importer'];
         const importerPods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()
@@ -2785,7 +2794,7 @@ export class MirrorNodeCommand extends BaseCommand {
         const podReference: PodReference = importerPods[0].podReference;
         const containerReference: ContainerReference = ContainerReference.of(
           podReference,
-          constants.MIRROR_NODE_IMPORTER_CONTAINER_NAME,
+          MIRROR_NODE_IMPORTER_CONTAINER_NAME,
         );
         const k8Container: Container = this.k8Factory
           .getK8(config.clusterContext)

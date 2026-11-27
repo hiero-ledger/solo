@@ -94,6 +94,11 @@ import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 import {type NetworkDeployConfigClass} from './network-deploy-config-class.js';
 import {type NetworkDestroyContext} from './network-destroy-context.js';
 
+const SOLO_SERVICE_MONITOR_NAME: string = 'solo-service-monitor';
+const PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME: string = 'prometheus-operator-crds';
+const MINIO_SECRET_NAME: string = 'minio-secrets';
+const BACKUP_SECRET_NAME: string = 'backup-uploader-secrets';
+
 export {type NetworkDeployConfigClass} from './network-deploy-config-class.js';
 export {type NetworkDestroyContext} from './network-destroy-context.js';
 
@@ -557,7 +562,7 @@ export class NetworkCommand extends BaseCommand {
       const isMinioSecretCreated: boolean = await this.k8Factory
         .getK8(context)
         .secrets()
-        .createOrReplace(namespace, constants.MINIO_SECRET_NAME, SecretType.OPAQUE, minioData);
+        .createOrReplace(namespace, MINIO_SECRET_NAME, SecretType.OPAQUE, minioData);
 
       if (!isMinioSecretCreated) {
         throw new SoloErrors.system.k8sSecretCreateFailed(
@@ -633,7 +638,7 @@ export class NetworkCommand extends BaseCommand {
       const k8client: K8 = this.k8Factory.getK8(context);
       const isBackupSecretCreated: boolean = await k8client
         .secrets()
-        .createOrReplace(namespace, constants.BACKUP_SECRET_NAME, SecretType.OPAQUE, backupData);
+        .createOrReplace(namespace, BACKUP_SECRET_NAME, SecretType.OPAQUE, backupData);
 
       if (!isBackupSecretCreated) {
         throw new SoloErrors.system.k8sSecretCreateFailed(
@@ -1921,14 +1926,14 @@ export class NetworkCommand extends BaseCommand {
       }
 
       const setupMap: Map<string, string> = new Map([
-        [constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME, constants.PROMETHEUS_OPERATOR_CRDS_CHART_URL],
+        [PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME, constants.PROMETHEUS_OPERATOR_CRDS_CHART_URL],
       ]);
 
       await this.chartManager.setup(setupMap);
 
       await this.chartManager.install(
         namespace,
-        constants.PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
+        PROMETHEUS_OPERATOR_CRDS_RELEASE_NAME,
         constants.PROMETHEUS_OPERATOR_CRDS_CHART,
         constants.PROMETHEUS_OPERATOR_CRDS_CHART,
         versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
@@ -1962,7 +1967,7 @@ export class NetworkCommand extends BaseCommand {
       apiVersion: 'monitoring.coreos.com/v1',
       kind: 'ServiceMonitor',
       metadata: {
-        name: constants.SOLO_SERVICE_MONITOR_NAME,
+        name: SOLO_SERVICE_MONITOR_NAME,
         namespace: namespace.name,
         labels: {
           release: constants.PROMETHEUS_RELEASE_NAME,
@@ -1979,7 +1984,7 @@ export class NetworkCommand extends BaseCommand {
 
     await this.k8Factory.getK8(context).manifests().patchObject(patch);
     this.logger.debug(
-      `Patched ServiceMonitor '${constants.SOLO_SERVICE_MONITOR_NAME}' in namespace '${namespace.name}': ` +
+      `Patched ServiceMonitor '${SOLO_SERVICE_MONITOR_NAME}' in namespace '${namespace.name}': ` +
         `added label release=${constants.PROMETHEUS_RELEASE_NAME} and fixed selector to network-node-svc`,
     );
   }

@@ -22,6 +22,8 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {FlagRules} from './validation/flag-rules.js';
 import {FlagValidation} from './validation/flag-validation.js';
 
+const STANDARD_DATAMASK: string = '***';
+
 const TLS_CLUSTER_ISSUER_TYPES: string[] = ['acme-staging', 'acme-prod', 'self-signed'];
 // Each component needs its own JVM image swap and values overlay (rest-java, web3 and grpc are native images too).
 const MIRROR_NODE_DEBUG_COMPONENTS: string[] = ['importer'];
@@ -1016,7 +1018,7 @@ export class Flags {
       describe: 'Operator Key',
       defaultValue: undefined,
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter operator private key: ',
     },
     prompt: async function promptOperatorKey(
@@ -1034,7 +1036,7 @@ export class Flags {
       describe: 'Show private key information',
       defaultValue: false,
       type: 'boolean',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter the private key: ',
       promptDefaultValue: '',
     },
@@ -1462,7 +1464,7 @@ export class Flags {
       describe: 'path and file name of the private key for signing gossip in PEM key format to be used',
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -1483,7 +1485,7 @@ export class Flags {
       describe: 'path and file name of the private TLS key to be used',
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -1523,7 +1525,7 @@ export class Flags {
       describe: 'Specify a hex-encoded ED25519 private key for the Hedera account',
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter the private key: ',
     },
     prompt: async function promptPrivateKey(
@@ -1551,7 +1553,7 @@ export class Flags {
       describe: 'Specify a hex-encoded ECDSA private key for the Hedera account',
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter the private key: ',
     },
     prompt: async function promptPrivateKey(
@@ -1930,7 +1932,7 @@ export class Flags {
       describe: 'Admin key',
       defaultValue: constants.GENESIS_KEY,
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -1943,7 +1945,7 @@ export class Flags {
         "Solo signs each node's updates with the private key in that node's <node-alias>-admin secret, " +
         'so create that secret for each node given a key here',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2225,7 +2227,7 @@ export class Flags {
       describe: `Use to provide the external database owner's password if the '--${Flags.useExternalDatabase.name}' is passed`,
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter password of the external database owner',
     },
     prompt: async function promptGrpcWebTlsKeyPath(
@@ -2260,7 +2262,7 @@ export class Flags {
       describe: `Use to provide the external database readonly user's password if the '--${Flags.useExternalDatabase.name}' is passed`,
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter password of the external database readonly user',
     },
     prompt: async function promptGrpcWebTlsKeyPath(
@@ -2299,7 +2301,7 @@ export class Flags {
         'with multiple nodes comma separated)',
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter node alias and path to TLS certificate key for gRPC (ex. nodeAlias=path )',
     },
     prompt: async function promptGrpcTlsKeyPath(
@@ -2320,7 +2322,7 @@ export class Flags {
         'with multiple nodes comma separated)',
       defaultValue: '',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
       promptText: 'Enter node alias and path to TLS certificate key for gGRPC Web (ex. nodeAlias=path )',
     },
     prompt: async function promptGrpcWebTlsKeyPath(
@@ -2393,7 +2395,7 @@ export class Flags {
       defaultValue: '',
       describe: 'gcs storage access key for write access',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2404,7 +2406,7 @@ export class Flags {
       defaultValue: '',
       describe: 'gcs storage secret key for write access',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2415,7 +2417,7 @@ export class Flags {
       defaultValue: '',
       describe: 'gcs storage endpoint URL',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2426,7 +2428,7 @@ export class Flags {
       defaultValue: '',
       describe: 'name of gcs storage bucket',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2447,7 +2449,7 @@ export class Flags {
       defaultValue: '',
       describe: 'aws storage access key for write access',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2458,7 +2460,7 @@ export class Flags {
       defaultValue: '',
       describe: 'aws storage secret key for write access',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2469,7 +2471,7 @@ export class Flags {
       defaultValue: '',
       describe: 'aws storage endpoint URL',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2480,7 +2482,7 @@ export class Flags {
       defaultValue: '',
       describe: 'name of aws storage bucket',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2491,7 +2493,7 @@ export class Flags {
       defaultValue: '',
       describe: 'name of aws bucket region',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2502,7 +2504,7 @@ export class Flags {
       defaultValue: '',
       describe: 'path prefix of aws storage bucket',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2513,7 +2515,7 @@ export class Flags {
       defaultValue: '',
       describe: 'name of bucket for backing up state files',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2524,7 +2526,7 @@ export class Flags {
       defaultValue: '',
       describe: 'backup storage access key for write access',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2535,7 +2537,7 @@ export class Flags {
       defaultValue: '',
       describe: 'backup storage secret key for write access',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2546,7 +2548,7 @@ export class Flags {
       defaultValue: '',
       describe: 'backup storage endpoint URL',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2577,7 +2579,7 @@ export class Flags {
       defaultValue: '',
       describe: 'storage read access key for mirror node importer',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2588,7 +2590,7 @@ export class Flags {
       defaultValue: '',
       describe: 'storage read-secret key for mirror node importer',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2599,7 +2601,7 @@ export class Flags {
       defaultValue: '',
       describe: 'storage endpoint URL for mirror node importer',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 
@@ -2610,7 +2612,7 @@ export class Flags {
       defaultValue: '',
       describe: 'name of storage bucket for mirror node importer',
       type: 'string',
-      dataMask: constants.STANDARD_DATAMASK,
+      dataMask: STANDARD_DATAMASK,
     },
   };
 

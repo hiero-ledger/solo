@@ -20,6 +20,8 @@ import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import * as selfsigned from 'selfsigned';
 import {createHash, webcrypto} from 'node:crypto';
+
+const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 type NodeCryptoKey = webcrypto.CryptoKey;
 
 // eslint-disable-next-line n/no-unsupported-features/node-builtins
@@ -302,7 +304,7 @@ export class KeyManager {
         name: `CN=${friendlyName}`,
         notBefore: currentDate,
         // @ts-ignore
-        notAfter: new Date().setFullYear(currentDate.getFullYear() + constants.CERTIFICATE_VALIDITY_YEARS),
+        notAfter: new Date().setFullYear(currentDate.getFullYear() + CERTIFICATE_VALIDITY_YEARS),
         keys: keypair,
         extensions: [
           new x509.BasicConstraintsExtension(true, 1, true),
@@ -393,7 +395,7 @@ export class KeyManager {
         name: distinguishedName,
         notBefore: currentDate,
         // @ts-ignore
-        notAfter: new Date().setFullYear(currentDate.getFullYear() + constants.CERTIFICATE_VALIDITY_YEARS),
+        notAfter: new Date().setFullYear(currentDate.getFullYear() + CERTIFICATE_VALIDITY_YEARS),
         keys: keypair,
         extensions: [
           new x509.BasicConstraintsExtension(false, 0, true),

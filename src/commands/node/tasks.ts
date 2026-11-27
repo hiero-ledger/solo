@@ -15,11 +15,26 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
+import {
+  NETWORK_LOAD_GENERATOR_POD_LABELS,
+  SOLO_BLOCK_NODE_NAME_LABEL,
+  SOLO_EXPLORER_LABEL,
+  SOLO_INGRESS_CONTROLLER_NAME_LABEL,
+  SOLO_MIRROR_GRPC_NAME_LABEL,
+  SOLO_MIRROR_IMPORTER_NAME_LABEL,
+  SOLO_MIRROR_MONITOR_NAME_LABEL,
+  SOLO_MIRROR_PINGER_NAME_LABEL,
+  SOLO_MIRROR_POSTGRES_NAME_LABEL,
+  SOLO_MIRROR_REDIS_NAME_LABEL,
+  SOLO_MIRROR_RESTJAVA_NAME_LABEL,
+  SOLO_MIRROR_REST_NAME_LABEL,
+  SOLO_MIRROR_WEB3_NAME_LABEL,
+  SOLO_RELAY_NAME_LABEL,
+} from '../../core/pod-label-selectors.js';
 import {SoloChartRepository} from '../../core/solo-chart-repository.js';
 import {
   CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
   CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
-  DEFAULT_NETWORK_NODE_NAME,
   HEDERA_HAPI_PATH,
   HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
 } from '../../core/constants.js';
@@ -197,6 +212,13 @@ import {Listr} from 'listr2';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
+const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'rename-state-node-id.sh');
+const DEFAULT_NETWORK_NODE_NAME: NodeAlias = 'node1';
+// file-id must be between 0.0.150 and 0.0.159
+// file must be uploaded using FileUpdateTransaction in maximum of 5Kb chunks
+const UPGRADE_FILE_ID_NUM: number = 150;
+const UPGRADE_FILE_CHUNK_SIZE: number = 1024 * 5; // 5Kb
+
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
 };
@@ -230,20 +252,20 @@ export class NodeCommandTasks {
     {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
     {name: 'haproxy', labels: ['solo.hedera.com/type=haproxy']},
     {name: 'envoy proxy', labels: ['solo.hedera.com/type=envoy-proxy']},
-    {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
-    {name: 'mirror pinger', labels: [constants.SOLO_MIRROR_PINGER_NAME_LABEL]},
-    {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
-    {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
-    {name: 'mirror rest', labels: [constants.SOLO_MIRROR_REST_NAME_LABEL]},
-    {name: 'mirror web3', labels: [constants.SOLO_MIRROR_WEB3_NAME_LABEL]},
-    {name: 'mirror postgres', labels: [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]},
-    {name: 'mirror redis', labels: [constants.SOLO_MIRROR_REDIS_NAME_LABEL]},
-    {name: 'mirror rest-java', labels: [constants.SOLO_MIRROR_RESTJAVA_NAME_LABEL]},
-    {name: 'relay node', labels: [constants.SOLO_RELAY_NAME_LABEL]},
-    {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
-    {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
-    {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
-    {name: 'network load generator', labels: constants.NETWORK_LOAD_GENERATOR_POD_LABELS},
+    {name: 'mirror importer', labels: [SOLO_MIRROR_IMPORTER_NAME_LABEL]},
+    {name: 'mirror pinger', labels: [SOLO_MIRROR_PINGER_NAME_LABEL]},
+    {name: 'mirror grpc', labels: [SOLO_MIRROR_GRPC_NAME_LABEL]},
+    {name: 'mirror monitor', labels: [SOLO_MIRROR_MONITOR_NAME_LABEL]},
+    {name: 'mirror rest', labels: [SOLO_MIRROR_REST_NAME_LABEL]},
+    {name: 'mirror web3', labels: [SOLO_MIRROR_WEB3_NAME_LABEL]},
+    {name: 'mirror postgres', labels: [SOLO_MIRROR_POSTGRES_NAME_LABEL]},
+    {name: 'mirror redis', labels: [SOLO_MIRROR_REDIS_NAME_LABEL]},
+    {name: 'mirror rest-java', labels: [SOLO_MIRROR_RESTJAVA_NAME_LABEL]},
+    {name: 'relay node', labels: [SOLO_RELAY_NAME_LABEL]},
+    {name: 'explorer', labels: [SOLO_EXPLORER_LABEL]},
+    {name: 'block node', labels: [SOLO_BLOCK_NODE_NAME_LABEL]},
+    {name: 'ingress controller', labels: [SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+    {name: 'network load generator', labels: NETWORK_LOAD_GENERATOR_POD_LABELS},
   ];
 
   /** Read-only view of {@link COMPONENT_LABEL_CONFIGS}, for tests that guard against drift. */
@@ -387,7 +409,7 @@ export class NodeCommandTasks {
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
-    return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
+    return FileId.fromString(entityId(shard, realm, UPGRADE_FILE_ID_NUM));
   }
 
   private async _prepareUpgradeZip(
@@ -450,7 +472,7 @@ export class NodeCommandTasks {
 
       while (start < zipBytes.length) {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
-          zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
+          zipBytes.subarray(start, start + UPGRADE_FILE_CHUNK_SIZE),
         );
         const result: HederaFileTransactionResult = await hederaClient.writeFileChunk(
           this.getFileUpgradeId(deploymentName),
@@ -461,7 +483,7 @@ export class NodeCommandTasks {
           `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txStatus = ${result.status}]`,
         );
 
-        start += constants.UPGRADE_FILE_CHUNK_SIZE;
+        start += UPGRADE_FILE_CHUNK_SIZE;
         this.logger.debug(`uploaded ${start} bytes of ${zipBytes.length} bytes`);
       }
 
@@ -1838,11 +1860,11 @@ export class NodeCommandTasks {
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
 
-            const renameScriptName: string = PathEx.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
+            const renameScriptName: string = PathEx.basename(RENAME_STATE_NODE_ID_SCRIPT);
             const renameScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
 
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
-            await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
+            await container.copyTo(RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
 
             await container.execContainer([
