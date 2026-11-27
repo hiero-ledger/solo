@@ -12,6 +12,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
+import * as version from '../../version.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import * as yaml from 'yaml';
@@ -145,7 +146,7 @@ export class ClusterTaskManager extends ShellRunner {
             this.logger.info(`Podman already installed: ${podmanVersion}`);
           } catch {
             this.logger.info('Podman not found, installing Podman...');
-            await this.brewPackageManager.installPackages(['podman']);
+            await this.brewPackageManager.installPinnedPackage(constants.PODMAN, version.PODMAN_BREW_VERSION);
           }
         },
       } as SoloListrTask<AnyObject>,

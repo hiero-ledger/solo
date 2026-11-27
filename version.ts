@@ -16,9 +16,12 @@ import * as constants from './src/core/constants.js';
 export const HELM_VERSION: string = 'v4.3.1';
 export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = 'v5.6.0';
+// Podman release installed through Homebrew on Linux (rootful path); Homebrew ships no versioned podman
+// formula, so BrewPackageManager.installPinnedPackage extracts exactly this version into a local tap.
+export const PODMAN_BREW_VERSION: string = '6.2.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';
-// netavark/aardvark-dns pair with the podman Homebrew installs on Linux (its latest major, not
+// netavark/aardvark-dns pair with the podman Homebrew installs on Linux (PODMAN_BREW_VERSION, not
 // PODMAN_VERSION above); these pins must move whenever the brew podman major moves.
 export const NETAVARK_VERSION: string = 'v2.0.0';
 export const AARDVARK_DNS_VERSION: string = 'v2.0.0';

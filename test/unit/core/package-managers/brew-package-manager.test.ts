@@ -43,4 +43,22 @@ describe('BrewPackageManager', (): void => {
     expect(process.env.PATH).to.equal(previousPath);
     expect(process.env.HOMEBREW_PREFIX).to.equal(previousHomebrewPrefix);
   });
+
+  it('installPinnedPackage extracts the exact version into a local tap and installs it', async (): Promise<void> => {
+    const runStub: SinonStub = sinon.stub(ShellRunner.prototype, 'run').resolves([]);
+
+    await new BrewPackageManager().installPinnedPackage('podman', '6.2.0');
+
+    const calls: string[] = runStub.getCalls().map((call: sinon.SinonSpyCall): string => call.args[1].join(' '));
+    expect(calls).to.include('extract --version=6.2.0 podman solo/pinned');
+    expect(calls.at(-1)).to.equal('install solo/pinned/podman@6.2.0');
+  });
+
+  it('installPinnedPackage is a no-op when the exact version is already installed', async (): Promise<void> => {
+    const runStub: SinonStub = sinon.stub(ShellRunner.prototype, 'run').resolves(['podman@6.2.0 6.2.0']);
+
+    await new BrewPackageManager().installPinnedPackage('podman', '6.2.0');
+
+    expect(runStub.callCount).to.equal(1);
+  });
 });

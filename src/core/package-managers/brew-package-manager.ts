@@ -16,6 +16,7 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
     'https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh';
   private static readonly UNINSTALL_SCRIPT_URL: string =
     'https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh';
+  private static readonly PINNED_TAP: string = 'solo/pinned';
   private static readonly LINUXBREW_BIN: string = '/home/linuxbrew/.linuxbrew/bin';
 
   // Homebrew does not require sudo elevation; the sudo callbacks are no-ops so that
@@ -30,6 +31,31 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
 
   public async installPackages(dependencies: string[]): Promise<void> {
     await this.run('brew', ['install', ...dependencies], {commandProfile: SubprocessCommandProfile.BREW});
+  }
+
+  /**
+   * Installs an exact version of a homebrew-core formula. Homebrew publishes no versioned formula for
+   * most packages, so the formula at that version is extracted from homebrew-core's history into a
+   * solo-owned local tap and installed from there. A no-op when that exact version is already installed.
+   */
+  public async installPinnedPackage(formula: string, version: string): Promise<void> {
+    const versionedName: string = `${formula}@${version}`;
+    const profile: {commandProfile: SubprocessCommandProfile} = {commandProfile: SubprocessCommandProfile.BREW};
+    const tapFormula: string = `${BrewPackageManager.PINNED_TAP}/${versionedName}`;
+
+    const installed: string[] = await this.run('brew', ['list', '--formula', '--versions'], profile);
+    if (installed.some((line: string): boolean => line.trim() === `${versionedName} ${version}`)) {
+      return;
+    }
+
+    // brew extract reads homebrew-core's git history, which API-mode Homebrew does not clone.
+    await this.run('brew', ['tap', '--force', 'homebrew/core'], profile);
+    const taps: string[] = await this.run('brew', ['tap'], profile);
+    if (!taps.includes(BrewPackageManager.PINNED_TAP)) {
+      await this.run('brew', ['tap-new', '--no-git', BrewPackageManager.PINNED_TAP], profile);
+    }
+    await this.run('brew', ['extract', `--version=${version}`, formula, BrewPackageManager.PINNED_TAP], profile);
+    await this.run('brew', ['install', tapFormula], profile);
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
