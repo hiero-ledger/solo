@@ -71,6 +71,15 @@ test('a deploy Solo rejected is invalid, and one that left the candidate unready
   assert.equal(Contract.classifyDeploy({}, {pods: ['mirror-importer'], candidate: true}), 'candidate');
 });
 
+test('a deploy that left no Kind cluster is environment, unless Solo rejected the input first', () => {
+  // Falcon creates solo-cluster itself; kind removes a cluster it failed to create.
+  assert.equal(Contract.classifyDeploy({exitCode: 1}, {pods: [], candidate: false}, false), 'environment');
+  assert.equal(Contract.classifyDeploy({}, undefined, false), 'environment');
+  // Solo rejects input before it creates the cluster, so exit 2 still wins.
+  assert.equal(Contract.classifyDeploy({exitCode: 2}, undefined, false), 'invalid');
+  assert.equal(Contract.classifyDeploy({exitCode: 1}, {pods: [], candidate: false}, true), 'unknown');
+});
+
 test('missing probes cannot pass, and JUnit preserves failures and missing probes', () => {
   const result = {probes: {P1: {status: 'pass'}, P2: {status: 'fail', message: 'bad <image> & "tag"'}}};
   assert.throws(() => Contract.complete(result), failure('kit'));

@@ -81,11 +81,16 @@ export class Contract {
     return {...values, 'solo-version': version, cluster, unreleased: commit};
   }
 
-  // Since Solo 0.98.0 (#6415) a rejected input exits with 2. Otherwise only pod evidence names the candidate:
-  // an SDK rejection during Solo startup does not prove whether the SDK or Solo is wrong.
-  static classifyDeploy(error, notReady) {
+  // Since Solo 0.98.0 (#6415) a rejected input exits with 2. Solo never deletes its Kind cluster, and kind removes
+  // one it failed to create, so a deploy that left no cluster failed before any candidate pod existed. Otherwise
+  // only pod evidence names the candidate: an SDK rejection during Solo startup does not prove whether the SDK or
+  // Solo is wrong.
+  static classifyDeploy(error, notReady, clusterExists = true) {
     if (error.exitCode === 2) {
       return 'invalid';
+    }
+    if (!clusterExists) {
+      return 'environment';
     }
     return notReady?.candidate ? 'candidate' : 'unknown';
   }
