@@ -32,9 +32,11 @@ importer:
     requests:
       cpu: 0
       memory: 200Mi
+    # Verifying a TSS block proof (13.7 KB signature in the genesis block of a TSS-Nova consensus node)
+    # peaks at ~255Mi; 220Mi OOM-killed the importer on every restart, before it could ingest block 0.
     limits:
       cpu: 1000m
-      memory: 220Mi
+      memory: 320Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1

@@ -151,6 +151,7 @@ describe('PostgresSharedResource', (): void => {
   });
 
   describe('initializeMirrorNode()', (): void => {
+    const mirrorNodeVersion: string = '0.165.2-rc1';
     const postgresPasswordsSecret: {name: string; data: {password: string}} = {
       name: 'solo-shared-resources-passwords',
       data: {password: encode('superpassword')},
@@ -194,7 +195,7 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('makes the creation of the shared roles idempotent in the init script it copies', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       expect(readFileSyncStub).to.have.been.calledWith(sinon.match(/init-postgres\.sh$/), 'utf8');
       const patchedScript: string = writeFileSyncStub
@@ -218,7 +219,7 @@ describe('PostgresSharedResource', (): void => {
         },
       });
 
-      await postgres.initializeMirrorNode(namespace, context, 'HIERO', names);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion, 'HIERO', names);
 
       expect(secretsStub.read).to.have.been.calledWith(namespace, 'mirror-passwords-2');
       const writtenContent: string = writeFileSyncStub
@@ -233,14 +234,14 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('reads secrets from correct labels and secret names', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       expect(secretsStub.list).to.have.been.calledWith(namespace, ['app.kubernetes.io/instance=solo-shared-resources']);
       expect(secretsStub.read).to.have.been.calledWith(namespace, 'mirror-passwords');
     });
 
     it('copies check script, init script, and wrapper script to the postgres pod', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       expect(k8ContainerStub.copyTo).to.have.been.calledTwice;
       for (const call of k8ContainerStub.copyTo.getCalls()) {
@@ -249,14 +250,14 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('executes the wrapper script inside the container', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       const execCalls: string[] = k8ContainerStub.execContainer.args.map((a: AnyObject[]): AnyObject => a[0]);
       expect(execCalls.some((c: string): boolean => c.includes('/bin/bash /tmp/run-init.sh'))).to.be.true;
     });
 
     it('wrapper script contains correct DB_NAME and OWNER_USERNAME from secrets', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
@@ -267,7 +268,7 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('reads the initialization sentinel from the database shared-object comment', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
@@ -278,7 +279,7 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('drops legacy and current REST users during partial initialization cleanup', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
@@ -288,7 +289,7 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('wrapper script contains all required service passwords', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
@@ -324,7 +325,7 @@ describe('PostgresSharedResource', (): void => {
       };
       secretsStub.read.resolves(customMirrorPasswordsSecret);
 
-      await postgres.initializeMirrorNode(namespace, context, 'CUSTOM');
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion, 'CUSTOM');
 
       const wrapperArguments: string[] = writeFileSyncStub
         .getCalls()
@@ -336,7 +337,7 @@ describe('PostgresSharedResource', (): void => {
     });
 
     it('uses the postgres pod from namespace zero', async (): Promise<void> => {
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       const containerReference: AnyObject = containersStub.readByRef.firstCall.args[0];
       expect(containerReference.parentReference.name.name).to.equal(postgresPodReference.name.name);
@@ -345,7 +346,7 @@ describe('PostgresSharedResource', (): void => {
     it('throws SoloError when container copy fails', async (): Promise<void> => {
       k8ContainerStub.copyTo.rejects(new Error('copy failed'));
 
-      await expect(postgres.initializeMirrorNode(namespace, context)).to.be.rejectedWith(
+      await expect(postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion)).to.be.rejectedWith(
         SoloError,
         'Failed to copy Mirror Node Postgres initialization script to container',
       );
@@ -361,13 +362,13 @@ describe('PostgresSharedResource', (): void => {
         return Promise.reject(new Error('exec failed'));
       });
 
-      await expect(postgres.initializeMirrorNode(namespace, context)).to.be.rejectedWith(SoloError);
+      await expect(postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion)).to.be.rejectedWith(SoloError);
       expect(loggerStub.error).to.have.been.called;
     });
 
     it('skips downloading init script when already cached', async (): Promise<void> => {
       // existsSync returns true — simulating cached file
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       expect(downloaderStub.fetchFile).to.not.have.been.called;
     });
@@ -379,7 +380,7 @@ describe('PostgresSharedResource', (): void => {
       existsSyncStub.onFirstCall().returns(false);
       existsSyncStub.onSecondCall().returns(false);
 
-      await postgres.initializeMirrorNode(namespace, context);
+      await postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion);
 
       expect(mkdirSyncStub).to.have.been.calledWith(sinon.match(/mirror-node/), {recursive: true});
       expect(downloaderStub.fetchFile).to.have.been.calledOnce;
@@ -387,6 +388,18 @@ describe('PostgresSharedResource', (): void => {
       expect(downloadUrl).to.include('hiero-mirror-node');
       expect(downloadUrl).to.include('init.sh');
       expect(destinationPath).to.match(/init-postgres\.sh$/);
+    });
+
+    // the init script is version specific; it used to come from Solo's default mirror node version regardless
+    it('downloads and caches the init script of the requested mirror node version', async (): Promise<void> => {
+      existsSyncStub.restore();
+      existsSyncStub = sinon.stub(fs, 'existsSync').returns(false);
+
+      await postgres.initializeMirrorNode(namespace, context, '0.170.0');
+
+      const [downloadUrl, destinationPath]: string[] = downloaderStub.fetchFile.firstCall.args;
+      expect(downloadUrl).to.include('/refs/tags/v0.170.0/');
+      expect(destinationPath).to.match(/mirror-node[/\\]v0\.170\.0[/\\]init-postgres\.sh$/);
     });
 
     it('throws when init script download fails', async (): Promise<void> => {
@@ -398,7 +411,9 @@ describe('PostgresSharedResource', (): void => {
       const downloadFailure: Error = new Error('download failed');
       downloaderStub.fetchFile.rejects(downloadFailure);
 
-      await expect(postgres.initializeMirrorNode(namespace, context)).to.be.rejectedWith(downloadFailure);
+      await expect(postgres.initializeMirrorNode(namespace, context, mirrorNodeVersion)).to.be.rejectedWith(
+        downloadFailure,
+      );
       expect(k8ContainerStub.copyTo).to.not.have.been.called;
     });
   });
